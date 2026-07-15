@@ -10,7 +10,7 @@
 
 ## 🚀 在线访问
 
-- **CloudStudio 演示:** https://b073f16432cf4cf4b4f1ff277d74af52.app.codebuddy.work
+- **CloudStudio 演示:** 
 - **GitHub:** https://github.com/caihuasheng627-ui/socProject
 - **GitHub Pages:** https://caihuasheng627-ui.github.io/socProject/ (启用 Pages 后)
 
