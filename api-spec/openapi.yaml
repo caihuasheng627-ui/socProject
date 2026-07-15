@@ -1,0 +1,960 @@
+openapi: 3.0.3
+info:
+  title: SkinVision AI API
+  description: |
+    CS2 饰品 AI 智能分析平台后端 API 规范
+
+    **数据源**:
+    - BUFF API (主力, 中国市场)
+    - Skinport API (辅助, 免费, 稳定)
+    - Kaggle CS:GO Price Dataset (历史训练)
+
+    **ML 模型** (来自策划书 5.1-5.3):
+    - 回归: ARIMA / XGBoost / LightGBM / RandomForest / LSTM / GRU
+    - 分类: LogisticRegression / RandomForest / XGBoost / LightGBM
+
+    **LLM**: DeepSeek-V3 (中文优化)
+    **RAG**: LangChain + Qdrant / pgvector
+    **Agent**: 双 Agent 辩论机制 (🐂 Bull vs 🐻 Bear)
+  version: 1.1.0
+  contact:
+    name: 蔡华升 (前端) / 课程组
+    email: caihuasheng627@users.noreply.github.com
+
+servers:
+  - url: http://localhost:8000
+    description: 本地开发
+  - url: https://api.skinvision.ai
+    description: 生产环境 (TBD)
+
+tags:
+  - name: Dashboard
+    description: 行情数据
+  - name: Prediction
+    description: AI 预测
+  - name: RAG
+    description: RAG 知识库
+  - name: Chat
+    description: AI 对话
+  - name: Debate
+    description: 双 Agent 辩论
+  - name: News
+    description: 资讯流
+  - name: Alerts
+    description: 价格预警
+  - name: Portfolio
+    description: 模拟持仓
+  - name: Models
+    description: 模型对比
+
+paths:
+  # ============ 行情数据 ============
+  /api/skins:
+    get:
+      tags: [Dashboard]
+      summary: 获取饰品列表
+      description: 支持按类别筛选,返回当前价格 + 涨跌幅 + 流动性
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [rifle, sniper, pistol, knife, gloves, case]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [price_desc, price_asc, change7d_desc, change7d_asc, volume_desc]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Skin'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/skins/{skinId}:
+    get:
+      tags: [Dashboard]
+      summary: 获取单个饰品详情
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 'ak47-fireserpent-fn'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkinDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/skins/{skinId}/kline:
+    get:
+      tags: [Dashboard, Prediction]
+      summary: 获取 K 线数据
+      description: |
+        来自 BUFF API `price_history` 端点。
+        返回指定天数的 OHLC + 成交量。
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            enum: [7, 30, 90, 180]
+            default: 90
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1d, 1h]
+            default: '1d'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skinId:
+                    type: string
+                  interval:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KLinePoint'
+                  ma7:
+                    type: array
+                    items:
+                      type: number
+                  ma30:
+                    type: array
+                    items:
+                      type: number
+                  volumes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VolumePoint'
+
+  # ============ AI 预测 ============
+  /api/predict:
+    post:
+      tags: [Prediction]
+      summary: 多模型价格预测
+      description: |
+        6 回归模型 + 4 分类模型综合预测。
+        训练方法见策划书 5.5 节: TimeSeriesSplit + Walk-Forward。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId, horizon]
+              properties:
+                skinId:
+                  type: string
+                  example: 'ak47-fireserpent-fn'
+                horizon:
+                  type: integer
+                  enum: [7, 30]
+                  description: 预测天数
+                models:
+                  type: array
+                  items:
+                    type: string
+                    enum: [arima, xgboost, lightgbm, randomforest, lstm, gru]
+                  description: 指定模型,默认全部
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/predict/entry-range:
+    post:
+      tags: [Prediction]
+      summary: 计算推荐入场区间
+      description: 基于波动率 + 共识度 + 当前价格动态计算
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId]
+              properties:
+                skinId:
+                  type: string
+                riskLevel:
+                  type: string
+                  enum: [conservative, moderate, aggressive]
+                  default: moderate
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entryLow:
+                    type: number
+                  entryHigh:
+                    type: number
+                  stopLoss:
+                    type: number
+                  target7d:
+                    type: number
+                  target30d:
+                    type: number
+
+  # ============ RAG 解释 ============
+  /api/explain/{skinId}:
+    get:
+      tags: [RAG]
+      summary: RAG 解释价格变动原因
+      description: |
+        检索 RAG 知识库(Valve 公告 / Steam 新闻 / HLTV 赛事 / Reddit / 历史日报),
+        由 DeepSeek-V3 生成可读解释。
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RAGExplanation'
+
+  # ============ AI 对话 ============
+  /api/chat:
+    post:
+      tags: [Chat]
+      summary: AI 对话(支持流式)
+      description: |
+        自然语言问答。流式返回 SSE 事件。
+        内部流程: 意图识别 → 调 ML 模型 → RAG 检索 → DeepSeek 生成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  example: 'AK-47 火蛇现在能买吗?'
+                sessionId:
+                  type: string
+                  description: 会话 ID,用于多轮上下文
+                context:
+                  type: object
+                  description: 上下文(如当前选中的饰品)
+      responses:
+        '200':
+          description: 流式响应
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  data: {"chunk": "根据"}
+
+                  data: {"chunk": " 6 个回归模型"}
+
+                  data: {"done": true, "model": "deepseek-chat", "usage": {"tokens": 234}}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ============ 双 Agent 辩论 ============
+  /api/debate/{skinId}:
+    post:
+      tags: [Debate]
+      summary: 双 Agent 辩论分析 (核心创新)
+      description: |
+        🐂 Bull vs 🐻 Bear 3 轮迭代:
+        - Round 1: 独立分析
+        - Round 2: 互相质疑
+        - Round 3: 达成共识
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [bull_bear, tech_fundamental]
+            default: bull_bear
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebateResult'
+
+  # ============ 资讯流 ============
+  /api/news:
+    get:
+      tags: [News]
+      summary: 获取新闻资讯
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sentiment
+          in: query
+          schema:
+            type: string
+            enum: [positive, negative, neutral]
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [valve, steam, hltv, reddit, internal]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NewsItem'
+
+  # ============ 价格预警 ============
+  /api/alerts:
+    get:
+      tags: [Alerts]
+      summary: 获取预警列表
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alert'
+    post:
+      tags: [Alerts]
+      summary: 创建价格预警
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId, type, targetPrice]
+              properties:
+                skinId:
+                  type: string
+                type:
+                  type: string
+                  enum: [above, below]
+                targetPrice:
+                  type: number
+                note:
+                  type: string
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+
+  /api/alerts/{alertId}:
+    delete:
+      tags: [Alerts]
+      summary: 删除预警
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============ 模拟持仓 ============
+  /api/portfolio:
+    get:
+      tags: [Portfolio]
+      summary: 获取持仓列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioItem'
+    post:
+      tags: [Portfolio]
+      summary: 添加持仓
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId, buyPrice, quantity]
+              properties:
+                skinId:
+                  type: string
+                buyPrice:
+                  type: number
+                quantity:
+                  type: integer
+                buyDate:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioItem'
+
+  /api/portfolio/{itemId}:
+    delete:
+      tags: [Portfolio]
+      summary: 平仓(删除持仓)
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============ 模型对比 ============
+  /api/models/comparison:
+    get:
+      tags: [Models]
+      summary: 获取模型对比数据
+      description: 6 回归 + 4 分类模型,所有指标
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  regression:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelResult'
+                  classification:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelResult'
+                  buyAndHold:
+                    $ref: '#/components/schemas/ModelResult'
+
+  /api/models/backtest:
+    get:
+      tags: [Models]
+      summary: 回测收益曲线数据
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 60
+        - name: skinId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dates:
+                    type: array
+                    items:
+                      type: string
+                  series:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: number
+
+  /api/models/shap:
+    get:
+      tags: [Models]
+      summary: SHAP 特征重要性
+      parameters:
+        - name: model
+          in: query
+          schema:
+            type: string
+            enum: [xgboost, lightgbm]
+            default: xgboost
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    feature:
+                      type: string
+                    importance:
+                      type: number
+
+  # ============ 市场日报 ============
+  /api/daily-report:
+    get:
+      tags: [News]
+      summary: 获取每日 AI 市场报告
+      description: 每日 09:00 自动生成,可指定日期查询历史
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyReport'
+
+  # ============ 系统状态 ============
+  /api/health:
+    get:
+      tags: [Dashboard]
+      summary: 健康检查
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded, down]
+                  dataSources:
+                    type: object
+                  models:
+                    type: object
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  # ============ Schemas ============
+  schemas:
+    Skin:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [步枪, 狙击枪, 手枪, 刀具, 手套, 箱子]
+        wear:
+          type: string
+        price:
+          type: number
+          description: 当前价格 (CNY)
+        change24h:
+          type: number
+          description: 24h 涨跌幅(%)
+        change7d:
+          type: number
+        volume24h:
+          type: integer
+        liquidity:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rarity:
+          type: integer
+          minimum: 1
+          maximum: 7
+        image:
+          type: string
+        source:
+          type: string
+          enum: [BUFF, Skinport]
+
+    SkinDetail:
+      allOf:
+        - $ref: '#/components/schemas/Skin'
+        - type: object
+          properties:
+            steamPrice:
+              type: number
+            listings:
+              type: integer
+            orders:
+              type: integer
+            daysSinceRelease:
+              type: integer
+
+    KLinePoint:
+      type: object
+      properties:
+        date:
+          type: string
+          example: '7/15'
+        open:
+          type: number
+        close:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+
+    VolumePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        volume:
+          type: integer
+        direction:
+          type: integer
+          enum: [-1, 1]
+
+    PredictionResult:
+      type: object
+      properties:
+        skinId:
+          type: string
+        horizon:
+          type: integer
+        currentPrice:
+          type: number
+        predictions:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              type:
+                type: string
+                enum: [统计, ML, DL]
+              price:
+                type: number
+              change:
+                type: number
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 100
+        consensus:
+          type: object
+          properties:
+            score:
+              type: number
+              minimum: 0
+              maximum: 100
+            level:
+              type: string
+              enum: [low, medium, high, very_high]
+        entryRange:
+          type: object
+          properties:
+            low:
+              type: number
+            high:
+              type: number
+        targetPrice:
+          type: number
+        generatedAt:
+          type: string
+          format: date-time
+
+    RAGExplanation:
+      type: object
+      properties:
+        skinId:
+          type: string
+        summary:
+          type: string
+        relatedNews:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewsItem'
+        sources:
+          type: array
+          items:
+            type: string
+            description: 引用的知识源
+
+    DebateResult:
+      type: object
+      properties:
+        skinId:
+          type: string
+        mode:
+          type: string
+        rounds:
+          type: array
+          items:
+            type: object
+            properties:
+              round:
+                type: integer
+              bull:
+                type: string
+              bear:
+                type: string
+        consensus:
+          type: object
+          properties:
+            recommendation:
+              type: string
+            entryRange:
+              type: string
+            stopLoss:
+              type: string
+            targetPrice:
+              type: string
+            consensusScore:
+              type: number
+            confidence:
+              type: string
+            risks:
+              type: array
+              items:
+                type: string
+
+    NewsItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        summary:
+          type: string
+        source:
+          type: string
+        time:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+        impact:
+          type: string
+        relatedSkins:
+          type: array
+          items:
+            type: string
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        skinId:
+          type: string
+        skinName:
+          type: string
+        type:
+          type: string
+          enum: [above, below]
+        targetPrice:
+          type: number
+        currentPrice:
+          type: number
+        active:
+          type: boolean
+        triggered:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    PortfolioItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        skinId:
+          type: string
+        name:
+          type: string
+        buyPrice:
+          type: number
+        quantity:
+          type: integer
+        buyDate:
+          type: string
+          format: date
+        currentPrice:
+          type: number
+        marketValue:
+          type: number
+        pnl:
+          type: number
+        pnlPct:
+          type: number
+
+    ModelResult:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        rmse:
+          type: number
+        mae:
+          type: number
+        mape:
+          type: number
+        r2:
+          type: number
+        accuracy:
+          type: number
+        auc:
+          type: number
+        returnPct:
+          type: number
+        speed:
+          type: string
+        course:
+          type: string
+
+    DailyReport:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        metrics:
+          type: object
+          properties:
+            monitored:
+              type: integer
+            gainers:
+              type: integer
+            losers:
+              type: integer
+        hotVolume:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skin'
+        aiSummary:
+          type: string
+        news:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewsItem'
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        details:
+          type: string
+
+  # ============ 通用响应 ============
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
