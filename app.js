@@ -34,15 +34,45 @@ const toggleLang = () => {
 const app = createApp({
   setup() {
     // ============ 菜单 ============
-    // Phosphor Duotone 图标 class 名(替换 emoji)
+    // 7 大菜单 - 使用内嵌 SVG (双色调)
     const menu = computed(() => [
-      { id: 'dashboard', icon: 'chart-line-up', label: t('menu.dashboard') },
-      { id: 'prediction', icon: 'target', label: t('menu.prediction'), badge: t('menu.badge.core') },
-      { id: 'chat', icon: 'chat-circle-dots', label: t('menu.chat'), badge: t('menu.badge.highlight') },
-      { id: 'daily', icon: 'newspaper-clipping', label: t('menu.daily') },
-      { id: 'alerts', icon: 'bell-ringing', label: t('menu.alerts') },
-      { id: 'portfolio', icon: 'clipboard-text', label: t('menu.portfolio') },
-      { id: 'models', icon: 'robot', label: t('menu.models') },
+      {
+        id: 'dashboard',
+        label: t('menu.dashboard'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M232,224H40a8,8,0,0,1-8-8V40a8,8,0,0,1,16,0V200H232a8,8,0,0,1,0,16Z"/><path d="M224,80a8,8,0,0,0-8,8v32L184.49,87.51a12,12,0,0,0-17,0L144,112.69,106.34,75.51a12,12,0,0,0-17,0L53,112.49a8,8,0,1,0,11.43,11.43L98.83,88.49,144,133.31l28.49-28.49L216,147.51V192L184,160a8,8,0,0,0-11.31,0L144,189.31l-20.49-21.39a8,8,0,0,0-11.31,11.43l26.34,26.34a8,8,0,0,0,11.31,0L176,179.51l35.51,35.51A8,8,0,0,0,224,208V88A8,8,0,0,0,224,80Z"/></svg>'
+      },
+      {
+        id: 'prediction',
+        label: t('menu.prediction'),
+        badge: t('menu.badge.core'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/><path d="M207.93,136h-7.5A72.71,72.71,0,0,0,144,79.07v-7.5A88.13,88.13,0,0,1,207.93,136ZM128,176a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/></svg>'
+      },
+      {
+        id: 'chat',
+        label: t('menu.chat'),
+        badge: t('menu.badge.highlight'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M128,24A104,104,0,0,0,36.18,176.88L24.83,210.93a16,16,0,0,0,20.24,20.24l34.05-11.35A104,104,0,1,0,128,24Z"/><circle cx="84" cy="120" r="12"/><circle cx="164" cy="120" r="12"/><circle cx="120" cy="120" r="12"/></svg>'
+      },
+      {
+        id: 'daily',
+        label: t('menu.daily'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M224,48H56A16,16,0,0,0,40,64V224a8,8,0,0,0,8,8H216a8,8,0,0,0,8-8V64A16,16,0,0,0,224,48Z"/><path d="M120,112a8,8,0,0,1,8-8h48a8,8,0,0,1,0,16H128A8,8,0,0,1,120,112Zm0,32a8,8,0,0,1,8-8h48a8,8,0,0,1,0,16H128A8,8,0,0,1,120,144Zm-24,40V152h56v32Zm96-72H144V152h48Z"/></svg>'
+      },
+      {
+        id: 'alerts',
+        label: t('menu.alerts'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M221.8,175.94c-5.55-9.56-13.8-36.61-13.8-71.94a80,80,0,0,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H208.05a16,16,0,0,0,13.75-24.06Z"/><path d="M128,240a40,40,0,0,0,40-40H88A40,40,0,0,0,128,240Z"/></svg>'
+      },
+      {
+        id: 'portfolio',
+        label: t('menu.portfolio'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M200,32H163.74a47.92,47.92,0,0,0-71.48,0H56A16,16,0,0,0,40,48V224a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32ZM128,32a32,32,0,0,1,32,32H96A32,32,0,0,1,128,32Z"/><path d="M160,136H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0,32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Z"/></svg>'
+      },
+      {
+        id: 'models',
+        label: t('menu.models'),
+        svg: '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path opacity="0.3" d="M248,120a8,8,0,0,1-8,8h-8v32a40,40,0,0,1-32,39.49V224a8,8,0,0,1-16,0v-24H72v24a8,8,0,0,1-16,0v-24.51A40,40,0,0,1,24,160V128H16a8,8,0,0,1,0-16H24V96a40,40,0,0,1,32-39.49V32a8,8,0,0,1,16,0V56h112V32a8,8,0,0,1,16,0V56.51A40,40,0,0,1,232,96v16h8A8,8,0,0,1,248,120Z"/><path d="M88,120a8,8,0,0,0-8,8v16a8,8,0,0,0,16,0V128A8,8,0,0,0,88,120Zm120,0a8,8,0,0,0-8,8v16a8,8,0,0,0,16,0V128A8,8,0,0,0,208,120ZM72,96a24,24,0,0,0-24,24v40a24,24,0,0,0,24,24H184a24,24,0,0,0,24-24V120a24,24,0,0,0-24-24Z"/></svg>'
+      },
     ]);
 
     const currentPage = ref('dashboard');

@@ -79,7 +79,7 @@
           @keydown.enter="currentPage = item.id; sidebarOpen = false"
           @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
         >
-          <span v-html="renderIcon(item.icon, { size: 18, color: 'currentColor' })" class="nav-icon-svg" aria-hidden="true"></span>
+          <span class="nav-icon-svg" v-html="item.svg" aria-hidden="true"></span>
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>

@@ -1543,16 +1543,21 @@ i.ph-duotone {
 .nav-icon,
 .nav-icon-svg,
 .nav-item i[class*="ph-"] {
-  font-size: 18px;
   width: 20px;
   height: 20px;
-  text-align: center;
-  margin-right: 10px;
-  transition: color 0.2s;
-  display: inline-flex;
+  flex-shrink: 0;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  margin-right: 10px;
+  transition: color 0.2s;
+  color: var(--text-secondary);
+}
+
+.nav-icon-svg svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .nav-item:hover .nav-icon,
