@@ -17,10 +17,8 @@
   <!-- Marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
 
-  <!-- Phosphor Icons (Duotone + Fill + Regular) -->
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <!-- Phosphor Icons (内嵌 SVG, 不依赖字体加载) -->
+  <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
   <link rel="stylesheet" href="style.css" />
@@ -81,7 +79,7 @@
           @keydown.enter="currentPage = item.id; sidebarOpen = false"
           @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
         >
-          <i class="ph-duotone ph-{{ item.icon }}" aria-hidden="true"></i>
+          <span v-html="renderIcon(item.icon, { size: 18, color: 'currentColor' })" class="nav-icon-svg" aria-hidden="true"></span>
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>
@@ -1172,6 +1170,7 @@
   <script src="data.js"></script>
   <script src="i18n.js"></script>
   <script src="api.js"></script>
+  <script src="js/phosphor-svg.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

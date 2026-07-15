@@ -1485,6 +1485,24 @@ body.sidebar-open {
 .text-center { text-align: center; }
 
 /* ============ Phosphor 图标系统 ============ */
+/* 当前使用内嵌 SVG (js/phosphor-svg.js) - 不依赖字体加载 */
+/* 保留 @font-face 备用,使用正确的文件名 Phosphor.woff2 (不是 Phosphor-Regular.woff2) */
+@font-face {
+  font-family: "Phosphor-Duotone";
+  src: url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/Phosphor-Duotone.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Phosphor";
+  src: url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/Phosphor.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Phosphor-Fill";
+  src: url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/Phosphor.woff2") format("woff2");
+  font-display: swap;
+}
+
 /* 基础图标样式 - 与文字基线对齐 */
 i[class^="ph-"], i[class*=" ph-"] {
   display: inline-block;
@@ -1523,16 +1541,24 @@ i.ph-duotone {
 
 /* 导航项图标 */
 .nav-icon,
+.nav-icon-svg,
 .nav-item i[class*="ph-"] {
   font-size: 18px;
   width: 20px;
+  height: 20px;
   text-align: center;
   margin-right: 10px;
   transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .nav-item:hover .nav-icon,
 .nav-item.active .nav-icon,
+.nav-item:hover .nav-icon-svg,
+.nav-item.active .nav-icon-svg,
 .nav-item:hover i[class*="ph-"],
 .nav-item.active i[class*="ph-"] {
   color: var(--accent-orange);

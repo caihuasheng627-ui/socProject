@@ -853,6 +853,17 @@ const app = createApp({
       return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
+    // 渲染 Phosphor SVG 图标 (内嵌,不依赖字体)
+    const renderIcon = (name, options = {}) => {
+      try {
+        if (typeof window === 'undefined' || !window.renderPhosphorIcon) return '';
+        return window.renderPhosphorIcon(name, options);
+      } catch (e) {
+        console.warn('renderIcon error:', name, e);
+        return '';
+      }
+    };
+
     // ============ 命令面板 (Ctrl+K) ============
     const showCommandPalette = ref(false);
     const commandQuery = ref('');
@@ -1076,7 +1087,7 @@ const app = createApp({
       regressionModels, classificationModels, modelComparison,
       radarChart, backtestChart, shapChart,
       // 工具
-      formatPrice, exportData,
+      formatPrice, exportData, renderIcon,
       // 命令面板
       showCommandPalette, commandQuery, commandResults, commandSelected,
       executeCommand, onCommandKeydown, commandInput,
