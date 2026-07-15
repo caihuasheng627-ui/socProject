@@ -5,6 +5,19 @@
 
 const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
 
+// 安全地获取/创建 ECharts 实例。
+// 图表所在的整块 DOM 是被 v-if 控制的(切换页面时会被整个销毁重建),
+// 之前的代码用「实例变量存在就跳过 init」的写法,离开页面再回来时
+// 拿到的其实是绑定在“已被移除的旧 DOM 节点”上的旧实例——图表会变成空白/不更新。
+// 这里改成:如果旧实例绑定的 DOM 已经不是当前容器了,就先 dispose 掉旧实例再重新 init。
+function getOrCreateChart(existingInstance, dom) {
+  if (existingInstance) {
+    if (existingInstance.getDom() === dom) return existingInstance;
+    existingInstance.dispose();
+  }
+  return echarts.init(dom);
+}
+
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
 const detectBrowserLang = () => {
@@ -290,9 +303,7 @@ const app = createApp({
       // 模拟短暂加载(让用户感知到数据刷新)
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      if (!klineChartInstance) {
-        klineChartInstance = echarts.init(klineChart.value);
-      }
+      klineChartInstance = getOrCreateChart(klineChartInstance, klineChart.value);
 
       const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value];
       const { kline, volumes } = window.SkinVisionData.generateKLineData(
@@ -739,7 +750,7 @@ const app = createApp({
 
     const renderRadar = () => {
       if (!radarChart.value) return;
-      if (!radarInstance) radarInstance = echarts.init(radarChart.value);
+      radarInstance = getOrCreateChart(radarInstance, radarChart.value);
 
       const option = {
         backgroundColor: 'transparent',
@@ -792,7 +803,7 @@ const app = createApp({
 
     const renderBacktest = () => {
       if (!backtestChart.value) return;
-      if (!backtestInstance) backtestInstance = echarts.init(backtestChart.value);
+      backtestInstance = getOrCreateChart(backtestInstance, backtestChart.value);
 
       const backtestData = window.SkinVisionData.generateBacktestData(60);
       const dates = Array.from({ length: 60 }, (_, i) => {
@@ -846,7 +857,7 @@ const app = createApp({
 
     const renderShap = () => {
       if (!shapChart.value) return;
-      if (!shapInstance) shapInstance = echarts.init(shapChart.value);
+      shapInstance = getOrCreateChart(shapInstance, shapChart.value);
 
       const data = window.SkinVisionData.SHAP_FEATURES.slice().reverse();
 

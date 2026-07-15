@@ -897,6 +897,15 @@ body.sidebar-open {
   border-color: var(--accent-orange);
 }
 
+.kline-wrap {
+  /* 关键修复: 之前骨架屏 .kline-skeleton-overlay 和 .kline-container 是兄弟节点,
+     但只有 .kline-container 有 position:relative,导致骨架屏找不到定位父级,
+     absolute 定位一路冒泡到视口/最近的定位祖先,渲染成一个几乎铺满全屏的色块,
+     200ms 后消失 —— 这就是切换到"预测"页时"闪一下"的真正原因。
+     现在把两者包进同一个 position:relative 容器,骨架屏只会覆盖在图表区域内。 */
+  position: relative;
+}
+
 .kline-container {
   height: 400px;
   background: var(--bg-card);

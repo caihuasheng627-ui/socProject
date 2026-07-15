@@ -335,10 +335,12 @@
                   @click="timeframe = tf; renderKline();">{{ t('prediction.tf.' + tf) }}</button>
               </div>
             </div>
-            <div ref="klineChart" class="kline-container"></div>
-            <div v-if="klineLoading" class="kline-skeleton-overlay">
-              <div class="skeleton skeleton-line medium" style="height: 60%;"></div>
-              <div class="skeleton skeleton-line medium" style="height: 30%; margin-top: 12px;"></div>
+            <div class="kline-wrap">
+              <div ref="klineChart" class="kline-container"></div>
+              <div v-if="klineLoading" class="kline-skeleton-overlay">
+                <div class="skeleton skeleton-line medium" style="height: 60%;"></div>
+                <div class="skeleton skeleton-line medium" style="height: 30%; margin-top: 12px;"></div>
+              </div>
             </div>
           </div>
 
