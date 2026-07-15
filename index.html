@@ -43,8 +43,11 @@
       </div>
     </div>
 
+    <!-- 移动端侧边栏遮罩 -->
+    <div class="sidebar-overlay" :class="{ show: sidebarOpen }" @click="sidebarOpen = false"></div>
+
     <!-- 侧边栏 -->
-    <aside class="sidebar" role="navigation" aria-label="Main Navigation">
+    <aside class="sidebar" :class="{ open: sidebarOpen }" role="navigation" aria-label="Main Navigation">
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon" aria-hidden="true">🎯</div>
@@ -61,13 +64,13 @@
           :key="item.id"
           class="nav-item"
           :class="{ active: currentPage === item.id }"
-          @click="currentPage = item.id"
+          @click="currentPage = item.id; sidebarOpen = false"
           role="menuitem"
           tabindex="0"
           :aria-label="`Switch to ${item.label}`"
           :aria-current="currentPage === item.id ? 'page' : undefined"
-          @keydown.enter="currentPage = item.id"
-          @keydown.space.prevent="currentPage = item.id"
+          @keydown.enter="currentPage = item.id; sidebarOpen = false"
+          @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
         >
           <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
@@ -87,6 +90,9 @@
     <!-- 主内容区 -->
     <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
+        <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" style="display: none;">
+          {{ sidebarOpen ? '✕' : '☰' }}
+        </button>
         <div class="breadcrumb">
           <span>{{ t('app.name') }}</span>
           <span>›</span>

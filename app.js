@@ -67,6 +67,23 @@ const app = createApp({
       }, 250);
     };
 
+    // ============ 移动端侧边栏 ============
+    const sidebarOpen = ref(false);
+    watch(sidebarOpen, (open) => {
+      document.body.classList.toggle('sidebar-open', open);
+      // 侧边栏打开/关闭会改变主内容宽度,触发 ECharts resize
+      setTimeout(() => {
+        klineChartInstance?.resize();
+        radarInstance?.resize();
+        backtestInstance?.resize();
+        shapInstance?.resize();
+      }, 300);
+    });
+    watch(currentPage, () => {
+      // 切换页面时自动关闭侧边栏(移动端)
+      sidebarOpen.value = false;
+    });
+
     // ============ Toast 通知 ============
     const toasts = ref([]);
     const showToast = ({ title, subtitle = '', type = 'info', icon = null, duration = 3000 }) => {
@@ -1031,6 +1048,8 @@ const app = createApp({
     return {
       // 主题
       theme, toggleTheme,
+      // 侧边栏
+      sidebarOpen,
       // i18n
       currentLang, toggleLang, t,
       // Toast

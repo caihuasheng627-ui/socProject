@@ -329,6 +329,380 @@ html, body {
   .grid-3, .grid-4, .grid-5 { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ============================================
+   响应式适配 (移动端/平板)
+   断点: 1024 / 768 / 480
+   ============================================ */
+
+/* ============ 平板横屏 (≤ 1024px) ============ */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+  }
+  .topbar {
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .market-status {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .prediction-hero .flex {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .prediction-current-price {
+    font-size: 28px;
+  }
+  .kline-container {
+    height: 320px;
+  }
+  .kline-skeleton-overlay {
+    /* 在小屏上调整骨架屏 */
+  }
+}
+
+/* ============ 平板竖屏 (≤ 768px) ============ */
+@media (max-width: 768px) {
+  /* 侧边栏改为抽屉式 */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .main-content {
+    width: 100%;
+  }
+  .topbar {
+    height: 52px;
+    padding: 0 12px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+  .market-status {
+    display: none !important; /* 隐藏次要信息 */
+  }
+  .topbar-actions .user-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  /* 顶栏添加汉堡按钮 */
+  .menu-toggle {
+    display: flex !important;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 16px;
+  }
+  .content-area {
+    padding: 16px;
+  }
+  /* 网格:所有 grid 改为单列或 2 列 */
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .grid-5 {
+    grid-template-columns: 1fr;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  /* 卡片 padding 缩小 */
+  .card {
+    padding: 14px;
+  }
+  .card-header {
+    margin-bottom: 12px;
+  }
+  /* 表格横向滚动 */
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table thead,
+  .data-table tbody,
+  .data-table tr {
+    display: table;
+    width: 100%;
+    table-layout: auto;
+  }
+  /* 表格容器 */
+  .card:has(.data-table) {
+    overflow-x: auto;
+  }
+  /* Topbar 隐藏页面标题 */
+  .page-title {
+    display: none;
+  }
+  /* 模态框全屏 */
+  .modal {
+    min-width: auto;
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-mask {
+    align-items: stretch;
+  }
+  .modal-actions {
+    margin-top: auto;
+  }
+  /* 命令面板全屏 */
+  .command-palette {
+    padding-top: 0;
+    align-items: stretch;
+  }
+  .command-panel {
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .command-results {
+    max-height: none;
+    flex: 1;
+  }
+  /* AI 预测 hero 调整为纵向 */
+  .prediction-hero {
+    padding: 16px;
+  }
+  .prediction-target {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .prediction-emoji {
+    font-size: 36px;
+  }
+  .prediction-title {
+    font-size: 18px;
+  }
+  .prediction-current-price {
+    font-size: 24px;
+  }
+  /* 持仓汇总 */
+  .portfolio-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* 表格内容紧凑 */
+  .data-table th,
+  .data-table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+  /* k线图 */
+  .kline-container {
+    height: 260px;
+  }
+  /* Chart canvas 自适应 */
+  .radar-container,
+  [ref="backtestChart"] {
+    height: 260px !important;
+  }
+  /* 顶部指标卡 */
+  .daily-report-grid {
+    grid-template-columns: 1fr;
+  }
+  .metric-card {
+    padding: 14px;
+  }
+  .metric-card-value {
+    font-size: 24px;
+  }
+}
+
+/* ============ 手机 (≤ 480px) ============ */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 240px; /* 抽屉宽度 */
+  }
+  .content-area {
+    padding: 12px;
+  }
+  .topbar {
+    padding: 0 10px;
+  }
+  .lang-toggle {
+    min-width: 44px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+  .theme-toggle {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  /* 隐藏语言切换 emoji 标志 */
+  .breadcrumb {
+    display: none;
+  }
+  /* hero 部分 */
+  .prediction-hero {
+    padding: 12px;
+  }
+  .prediction-current-price {
+    font-size: 22px;
+  }
+  /* 表格隐藏次要列 */
+  .data-table .col-hide-mobile {
+    display: none;
+  }
+  .summary-card {
+    padding: 12px;
+  }
+  .summary-value {
+    font-size: 18px;
+  }
+  /* K线骨架屏 */
+  .kline-container {
+    height: 220px;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  /* 日报指标 */
+  .metric-card-value {
+    font-size: 20px;
+  }
+  .metric-card-label {
+    font-size: 11px;
+  }
+  /* AI 预测 hero */
+  .prediction-target {
+    gap: 8px;
+  }
+  /* 卡片间距 */
+  .mb-4 {
+    margin-bottom: 12px;
+  }
+  .mb-6 {
+    margin-bottom: 16px;
+  }
+  /* 按钮 */
+  .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  /* 标签 */
+  .tag {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  /* 表单 */
+  .form-input,
+  .form-select {
+    padding: 10px;
+    font-size: 14px; /* 防止 iOS 缩放 */
+  }
+  /* 卡片标题 */
+  .card-title {
+    font-size: 13px;
+  }
+  .card-subtitle {
+    font-size: 11px;
+  }
+  /* 行情看板标题 */
+  h2 {
+    font-size: 18px !important;
+  }
+}
+
+/* ============ 横屏模式 (高度 < 600) ============ */
+@media (max-height: 600px) and (orientation: landscape) {
+  .kline-container {
+    height: 200px;
+  }
+  .chat-container {
+    height: calc(100vh - 60px);
+  }
+  .chat-messages {
+    padding: 12px;
+  }
+  .chat-message {
+    margin-bottom: 12px;
+  }
+}
+
+/* ============ 触摸设备优化 ============ */
+@media (hover: none) and (pointer: coarse) {
+  /* 增大点击区域 */
+  .btn {
+    min-height: 36px;
+  }
+  .nav-item {
+    padding: 12px;
+  }
+  .theme-toggle,
+  .menu-toggle {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  /* 隐藏 hover 效果(避免移动端粘滞) */
+  .skin-card:hover {
+    transform: none;
+  }
+  .suggested-question:hover {
+    transform: none;
+  }
+}
+
+/* 遮罩层(侧边栏抽屉打开时) */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.2s;
+}
+
+.sidebar-overlay.show {
+  display: block;
+}
+
+/* 抽屉打开时禁止 body 滚动 */
+body.sidebar-open {
+  overflow: hidden;
+}
+
+/* ============ ECharts 移动端适配 ============ */
+@media (max-width: 768px) {
+  /* 覆盖 ECharts 内部文字大小 */
+  .echarts-tooltip,
+  .kline-container,
+  .radar-container {
+    font-size: 11px;
+  }
+}
+
+/* 防止移动端文字太小不可读 */
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+}
+
 /* ============ 价格卡片 ============ */
 .skin-card {
   background: var(--gradient-card);
