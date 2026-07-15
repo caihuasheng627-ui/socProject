@@ -481,9 +481,34 @@ const app = createApp({
       return window.SkinVisionData.AI_PRESET_RESPONSES['default'];
     };
 
+    // Markdown 缓存,避免重复解析
+    const markdownCache = new Map();
+
     const renderMarkdown = (content) => {
-      if (content === '__WELCOME__') return '';
-      return marked.parse(content);
+      if (!content || content === '__WELCOME__') return '';
+      // 命中缓存
+      if (markdownCache.has(content)) return markdownCache.get(content);
+      // 未加载 marked 时降级显示原文
+      if (typeof marked === 'undefined') {
+        return escapeHtml(content).replace(/\n/g, '<br>');
+      }
+      try {
+        const html = marked.parse(content);
+        markdownCache.set(content, html);
+        return html;
+      } catch (e) {
+        console.error('Markdown 解析失败:', e);
+        return escapeHtml(content).replace(/\n/g, '<br>');
+      }
+    };
+
+    const escapeHtml = (str) => {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     };
 
     const scrollChatBottom = async () => {
