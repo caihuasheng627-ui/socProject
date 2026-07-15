@@ -401,7 +401,8 @@ const app = createApp({
     const chatSuggestedIndex = ref(-1);
 
     const sendMessage = async (overrideText) => {
-      const text = (overrideText ?? chatInput.value).trim();
+      // 防御:如果从 @click 调用,Vue 会传 MouseEvent,这里过滤掉
+      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
       if (!text || chatLoading.value) return;
 
       chatMessages.value.push({
@@ -559,7 +560,7 @@ const app = createApp({
       // 命中缓存
       if (markdownCache.has(content)) return markdownCache.get(content);
       // 未加载 marked 时降级显示原文
-      if (typeof marked === 'undefined') {
+      if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
         return escapeHtml(content).replace(/\n/g, '<br>');
       }
       try {
@@ -573,12 +574,23 @@ const app = createApp({
     };
 
     const escapeHtml = (str) => {
+      if (str === null || str === undefined) return '';
       return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    };
+
+    // 包装 t 函数,避免 undefined
+    const tSafe = (key, params) => {
+      try {
+        return t(key, params);
+      } catch (e) {
+        console.error('i18n error:', key, e);
+        return key;
+      }
     };
 
     const scrollChatBottom = async () => {
