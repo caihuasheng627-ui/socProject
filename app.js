@@ -34,16 +34,57 @@ const toggleLang = () => {
 const app = createApp({
   setup() {
     // ============ 菜单 ============
-    // 7 大菜单 - 使用 Unicode 符号 (绝对可靠,绝不卡)
+    // 7 大菜单 - Lucide Icons (专业开源图标库)
     const menu = computed(() => [
-      { id: 'dashboard', label: t('menu.dashboard'), icon: '▤' },      // 行情
-      { id: 'prediction', label: t('menu.prediction'), badge: t('menu.badge.core'), icon: '◉' },  // 目标
-      { id: 'chat', label: t('menu.chat'), badge: t('menu.badge.highlight'), icon: '◐' },  // 对话
-      { id: 'daily', label: t('menu.daily'), icon: '▦' },                // 日报
-      { id: 'alerts', label: t('menu.alerts'), icon: '◔' },              // 预警
-      { id: 'portfolio', label: t('menu.portfolio'), icon: '▣' },        // 持仓
-      { id: 'models', label: t('menu.models'), icon: '◈' },              // 模型
+      {
+        id: 'dashboard',
+        label: t('menu.dashboard'),
+        iconName: 'chart-line',
+      },
+      {
+        id: 'prediction',
+        label: t('menu.prediction'),
+        badge: t('menu.badge.core'),
+        iconName: 'target',
+      },
+      {
+        id: 'chat',
+        label: t('menu.chat'),
+        badge: t('menu.badge.highlight'),
+        iconName: 'message-circle',
+      },
+      {
+        id: 'daily',
+        label: t('menu.daily'),
+        iconName: 'newspaper',
+      },
+      {
+        id: 'alerts',
+        label: t('menu.alerts'),
+        iconName: 'bell',
+      },
+      {
+        id: 'portfolio',
+        label: t('menu.portfolio'),
+        iconName: 'clipboard-list',
+      },
+      {
+        id: 'models',
+        label: t('menu.models'),
+        iconName: 'cpu',
+      },
     ]);
+
+    // 渲染菜单图标 SVG
+    const renderMenuIcon = (name) => {
+      try {
+        if (typeof window === 'undefined' || !window.renderLucide) return '';
+        return window.renderLucide(name, { size: 20, strokeWidth: 2 });
+      } catch (e) {
+        console.warn('renderMenuIcon error:', name, e);
+        return '';
+      }
+    };
 
     const currentPage = ref('dashboard');
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
@@ -984,14 +1025,14 @@ const app = createApp({
         if (showAlertModal.value) { showAlertModal.value = false; return; }
         if (showPortfolioModal.value) { showPortfolioModal.value = false; return; }
       }
-      // 数字键切换页面
+      // 数字键切换页面 (无 Toast,直接跳转)
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const num = parseInt(e.key);
         if (num >= 1 && num <= 7) {
           e.preventDefault();
           const target = menu.value[num - 1];
           currentPage.value = target.id;
-          showToast({ title: t('page.switched'), subtitle: target.label, type: 'info', duration: 1500 });
+          // 不弹 Toast,避免用户困惑
         }
       }
     };
@@ -1067,7 +1108,7 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu,
+      menu, currentPage, currentMenu, renderMenuIcon,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, filteredSkins,

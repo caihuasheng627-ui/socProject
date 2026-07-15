@@ -85,7 +85,7 @@
           @keydown.enter="currentPage = item.id; sidebarOpen = false"
           @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
         >
-          <span class="nav-icon-svg" aria-hidden="true" style="font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; color: var(--accent-orange); margin-right: 12px; font-weight: 700;">{{ item.icon }}</span>
+          <span class="nav-icon-svg" aria-hidden="true" v-html="renderMenuIcon(item.iconName)"></span>
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>
@@ -1176,7 +1176,7 @@
   <script src="data.js"></script>
   <script src="i18n.js"></script>
   <script src="api.js"></script>
-  <script src="js/phosphor-svg.js"></script>
+  <script src="js/lucide-icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

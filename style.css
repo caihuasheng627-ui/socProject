@@ -1539,34 +1539,31 @@ i.ph-duotone {
   vertical-align: -0.15em;
 }
 
-/* 导航项图标 - 强制可见,最高优先级 */
+/* 导航项图标 - Lucide SVG 专用 */
 .nav-item .nav-icon-svg,
 .nav-icon-svg {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
   margin-right: 12px !important;
-  color: #9ca3af !important;
+  color: var(--text-secondary) !important;
   flex-shrink: 0 !important;
 }
 
 .nav-item .nav-icon-svg svg,
 .nav-icon-svg svg {
-  width: 22px !important;
-  height: 22px !important;
+  width: 20px !important;
+  height: 20px !important;
   display: block !important;
-  stroke: currentColor !important;
-  fill: none !important;
-  stroke-width: 2 !important;
 }
 
 .nav-item.active .nav-icon-svg,
 .nav-item:hover .nav-icon-svg {
-  color: #ff6b00 !important;
+  color: var(--accent-orange) !important;
 }
 
 /* Logo 图标 */
