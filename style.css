@@ -1539,34 +1539,34 @@ i.ph-duotone {
   vertical-align: -0.15em;
 }
 
-/* 导航项图标 */
-.nav-icon,
-.nav-icon-svg,
-.nav-item i[class*="ph-"] {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
+/* 导航项图标 - 强制可见,最高优先级 */
+.nav-item .nav-icon-svg,
+.nav-icon-svg {
   display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  margin-right: 10px;
-  transition: color 0.2s;
-  color: var(--text-secondary);
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  margin-right: 12px !important;
+  color: #9ca3af !important;
+  flex-shrink: 0 !important;
 }
 
+.nav-item .nav-icon-svg svg,
 .nav-icon-svg svg {
-  width: 20px;
-  height: 20px;
-  display: block;
+  width: 22px !important;
+  height: 22px !important;
+  display: block !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  stroke-width: 2 !important;
 }
 
-.nav-item:hover .nav-icon,
-.nav-item.active .nav-icon,
-.nav-item:hover .nav-icon-svg,
 .nav-item.active .nav-icon-svg,
-.nav-item:hover i[class*="ph-"],
-.nav-item.active i[class*="ph-"] {
-  color: var(--accent-orange);
+.nav-item:hover .nav-icon-svg {
+  color: #ff6b00 !important;
 }
 
 /* Logo 图标 */
