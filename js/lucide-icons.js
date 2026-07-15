@@ -42,6 +42,7 @@ window.LucideIcons = {
   'file-csv': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M16 17a1 1 0 0 0 1-1v-1a1 1 0 0 0-1-1"/><path d="M16 13h-1.5a.5.5 0 0 0 0 1H16"/>',
   'brackets': '<path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2"/><path d="M16 3h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2"/>',
   'star': '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  'squares-four': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/>',
 
   // ============ 趋势 ============
   'trending-up': '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
@@ -64,4 +65,109 @@ window.renderLucide = function (name, options = {}) {
   const strokeWidth = options.strokeWidth || 2;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;flex-shrink:0">${inner}</svg>`;
+};
+
+// ============================================
+// Phosphor -> Lucide 名称映射
+// ============================================
+// 把项目中用到的 Phosphor 图标名映射到 Lucide 等价图标
+window.ph2lucide = {
+  // 顶栏
+  'list': 'menu',
+  'x': 'x',
+  'globe-hemisphere-west': 'globe',
+  'translate': 'globe',
+  'sun': 'sun',
+  'moon': 'moon',
+  'magnifying-glass': 'search',
+  'magnifying-glass-minus': 'search',
+  'caret-right': 'caret-right',
+  'trend-up': 'trending-up',
+  'trend-down': 'trending-down',
+
+  // 页面标题
+  'chart-line-up': 'chart-line',
+  'squares-four': 'squares-four',
+  'chart-candle': 'candlestick',
+  'book-open-text': 'book',
+  'newspaper-clipping': 'newspaper',
+  'bell-ringing': 'bell',
+  'clipboard-text': 'clipboard-list',
+  'cpu': 'cpu',
+  'cube': 'cpu',
+
+  // 状态
+  'star': 'star',
+  'check-circle': 'check-circle',
+  'x-circle': 'x-circle',
+  'warning': 'warning',
+  'info': 'info',
+  'arrow-up': 'trending-up',
+  'arrow-down': 'trending-down',
+
+  // 按钮
+  'plus': 'plus',
+  'arrows-clockwise': 'refresh',
+  'rocket-launch': 'rocket',
+  'download-simple': 'download',
+  'file-csv': 'file-csv',
+  'paper-plane-right': 'paper-plane',
+};
+
+// 自动扫描 DOM 并替换 <i class="ph-*"> 元素为内嵌 Lucide SVG
+// 在 onMounted / onUpdated 钩子调用
+window.processPhIcons = function (root = document) {
+  if (!window.LucideIcons || !window.ph2lucide) return;
+
+  const elements = root.querySelectorAll('i[class*="ph-"]');
+  elements.forEach((el) => {
+    // 跳过已经处理过的
+    if (el.dataset.phProcessed === '1') return;
+    // 跳过明显不是 Phosphor class 的
+    if (!el.className || typeof el.className !== 'string') return;
+
+    // 解析 Phosphor 名称 (class 中形如 "ph-magnifying-glass")
+    const match = el.className.match(/ph-(?:duotone|bold|fill|regular)?\s*ph-([a-z0-9-]+)/i)
+                || el.className.match(/ph-([a-z0-9-]+)/i);
+    if (!match) return;
+
+    const phName = match[1];
+    const lucideName = window.ph2lucide[phName];
+    if (!lucideName) return;
+
+    // 从 style 中推断 size (font-size: 14px -> 14)
+    let size = 16;
+    const inlineStyle = el.getAttribute('style') || '';
+    const fontSizeMatch = inlineStyle.match(/font-size:\s*(\d+)/i);
+    const classStr = el.getAttribute('class') || '';
+    if (fontSizeMatch) {
+      size = parseInt(fontSizeMatch[1], 10);
+    } else {
+      // 从 class 推断 (icon-xs/sm/md/lg/xl/2xl)
+      if (/icon-xs/.test(classStr)) size = 12;
+      else if (/icon-sm/.test(classStr)) size = 14;
+      else if (/icon-md/.test(classStr)) size = 18;
+      else if (/icon-lg/.test(classStr)) size = 22;
+      else if (/icon-xl/.test(classStr)) size = 28;
+      else if (/icon-2xl/.test(classStr)) size = 36;
+    }
+
+    // 颜色: 优先 inline style, 然后 class (icon-primary/secondary/success/danger)
+    let color = 'currentColor';
+    if (/color:\s*(#[0-9a-f]+|var\([^)]+\)|[a-z]+)/i.test(inlineStyle)) {
+      const m = inlineStyle.match(/color:\s*(#[0-9a-f]+|var\([^)]+\)|[a-z]+)/i);
+      if (m) color = m[1];
+    } else if (/icon-primary/.test(classStr)) color = 'var(--accent-orange)';
+    else if (/icon-success/.test(classStr)) color = 'var(--accent-green)';
+    else if (/icon-danger/.test(classStr)) color = 'var(--accent-red)';
+    else if (/icon-secondary/.test(classStr)) color = 'var(--text-secondary)';
+
+    // 替换为内嵌 SVG
+    el.innerHTML = window.renderLucide(lucideName, { size, color, strokeWidth: 2 });
+    el.style.display = 'inline-flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.style.verticalAlign = 'middle';
+    el.dataset.phProcessed = '1';
+  });
 };

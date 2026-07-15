@@ -3,7 +3,7 @@
 // 基于策划书功能清单实现
 // ============================================
 
-const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
 
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
@@ -1064,12 +1064,23 @@ const app = createApp({
       window.addEventListener('online', () => showToast({ title: t('network.online'), type: 'success' }));
       window.addEventListener('offline', updateOnlineStatus);
 
+      // 把 <i class="ph-..."> 自动替换为 Lucide 内嵌 SVG
+      // (Phosphor 字体 404,这些图标原本不可见)
+      window.processPhIcons && window.processPhIcons();
+
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
+    });
+
+    // Vue 重渲染后再次处理 (新插入的 ph-* 元素)
+    onUpdated(() => {
+      window.processPhIcons && window.processPhIcons();
     });
 
     // 监听页面切换
     watch(currentPage, async (newPage) => {
       await nextTick();
+      // 切换页面后再次处理 (v-if 内的新图标)
+      window.processPhIcons && window.processPhIcons();
       if (newPage === 'prediction') {
         renderKline();
       } else if (newPage === 'models') {
