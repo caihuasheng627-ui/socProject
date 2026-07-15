@@ -23,14 +23,14 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎯%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
-  <a href="#main-content" class="skip-link">跳转到主内容</a>
+  <a href="#main-content" class="skip-link">{{ t('shortcut.dashboard') }}</a>
 
   <!-- 屏幕阅读器公告区域 -->
   <div id="aria-live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <div id="aria-live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
 
   <div id="app">
-    <!-- 首次加载遮罩(Vue 挂载后自动移除) -->
+    <!-- 首次加载遮罩 -->
     <div id="app-loader" class="app-loader">
       <div class="loader-content">
         <div class="loader-logo">🎯</div>
@@ -39,18 +39,18 @@
         <div class="loader-bar">
           <div class="loader-bar-fill"></div>
         </div>
-        <div class="loader-text">正在加载市场数据 · ML 模型 · RAG 知识库...</div>
+        <div class="loader-text">Loading market data · ML models · RAG knowledge base...</div>
       </div>
     </div>
 
     <!-- 侧边栏 -->
-    <aside class="sidebar" role="navigation" aria-label="主导航">
+    <aside class="sidebar" role="navigation" aria-label="Main Navigation">
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon" aria-hidden="true">🎯</div>
           <div class="logo-text">
-            <div class="logo-title">SkinVision AI</div>
-            <div class="logo-subtitle">CS2 INTELLIGENCE</div>
+            <div class="logo-title">{{ t('app.name') }}</div>
+            <div class="logo-subtitle">{{ t('app.subtitle') }}</div>
           </div>
         </div>
       </div>
@@ -64,22 +64,22 @@
           @click="currentPage = item.id"
           role="menuitem"
           tabindex="0"
-          :aria-label="`切换到 ${item.label} 页面`"
+          :aria-label="`Switch to ${item.label}`"
           :aria-current="currentPage === item.id ? 'page' : undefined"
           @keydown.enter="currentPage = item.id"
           @keydown.space.prevent="currentPage = item.id"
         >
           <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
-          <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;" :aria-label="`${item.badge} 模块`">{{ item.badge }}</span>
+          <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>
       </nav>
 
       <div class="sidebar-footer">
-        <div>📊 SWS3022 课程项目</div>
-        <div style="margin-top: 4px;">v1.1 · 2026.07.15</div>
+        <div>📊 {{ t('app.footer.course') }}</div>
+        <div style="margin-top: 4px;">{{ t('app.footer.version') }}</div>
         <div style="margin-top: 8px;">
-          <a href="#">📖 项目文档</a> · <a href="#">🐙 GitHub</a>
+          <a href="#">📖 {{ t('app.footer.docs') }}</a> · <a href="#">🐙 {{ t('app.footer.github') }}</a>
         </div>
       </div>
     </aside>
@@ -88,29 +88,33 @@
     <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
         <div class="breadcrumb">
-          <span>SkinVision AI</span>
+          <span>{{ t('app.name') }}</span>
           <span>›</span>
-          <span class="page-title">{{ currentMenu.label }}</span>
+          <span class="page-title">{{ currentMenu?.label }}</span>
         </div>
 
         <div class="topbar-actions">
-          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'" :aria-label="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
+          <!-- 语言切换按钮 -->
+          <button class="theme-toggle lang-toggle" @click="toggleLang" :title="t('topbar.lang.switch')" :aria-label="t('topbar.lang.switch')">
+            {{ currentLang === 'zh-CN' ? '🇺🇸 EN' : '🇨🇳 中' }}
+          </button>
+          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')" :aria-label="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')">
             {{ theme === 'dark' ? '☀️' : '🌙' }}
           </button>
-          <button class="theme-toggle" @click="showCommandPalette = true" title="命令面板 (Ctrl+K)" aria-label="打开命令面板">
+          <button class="theme-toggle" @click="showCommandPalette = true" :title="t('topbar.cmdPanel') + ' (Ctrl+K)'" :aria-label="t('topbar.cmdPanel')">
             🔍
           </button>
-          <div class="market-status" role="status" aria-label="数据源状态">
+          <div class="market-status" role="status" :aria-label="t('topbar.dataSource')">
             <span class="status-dot" aria-hidden="true"></span>
-            <span>数据源在线 · BUFF + Skinport</span>
+            <span>{{ t('topbar.dataSource') }}</span>
           </div>
-          <div class="market-status" aria-label="市场情绪指数">
+          <div class="market-status" :aria-label="t('topbar.sentiment')">
             <span aria-hidden="true">🐂</span>
-            <span>市场情绪</span>
+            <span>{{ t('topbar.sentiment') }}</span>
             <strong style="color: var(--accent-orange);">68</strong>
-            <span class="text-muted text-sm">贪婪</span>
+            <span class="text-muted text-sm">{{ t('topbar.sentiment.greed') }}</span>
           </div>
-          <div class="user-avatar" role="img" aria-label="用户头像:蔡">蔡</div>
+          <div class="user-avatar" role="img" aria-label="User: 蔡">蔡</div>
         </div>
       </header>
 
@@ -119,19 +123,19 @@
         <div v-if="currentPage === 'dashboard'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">📊 行情看板</h2>
-              <p class="text-muted text-sm mt-2">实时监控 20 个高流动性 CS2 饰品 · 数据来源 BUFF + Skinport</p>
+              <h2 style="font-size: 20px; font-weight: 700;">📊 {{ t('dashboard.title') }}</h2>
+              <p class="text-muted text-sm mt-2">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm" @click="refreshData">
-                <span>🔄</span> 刷新
+                <span>🔄</span> {{ t('common.refresh') }}
               </button>
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('skins', 'csv')" title="导出 CSV">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('skins', 'json')" title="导出 JSON">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('skins', 'csv')" :title="t('common.export')">📊 CSV</button>
+                <button class="btn btn-sm" @click="exportData('skins', 'json')" title="JSON">{ } JSON</button>
               </div>
               <button class="btn btn-primary btn-sm">
-                <span>➕</span> 自选
+                <span>➕</span> {{ t('dashboard.addWatchlist') }}
               </button>
             </div>
           </div>
@@ -141,10 +145,10 @@
             <div class="card">
               <div class="card-header">
                 <div>
-                  <div class="card-title">🔥 7日涨幅榜</div>
-                  <div class="card-subtitle">Top 5 涨幅领先</div>
+                  <div class="card-title">🔥 {{ t('dashboard.gainers') }}</div>
+                  <div class="card-subtitle">{{ t('dashboard.gainersDesc') }}</div>
                 </div>
-                <span class="tag tag-red">看多</span>
+                <span class="tag tag-red">Bull</span>
               </div>
               <div v-for="(skin, idx) in topGainers.slice(0, 5)" :key="skin.id"
                 class="skin-card mb-3" @click="viewSkin(skin.id)" style="padding: 12px;">
@@ -153,7 +157,7 @@
                   <div class="skin-emoji" style="width: 32px; height: 32px; font-size: 18px;">{{ skin.image }}</div>
                   <div style="flex: 1; min-width: 0;">
                     <div class="skin-name" style="font-size: 12px;">{{ skin.name }}</div>
-                    <div class="text-muted text-sm">成交量 {{ skin.volume24h }}</div>
+                    <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                   </div>
                   <div style="text-align: right;">
                     <div class="skin-price" style="font-size: 14px;">¥{{ formatPrice(skin.price) }}</div>
@@ -166,10 +170,10 @@
             <div class="card">
               <div class="card-header">
                 <div>
-                  <div class="card-title">📉 7日跌幅榜</div>
-                  <div class="card-subtitle">Top 5 跌幅领先</div>
+                  <div class="card-title">📉 {{ t('dashboard.losers') }}</div>
+                  <div class="card-subtitle">{{ t('dashboard.losersDesc') }}</div>
                 </div>
-                <span class="tag tag-green">看空</span>
+                <span class="tag tag-green">Bear</span>
               </div>
               <div v-for="(skin, idx) in topLosers.slice(0, 5)" :key="skin.id"
                 class="skin-card mb-3" @click="viewSkin(skin.id)" style="padding: 12px;">
@@ -178,7 +182,7 @@
                   <div class="skin-emoji" style="width: 32px; height: 32px; font-size: 18px;">{{ skin.image }}</div>
                   <div style="flex: 1; min-width: 0;">
                     <div class="skin-name" style="font-size: 12px;">{{ skin.name }}</div>
-                    <div class="text-muted text-sm">成交量 {{ skin.volume24h }}</div>
+                    <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                   </div>
                   <div style="text-align: right;">
                     <div class="skin-price" style="font-size: 14px;">¥{{ formatPrice(skin.price) }}</div>
@@ -193,17 +197,17 @@
           <div class="card mb-6">
             <div class="card-header">
               <div>
-                <div class="card-title">🎯 全部饰品</div>
-                <div class="card-subtitle">点击查看 AI 预测详情</div>
+                <div class="card-title">🎯 {{ t('dashboard.allSkins') }}</div>
+                <div class="card-subtitle">{{ t('dashboard.allSkinsDesc') }}</div>
               </div>
               <div class="flex gap-2">
                 <button
-                  v-for="cat in categories"
+                  v-for="cat in categoryKeys"
                   :key="cat"
                   class="timeframe-btn"
                   :class="{ active: filterCategory === cat }"
                   @click="filterCategory = cat"
-                >{{ cat }}</button>
+                >{{ t('dashboard.category.' + cat) }}</button>
               </div>
             </div>
             <div class="grid grid-4">
@@ -217,7 +221,7 @@
                   <div class="skin-emoji">{{ skin.image }}</div>
                   <div style="flex: 1; min-width: 0;">
                     <div class="skin-name">{{ skin.name }}</div>
-                    <div class="skin-wear">{{ skin.wear }} · {{ skin.category }}</div>
+                    <div class="skin-wear">{{ skin.wear }} · {{ t('dashboard.category.' + categoryMap[skin.category] || skin.category) }}</div>
                   </div>
                 </div>
                 <div class="skin-price-row">
@@ -230,8 +234,8 @@
                   </div>
                 </div>
                 <div class="skin-meta">
-                  <span>24h量 {{ skin.volume24h }}</span>
-                  <span>流动性 {{ skin.liquidity }}</span>
+                  <span>{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</span>
+                  <span>{{ t('dashboard.liquidity') }} {{ skin.liquidity }}</span>
                 </div>
               </div>
             </div>
@@ -246,19 +250,19 @@
               <div style="flex: 1;">
                 <div class="prediction-title">{{ selectedSkin.name }}</div>
                 <div class="text-muted text-sm mt-2">
-                  <span class="tag tag-orange">{{ selectedSkin.category }}</span>
+                  <span class="tag tag-orange">{{ t('dashboard.category.' + categoryMap[selectedSkin.category] || selectedSkin.category) }}</span>
                   <span class="tag" style="margin-left: 6px;">{{ selectedSkin.wear }}</span>
-                  <span class="tag tag-purple" style="margin-left: 6px;">稀有度 Lv.{{ selectedSkin.rarity }}</span>
+                  <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
                 </div>
               </div>
               <button class="btn btn-secondary" @click="showAlertModal = true">
-                <span>🔔</span> 设置预警
+                <span>🔔</span> {{ t('prediction.setAlert') }}
               </button>
             </div>
 
             <div class="flex items-end gap-6 mb-4">
               <div>
-                <div class="text-muted text-sm">当前价格 (BUFF)</div>
+                <div class="text-muted text-sm">{{ t('prediction.currentPrice') }}</div>
                 <div class="prediction-current-price">¥{{ formatPrice(selectedSkin.price) }}</div>
                 <div :class="selectedSkin.change24h >= 0 ? 'change-up' : 'change-down'" class="skin-change" style="display: inline-block;">
                   24h {{ selectedSkin.change24h >= 0 ? '+' : '' }}{{ selectedSkin.change24h.toFixed(2) }}% ·
@@ -267,14 +271,14 @@
               </div>
 
               <div style="flex: 1;">
-                <div class="text-muted text-sm">🤖 模型共识度</div>
+                <div class="text-muted text-sm">{{ t('prediction.consensus') }}</div>
                 <div class="flex items-center gap-3 mt-2">
                   <div class="consensus-meter" style="flex: 1;">
                     <div class="consensus-bar" :style="{ width: '76%' }"></div>
                   </div>
                   <strong style="color: var(--accent-orange); font-size: 20px;">76%</strong>
                 </div>
-                <div class="text-muted text-sm">中等偏高 · 6 个回归 + 4 个分类模型综合</div>
+                <div class="text-muted text-sm">{{ t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: 6, classification: 4 }) }}</div>
               </div>
             </div>
           </div>
@@ -283,13 +287,13 @@
           <div class="card mb-4">
             <div class="card-header">
               <div>
-                <div class="card-title">📈 历史价格 + AI 预测</div>
-                <div class="card-subtitle">BUFF API · 90 天历史 + 30 天预测</div>
+                <div class="card-title">📈 {{ t('prediction.kline') }}</div>
+                <div class="card-subtitle">{{ t('prediction.klineDesc') }}</div>
               </div>
               <div class="kline-toolbar">
                 <button v-for="tf in ['7D','30D','90D','180D']" :key="tf"
                   class="timeframe-btn" :class="{ active: timeframe === tf }"
-                  @click="timeframe = tf; renderKline();">{{ tf }}</button>
+                  @click="timeframe = tf; renderKline();">{{ t('prediction.tf.' + tf) }}</button>
               </div>
             </div>
             <div ref="klineChart" class="kline-container"></div>
@@ -303,12 +307,12 @@
           <div class="grid grid-2 mb-4">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🔮 多模型预测对比 (7天)</div>
+                <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
               </div>
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>模型</th>
+                    <th>{{ t('models.col.model') }}</th>
                     <th>预测价</th>
                     <th>变化</th>
                     <th>置信度</th>
@@ -335,20 +339,20 @@
               </table>
 
               <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
-                <div class="text-muted text-sm mb-2">🎯 推荐入场区间</div>
+                <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
                 <div class="flex items-center gap-3">
                   <div style="font-size: 22px; font-weight: 700; color: var(--accent-orange);">
                     ¥{{ formatPrice(selectedSkin ? selectedSkin.price * 0.97 : 0) }} - {{ formatPrice(selectedSkin ? selectedSkin.price * 0.99 : 0) }}
                   </div>
-                  <span class="tag tag-orange">7天目标 ¥{{ formatPrice(selectedSkin ? selectedSkin.price * 1.05 : 0) }}</span>
+                  <span class="tag tag-orange">{{ t('prediction.target7d') }} ¥{{ formatPrice(selectedSkin ? selectedSkin.price * 1.05 : 0) }}</span>
                 </div>
               </div>
             </div>
 
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🧠 RAG 解释 · 为什么涨跌?</div>
-                <span class="tag tag-purple">DeepSeek</span>
+                <div class="card-title">{{ t('prediction.ragTitle') }}</div>
+                <span class="tag tag-purple">{{ t('prediction.ragModel') }}</span>
               </div>
               <div class="news-list">
                 <div v-for="news in relatedNews" :key="news.id" class="news-item">
@@ -374,10 +378,10 @@
           <div class="card">
             <div class="card-header">
               <div>
-                <div class="card-title">🐂🐻 双 Agent 辩论分析</div>
-                <div class="card-subtitle">多头 vs 空头 · 3 轮迭代达成共识</div>
+                <div class="card-title">{{ t('prediction.debateTitle') }}</div>
+                <div class="card-subtitle">{{ t('prediction.debateDesc') }}</div>
               </div>
-              <span class="tag tag-orange">核心创新</span>
+              <span class="tag tag-orange">{{ t('prediction.debate.badge') }}</span>
             </div>
 
             <div class="debate-rounds">
@@ -385,7 +389,7 @@
                 <div class="debate-round-title">
                   <span>Round {{ round.round }}</span>
                   <span>·</span>
-                  <span>{{ roundTitle(idx) }}</span>
+                  <span>{{ t('prediction.debate.r' + (idx + 1)) }}</span>
                 </div>
                 <div class="debate-message debate-bull">
                   <span class="debate-icon">🐂</span>
@@ -399,26 +403,26 @@
 
               <!-- 最终共识 -->
               <div class="card" style="background: var(--bg-tertiary);">
-                <div class="text-muted text-sm mb-3">📌 最终共识</div>
+                <div class="text-muted text-sm mb-3">{{ t('prediction.consensus.title') }}</div>
                 <div class="grid grid-2 gap-3 mb-3">
                   <div>
-                    <div class="text-muted text-sm">建议</div>
+                    <div class="text-muted text-sm">{{ t('prediction.consensus.advice') }}</div>
                     <div style="font-size: 18px; font-weight: 700; color: var(--accent-orange);">{{ debateData.consensus.recommendation }}</div>
                   </div>
                   <div>
-                    <div class="text-muted text-sm">入场区间</div>
+                    <div class="text-muted text-sm">{{ t('prediction.consensus.entry') }}</div>
                     <div style="font-size: 18px; font-weight: 700;">{{ debateData.consensus.entryRange }}</div>
                   </div>
                   <div>
-                    <div class="text-muted text-sm">目标价 (30天)</div>
+                    <div class="text-muted text-sm">{{ t('prediction.consensus.target') }}</div>
                     <div style="font-size: 18px; font-weight: 700; color: var(--accent-green);">{{ debateData.consensus.targetPrice }}</div>
                   </div>
                   <div>
-                    <div class="text-muted text-sm">止损</div>
+                    <div class="text-muted text-sm">{{ t('prediction.consensus.stoploss') }}</div>
                     <div style="font-size: 18px; font-weight: 700; color: var(--accent-red);">{{ debateData.consensus.stopLoss }}</div>
                   </div>
                 </div>
-                <div class="text-muted text-sm">⚠️ 风险提示: {{ debateData.consensus.risks.join(' · ') }}</div>
+                <div class="text-muted text-sm">{{ t('prediction.consensus.risks') }}: {{ debateData.consensus.risks.join(' · ') }}</div>
               </div>
             </div>
           </div>
@@ -433,13 +437,13 @@
                 <div class="chat-avatar avatar-ai">AI</div>
                 <div style="flex: 1;">
                   <div class="chat-content">
-                    <strong>👋 你好,我是 SkinVision AI 智能顾问</strong><br><br>
-                    我可以帮你:<br>
-                    • 📊 分析任意 CS2 饰品的价格走势<br>
-                    • 🤖 给出 AI 预测 + 入场建议<br>
-                    • 💰 根据预算和风险推荐组合<br>
-                    • 📰 解读市场新闻和赛事影响<br><br>
-                    <span class="text-muted text-sm">支持自然语言提问,试试下面的推荐问题 ↓</span>
+                    <strong>{{ t('chat.welcomeTitle') }}</strong><br><br>
+                    {{ t('chat.welcomeBody') }}<br>
+                    • {{ t('chat.welcomeItem1') }}<br>
+                    • {{ t('chat.welcomeItem2') }}<br>
+                    • {{ t('chat.welcomeItem3') }}<br>
+                    • {{ t('chat.welcomeItem4') }}<br><br>
+                    <span class="text-muted text-sm">{{ t('chat.welcomeHint') }}</span>
                   </div>
                 </div>
               </div>
@@ -454,7 +458,7 @@
                   @click="askQuestion(q)"
                   tabindex="0"
                   role="button"
-                  :aria-label="`快速提问: ${q}`"
+                  :aria-label="`${t('chat.suggestedPrefix')}: ${q}`"
                   @keydown.enter="askQuestion(q)"
                   @keydown.space.prevent="askQuestion(q)"
                   @mouseenter="chatSuggestedIndex = qIdx"
@@ -465,12 +469,12 @@
               <!-- 消息列表 -->
               <div v-for="(msg, idx) in chatMessages.slice(1)" :key="idx" class="chat-message">
                 <div :class="msg.role === 'user' ? 'chat-avatar avatar-user' : 'chat-avatar avatar-ai'">
-                  {{ msg.role === 'user' ? '我' : 'AI' }}
+                  {{ msg.role === 'user' ? t('chat.meta.you').charAt(0) : 'AI' }}
                 </div>
                 <div style="flex: 1;">
                   <div class="chat-content" v-html="renderMarkdown(msg.content)"></div>
                   <div class="chat-meta">
-                    <span>{{ msg.role === 'user' ? '您' : 'SkinVision AI' }}</span>
+                    <span>{{ msg.role === 'user' ? t('chat.meta.you') : t('chat.meta.ai') }}</span>
                     <span>·</span>
                     <span>{{ msg.time }}</span>
                     <span v-if="msg.model">·</span>
@@ -486,7 +490,7 @@
                   <div class="typing-dots">
                     <span></span><span></span><span></span>
                   </div>
-                  <span style="margin-left: 8px; color: var(--text-muted);">AI 正在分析...</span>
+                  <span style="margin-left: 8px; color: var(--text-muted);">{{ t('chat.aiLoading') }}</span>
                 </div>
               </div>
             </div>
@@ -496,18 +500,18 @@
                 class="chat-input"
                 v-model="chatInput"
                 @keydown="onChatKeydown"
-                placeholder="问我任何关于 CS2 饰品的问题... (Enter 发送, ↑↓ 选建议问题, Shift+Enter 换行)"
+                :placeholder="t('chat.placeholder')"
                 rows="2"
-                aria-label="AI 对话输入框"
+                :aria-label="t('chat.placeholder')"
               ></textarea>
               <div class="chat-input-actions">
                 <div class="text-muted text-sm">
-                  💡 提示: 可以问 "AK-47 火蛇分析"、"5000 预算推荐"等
+                  💡 {{ t('chat.placeholderKeys') }}
                 </div>
                 <button class="btn btn-primary" :class="{ loading: chatLoading }" @click="sendMessage" :disabled="!chatInput.trim() || chatLoading">
                   <span v-if="!chatLoading">📤</span>
-                  <span v-if="!chatLoading">发送</span>
-                  <span v-if="chatLoading">思考中</span>
+                  <span v-if="!chatLoading">{{ t('chat.send') }}</span>
+                  <span v-if="chatLoading">{{ t('chat.thinking') }}</span>
                 </button>
               </div>
             </div>
@@ -518,43 +522,42 @@
         <div v-if="currentPage === 'daily'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">📰 AI 市场日报</h2>
-              <p class="text-muted text-sm mt-2">2026-07-15 · 自动生成 · 每日 09:00 更新</p>
+              <h2 style="font-size: 20px; font-weight: 700;">{{ t('daily.title') }}</h2>
+              <p class="text-muted text-sm mt-2">{{ t('daily.date') }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm">
-                <span>📥</span> 导出 PDF
+                <span>📥</span> {{ t('daily.exportPdf') }}
               </button>
               <button class="btn btn-primary btn-sm">
-                <span>🔄</span> 重新生成
+                <span>🔄</span> {{ t('daily.regenerate') }}
               </button>
             </div>
           </div>
 
-          <!-- 关键指标 -->
           <div class="daily-report-grid mb-6">
             <div class="metric-card">
-              <div class="metric-card-label">📊 监控饰品</div>
+              <div class="metric-card-label">{{ t('daily.metricMonitor') }}</div>
               <div class="metric-card-value">20</div>
-              <div class="metric-card-delta text-muted">覆盖 4 大类别</div>
+              <div class="metric-card-delta text-muted">{{ t('daily.monitorRange') }}</div>
             </div>
             <div class="metric-card">
-              <div class="metric-card-label">📈 上涨数量</div>
+              <div class="metric-card-label">{{ t('daily.metricGainers') }}</div>
               <div class="metric-card-value text-up">14</div>
-              <div class="metric-card-delta text-up">↑ 70% 监控池</div>
+              <div class="metric-card-delta text-up">{{ t('daily.metricGainersDesc') }}</div>
             </div>
             <div class="metric-card">
-              <div class="metric-card-label">📉 下跌数量</div>
+              <div class="metric-card-label">{{ t('daily.metricLosers') }}</div>
               <div class="metric-card-value text-down">6</div>
-              <div class="metric-card-delta text-down">↓ 30% 监控池</div>
+              <div class="metric-card-delta text-down">{{ t('daily.metricLosersDesc') }}</div>
             </div>
           </div>
 
           <div class="grid grid-2 mb-4">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🔥 成交量 Top 5</div>
-                <span class="tag tag-orange">热点</span>
+                <div class="card-title">{{ t('daily.hotVolume') }}</div>
+                <span class="tag tag-orange">{{ t('daily.hotVolume.badge') }}</span>
               </div>
               <div v-for="(skin, idx) in hotVolume.slice(0, 5)" :key="skin.id"
                 class="flex items-center gap-3 mb-3" style="padding: 8px; background: var(--bg-tertiary); border-radius: 6px;">
@@ -562,44 +565,43 @@
                 <div style="font-size: 22px;">{{ skin.image }}</div>
                 <div style="flex: 1;">
                   <div class="text-sm font-bold">{{ skin.name }}</div>
-                  <div class="text-muted" style="font-size: 11px;">{{ skin.category }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.category.' + categoryMap[skin.category] || skin.category) }}</div>
                 </div>
                 <div style="text-align: right;">
                   <div class="font-bold">¥{{ formatPrice(skin.price) }}</div>
-                  <div class="text-muted" style="font-size: 11px;">量 {{ skin.volume24h }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                 </div>
               </div>
             </div>
 
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🎯 AI 市场总结</div>
-                <span class="tag tag-purple">DeepSeek 生成</span>
+                <div class="card-title">{{ t('daily.aiSummary') }}</div>
+                <span class="tag tag-purple">{{ t('daily.aiSummaryModel') }}</span>
               </div>
               <div style="line-height: 1.8; font-size: 13px;">
-                <p>今日 CS2 饰品市场整体<span style="color: var(--accent-red); font-weight: 600;">偏强震荡</span>,70% 监控饰品上涨,平均涨幅 +2.3%。</p>
+                <p>{{ t('daily.summaryText1') }}<span style="color: var(--accent-red); font-weight: 600;">{{ t('daily.summaryStrong') }}</span>{{ t('daily.summaryText2') }}</p>
                 <br>
-                <p><strong style="color: var(--accent-orange);">核心驱动:</strong></p>
+                <p><strong style="color: var(--accent-orange);">{{ t('daily.coreDriver') }}</strong></p>
                 <ol style="padding-left: 20px; margin-top: 8px;">
-                  <li>Valve 7月更新未削弱 AK-47,市场信心提振</li>
-                  <li>IEM Cologne 2026 (10天后) 带动赛事经济</li>
-                  <li>社区情绪指数升至 68(贪婪区间)</li>
+                  <li>{{ t('daily.driver1') }}</li>
+                  <li>{{ t('daily.driver2') }}</li>
+                  <li>{{ t('daily.driver3') }}</li>
                 </ol>
                 <br>
-                <p><strong style="color: var(--accent-red);">机会:</strong> AWP | Dragon Lore 强势突破,职业选手偏好上升;M4A1-S | Printstream 持续走强。</p>
+                <p><strong style="color: var(--accent-red);">{{ t('daily.opportunity') }}</strong> {{ t('daily.opportunityText') }}</p>
                 <br>
-                <p><strong style="color: var(--accent-green);">风险:</strong> 手套类流动性下降,价格短期承压;D&N Case 因掉宝率提升出现波动。</p>
+                <p><strong style="color: var(--accent-green);">{{ t('daily.risk') }}</strong> {{ t('daily.riskText') }}</p>
                 <br>
-                <p class="text-muted text-sm">⚠️ 以上为 AI 自动分析,仅供参考,不构成投资建议。</p>
+                <p class="text-muted text-sm">{{ t('daily.aiDisclaimer') }}</p>
               </div>
             </div>
           </div>
 
-          <!-- 资讯流 -->
           <div class="card">
             <div class="card-header">
-              <div class="card-title">📡 资讯流 (RAG 知识库)</div>
-              <span class="tag tag-blue">每日自动抓取</span>
+              <div class="card-title">{{ t('daily.newsStream') }}</div>
+              <span class="tag tag-blue">{{ t('daily.newsBadge') }}</span>
             </div>
             <div class="news-list">
               <div v-for="news in newsFeed" :key="news.id" class="news-item">
@@ -624,73 +626,73 @@
         <div v-if="currentPage === 'alerts'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">🔔 价格预警</h2>
-              <p class="text-muted text-sm mt-2">设置目标价 · 触发时站内提醒 · 支持多条件组合</p>
+              <h2 style="font-size: 20px; font-weight: 700;">{{ t('alerts.title') }}</h2>
+              <p class="text-muted text-sm mt-2">{{ t('alerts.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm" @click="exportData('alerts', 'csv')">
-                <span>📥</span> 导出
+                <span>📥</span> {{ t('common.export') }}
               </button>
               <button class="btn btn-primary" @click="showAlertModal = true">
-                <span>➕</span> 新建预警
+                <span>➕</span> {{ t('alerts.newAlert') }}
               </button>
             </div>
           </div>
 
           <div class="grid grid-3 mb-4">
             <div class="metric-card">
-              <div class="metric-card-label">活跃预警</div>
+              <div class="metric-card-label">{{ t('alerts.activeAlerts') }}</div>
               <div class="metric-card-value" style="color: var(--accent-green);">{{ alerts.filter(a => a.active).length }}</div>
-              <div class="metric-card-delta text-muted">正常运行中</div>
+              <div class="metric-card-delta text-muted">{{ t('alerts.activeDesc') }}</div>
             </div>
             <div class="metric-card">
-              <div class="metric-card-label">今日触发</div>
+              <div class="metric-card-label">{{ t('alerts.todayTriggers') }}</div>
               <div class="metric-card-value" style="color: var(--accent-orange);">2</div>
-              <div class="metric-card-delta text-muted">需要查看</div>
+              <div class="metric-card-delta text-muted">{{ t('alerts.todayDesc') }}</div>
             </div>
             <div class="metric-card">
-              <div class="metric-card-label">本周触发</div>
+              <div class="metric-card-label">{{ t('alerts.weekTriggers') }}</div>
               <div class="metric-card-value">8</div>
-              <div class="metric-card-delta text-muted">总触发次数</div>
+              <div class="metric-card-delta text-muted">{{ t('alerts.weekDesc') }}</div>
             </div>
           </div>
 
           <div class="card">
             <div class="card-header">
-              <div class="card-title">📋 预警列表</div>
+              <div class="card-title">{{ t('alerts.list') }}</div>
             </div>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>状态</th>
-                  <th>饰品</th>
-                  <th>条件</th>
-                  <th>目标价</th>
-                  <th>当前价</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
+                  <th>{{ t('alerts.status') }}</th>
+                  <th>{{ t('alerts.skin') }}</th>
+                  <th>{{ t('alerts.condition') }}</th>
+                  <th>{{ t('alerts.target') }}</th>
+                  <th>{{ t('alerts.current') }}</th>
+                  <th>{{ t('alerts.createdAt') }}</th>
+                  <th>{{ t('alerts.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="alert in alerts" :key="alert.id">
                   <td>
                     <span class="alert-status" :class="{ inactive: !alert.active, triggered: alert.triggered }"></span>
-                    <span class="text-sm" style="margin-left: 6px;">{{ alert.triggered ? '已触发' : alert.active ? '监控中' : '已暂停' }}</span>
+                    <span class="text-sm" style="margin-left: 6px;">{{ alert.triggered ? t('alerts.status.triggered') : alert.active ? t('alerts.status.monitoring') : t('alerts.status.paused') }}</span>
                   </td>
                   <td>
                     <strong>{{ alert.skinName }}</strong>
                   </td>
                   <td>
                     <span class="tag" :class="alert.type === 'above' ? 'tag-red' : 'tag-green'">
-                      {{ alert.type === 'above' ? '涨破' : '跌破' }}
+                      {{ alert.type === 'above' ? t('alerts.above') : t('alerts.below') }}
                     </span>
                   </td>
                   <td class="font-bold">¥{{ formatPrice(alert.targetPrice) }}</td>
                   <td>¥{{ formatPrice(alert.currentPrice) }}</td>
                   <td class="text-muted text-sm">{{ alert.createdAt }}</td>
                   <td>
-                    <button class="btn btn-ghost btn-sm">{{ alert.active ? '暂停' : '启用' }}</button>
-                    <button class="btn btn-ghost btn-sm" style="color: var(--accent-red);">删除</button>
+                    <button class="btn btn-ghost btn-sm">{{ alert.active ? t('common.disable') : t('common.enable') }}</button>
+                    <button class="btn btn-ghost btn-sm" style="color: var(--accent-red);">{{ t('common.delete') }}</button>
                   </td>
                 </tr>
               </tbody>
@@ -702,32 +704,31 @@
         <div v-if="currentPage === 'portfolio'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">📋 模拟持仓</h2>
-              <p class="text-muted text-sm mt-2">实时盈亏计算 · 风险指标监控 · 收益归因分析</p>
+              <h2 style="font-size: 20px; font-weight: 700;">{{ t('portfolio.title') }}</h2>
+              <p class="text-muted text-sm mt-2">{{ t('portfolio.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('portfolio', 'csv')" title="导出 CSV">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('portfolio', 'json')" title="导出 JSON">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('portfolio', 'csv')">📊 CSV</button>
+                <button class="btn btn-sm" @click="exportData('portfolio', 'json')">{ } JSON</button>
               </div>
               <button class="btn btn-primary" @click="showPortfolioModal = true">
-                <span>➕</span> 添加持仓
+                <span>➕</span> {{ t('portfolio.addHolding') }}
               </button>
             </div>
           </div>
 
-          <!-- 汇总 -->
           <div class="portfolio-summary mb-4">
             <div class="summary-card">
-              <div class="summary-label">总成本</div>
+              <div class="summary-label">{{ t('portfolio.totalCost') }}</div>
               <div class="summary-value">¥{{ formatPrice(portfolioMetrics.totalCost) }}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">当前市值</div>
+              <div class="summary-label">{{ t('portfolio.totalValue') }}</div>
               <div class="summary-value">¥{{ formatPrice(portfolioMetrics.totalValue) }}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">浮动盈亏</div>
+              <div class="summary-label">{{ t('portfolio.pnl') }}</div>
               <div class="summary-value" :class="portfolioMetrics.pnl >= 0 ? 'text-up' : 'text-down'">
                 {{ portfolioMetrics.pnl >= 0 ? '+' : '' }}¥{{ formatPrice(Math.abs(portfolioMetrics.pnl)) }}
               </div>
@@ -736,47 +737,44 @@
               </div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">夏普比率</div>
+              <div class="summary-label">{{ t('portfolio.sharpe') }}</div>
               <div class="summary-value">{{ portfolioMetrics.sharpeRatio }}</div>
-              <div class="summary-delta text-muted">年化</div>
+              <div class="summary-delta text-muted">{{ t('portfolio.sharpeUnit') }}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">最大回撤</div>
+              <div class="summary-label">{{ t('portfolio.maxDrawdown') }}</div>
               <div class="summary-value text-down">{{ portfolioMetrics.maxDrawdown }}%</div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">波动率</div>
+              <div class="summary-label">{{ t('portfolio.volatility') }}</div>
               <div class="summary-value">{{ portfolioMetrics.volatility }}%</div>
-              <div class="summary-delta text-muted">30天</div>
+              <div class="summary-delta text-muted">{{ t('portfolio.volatilityUnit') }}</div>
             </div>
           </div>
 
-          <!-- 持仓列表 -->
           <div class="card">
             <div class="card-header">
-              <div class="card-title">💼 持仓明细</div>
-              <span class="tag">{{ portfolio.length }} 个持仓</span>
+              <div class="card-title">{{ t('portfolio.holdingsList') }}</div>
+              <span class="tag">{{ t('portfolio.holdingsCount', { count: portfolio.length }) }}</span>
             </div>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>饰品</th>
-                  <th>买入价</th>
-                  <th>数量</th>
-                  <th>成本</th>
-                  <th>当前价</th>
-                  <th>市值</th>
-                  <th>盈亏</th>
-                  <th>收益率</th>
-                  <th>买入日期</th>
-                  <th>操作</th>
+                  <th>{{ t('alerts.skin') }}</th>
+                  <th>{{ t('portfolio.buyPrice') }}</th>
+                  <th>{{ t('portfolio.quantity') }}</th>
+                  <th>{{ t('portfolio.cost') }}</th>
+                  <th>{{ t('portfolio.currentPrice') }}</th>
+                  <th>{{ t('portfolio.marketValue') }}</th>
+                  <th>{{ t('portfolio.pnlCol') }}</th>
+                  <th>{{ t('portfolio.returnRate') }}</th>
+                  <th>{{ t('portfolio.buyDate') }}</th>
+                  <th>{{ t('alerts.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in portfolio" :key="item.id">
-                  <td>
-                    <strong>{{ item.name }}</strong>
-                  </td>
+                  <td><strong>{{ item.name }}</strong></td>
                   <td>¥{{ formatPrice(item.buyPrice) }}</td>
                   <td>{{ item.quantity }}</td>
                   <td>¥{{ formatPrice(item.buyPrice * item.quantity) }}</td>
@@ -790,7 +788,7 @@
                   </td>
                   <td class="text-muted text-sm">{{ item.buyDate }}</td>
                   <td>
-                    <button class="btn btn-ghost btn-sm" @click="removePortfolio(item.id)">平仓</button>
+                    <button class="btn btn-ghost btn-sm" @click="removePortfolio(item.id)">{{ t('portfolio.close') }}</button>
                   </td>
                 </tr>
               </tbody>
@@ -802,45 +800,44 @@
         <div v-if="currentPage === 'models'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">🤖 模型实验室</h2>
-              <p class="text-muted text-sm mt-2">10 个模型对比 · 回测 · SHAP 解释 · 课程评分核心 60%</p>
+              <h2 style="font-size: 20px; font-weight: 700;">{{ t('models.title') }}</h2>
+              <p class="text-muted text-sm mt-2">{{ t('models.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('models', 'csv')" title="导出 CSV">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('models', 'json')" title="导出 JSON">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('models', 'csv')">📊 CSV</button>
+                <button class="btn btn-sm" @click="exportData('models', 'json')">{ } JSON</button>
               </div>
               <button class="btn btn-primary btn-sm">
-                <span>🚀</span> 重新训练
+                <span>🚀</span> {{ t('models.retrain') }}
               </button>
             </div>
           </div>
 
-          <!-- 模型对比总表 -->
           <div class="card mb-4">
             <div class="card-header">
-              <div class="card-title">📊 回归模型对比 (6 个)</div>
-              <span class="tag tag-blue">任务:预测 7 天后价格</span>
+              <div class="card-title">{{ t('models.regressionTable') }}</div>
+              <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
             </div>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>模型</th>
-                  <th>类型</th>
-                  <th>RMSE ↓</th>
-                  <th>MAE ↓</th>
-                  <th>MAPE% ↓</th>
-                  <th>R² ↑</th>
-                  <th>训练速度</th>
-                  <th>回测收益</th>
-                  <th>课程关联</th>
+                  <th>{{ t('models.col.model') }}</th>
+                  <th>{{ t('models.col.type') }}</th>
+                  <th>{{ t('models.col.rmse') }}</th>
+                  <th>{{ t('models.col.mae') }}</th>
+                  <th>{{ t('models.col.mape') }}</th>
+                  <th>{{ t('models.col.r2') }}</th>
+                  <th>{{ t('models.col.speed') }}</th>
+                  <th>{{ t('models.col.returnPct') }}</th>
+                  <th>{{ t('models.col.course') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="m in regressionModels" :key="m.name">
                   <td>
                     <strong>{{ m.name }}</strong>
-                    <span v-if="m.name === 'LSTM'" class="tag tag-orange" style="margin-left: 6px;">⭐ 主力</span>
+                    <span v-if="m.name === 'LSTM'" class="tag tag-orange" style="margin-left: 6px;">⭐ {{ t('models.star') }}</span>
                   </td>
                   <td><span class="tag">{{ m.type }}</span></td>
                   <td>{{ m.rmse.toFixed(2) }}</td>
@@ -860,16 +857,16 @@
           <div class="grid grid-2 mb-4">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">📈 分类模型对比 (4 个)</div>
-                <span class="tag tag-blue">任务:涨跌方向</span>
+                <div class="card-title">{{ t('models.classificationTable') }}</div>
+                <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
               </div>
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>模型</th>
-                    <th>Accuracy</th>
-                    <th>AUC</th>
-                    <th>收益</th>
+                    <th>{{ t('models.col.model') }}</th>
+                    <th>{{ t('models.col.accuracy') }}</th>
+                    <th>{{ t('models.col.auc') }}</th>
+                    <th>{{ t('models.col.returnPct') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -882,7 +879,7 @@
                     </td>
                   </tr>
                   <tr>
-                    <td><strong>买入持有基准</strong></td>
+                    <td><strong>{{ t('models.buyHold') }}</strong></td>
                     <td>—</td>
                     <td>—</td>
                     <td class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</td>
@@ -893,50 +890,47 @@
 
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🕸️ 多维雷达图</div>
-                <span class="tag tag-purple">综合能力</span>
+                <div class="card-title">{{ t('models.radar') }}</div>
+                <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
               </div>
               <div ref="radarChart" class="radar-container"></div>
             </div>
           </div>
 
-          <!-- 回测收益曲线 -->
           <div class="card mb-4">
             <div class="card-header">
-              <div class="card-title">💰 回测收益曲线 (60天)</div>
-              <span class="tag tag-green">LSTM 跑赢基准 13.7%</span>
+              <div class="card-title">{{ t('models.backtest') }}</div>
+              <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
             </div>
             <div ref="backtestChart" style="height: 320px; background: var(--bg-card); border-radius: 8px; padding: 12px;"></div>
           </div>
 
-          <!-- SHAP -->
           <div class="grid grid-2">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🔍 SHAP 特征重要性</div>
-                <span class="tag tag-orange">XGBoost</span>
+                <div class="card-title">{{ t('models.shap') }}</div>
+                <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
               </div>
               <div ref="shapChart" style="height: 320px; background: var(--bg-card); border-radius: 8px; padding: 12px;"></div>
             </div>
 
             <div class="card">
               <div class="card-header">
-                <div class="card-title">📚 训练策略</div>
+                <div class="card-title">{{ t('models.trainStrategy') }}</div>
               </div>
               <ul style="line-height: 2; padding-left: 20px; font-size: 13px;">
-                <li>✅ <strong>时序分割</strong>: 70/15/15 TimeSeriesSplit(严禁随机打乱)</li>
-                <li>✅ <strong>Walk-Forward</strong> 滚动验证</li>
-                <li>✅ <strong>SMOTE</strong> 处理分类不平衡</li>
-                <li>✅ <strong>StandardScaler</strong> 特征标准化</li>
-                <li>✅ <strong>GridSearch</strong> 超参数调优 (Pipeline)</li>
-                <li>✅ <strong>回测引擎</strong>: 逐日模拟交易,对比买入持有</li>
-                <li>✅ <strong>风险指标</strong>: Sharpe / Drawdown / Volatility</li>
+                <li>✅ <strong>TimeSeriesSplit</strong>: 70/15/15 (no shuffle)</li>
+                <li>✅ <strong>Walk-Forward</strong> rolling validation</li>
+                <li>✅ <strong>SMOTE</strong> for class imbalance</li>
+                <li>✅ <strong>StandardScaler</strong> feature scaling</li>
+                <li>✅ <strong>GridSearch</strong> hyperparam tuning (Pipeline)</li>
+                <li>✅ <strong>Backtest</strong>: daily simulate vs Buy&Hold</li>
+                <li>✅ <strong>Risk Metrics</strong>: Sharpe / Drawdown / Volatility</li>
               </ul>
               <div class="mt-4" style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
-                <div class="text-muted text-sm mb-2">📈 关键发现</div>
+                <div class="text-muted text-sm mb-2">{{ t('models.findings') }}</div>
                 <div style="font-size: 13px; line-height: 1.7;">
-                  LSTM 凭借 60 天 lookback 窗口,在 RMSE 指标上领先其他模型 <strong style="color: var(--accent-orange);">14.3%</strong>。
-                  XGBoost 训练速度与可解释性平衡最佳,适合作为主力生产模型。
+                  {{ t('models.findingsText', { pct: '14.3%' }) }}
                 </div>
               </div>
             </div>
@@ -946,85 +940,86 @@
     </main>
 
     <!-- 预警弹窗 -->
-    <div v-if="showAlertModal" class="modal-mask" @click.self="showAlertModal = false">
+    <div v-if="showAlertModal" class="modal-mask" @click.self="showAlertModal = false" role="dialog" aria-modal="true">
       <div class="modal">
         <div class="modal-title">
-          <span>🔔 新建价格预警</span>
-          <button class="modal-close" @click="showAlertModal = false">×</button>
+          <span>{{ t('alerts.modal.title') }}</span>
+          <button class="modal-close" @click="showAlertModal = false" :aria-label="t('common.close')">×</button>
         </div>
         <div class="form-group">
-          <label class="form-label">选择饰品</label>
+          <label class="form-label">{{ t('alerts.modal.skin') }}</label>
           <select class="form-select" v-model="newAlert.skinId">
-            <option value="">请选择...</option>
+            <option value="">{{ t('common.please') }}...</option>
             <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">触发条件</label>
+          <label class="form-label">{{ t('alerts.modal.type') }}</label>
           <select class="form-select" v-model="newAlert.type">
-            <option value="above">涨破目标价</option>
-            <option value="below">跌破目标价</option>
+            <option value="above">{{ t('alerts.modal.type.above') }}</option>
+            <option value="below">{{ t('alerts.modal.type.below') }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">目标价格 (¥)</label>
-          <input type="number" class="form-input" v-model.number="newAlert.targetPrice" placeholder="例: 16000" />
+          <label class="form-label">{{ t('alerts.modal.price') }}</label>
+          <input type="number" class="form-input" v-model.number="newAlert.targetPrice" placeholder="16000" />
         </div>
         <div class="form-group">
-          <label class="form-label">备注 (可选)</label>
-          <input type="text" class="form-input" v-model="newAlert.note" placeholder="例: 接近历史阻力位" />
+          <label class="form-label">{{ t('alerts.modal.note') }}</label>
+          <input type="text" class="form-input" v-model="newAlert.note" :placeholder="t('alerts.modal.note.placeholder')" />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-secondary" @click="showAlertModal = false">取消</button>
-          <button class="btn btn-primary" @click="addAlert">创建预警</button>
+          <button class="btn btn-secondary" @click="showAlertModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" @click="addAlert">{{ t('alerts.modal.create') }}</button>
         </div>
       </div>
     </div>
 
     <!-- 添加持仓弹窗 -->
-    <div v-if="showPortfolioModal" class="modal-mask" @click.self="showPortfolioModal = false">
+    <div v-if="showPortfolioModal" class="modal-mask" @click.self="showPortfolioModal = false" role="dialog" aria-modal="true">
       <div class="modal">
         <div class="modal-title">
-          <span>📋 添加持仓</span>
-          <button class="modal-close" @click="showPortfolioModal = false">×</button>
+          <span>{{ t('portfolio.modal.title') }}</span>
+          <button class="modal-close" @click="showPortfolioModal = false" :aria-label="t('common.close')">×</button>
         </div>
         <div class="form-group">
-          <label class="form-label">选择饰品</label>
+          <label class="form-label">{{ t('portfolio.modal.skin') }}</label>
           <select class="form-select" v-model="newPortfolio.skinId">
-            <option value="">请选择...</option>
-            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }} (现价¥{{ formatPrice(s.price) }})</option>
+            <option value="">{{ t('common.please') }}...</option>
+            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }} (¥{{ formatPrice(s.price) }})</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">买入价格 (¥)</label>
-          <input type="number" class="form-input" v-model.number="newPortfolio.buyPrice" placeholder="例: 380" />
+          <label class="form-label">{{ t('portfolio.modal.buyPrice') }}</label>
+          <input type="number" class="form-input" v-model.number="newPortfolio.buyPrice" :placeholder="t('portfolio.modal.buyPrice.placeholder')" />
         </div>
         <div class="form-group">
-          <label class="form-label">数量</label>
-          <input type="number" class="form-input" v-model.number="newPortfolio.quantity" placeholder="例: 1" />
+          <label class="form-label">{{ t('portfolio.modal.quantity') }}</label>
+          <input type="number" class="form-input" v-model.number="newPortfolio.quantity" :placeholder="t('portfolio.modal.quantity.placeholder')" />
         </div>
         <div class="form-group">
-          <label class="form-label">买入日期</label>
+          <label class="form-label">{{ t('portfolio.modal.buyDate') }}</label>
           <input type="date" class="form-input" v-model="newPortfolio.buyDate" />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-secondary" @click="showPortfolioModal = false">取消</button>
-          <button class="btn btn-primary" @click="addPortfolio">添加</button>
+          <button class="btn btn-secondary" @click="showPortfolioModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" @click="addPortfolio">{{ t('common.add') }}</button>
         </div>
       </div>
     </div>
 
     <!-- 命令面板 (Ctrl+K) -->
     <div v-if="showCommandPalette" class="command-palette" @click.self="showCommandPalette = false">
-      <div class="command-panel">
+      <div class="command-panel" role="dialog" aria-modal="true">
         <div class="command-search">
-          <span class="command-search-icon">🔍</span>
+          <span class="command-search-icon" aria-hidden="true">🔍</span>
           <input
             ref="commandInput"
             v-model="commandQuery"
             @keydown="onCommandKeydown"
-            placeholder="搜索饰品、页面或功能..."
+            :placeholder="t('cmd.search.placeholder')"
             autofocus
+            :aria-label="t('cmd.search.placeholder')"
           />
           <kbd style="font-size: 10px; color: var(--text-muted);">ESC</kbd>
         </div>
@@ -1049,55 +1044,56 @@
           </div>
           <div v-if="commandResults.length === 0" class="empty-state" style="padding: 30px 20px;">
             <div class="empty-icon">🔍</div>
-            <div class="empty-text">未找到匹配项</div>
+            <div class="empty-text">{{ t('cmd.empty') }}</div>
           </div>
         </div>
         <div class="command-footer">
           <div class="command-footer-keys">
-            <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
-            <span><kbd>↵</kbd> 确认</span>
-            <span><kbd>ESC</kbd> 关闭</span>
+            <span><kbd>↑</kbd><kbd>↓</kbd> {{ t('cmd.footer.updown') }}</span>
+            <span><kbd>↵</kbd> {{ t('cmd.footer.enter') }}</span>
+            <span><kbd>ESC</kbd> {{ t('cmd.footer.esc') }}</span>
           </div>
-          <div>SkinVision AI · 智能搜索</div>
+          <div>{{ t('cmd.footer.brand') }}</div>
         </div>
       </div>
     </div>
 
     <!-- 快捷键帮助 (?) -->
     <div v-if="showShortcutHelp" class="shortcut-modal" @click.self="showShortcutHelp = false">
-      <div class="shortcut-modal-content">
+      <div class="shortcut-modal-content" role="dialog" aria-modal="true">
         <div class="shortcut-modal-title">
-          <span>⌨️ 键盘快捷键</span>
-          <button class="modal-close" @click="showShortcutHelp = false">×</button>
+          <span>{{ t('shortcut.title') }}</span>
+          <button class="modal-close" @click="showShortcutHelp = false" :aria-label="t('common.close')">×</button>
         </div>
         <div class="shortcut-grid">
-          <div class="shortcut-row"><span>打开命令面板</span><kbd>Ctrl</kbd><kbd>K</kbd></div>
-          <div class="shortcut-row"><span>显示快捷键</span><kbd>?</kbd></div>
-          <div class="shortcut-row"><span>行情看板</span><kbd>1</kbd></div>
-          <div class="shortcut-row"><span>AI 预测</span><kbd>2</kbd></div>
-          <div class="shortcut-row"><span>AI 对话</span><kbd>3</kbd></div>
-          <div class="shortcut-row"><span>市场日报</span><kbd>4</kbd></div>
-          <div class="shortcut-row"><span>价格预警</span><kbd>5</kbd></div>
-          <div class="shortcut-row"><span>模拟持仓</span><kbd>6</kbd></div>
-          <div class="shortcut-row"><span>模型实验室</span><kbd>7</kbd></div>
-          <div class="shortcut-row"><span>切换主题</span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>L</kbd></div>
-          <div class="shortcut-row"><span>关闭弹窗</span><kbd>Esc</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.cmdPanel') }}</span><kbd>Ctrl</kbd><kbd>K</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.show') }}</span><kbd>?</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.dashboard') }}</span><kbd>1</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.prediction') }}</span><kbd>2</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.chat') }}</span><kbd>3</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.daily') }}</span><kbd>4</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.alerts') }}</span><kbd>5</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.portfolio') }}</span><kbd>6</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.models') }}</span><kbd>7</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.theme') }}</span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>L</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.esc') }}</span><kbd>Esc</kbd></div>
         </div>
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-          💡 提示: 命令面板 (Ctrl+K) 可以快速跳转到任意页面或饰品,支持模糊搜索。
+          {{ t('shortcut.tip') }}
         </div>
       </div>
     </div>
 
     <!-- Toast 通知 -->
-    <div class="toast-container">
+    <div class="toast-container" aria-live="polite">
       <div
         v-for="toast in toasts"
         :key="toast.id"
         class="toast"
         :class="toast.type"
+        role="status"
       >
-        <span class="toast-icon">{{ toast.icon }}</span>
+        <span class="toast-icon" aria-hidden="true">{{ toast.icon }}</span>
         <div class="toast-content">
           <div class="toast-title">{{ toast.title }}</div>
           <div v-if="toast.subtitle" class="toast-subtitle">{{ toast.subtitle }}</div>
@@ -1108,6 +1104,7 @@
 
   <!-- 脚本 -->
   <script src="data.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

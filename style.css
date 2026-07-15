@@ -1234,6 +1234,19 @@ html, body {
   transform: rotate(15deg);
 }
 
+.lang-toggle {
+  width: auto;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  min-width: 56px;
+}
+
+.lang-toggle:hover {
+  transform: none;
+}
+
 /* ============ 命令面板 (Ctrl+K) ============ */
 .command-palette {
   position: fixed;

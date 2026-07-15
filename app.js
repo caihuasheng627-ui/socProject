@@ -5,21 +5,47 @@
 
 const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
+// ============ i18n 国际化 ============
+const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
+const detectBrowserLang = () => {
+  const browser = (navigator.language || 'zh-CN').toLowerCase();
+  if (browser.startsWith('en')) return 'en-US';
+  return 'zh-CN';
+};
+const currentLang = ref(localStorage.getItem('sv_lang') || detectBrowserLang());
+const t = (key, params = {}) => {
+  const dict = window.I18N[currentLang.value] || window.I18N['zh-CN'];
+  let str = dict[key] || key;
+  // 简单参数替换: {name} → params.name
+  Object.keys(params).forEach(k => {
+    str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
+  });
+  return str;
+};
+const setLang = (lang) => {
+  if (!SUPPORTED_LANGS.includes(lang)) return;
+  currentLang.value = lang;
+  localStorage.setItem('sv_lang', lang);
+};
+const toggleLang = () => {
+  setLang(currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN');
+};
+
 const app = createApp({
   setup() {
     // ============ 菜单 ============
-    const menu = [
-      { id: 'dashboard', icon: '📊', label: '行情看板' },
-      { id: 'prediction', icon: '🔍', label: 'AI 预测详情', badge: '核心' },
-      { id: 'chat', icon: '💬', label: 'AI 对话顾问', badge: '亮点' },
-      { id: 'daily', icon: '📰', label: 'AI 市场日报' },
-      { id: 'alerts', icon: '🔔', label: '价格预警' },
-      { id: 'portfolio', icon: '📋', label: '模拟持仓' },
-      { id: 'models', icon: '🤖', label: '模型实验室' },
-    ];
+    const menu = computed(() => [
+      { id: 'dashboard', icon: '📊', label: t('menu.dashboard') },
+      { id: 'prediction', icon: '🔍', label: t('menu.prediction'), badge: t('menu.badge.core') },
+      { id: 'chat', icon: '💬', label: t('menu.chat'), badge: t('menu.badge.highlight') },
+      { id: 'daily', icon: '📰', label: t('menu.daily') },
+      { id: 'alerts', icon: '🔔', label: t('menu.alerts') },
+      { id: 'portfolio', icon: '📋', label: t('menu.portfolio') },
+      { id: 'models', icon: '🤖', label: t('menu.models') },
+    ]);
 
     const currentPage = ref('dashboard');
-    const currentMenu = computed(() => menu.find(m => m.id === currentPage.value));
+    const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
     // ============ 主题切换 ============
     const theme = ref(localStorage.getItem('sv_theme') || 'dark');
@@ -31,7 +57,7 @@ const app = createApp({
     const toggleTheme = () => {
       theme.value = theme.value === 'dark' ? 'light' : 'dark';
       applyTheme(theme.value);
-      showToast({ title: '主题已切换', subtitle: theme.value === 'dark' ? '深色模式' : '浅色模式', type: 'success' });
+      showToast({ title: t('theme.switched'), subtitle: theme.value === 'dark' ? t('theme.dark') : t('theme.light'), type: 'success' });
       // 重新渲染图表以适配主题
       setTimeout(() => {
         klineChartInstance?.resize();
@@ -81,10 +107,10 @@ const app = createApp({
           ...data.map(row => headers.map(h => `"${(row[h] ?? '').toString().replace(/"/g, '""')}"`).join(','))
         ].join('\n');
         downloadFile(csv, filename + '.csv', 'text/csv;charset=utf-8;');
-        showToast({ title: '导出成功', subtitle: filename + '.csv', type: 'success' });
+        showToast({ title: t('export.success'), subtitle: filename + '.csv', type: 'success' });
       } else if (format === 'json') {
         downloadFile(JSON.stringify(data, null, 2), filename + '.json', 'application/json');
-        showToast({ title: '导出成功', subtitle: filename + '.json', type: 'success' });
+        showToast({ title: t('export.success'), subtitle: filename + '.json', type: 'success' });
       }
     };
 
@@ -121,11 +147,22 @@ const app = createApp({
     const suggestedQuestions = window.SkinVisionData.SUGGESTED_QUESTIONS;
 
     // ============ 行情看板 ============
-    const filterCategory = ref('全部');
-    const categories = ['全部', '步枪', '狙击枪', '手枪', '刀具', '手套', '箱子'];
+    const filterCategory = ref('all');
+    const categoryKeys = ['all', 'rifle', 'sniper', 'pistol', 'knife', 'gloves', 'case'];
+    // 中文类别 → i18n key 映射
+    const categoryMap = {
+      '步枪': 'rifle',
+      '狙击枪': 'sniper',
+      '手枪': 'pistol',
+      '刀具': 'knife',
+      '手套': 'gloves',
+      '箱子': 'case',
+    };
     const filteredSkins = computed(() => {
-      if (filterCategory.value === '全部') return skins.value;
-      return skins.value.filter(s => s.category === filterCategory.value);
+      if (filterCategory.value === 'all') return skins.value;
+      // 反向查找:从 i18n key 找到中文标签
+      const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
+      return skins.value.filter(s => s.category === zhLabel);
     });
 
     const refreshData = () => {
@@ -799,17 +836,17 @@ const app = createApp({
       const groups = [];
 
       // 页面命令
-      const pageCmds = menu
+      const pageCmds = menu.value
         .filter(m => match(m.label))
         .map((m, i) => ({
           id: `page-${m.id}`,
           icon: m.icon,
           title: m.label,
-          subtitle: '切换到 ' + m.label + ' 页面',
+          subtitle: t('cmd.pageDesc', { name: m.label }),
           kbd: String(i + 1),
           action: () => { currentPage.value = m.id; },
         }));
-      if (pageCmds.length) groups.push({ title: '📄 页面', items: pageCmds });
+      if (pageCmds.length) groups.push({ title: t('cmd.group.pages'), items: pageCmds });
 
       // 饰品命令
       const skinCmds = skins.value
@@ -823,17 +860,17 @@ const app = createApp({
           kbd: '',
           action: () => { viewSkin(s.id); },
         }));
-      if (skinCmds.length) groups.push({ title: '🎯 饰品', items: skinCmds });
+      if (skinCmds.length) groups.push({ title: t('cmd.group.skins'), items: skinCmds });
 
       // 操作命令
       const actionCmds = [
-        { id: 'act-theme', icon: theme.value === 'dark' ? '☀️' : '🌙', title: '切换主题', subtitle: `当前: ${theme.value === 'dark' ? '深色' : '浅色'}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
-        { id: 'act-help', icon: '⌨️', title: '查看快捷键', subtitle: '打开键盘快捷键帮助', kbd: '?', action: () => { showShortcutHelp.value = true; } },
-        { id: 'act-export-skins', icon: '📥', title: '导出饰品数据', subtitle: 'CSV / JSON 格式', kbd: '', action: () => exportData('skins', 'csv') },
-        { id: 'act-refresh', icon: '🔄', title: '刷新数据', subtitle: '重新拉取最新价格', kbd: '', action: refreshData },
-        { id: 'act-alert', icon: '🔔', title: '新建价格预警', subtitle: '跳转到预警页', kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
+        { id: 'act-theme', icon: theme.value === 'dark' ? '☀️' : '🌙', title: t('cmd.action.theme'), subtitle: `${t('cmd.action.themeCurrent')}: ${theme.value === 'dark' ? t('theme.dark') : t('theme.light')}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
+        { id: 'act-help', icon: '⌨️', title: t('cmd.action.help'), subtitle: t('shortcut.title'), kbd: '?', action: () => { showShortcutHelp.value = true; } },
+        { id: 'act-export-skins', icon: '📥', title: t('cmd.action.export'), subtitle: 'CSV / JSON', kbd: '', action: () => exportData('skins', 'csv') },
+        { id: 'act-refresh', icon: '🔄', title: t('cmd.action.refresh'), subtitle: '', kbd: '', action: refreshData },
+        { id: 'act-alert', icon: '🔔', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
       ].filter(c => match(c.title) || match(c.subtitle));
-      if (actionCmds.length) groups.push({ title: '⚡ 操作', items: actionCmds });
+      if (actionCmds.length) groups.push({ title: t('cmd.group.actions'), items: actionCmds });
 
       return groups;
     });
@@ -911,8 +948,9 @@ const app = createApp({
         const num = parseInt(e.key);
         if (num >= 1 && num <= 7) {
           e.preventDefault();
-          currentPage.value = menu[num - 1].id;
-          showToast({ title: '已跳转', subtitle: menu[num - 1].label, type: 'info', duration: 1500 });
+          const target = menu.value[num - 1];
+          currentPage.value = target.id;
+          showToast({ title: t('page.switched'), subtitle: target.label, type: 'info', duration: 1500 });
         }
       }
     };
@@ -938,17 +976,17 @@ const app = createApp({
       // 网络状态监听
       const updateOnlineStatus = () => {
         if (!navigator.onLine) {
-          showErrorToast('网络已断开', '部分功能可能不可用');
+          showErrorToast(t('network.offline'), t('network.offlineDesc'));
         }
       };
-      window.addEventListener('online', () => showToast({ title: '网络已恢复', type: 'success' }));
+      window.addEventListener('online', () => showToast({ title: t('network.online'), type: 'success' }));
       window.addEventListener('offline', updateOnlineStatus);
 
       // 显示欢迎提示
       setTimeout(() => {
         showToast({
-          title: '欢迎使用 SkinVision AI',
-          subtitle: '按 Ctrl+K 打开命令面板 · ? 查看快捷键',
+          title: t('welcome.toast.title'),
+          subtitle: t('welcome.toast.subtitle'),
           type: 'info',
           duration: 5000,
         });
@@ -979,15 +1017,17 @@ const app = createApp({
     });
 
     return {
-      // 菜单
-      menu, currentPage, currentMenu,
       // 主题
       theme, toggleTheme,
+      // i18n
+      currentLang, toggleLang, t,
       // Toast
       toasts, showToast,
+      // 菜单
+      menu, currentPage, currentMenu,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
-      filterCategory, categories, filteredSkins,
+      filterCategory, categoryKeys, categoryMap, filteredSkins,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, relatedNews, newsIcon, roundTitle, debateData,
