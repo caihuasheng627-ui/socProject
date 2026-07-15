@@ -145,6 +145,7 @@ const app = createApp({
     const selectedSkin = ref(skins.value[1]); // 默认 AK-47 Fire Serpent
     const klineChart = ref(null);
     const timeframe = ref('90D');
+    const klineLoading = ref(false);
     let klineChartInstance = null;
 
     const viewSkin = (skinId) => {
@@ -186,8 +187,12 @@ const app = createApp({
     };
 
     // K线图渲染
-    const renderKline = () => {
+    const renderKline = async () => {
       if (!klineChart.value || !selectedSkin.value) return;
+
+      klineLoading.value = true;
+      // 模拟短暂加载(让用户感知到数据刷新)
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       if (!klineChartInstance) {
         klineChartInstance = echarts.init(klineChart.value);
@@ -341,6 +346,7 @@ const app = createApp({
         ],
       };
       klineChartInstance.setOption(option, true);
+      klineLoading.value = false;
     };
 
     // ============ AI 对话 ============
@@ -355,9 +361,10 @@ const app = createApp({
     const chatInput = ref('');
     const chatLoading = ref(false);
     const chatMessagesEl = ref(null);
+    const chatSuggestedIndex = ref(-1);
 
-    const sendMessage = async () => {
-      const text = chatInput.value.trim();
+    const sendMessage = async (overrideText) => {
+      const text = (overrideText ?? chatInput.value).trim();
       if (!text || chatLoading.value) return;
 
       chatMessages.value.push({
@@ -383,9 +390,35 @@ const app = createApp({
       }, 1200 + Math.random() * 800);
     };
 
+    // 监听聊天输入框的键盘事件
+    const onChatKeydown = (e) => {
+      // 输入框为空时,支持上下方向键选择建议问题
+      if (!chatInput.value && chatMessages.value.length <= 1) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestedQuestions.length - 1);
+          if (chatSuggestedIndex.value < 0) chatSuggestedIndex.value = 0;
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          chatSuggestedIndex.value = Math.max(chatSuggestedIndex.value - 1, 0);
+        } else if (e.key === 'Enter' && chatSuggestedIndex.value >= 0) {
+          e.preventDefault();
+          sendMessage(suggestedQuestions[chatSuggestedIndex.value]);
+          chatSuggestedIndex.value = -1;
+          return;
+        }
+      }
+      // 默认 Enter 发送
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+        chatSuggestedIndex.value = -1;
+      }
+    };
+
     const askQuestion = (q) => {
-      chatInput.value = q;
-      sendMessage();
+      sendMessage(q);
+      chatSuggestedIndex.value = -1;
     };
 
     const generateAIResponse = (query) => {
@@ -887,6 +920,12 @@ const app = createApp({
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
+      // 移除首次加载遮罩 (CSS 动画 0.6s 后自动隐藏,这里做兜底)
+      setTimeout(() => {
+        const loader = document.getElementById('app-loader');
+        if (loader) loader.classList.add('hidden');
+      }, 300);
+
       renderKline();
       window.addEventListener('keydown', handleGlobalKeydown);
       window.addEventListener('resize', () => {
@@ -895,6 +934,16 @@ const app = createApp({
         backtestInstance?.resize();
         shapInstance?.resize();
       });
+
+      // 网络状态监听
+      const updateOnlineStatus = () => {
+        if (!navigator.onLine) {
+          showErrorToast('网络已断开', '部分功能可能不可用');
+        }
+      };
+      window.addEventListener('online', () => showToast({ title: '网络已恢复', type: 'success' }));
+      window.addEventListener('offline', updateOnlineStatus);
+
       // 显示欢迎提示
       setTimeout(() => {
         showToast({
@@ -940,10 +989,10 @@ const app = createApp({
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categories, filteredSkins,
       // 预测
-      selectedSkin, viewSkin, klineChart, timeframe, renderKline,
+      selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, relatedNews, newsIcon, roundTitle, debateData,
       // 对话
-      chatMessages, chatInput, chatLoading, sendMessage, askQuestion, renderMarkdown, suggestedQuestions,
+      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
       // 资讯
       newsFeed,
       // 预警
@@ -963,6 +1012,55 @@ const app = createApp({
       showShortcutHelp,
     };
   },
+});
+
+// ============ 全局错误处理 ============
+const showErrorToast = (title, subtitle = '') => {
+  // 通过 DOM 操作触发 toast (避免在 setup 外无法访问响应式数据)
+  const container = document.querySelector('.toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast error';
+  toast.innerHTML = `
+    <span class="toast-icon" aria-hidden="true">⚠️</span>
+    <div class="toast-content">
+      <div class="toast-title">${title}</div>
+      ${subtitle ? `<div class="toast-subtitle">${subtitle}</div>` : ''}
+    </div>
+  `;
+  toast.style.animation = 'slideInRight 0.2s';
+  toast.setAttribute('role', 'alert');
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+
+  // 屏幕阅读器公告
+  const live = document.getElementById('aria-live-assertive');
+  if (live) live.textContent = `${title}${subtitle ? ' ' + subtitle : ''}`;
+};
+
+// Vue 组件错误处理
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[Vue Error]', err, info);
+  showErrorToast('组件渲染出错', String(err.message || err).slice(0, 80));
+};
+
+// 未捕获的 JS 错误
+window.addEventListener('error', (e) => {
+  console.error('[Window Error]', e.error);
+  // 避免在某些已知错误上刷屏 (CDN 加载失败等)
+  if (e.message && e.message.includes('Script error')) return;
+  showErrorToast('运行时错误', String(e.message || '').slice(0, 80));
+});
+
+// 未处理的 Promise 拒绝
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[Unhandled Rejection]', e.reason);
+  showErrorToast('异步操作失败', String(e.reason?.message || e.reason || '').slice(0, 80));
+  e.preventDefault();
 });
 
 app.mount('#app');

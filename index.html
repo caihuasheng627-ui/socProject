@@ -23,12 +23,31 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎯%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
+  <a href="#main-content" class="skip-link">跳转到主内容</a>
+
+  <!-- 屏幕阅读器公告区域 -->
+  <div id="aria-live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="aria-live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
   <div id="app">
+    <!-- 首次加载遮罩(Vue 挂载后自动移除) -->
+    <div id="app-loader" class="app-loader">
+      <div class="loader-content">
+        <div class="loader-logo">🎯</div>
+        <div class="loader-title">SkinVision AI</div>
+        <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
+        <div class="loader-bar">
+          <div class="loader-bar-fill"></div>
+        </div>
+        <div class="loader-text">正在加载市场数据 · ML 模型 · RAG 知识库...</div>
+      </div>
+    </div>
+
     <!-- 侧边栏 -->
-    <aside class="sidebar">
+    <aside class="sidebar" role="navigation" aria-label="主导航">
       <div class="sidebar-header">
         <div class="logo">
-          <div class="logo-icon">🎯</div>
+          <div class="logo-icon" aria-hidden="true">🎯</div>
           <div class="logo-text">
             <div class="logo-title">SkinVision AI</div>
             <div class="logo-subtitle">CS2 INTELLIGENCE</div>
@@ -36,17 +55,23 @@
         </div>
       </div>
 
-      <nav class="nav-menu">
+      <nav class="nav-menu" role="menubar">
         <div
           v-for="item in menu"
           :key="item.id"
           class="nav-item"
           :class="{ active: currentPage === item.id }"
           @click="currentPage = item.id"
+          role="menuitem"
+          tabindex="0"
+          :aria-label="`切换到 ${item.label} 页面`"
+          :aria-current="currentPage === item.id ? 'page' : undefined"
+          @keydown.enter="currentPage = item.id"
+          @keydown.space.prevent="currentPage = item.id"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
-          <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
+          <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;" :aria-label="`${item.badge} 模块`">{{ item.badge }}</span>
         </div>
       </nav>
 
@@ -60,7 +85,7 @@
     </aside>
 
     <!-- 主内容区 -->
-    <main class="main-content">
+    <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
         <div class="breadcrumb">
           <span>SkinVision AI</span>
@@ -69,23 +94,23 @@
         </div>
 
         <div class="topbar-actions">
-          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'">
+          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'" :aria-label="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
             {{ theme === 'dark' ? '☀️' : '🌙' }}
           </button>
-          <button class="theme-toggle" @click="showCommandPalette = true" title="命令面板 (Ctrl+K)">
+          <button class="theme-toggle" @click="showCommandPalette = true" title="命令面板 (Ctrl+K)" aria-label="打开命令面板">
             🔍
           </button>
-          <div class="market-status">
-            <span class="status-dot"></span>
+          <div class="market-status" role="status" aria-label="数据源状态">
+            <span class="status-dot" aria-hidden="true"></span>
             <span>数据源在线 · BUFF + Skinport</span>
           </div>
-          <div class="market-status">
-            <span>🐂</span>
+          <div class="market-status" aria-label="市场情绪指数">
+            <span aria-hidden="true">🐂</span>
             <span>市场情绪</span>
             <strong style="color: var(--accent-orange);">68</strong>
             <span class="text-muted text-sm">贪婪</span>
           </div>
-          <div class="user-avatar">蔡</div>
+          <div class="user-avatar" role="img" aria-label="用户头像:蔡">蔡</div>
         </div>
       </header>
 
@@ -268,6 +293,10 @@
               </div>
             </div>
             <div ref="klineChart" class="kline-container"></div>
+            <div v-if="klineLoading" class="kline-skeleton-overlay">
+              <div class="skeleton skeleton-line medium" style="height: 60%;"></div>
+              <div class="skeleton skeleton-line medium" style="height: 30%; margin-top: 12px;"></div>
+            </div>
           </div>
 
           <!-- 预测对比 + RAG -->
@@ -418,10 +447,18 @@
               <!-- 推荐问题 -->
               <div class="suggested-questions" v-if="chatMessages.length <= 1">
                 <div
-                  v-for="q in suggestedQuestions"
+                  v-for="(q, qIdx) in suggestedQuestions"
                   :key="q"
                   class="suggested-question"
+                  :class="{ focused: chatSuggestedIndex === qIdx }"
                   @click="askQuestion(q)"
+                  tabindex="0"
+                  role="button"
+                  :aria-label="`快速提问: ${q}`"
+                  @keydown.enter="askQuestion(q)"
+                  @keydown.space.prevent="askQuestion(q)"
+                  @mouseenter="chatSuggestedIndex = qIdx"
+                  @focus="chatSuggestedIndex = qIdx"
                 >{{ q }}</div>
               </div>
 
@@ -458,16 +495,19 @@
               <textarea
                 class="chat-input"
                 v-model="chatInput"
-                @keydown.enter.exact.prevent="sendMessage"
-                placeholder="问我任何关于 CS2 饰品的问题... (Enter 发送, Shift+Enter 换行)"
+                @keydown="onChatKeydown"
+                placeholder="问我任何关于 CS2 饰品的问题... (Enter 发送, ↑↓ 选建议问题, Shift+Enter 换行)"
                 rows="2"
+                aria-label="AI 对话输入框"
               ></textarea>
               <div class="chat-input-actions">
                 <div class="text-muted text-sm">
                   💡 提示: 可以问 "AK-47 火蛇分析"、"5000 预算推荐"等
                 </div>
-                <button class="btn btn-primary" @click="sendMessage" :disabled="!chatInput.trim() || chatLoading">
-                  <span>📤</span> 发送
+                <button class="btn btn-primary" :class="{ loading: chatLoading }" @click="sendMessage" :disabled="!chatInput.trim() || chatLoading">
+                  <span v-if="!chatLoading">📤</span>
+                  <span v-if="!chatLoading">发送</span>
+                  <span v-if="chatLoading">思考中</span>
                 </button>
               </div>
             </div>
