@@ -1561,9 +1561,13 @@ i.ph-duotone {
   display: block !important;
 }
 
-.nav-item.active .nav-icon-svg,
 .nav-item:hover .nav-icon-svg {
   color: var(--accent-orange) !important;
+}
+
+/* 激活态: 背景是橙色渐变,图标必须用白色才能看清 */
+.nav-item.active .nav-icon-svg {
+  color: #ffffff !important;
 }
 
 /* Logo 图标 */

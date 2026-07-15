@@ -1064,15 +1064,7 @@ const app = createApp({
       window.addEventListener('online', () => showToast({ title: t('network.online'), type: 'success' }));
       window.addEventListener('offline', updateOnlineStatus);
 
-      // 显示欢迎提示
-      setTimeout(() => {
-        showToast({
-          title: t('welcome.toast.title'),
-          subtitle: t('welcome.toast.subtitle'),
-          type: 'info',
-          duration: 5000,
-        });
-      }, 800);
+      // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
     });
 
     // 监听页面切换
