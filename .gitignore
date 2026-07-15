@@ -52,6 +52,10 @@ env/
 .workbuddy/
 *.workbuddy/
 
+# 本地工具脚本(不推送到 GitHub)
+push-to-github.bat
+push-to-github.sh
+
 # 大文件
 *.zip
 *.tar.gz
