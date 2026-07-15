@@ -17,10 +17,15 @@
   <!-- Marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
 
+  <!-- Phosphor Icons (Duotone + Fill + Regular) -->
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+
   <!-- 自定义样式 -->
   <link rel="stylesheet" href="style.css" />
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎯%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
 <body>
   <a href="#main-content" class="skip-link">{{ t('shortcut.dashboard') }}</a>
@@ -33,7 +38,9 @@
     <!-- 首次加载遮罩 -->
     <div id="app-loader" class="app-loader">
       <div class="loader-content">
-        <div class="loader-logo">🎯</div>
+        <div class="loader-logo">
+          <i class="ph-duotone ph-crosshair" style="color: var(--accent-orange);" aria-hidden="true"></i>
+        </div>
         <div class="loader-title">SkinVision AI</div>
         <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
         <div class="loader-bar">
@@ -50,7 +57,9 @@
     <aside class="sidebar" :class="{ open: sidebarOpen }" role="navigation" aria-label="Main Navigation">
       <div class="sidebar-header">
         <div class="logo">
-          <div class="logo-icon" aria-hidden="true">🎯</div>
+          <div class="logo-icon" aria-hidden="true">
+            <i class="ph-duotone ph-crosshair"></i>
+          </div>
           <div class="logo-text">
             <div class="logo-title">{{ t('app.name') }}</div>
             <div class="logo-subtitle">{{ t('app.subtitle') }}</div>
@@ -72,7 +81,7 @@
           @keydown.enter="currentPage = item.id; sidebarOpen = false"
           @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
         >
-          <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+          <i class="ph-duotone ph-{{ item.icon }}" aria-hidden="true"></i>
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>
@@ -91,31 +100,32 @@
     <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
         <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" style="display: none;">
-          {{ sidebarOpen ? '✕' : '☰' }}
+          <i :class="sidebarOpen ? 'ph-bold ph-x' : 'ph-bold ph-list'" aria-hidden="true"></i>
         </button>
         <div class="breadcrumb">
           <span>{{ t('app.name') }}</span>
-          <span>›</span>
+          <i class="ph ph-caret-right" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
           <span class="page-title">{{ currentMenu?.label }}</span>
         </div>
 
         <div class="topbar-actions">
           <!-- 语言切换按钮 -->
           <button class="theme-toggle lang-toggle" @click="toggleLang" :title="t('topbar.lang.switch')" :aria-label="t('topbar.lang.switch')">
-            {{ currentLang === 'zh-CN' ? '🇺🇸 EN' : '🇨🇳 中' }}
+            <i :class="currentLang === 'zh-CN' ? 'ph-bold ph-globe-hemisphere-west' : 'ph-bold ph-translate'" aria-hidden="true"></i>
+            <span style="margin-left: 4px;">{{ currentLang === 'zh-CN' ? 'EN' : '中' }}</span>
           </button>
           <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')" :aria-label="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')">
-            {{ theme === 'dark' ? '☀️' : '🌙' }}
+            <i :class="theme === 'dark' ? 'ph-duotone ph-sun' : 'ph-duotone ph-moon'" aria-hidden="true"></i>
           </button>
           <button class="theme-toggle" @click="showCommandPalette = true" :title="t('topbar.cmdPanel') + ' (Ctrl+K)'" :aria-label="t('topbar.cmdPanel')">
-            🔍
+            <i class="ph-duotone ph-magnifying-glass" aria-hidden="true"></i>
           </button>
           <div class="market-status" role="status" :aria-label="t('topbar.dataSource')">
             <span class="status-dot" aria-hidden="true"></span>
             <span>{{ t('topbar.dataSource') }}</span>
           </div>
           <div class="market-status" :aria-label="t('topbar.sentiment')">
-            <span aria-hidden="true">🐂</span>
+            <i class="ph-duotone ph-trend-up" style="color: var(--accent-green);" aria-hidden="true"></i>
             <span>{{ t('topbar.sentiment') }}</span>
             <strong style="color: var(--accent-orange);">68</strong>
             <span class="text-muted text-sm">{{ t('topbar.sentiment.greed') }}</span>
@@ -129,19 +139,26 @@
         <div v-if="currentPage === 'dashboard'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">📊 {{ t('dashboard.title') }}</h2>
+              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-duotone ph-chart-line-up icon-primary" aria-hidden="true"></i>
+                {{ t('dashboard.title') }}
+              </h2>
               <p class="text-muted text-sm mt-2">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm" @click="refreshData">
-                <span>🔄</span> {{ t('common.refresh') }}
+                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{ t('common.refresh') }}
               </button>
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('skins', 'csv')" :title="t('common.export')">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('skins', 'json')" title="JSON">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('skins', 'csv')" :title="t('common.export')">
+                  <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
+                </button>
+                <button class="btn btn-sm" @click="exportData('skins', 'json')" title="JSON">
+                  <i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON
+                </button>
               </div>
               <button class="btn btn-primary btn-sm">
-                <span>➕</span> {{ t('dashboard.addWatchlist') }}
+                <i class="ph ph-star" aria-hidden="true"></i> {{ t('dashboard.addWatchlist') }}
               </button>
             </div>
           </div>
@@ -151,7 +168,10 @@
             <div class="card">
               <div class="card-header">
                 <div>
-                  <div class="card-title">🔥 {{ t('dashboard.gainers') }}</div>
+                  <div class="card-title">
+                    <i class="ph-duotone ph-trend-up icon-success" aria-hidden="true"></i>
+                    {{ t('dashboard.gainers') }}
+                  </div>
                   <div class="card-subtitle">{{ t('dashboard.gainersDesc') }}</div>
                 </div>
                 <span class="tag tag-red">Bull</span>
@@ -176,10 +196,13 @@
             <div class="card">
               <div class="card-header">
                 <div>
-                  <div class="card-title">📉 {{ t('dashboard.losers') }}</div>
+                  <div class="card-title">
+                    <i class="ph-duotone ph-trend-down icon-danger" aria-hidden="true"></i>
+                    {{ t('dashboard.losers') }}
+                  </div>
                   <div class="card-subtitle">{{ t('dashboard.losersDesc') }}</div>
                 </div>
-                <span class="tag tag-green">Bear</span>
+                <span class="tag tag-red">Bear</span>
               </div>
               <div v-for="(skin, idx) in topLosers.slice(0, 5)" :key="skin.id"
                 class="skin-card mb-3" @click="viewSkin(skin.id)" style="padding: 12px;">
@@ -203,7 +226,10 @@
           <div class="card mb-6">
             <div class="card-header">
               <div>
-                <div class="card-title">🎯 {{ t('dashboard.allSkins') }}</div>
+                <div class="card-title">
+                  <i class="ph-duotone ph-squares-four icon-primary" aria-hidden="true"></i>
+                  {{ t('dashboard.allSkins') }}
+                </div>
                 <div class="card-subtitle">{{ t('dashboard.allSkinsDesc') }}</div>
               </div>
               <div class="flex gap-2">
@@ -293,7 +319,10 @@
           <div class="card mb-4">
             <div class="card-header">
               <div>
-                <div class="card-title">📈 {{ t('prediction.kline') }}</div>
+                <div class="card-title">
+                  <i class="ph-duotone ph-chart-candle" aria-hidden="true"></i>
+                  {{ t('prediction.kline') }}
+                </div>
                 <div class="card-subtitle">{{ t('prediction.klineDesc') }}</div>
               </div>
               <div class="kline-toolbar">
@@ -357,7 +386,12 @@
 
             <div class="card">
               <div class="card-header">
-                <div class="card-title">{{ t('prediction.ragTitle') }}</div>
+                <div>
+                  <div class="card-title">
+                    <i class="ph-duotone ph-book-open-text" aria-hidden="true"></i>
+                    {{ t('prediction.ragTitle') }}
+                  </div>
+                </div>
                 <span class="tag tag-purple">{{ t('prediction.ragModel') }}</span>
               </div>
               <div class="news-list">
@@ -398,11 +432,15 @@
                   <span>{{ t('prediction.debate.r' + (idx + 1)) }}</span>
                 </div>
                 <div class="debate-message debate-bull">
-                  <span class="debate-icon">🐂</span>
+                  <span class="debate-icon">
+                    <i class="ph-duotone ph-trend-up" style="color: var(--accent-green); font-size: 18px;" aria-hidden="true"></i>
+                  </span>
                   <span style="flex: 1;">{{ round.bull }}</span>
                 </div>
                 <div class="debate-message debate-bear">
-                  <span class="debate-icon">🐻</span>
+                  <span class="debate-icon">
+                    <i class="ph-duotone ph-trend-down" style="color: var(--accent-red); font-size: 18px;" aria-hidden="true"></i>
+                  </span>
                   <span style="flex: 1;">{{ round.bear }}</span>
                 </div>
               </div>
@@ -528,15 +566,18 @@
         <div v-if="currentPage === 'daily'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">{{ t('daily.title') }}</h2>
+              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-duotone ph-newspaper-clipping icon-primary" aria-hidden="true"></i>
+                {{ t('daily.title') }}
+              </h2>
               <p class="text-muted text-sm mt-2">{{ t('daily.date') }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm">
-                <span>📥</span> {{ t('daily.exportPdf') }}
+                <i class="ph ph-file-pdf" aria-hidden="true"></i> {{ t('daily.exportPdf') }}
               </button>
               <button class="btn btn-primary btn-sm">
-                <span>🔄</span> {{ t('daily.regenerate') }}
+                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{ t('daily.regenerate') }}
               </button>
             </div>
           </div>
@@ -632,15 +673,18 @@
         <div v-if="currentPage === 'alerts'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">{{ t('alerts.title') }}</h2>
+              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-duotone ph-bell-ringing icon-primary" aria-hidden="true"></i>
+                {{ t('alerts.title') }}
+              </h2>
               <p class="text-muted text-sm mt-2">{{ t('alerts.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <button class="btn btn-secondary btn-sm" @click="exportData('alerts', 'csv')">
-                <span>📥</span> {{ t('common.export') }}
+                <i class="ph ph-download-simple" aria-hidden="true"></i> {{ t('common.export') }}
               </button>
               <button class="btn btn-primary" @click="showAlertModal = true">
-                <span>➕</span> {{ t('alerts.newAlert') }}
+                <i class="ph ph-plus" aria-hidden="true"></i> {{ t('alerts.newAlert') }}
               </button>
             </div>
           </div>
@@ -710,16 +754,19 @@
         <div v-if="currentPage === 'portfolio'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">{{ t('portfolio.title') }}</h2>
+              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-duotone ph-clipboard-text icon-primary" aria-hidden="true"></i>
+                {{ t('portfolio.title') }}
+              </h2>
               <p class="text-muted text-sm mt-2">{{ t('portfolio.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('portfolio', 'csv')">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('portfolio', 'json')">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('portfolio', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
+                <button class="btn btn-sm" @click="exportData('portfolio', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
               </div>
               <button class="btn btn-primary" @click="showPortfolioModal = true">
-                <span>➕</span> {{ t('portfolio.addHolding') }}
+                <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
             </div>
           </div>
@@ -806,16 +853,19 @@
         <div v-if="currentPage === 'models'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700;">{{ t('models.title') }}</h2>
+              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-duotone ph-cpu icon-primary" aria-hidden="true"></i>
+                {{ t('models.title') }}
+              </h2>
               <p class="text-muted text-sm mt-2">{{ t('models.subtitle') }}</p>
             </div>
             <div class="flex gap-2">
               <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('models', 'csv')">📊 CSV</button>
-                <button class="btn btn-sm" @click="exportData('models', 'json')">{ } JSON</button>
+                <button class="btn btn-sm" @click="exportData('models', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
+                <button class="btn btn-sm" @click="exportData('models', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
               </div>
               <button class="btn btn-primary btn-sm">
-                <span>🚀</span> {{ t('models.retrain') }}
+                <i class="ph ph-rocket-launch" aria-hidden="true"></i> {{ t('models.retrain') }}
               </button>
             </div>
           </div>
@@ -843,7 +893,10 @@
                 <tr v-for="m in regressionModels" :key="m.name">
                   <td>
                     <strong>{{ m.name }}</strong>
-                    <span v-if="m.name === 'LSTM'" class="tag tag-orange" style="margin-left: 6px;">⭐ {{ t('models.star') }}</span>
+                    <span v-if="m.name === 'LSTM'" class="tag tag-orange" style="margin-left: 6px;">
+                      <i class="ph-fill ph-star" style="font-size: 11px; margin-right: 2px;" aria-hidden="true"></i>
+                      {{ t('models.star') }}
+                    </span>
                   </td>
                   <td><span class="tag">{{ m.type }}</span></td>
                   <td>{{ m.rmse.toFixed(2) }}</td>
@@ -924,14 +977,14 @@
               <div class="card-header">
                 <div class="card-title">{{ t('models.trainStrategy') }}</div>
               </div>
-              <ul style="line-height: 2; padding-left: 20px; font-size: 13px;">
-                <li>✅ <strong>TimeSeriesSplit</strong>: 70/15/15 (no shuffle)</li>
-                <li>✅ <strong>Walk-Forward</strong> rolling validation</li>
-                <li>✅ <strong>SMOTE</strong> for class imbalance</li>
-                <li>✅ <strong>StandardScaler</strong> feature scaling</li>
-                <li>✅ <strong>GridSearch</strong> hyperparam tuning (Pipeline)</li>
-                <li>✅ <strong>Backtest</strong>: daily simulate vs Buy&Hold</li>
-                <li>✅ <strong>Risk Metrics</strong>: Sharpe / Drawdown / Volatility</li>
+              <ul style="line-height: 2; padding-left: 20px; font-size: 13px; list-style: none;">
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>TimeSeriesSplit</strong>: 70/15/15 (no shuffle)</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Walk-Forward</strong> rolling validation</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>SMOTE</strong> for class imbalance</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>StandardScaler</strong> feature scaling</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>GridSearch</strong> hyperparam tuning (Pipeline)</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Backtest</strong>: daily simulate vs Buy&Hold</li>
+                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Risk Metrics</strong>: Sharpe / Drawdown / Volatility</li>
               </ul>
               <div class="mt-4" style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
                 <div class="text-muted text-sm mb-2">{{ t('models.findings') }}</div>
@@ -1040,7 +1093,14 @@
               @click="executeCommand(item)"
               @mouseenter="commandSelected = item.id"
             >
-              <div class="command-item-icon">{{ item.icon }}</div>
+              <div class="command-item-icon">
+                <!-- 页面/操作命令: Phosphor 图标 -->
+                <i v-if="item.iconStyle === 'duotone'" :class="`ph-duotone ph-${item.icon}`" aria-hidden="true"></i>
+                <!-- 饰品命令: 用 emoji (数据自带) -->
+                <span v-else-if="item.icon && item.icon.length <= 2">{{ item.icon }}</span>
+                <!-- 兜底 -->
+                <i v-else class="ph-duotone ph-cube" aria-hidden="true"></i>
+              </div>
               <div class="command-item-content">
                 <div class="command-item-title">{{ item.title }}</div>
                 <div class="command-item-subtitle">{{ item.subtitle }}</div>
@@ -1049,7 +1109,7 @@
             </div>
           </div>
           <div v-if="commandResults.length === 0" class="empty-state" style="padding: 30px 20px;">
-            <div class="empty-icon">🔍</div>
+            <div class="empty-icon"><i class="ph-duotone ph-magnifying-glass-minus" aria-hidden="true"></i></div>
             <div class="empty-text">{{ t('cmd.empty') }}</div>
           </div>
         </div>

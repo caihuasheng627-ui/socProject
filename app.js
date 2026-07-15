@@ -34,14 +34,15 @@ const toggleLang = () => {
 const app = createApp({
   setup() {
     // ============ 菜单 ============
+    // Phosphor Duotone 图标 class 名(替换 emoji)
     const menu = computed(() => [
-      { id: 'dashboard', icon: '📊', label: t('menu.dashboard') },
-      { id: 'prediction', icon: '🔍', label: t('menu.prediction'), badge: t('menu.badge.core') },
-      { id: 'chat', icon: '💬', label: t('menu.chat'), badge: t('menu.badge.highlight') },
-      { id: 'daily', icon: '📰', label: t('menu.daily') },
-      { id: 'alerts', icon: '🔔', label: t('menu.alerts') },
-      { id: 'portfolio', icon: '📋', label: t('menu.portfolio') },
-      { id: 'models', icon: '🤖', label: t('menu.models') },
+      { id: 'dashboard', icon: 'chart-line-up', label: t('menu.dashboard') },
+      { id: 'prediction', icon: 'target', label: t('menu.prediction'), badge: t('menu.badge.core') },
+      { id: 'chat', icon: 'chat-circle-dots', label: t('menu.chat'), badge: t('menu.badge.highlight') },
+      { id: 'daily', icon: 'newspaper-clipping', label: t('menu.daily') },
+      { id: 'alerts', icon: 'bell-ringing', label: t('menu.alerts') },
+      { id: 'portfolio', icon: 'clipboard-text', label: t('menu.portfolio') },
+      { id: 'models', icon: 'robot', label: t('menu.models') },
     ]);
 
     const currentPage = ref('dashboard');
@@ -893,11 +894,11 @@ const app = createApp({
 
       // 操作命令
       const actionCmds = [
-        { id: 'act-theme', icon: theme.value === 'dark' ? '☀️' : '🌙', title: t('cmd.action.theme'), subtitle: `${t('cmd.action.themeCurrent')}: ${theme.value === 'dark' ? t('theme.dark') : t('theme.light')}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
-        { id: 'act-help', icon: '⌨️', title: t('cmd.action.help'), subtitle: t('shortcut.title'), kbd: '?', action: () => { showShortcutHelp.value = true; } },
-        { id: 'act-export-skins', icon: '📥', title: t('cmd.action.export'), subtitle: 'CSV / JSON', kbd: '', action: () => exportData('skins', 'csv') },
-        { id: 'act-refresh', icon: '🔄', title: t('cmd.action.refresh'), subtitle: '', kbd: '', action: refreshData },
-        { id: 'act-alert', icon: '🔔', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
+        { id: 'act-theme', icon: theme.value === 'dark' ? 'sun' : 'moon', iconStyle: 'duotone', title: t('cmd.action.theme'), subtitle: `${t('cmd.action.themeCurrent')}: ${theme.value === 'dark' ? t('theme.dark') : t('theme.light')}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
+        { id: 'act-help', icon: 'keyboard', iconStyle: 'duotone', title: t('cmd.action.help'), subtitle: t('shortcut.title'), kbd: '?', action: () => { showShortcutHelp.value = true; } },
+        { id: 'act-export-skins', icon: 'download-simple', iconStyle: 'duotone', title: t('cmd.action.export'), subtitle: 'CSV / JSON', kbd: '', action: () => exportData('skins', 'csv') },
+        { id: 'act-refresh', icon: 'arrows-clockwise', iconStyle: 'duotone', title: t('cmd.action.refresh'), subtitle: '', kbd: '', action: refreshData },
+        { id: 'act-alert', icon: 'bell-ringing', iconStyle: 'duotone', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
       ].filter(c => match(c.title) || match(c.subtitle));
       if (actionCmds.length) groups.push({ title: t('cmd.group.actions'), items: actionCmds });
 

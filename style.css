@@ -1484,6 +1484,85 @@ body.sidebar-open {
 .w-full { width: 100%; }
 .text-center { text-align: center; }
 
+/* ============ Phosphor 图标系统 ============ */
+/* 基础图标样式 - 与文字基线对齐 */
+i[class^="ph-"], i[class*=" ph-"] {
+  display: inline-block;
+  vertical-align: -0.125em;
+  font-style: normal;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* 尺寸变体 */
+.icon-xs { font-size: 12px; }
+.icon-sm { font-size: 14px; }
+.icon-md { font-size: 16px; }
+.icon-lg { font-size: 20px; }
+.icon-xl { font-size: 24px; }
+.icon-2xl { font-size: 32px; }
+
+/* 颜色变体 */
+.icon-primary { color: var(--accent-orange); }
+.icon-secondary { color: var(--text-secondary); }
+.icon-success { color: var(--accent-green); }
+.icon-danger { color: var(--accent-red); }
+.icon-warning { color: var(--accent-yellow); }
+.icon-info { color: var(--accent-blue); }
+
+/* Duotone 风格: 主色用 accent, 辅色自动(库内 30% 透明) */
+i.ph-duotone {
+  --ph-primary: currentColor;
+}
+
+/* 图标按钮组(让按钮里的图标与文字完美对齐) */
+.btn i[class*="ph-"] {
+  margin-right: 4px;
+  vertical-align: -0.15em;
+}
+
+/* 导航项图标 */
+.nav-icon,
+.nav-item i[class*="ph-"] {
+  font-size: 18px;
+  width: 20px;
+  text-align: center;
+  margin-right: 10px;
+  transition: color 0.2s;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon,
+.nav-item:hover i[class*="ph-"],
+.nav-item.active i[class*="ph-"] {
+  color: var(--accent-orange);
+}
+
+/* Logo 图标 */
+.logo-icon {
+  font-size: 28px;
+  color: var(--accent-orange);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 顶栏图标按钮 */
+.theme-toggle i,
+.menu-toggle i {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* 加载动画图标 */
+@keyframes phSpin {
+  to { transform: rotate(360deg); }
+}
+.ph-spin {
+  display: inline-block;
+  animation: phSpin 1s linear infinite;
+}
+
 /* ============ 滚动条 ============ */
 ::-webkit-scrollbar {
   width: 8px;
