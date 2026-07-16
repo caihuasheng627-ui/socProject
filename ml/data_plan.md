@@ -117,16 +117,19 @@
 ## 8. 数据文件
 
 ```
-SkinVest_project/data/
-├── training_dataset.csv       ← 完整合并集 (23 MB, 154 件, 14 列)
+socProject/ml/
 ├── train.csv                  ← 训练集 (16 MB, 158k 行, 70%)
 ├── val.csv                    ← 验证集 (3.6 MB, 36k 行, 15%)
 ├── test.csv                   ← 测试集 (3.6 MB, 36k 行, 15%)
+├── training_dataset.csv       ← 完整合并集 (23 MB, 154 件, 14 列)
 ├── buff_val.csv               ← BUFF CS2 验证集 (715 KB, 87 件, 12k 行)
-├── dataset_report.txt         ← 数据质量报告
-├── build_dataset.py           ← 数据集构建脚本 (可重复运行)
-├── cs2_rarity_db.py           ← CS2 稀有度映射数据库 (437 条目)
-└── external_features.py       ← 外部特征 (Major/CCU/CS2 事件)
+├── data_plan.md               ← 本文件
+├── code/
+│   ├── build_dataset.py       ← 数据集构建脚本 (可重复运行)
+│   ├── cs2_rarity_db.py       ← CS2 稀有度映射数据库 (437 条目)
+│   └── external_features.py   ← 外部特征 (Major/CCU/CS2 事件)
+└── scraper/
+    └── fetch_buff_val.py      ← BUFF 历史价格采集 (断点续传)
 ```
 
 ---
