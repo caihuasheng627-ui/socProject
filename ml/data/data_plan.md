@@ -117,13 +117,13 @@
 ## 8. 数据文件
 
 ```
-socProject/ml/
+socProject/ml/data/
+├── data_plan.md               ← 本文件
 ├── train.csv                  ← 训练集 (16 MB, 158k 行, 70%)
 ├── val.csv                    ← 验证集 (3.6 MB, 36k 行, 15%)
 ├── test.csv                   ← 测试集 (3.6 MB, 36k 行, 15%)
 ├── training_dataset.csv       ← 完整合并集 (23 MB, 154 件, 14 列)
 ├── buff_val.csv               ← BUFF CS2 验证集 (715 KB, 87 件, 12k 行)
-├── data_plan.md               ← 本文件
 ├── code/
 │   ├── build_dataset.py       ← 数据集构建脚本 (可重复运行)
 │   ├── cs2_rarity_db.py       ← CS2 稀有度映射数据库 (437 条目)
@@ -138,20 +138,21 @@ socProject/ml/
 
 ### 重新生成 Kaggle 数据集
 ```bash
-cd SkinVest_project
-python data/build_dataset.py
+cd socProject/ml/data
+python code/build_dataset.py
 ```
 
 ### 重新采集 BUFF 验证数据
 ```bash
+cd socProject/ml/data
 python scraper/fetch_buff_val.py
 ```
 
 ### 加载训练数据
 ```python
 import pandas as pd
-train = pd.read_csv("data/train.csv")
-val   = pd.read_csv("data/val.csv")
+train = pd.read_csv("ml/data/train.csv")
+val   = pd.read_csv("ml/data/val.csv")
 test  = pd.read_csv("data/test.csv")
 # CS2 市场验证
 buff  = pd.read_csv("data/buff_val.csv")
