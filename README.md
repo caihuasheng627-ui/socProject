@@ -128,6 +128,50 @@ npx serve .
 
 ---
 
+## 👥 团队协作（Git Push 指南）
+
+### 方式一：加 Collaborator（推荐）
+
+**仓库拥有者：**
+
+1. 打开 https://github.com/caihuasheng627-ui/socProject/settings/access
+2. 点击 **Add people** → 输入队友 GitHub 用户名 → 角色选 **Write**
+3. 队友接受邮件邀请即可
+
+**队友操作：**
+
+```bash
+git clone https://github.com/caihuasheng627-ui/socProject.git
+cd socProject
+
+# 首次配置身份
+git config user.name "你的名字"
+git config user.email "你的邮箱@xxx.com"
+
+# 拉取最新 → 修改代码 → 提交 → 推送
+git pull origin main
+git add .
+git commit -m "描述修改"
+git push origin main
+```
+
+> ⚠️ push 如需登录，用**自己的 GitHub 账号 + Personal Access Token**（不是密码）
+> 生成 Token：https://github.com/settings/tokens → 勾选 `repo` → 复制保存
+
+### 方式二：Fork + Pull Request（无需授权）
+
+1. 打开仓库 → 点右上角 **Fork** 到自己账号
+2. 克隆自己 Fork 的仓库，修改后 push
+3. GitHub 网页点 **Contribute → Open Pull Request**
+4. 仓库拥有者审核后 **Merge** 即可
+
+| 常见问题 | 解决 |
+|----------|------|
+| push 报 403 | Token 过期或没勾 `repo` 权限，重新生成 |
+| push 报冲突 | `git pull origin main` 拉取最新，解决冲突后再 push |
+
+---
+
 ## 🔌 与后端对接
 
 当前前端使用 Mock 数据。生产环境需对接:
