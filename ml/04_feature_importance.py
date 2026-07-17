@@ -3,6 +3,7 @@
 ======================
 对 XGBoost 和 LightGBM 提取 feature_importances_,
 输出前端 SHAP 格式的 JSON (8 个核心特征)。
+训练数据: train+val（与终训一致）
 
 运行: python 04_feature_importance.py
 """
@@ -10,13 +11,14 @@
 import os
 import sys
 import numpy as np
+import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    load_and_prepare, make_regression_target, FEATURE_COLS,
+    load_train_val_test, make_regression_target, FEATURE_COLS,
     SHAP_FEATURE_NAMES, save_json, OUTPUT_DIR,
 )
 
@@ -27,7 +29,6 @@ plt.rcParams["axes.unicode_minus"] = False
 def extract_importance(model, feature_names, model_name):
     """提取特征重要性并归一化"""
     importances = model.feature_importances_
-    imp_dict = dict(zip(feature_names, importances))
 
     result = []
     for fname in SHAP_FEATURE_NAMES:
@@ -74,10 +75,11 @@ def main():
     print("任务 4: 特征重要性分析")
     print("=" * 70)
 
-    print("\n[1/4] 加载数据并训练 XGBoost...")
+    print("\n[1/4] 加载数据并训练 XGBoost (train+val)...")
     from xgboost import XGBRegressor
-    train_df = load_and_prepare("train")
-    X_train, y_train, _, _, _ = make_regression_target(train_df)
+    train_df, val_df, _test_df = load_train_val_test()
+    fit_df = pd.concat([train_df, val_df], ignore_index=True)
+    X_train, y_train, _, _, _ = make_regression_target(fit_df)
     xgb_model = XGBRegressor(max_depth=6, n_estimators=200, learning_rate=0.1,
                              random_state=42, n_jobs=-1, tree_method="hist")
     xgb_model.fit(X_train, y_train)
@@ -105,7 +107,7 @@ def main():
     plot_importance(lgb_imp, "LightGBM", "shap_lightgbm.png")
 
     avg_imp = []
-    for i, fname in enumerate(SHAP_FEATURE_NAMES):
+    for fname in SHAP_FEATURE_NAMES:
         x_val = next(r["importance"] for r in xgb_imp if r["feature"] == fname)
         l_val = next(r["importance"] for r in lgb_imp if r["feature"] == fname)
         avg_imp.append({"feature": fname, "importance": round((x_val + l_val) / 2, 4)})

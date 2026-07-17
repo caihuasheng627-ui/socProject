@@ -2,15 +2,15 @@
   "regression": {
     "model": "XGBoost",
     "type": "ML 主力",
-    "rmse": 68.61739692848909,
-    "mae": 9.960322878249045,
-    "mape": 8.285188682647892,
-    "r2": 0.8512826714426251,
+    "rmse": 59.0688652995493,
+    "mae": 8.625116522038269,
+    "mape": 7.501498528068057,
+    "r2": 0.8897927020038257,
     "accuracy": null,
     "auc": null,
     "speed": "快",
     "interpretability": 2,
-    "train_time_s": 194.0
+    "train_time_s": 148.3
   },
   "classification": {
     "model": "XGBoost",
@@ -19,9 +19,9 @@
     "mae": null,
     "mape": null,
     "r2": null,
-    "accuracy": 0.765817934088393,
-    "f1": 0.7513883063222601,
-    "auc": 0.8938006700123903,
+    "accuracy": 0.7687984331090862,
+    "f1": 0.7216735219304988,
+    "auc": 0.9040834077013473,
     "speed": "快",
     "interpretability": 2
   }

@@ -1,104 +1,104 @@
 {
   "xgboost": [
     {
+      "feature": "steam_ccu",
+      "importance": 0.1525
+    },
+    {
       "feature": "RSI_14",
-      "importance": 0.1673
+      "importance": 0.1479
     },
     {
       "feature": "days_to_next_major",
-      "importance": 0.1572
-    },
-    {
-      "feature": "steam_ccu",
-      "importance": 0.1457
+      "importance": 0.1444
     },
     {
       "feature": "MACD",
-      "importance": 0.1413
+      "importance": 0.1305
     },
     {
       "feature": "Return_7d",
-      "importance": 0.0999
+      "importance": 0.1198
     },
     {
       "feature": "MA_30_dev",
-      "importance": 0.0995
-    },
-    {
-      "feature": "Volume_Change_Ratio",
-      "importance": 0.0965
+      "importance": 0.109
     },
     {
       "feature": "BB_position",
-      "importance": 0.0925
+      "importance": 0.1013
+    },
+    {
+      "feature": "Volume_Change_Ratio",
+      "importance": 0.0946
     }
   ],
   "lightgbm": [
     {
       "feature": "days_to_next_major",
-      "importance": 0.2374
+      "importance": 0.2616
     },
     {
       "feature": "MACD",
-      "importance": 0.2151
+      "importance": 0.2045
     },
     {
       "feature": "Return_7d",
-      "importance": 0.1374
+      "importance": 0.1152
     },
     {
       "feature": "MA_30_dev",
-      "importance": 0.1237
+      "importance": 0.1123
     },
     {
       "feature": "RSI_14",
-      "importance": 0.0918
-    },
-    {
-      "feature": "BB_position",
-      "importance": 0.0671
-    },
-    {
-      "feature": "Volume_Change_Ratio",
-      "importance": 0.0662
+      "importance": 0.1013
     },
     {
       "feature": "steam_ccu",
-      "importance": 0.0612
+      "importance": 0.0763
+    },
+    {
+      "feature": "Volume_Change_Ratio",
+      "importance": 0.0706
+    },
+    {
+      "feature": "BB_position",
+      "importance": 0.0581
     }
   ],
   "average": [
     {
       "feature": "days_to_next_major",
-      "importance": 0.1973
+      "importance": 0.203
     },
     {
       "feature": "MACD",
-      "importance": 0.1782
+      "importance": 0.1675
     },
     {
       "feature": "RSI_14",
-      "importance": 0.1295
+      "importance": 0.1246
     },
     {
       "feature": "Return_7d",
-      "importance": 0.1187
-    },
-    {
-      "feature": "MA_30_dev",
-      "importance": 0.1116
+      "importance": 0.1175
     },
     {
       "feature": "steam_ccu",
-      "importance": 0.1035
+      "importance": 0.1144
+    },
+    {
+      "feature": "MA_30_dev",
+      "importance": 0.1106
     },
     {
       "feature": "Volume_Change_Ratio",
-      "importance": 0.0814
+      "importance": 0.0826
     },
     {
       "feature": "BB_position",
-      "importance": 0.0798
+      "importance": 0.0797
     }
   ]
 }
