@@ -51,40 +51,10 @@ CLASS_THRESHOLD = 0.02
 
 
 def load_and_prepare(split="train"):
-    """加载 CSV 并返回增强特征 DataFrame"""
+    """加载 CSV 并返回增强特征 DataFrame (所有特征已在 build_features 中完成)"""
     path = os.path.join(DATA_DIR, f"{split}.csv")
     df = pd.read_csv(path, parse_dates=["date"])
     df = build_features(df)
-    df = _add_extra_features(df)
-    df = _encode_categoricals(df)
-    return df
-
-
-def _add_extra_features(df):
-    """添加前端 SHAP 所需的额外特征"""
-    df = df.sort_values(["market_hash_name", "date"]).copy()
-    for name, group in df.groupby("market_hash_name"):
-        idx = group.index
-        df.loc[idx, "MA_30_dev"] = (
-            (group["price"] - group["MA_30"]) / group["MA_30"].replace(0, 1e-10)
-        )
-        ma20 = group["price"].rolling(20, min_periods=1).mean()
-        std20 = group["price"].rolling(20, min_periods=1).std().replace(0, 1e-10)
-        df.loc[idx, "BB_position"] = (group["price"] - ma20) / (2 * std20)
-        df.loc[idx, "Volume_Change_Ratio"] = group["daily_volume"].pct_change(5)
-    df["MA_30_dev"] = df["MA_30_dev"].fillna(0)
-    df["BB_position"] = df["BB_position"].fillna(0)
-    df["Volume_Change_Ratio"] = df["Volume_Change_Ratio"].fillna(0)
-    return df
-
-
-def _encode_categoricals(df):
-    """Label encode 分类列 (树模型不需要 one-hot)"""
-    for col, enc_name in [("weapon_type", "weapon_type_enc"),
-                          ("rarity", "rarity_enc"),
-                          ("wear", "wear_enc")]:
-        le = LabelEncoder()
-        df[enc_name] = le.fit_transform(df[col].astype(str))
     return df
 
 

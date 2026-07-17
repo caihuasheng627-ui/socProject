@@ -10,6 +10,9 @@
 import os
 import sys
 import time
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
@@ -31,7 +34,7 @@ def _train_regression(model_cls, model_name, param_grid, train_df, test_df, **kw
     t0 = time.time()
     model = model_cls(**kwargs)
     gs = GridSearchCV(model, param_grid, cv=tscv, scoring="neg_root_mean_squared_error",
-                      n_jobs=-1, verbose=0, refit=True)
+                      n_jobs=1, verbose=1, refit=True)
     gs.fit(X_train, y_train)
     train_time = time.time() - t0
     print(f"  [{model_name} 回归] 最佳参数: {gs.best_params_}  ({train_time:.1f}s)")
@@ -51,7 +54,7 @@ def _train_classification(model_cls, model_name, param_grid, train_df, test_df, 
     t0 = time.time()
     model = model_cls(**kwargs)
     gs = GridSearchCV(model, param_grid, cv=tscv, scoring="f1_weighted",
-                      n_jobs=-1, verbose=0, refit=True)
+                      n_jobs=1, verbose=1, refit=True)
     gs.fit(X_train, y_train)
     train_time = time.time() - t0
     print(f"  [{model_name} 分类] 最佳参数: {gs.best_params_}  ({train_time:.1f}s)")

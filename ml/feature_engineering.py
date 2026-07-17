@@ -13,6 +13,7 @@ SkinVision AI — 特征工程
 
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -62,11 +63,36 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         # === Target (7天后 log 价格) ===
         df.loc[idx, "Target"] = group["log_price"].shift(-7)
 
+        # === 组员2 额外特征 (MA_30_dev / BB_position / Volume_Change_Ratio) ===
+        df.loc[idx, "MA_30_dev"] = (
+            (group["price"] - df.loc[idx, "MA_30"]) / df.loc[idx, "MA_30"].replace(0, 1e-10)
+        )
+        ma20 = group["price"].rolling(20, min_periods=1).mean()
+        std20 = group["price"].rolling(20, min_periods=1).std().replace(0, 1e-10)
+        df.loc[idx, "BB_position"] = (group["price"] - ma20) / (2 * std20)
+        df.loc[idx, "Volume_Change_Ratio"] = group["daily_volume"].pct_change(5)
+
     # 3. 填充 NaN + 去掉没有 Target 的行
-    df["Return_1d"] = df["Return_1d"].fillna(0)       # 第一天没有前一天
-    df["Return_7d"] = df["Return_7d"].fillna(0)       # 前7天没有7天前
-    df["RSI_14"] = df["RSI_14"].fillna(50)            # 50 = 中性
+    df["Return_1d"] = df["Return_1d"].fillna(0)
+    df["Return_7d"] = df["Return_7d"].fillna(0)
+    df["RSI_14"] = df["RSI_14"].fillna(50)
     df["Volatility_30"] = df["Volatility_30"].fillna(0)
+    df["MA_30_dev"] = df["MA_30_dev"].fillna(0)
+    df["BB_position"] = df["BB_position"].fillna(0)
+    df["Volume_Change_Ratio"] = df["Volume_Change_Ratio"].fillna(0)
+
+    # 4. 分类变量编码 (组员2 树模型用)
+    for col, enc_name in [("weapon_type", "weapon_type_enc"),
+                          ("rarity", "rarity_enc"),
+                          ("wear", "wear_enc")]:
+        le = LabelEncoder()
+        df[enc_name] = le.fit_transform(df[col].astype(str))
+
+    # 5. 大量级特征压缩 (LSTM 梯度友好)
+    df["steam_ccu"] = df["steam_ccu"] / 1e6               # 13M → 13
+    df["daily_volume_log"] = np.log1p(df["daily_volume"])  # 1~855k → 0~13.7
+    df["volume_ma_log"] = np.log1p(df["Volume_MA_7"])
+
     df = df.dropna(subset=["Target"])                  # 最后7天无目标
 
     return df
