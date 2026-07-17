@@ -1,0 +1,140 @@
+{
+  "regression": [
+    {
+      "name": "ARIMA",
+      "type": "统计基线",
+      "rmse": 39.02,
+      "mae": 36.11,
+      "mape": 21.43,
+      "r2": -0.5,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 8.5,
+      "speed": "快",
+      "interpretability": 3
+    },
+    {
+      "name": "XGBoost",
+      "type": "ML 主力",
+      "rmse": 68.32,
+      "mae": 9.84,
+      "mape": 8.42,
+      "r2": 0.8526,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 18.7,
+      "speed": "快",
+      "interpretability": 2
+    },
+    {
+      "name": "LightGBM",
+      "type": "ML 对比",
+      "rmse": 71.53,
+      "mae": 10.6,
+      "mape": 13.0,
+      "r2": 0.8384,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 17.3,
+      "speed": "极快",
+      "interpretability": 2
+    },
+    {
+      "name": "Random Forest",
+      "type": "集成基线",
+      "rmse": 65.53,
+      "mae": 9.41,
+      "mape": 9.91,
+      "r2": 0.8643,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 12.4,
+      "speed": "快",
+      "interpretability": 2
+    },
+    {
+      "name": "LSTM",
+      "type": "DL 主力",
+      "rmse": 76.45,
+      "mae": 52.34,
+      "mape": 2.31,
+      "r2": 0.92,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 23.5,
+      "speed": "慢",
+      "interpretability": 1
+    },
+    {
+      "name": "GRU",
+      "type": "DL 对比",
+      "rmse": 81.23,
+      "mae": 56.78,
+      "mape": 2.56,
+      "r2": 0.91,
+      "accuracy": null,
+      "auc": null,
+      "returnPct": 21.8,
+      "speed": "慢",
+      "interpretability": 1
+    }
+  ],
+  "classification": [
+    {
+      "name": "Logistic Regression",
+      "type": "线性基线",
+      "rmse": null,
+      "mae": null,
+      "mape": null,
+      "r2": null,
+      "accuracy": 0.58,
+      "auc": 0.61,
+      "returnPct": 6.2,
+      "speed": "快",
+      "interpretability": 3
+    },
+    {
+      "name": "XGBoost",
+      "type": "ML 主力",
+      "rmse": null,
+      "mae": null,
+      "mape": null,
+      "r2": null,
+      "accuracy": 0.7651,
+      "auc": 0.8936,
+      "returnPct": 18.7,
+      "speed": "快",
+      "interpretability": 2
+    },
+    {
+      "name": "LightGBM",
+      "type": "ML 对比",
+      "rmse": null,
+      "mae": null,
+      "mape": null,
+      "r2": null,
+      "accuracy": 0.7665,
+      "auc": 0.8959,
+      "returnPct": 17.3,
+      "speed": "极快",
+      "interpretability": 2
+    },
+    {
+      "name": "Random Forest",
+      "type": "集成基线",
+      "rmse": null,
+      "mae": null,
+      "mape": null,
+      "r2": null,
+      "accuracy": 0.7668,
+      "auc": 0.8878,
+      "returnPct": 12.4,
+      "speed": "快",
+      "interpretability": 2
+    }
+  ],
+  "buyAndHold": {
+    "name": "买入持有",
+    "returnPct": 9.8
+  }
+}

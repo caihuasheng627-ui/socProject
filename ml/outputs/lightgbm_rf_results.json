@@ -1,0 +1,52 @@
+{
+  "lightgbm_regression": {
+    "model": "LightGBM",
+    "type": "ML 对比",
+    "rmse": 71.53488504620663,
+    "mae": 10.601668336759019,
+    "mape": 13.000650608337516,
+    "r2": 0.8383674348141446,
+    "accuracy": null,
+    "auc": null,
+    "speed": "极快",
+    "interpretability": 2
+  },
+  "lightgbm_classification": {
+    "model": "LightGBM",
+    "type": "ML 对比",
+    "rmse": null,
+    "mae": null,
+    "mape": null,
+    "r2": null,
+    "accuracy": 0.7665275767123676,
+    "f1": 0.7472080824755182,
+    "auc": 0.8958814636568319,
+    "speed": "极快",
+    "interpretability": 2
+  },
+  "randomforest_regression": {
+    "model": "Random Forest",
+    "type": "集成基线",
+    "rmse": 65.53417196272717,
+    "mae": 9.408091713113123,
+    "mape": 9.906519382761529,
+    "r2": 0.8643472097988705,
+    "accuracy": null,
+    "auc": null,
+    "speed": "快",
+    "interpretability": 2
+  },
+  "randomforest_classification": {
+    "model": "Random Forest",
+    "type": "集成基线",
+    "rmse": null,
+    "mae": null,
+    "mape": null,
+    "r2": null,
+    "accuracy": 0.7667546623520395,
+    "f1": 0.7594221355042551,
+    "auc": 0.8878382993388945,
+    "speed": "快",
+    "interpretability": 2
+  }
+}

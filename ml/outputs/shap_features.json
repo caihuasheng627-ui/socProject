@@ -1,0 +1,104 @@
+{
+  "xgboost": [
+    {
+      "feature": "RSI_14",
+      "importance": 0.1673
+    },
+    {
+      "feature": "days_to_next_major",
+      "importance": 0.1572
+    },
+    {
+      "feature": "steam_ccu",
+      "importance": 0.1457
+    },
+    {
+      "feature": "MACD",
+      "importance": 0.1413
+    },
+    {
+      "feature": "Return_7d",
+      "importance": 0.0999
+    },
+    {
+      "feature": "MA_30_dev",
+      "importance": 0.0995
+    },
+    {
+      "feature": "Volume_Change_Ratio",
+      "importance": 0.0965
+    },
+    {
+      "feature": "BB_position",
+      "importance": 0.0925
+    }
+  ],
+  "lightgbm": [
+    {
+      "feature": "days_to_next_major",
+      "importance": 0.2374
+    },
+    {
+      "feature": "MACD",
+      "importance": 0.2151
+    },
+    {
+      "feature": "Return_7d",
+      "importance": 0.1374
+    },
+    {
+      "feature": "MA_30_dev",
+      "importance": 0.1237
+    },
+    {
+      "feature": "RSI_14",
+      "importance": 0.0918
+    },
+    {
+      "feature": "BB_position",
+      "importance": 0.0671
+    },
+    {
+      "feature": "Volume_Change_Ratio",
+      "importance": 0.0662
+    },
+    {
+      "feature": "steam_ccu",
+      "importance": 0.0612
+    }
+  ],
+  "average": [
+    {
+      "feature": "days_to_next_major",
+      "importance": 0.1973
+    },
+    {
+      "feature": "MACD",
+      "importance": 0.1782
+    },
+    {
+      "feature": "RSI_14",
+      "importance": 0.1295
+    },
+    {
+      "feature": "Return_7d",
+      "importance": 0.1187
+    },
+    {
+      "feature": "MA_30_dev",
+      "importance": 0.1116
+    },
+    {
+      "feature": "steam_ccu",
+      "importance": 0.1035
+    },
+    {
+      "feature": "Volume_Change_Ratio",
+      "importance": 0.0814
+    },
+    {
+      "feature": "BB_position",
+      "importance": 0.0798
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "regression": {
+    "model": "XGBoost",
+    "type": "ML 主力",
+    "rmse": 68.31699139392957,
+    "mae": 9.839114253913497,
+    "mape": 8.42338827231934,
+    "r2": 0.8525819837557103,
+    "accuracy": null,
+    "auc": null,
+    "speed": "快",
+    "interpretability": 2,
+    "train_time_s": 52.9
+  },
+  "classification": {
+    "model": "XGBoost",
+    "type": "ML 主力",
+    "rmse": null,
+    "mae": null,
+    "mape": null,
+    "r2": null,
+    "accuracy": 0.7651082914644185,
+    "f1": 0.752664823497976,
+    "auc": 0.89356044098838,
+    "speed": "快",
+    "interpretability": 2
+  }
+}
