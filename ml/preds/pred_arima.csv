@@ -1,0 +1,176 @@
+date,market_hash_name,current_price,predicted_price
+2022-01-30,AUG | Momentum (Factory New),0.03,0.01
+2022-02-06,AUG | Momentum (Factory New),0.03,0.01
+2022-02-13,AUG | Momentum (Factory New),0.03,0.01
+2022-02-20,AUG | Momentum (Factory New),0.03,0.01
+2022-02-27,AUG | Momentum (Factory New),0.03,0.01
+2022-03-06,AUG | Momentum (Factory New),0.03,0.01
+2022-03-13,AUG | Momentum (Factory New),0.03,0.01
+2022-03-20,AUG | Momentum (Factory New),0.03,0.01
+2022-03-27,AUG | Momentum (Factory New),0.03,0.01
+2022-04-03,AUG | Momentum (Factory New),0.03,0.01
+2022-04-10,AUG | Momentum (Factory New),0.03,0.01
+2022-04-17,AUG | Momentum (Factory New),0.03,0.01
+2022-04-24,AUG | Momentum (Factory New),0.03,0.01
+2022-05-01,AUG | Momentum (Factory New),0.03,0.01
+2022-05-08,AUG | Momentum (Factory New),0.03,0.01
+2022-05-15,AUG | Momentum (Factory New),0.03,0.01
+2022-05-22,AUG | Momentum (Factory New),0.03,0.01
+2022-05-29,AUG | Momentum (Factory New),0.03,0.01
+2022-06-05,AUG | Momentum (Factory New),0.03,0.01
+2022-06-12,AUG | Momentum (Factory New),0.03,0.01
+2022-06-19,AUG | Momentum (Factory New),0.03,0.01
+2022-06-26,AUG | Momentum (Factory New),0.03,0.01
+2022-07-03,AUG | Momentum (Factory New),0.03,0.01
+2022-07-10,AUG | Momentum (Factory New),0.03,0.01
+2022-07-17,AUG | Momentum (Factory New),0.03,0.01
+2022-07-24,AUG | Momentum (Factory New),0.03,0.01
+2022-07-31,AUG | Momentum (Factory New),0.03,0.01
+2022-08-07,AUG | Momentum (Factory New),0.03,0.01
+2022-08-14,AUG | Momentum (Factory New),0.03,0.01
+2022-08-21,AUG | Momentum (Factory New),0.03,0.01
+2022-08-28,AUG | Momentum (Factory New),0.03,0.01
+2022-09-04,AUG | Momentum (Factory New),0.03,0.01
+2022-09-11,AUG | Momentum (Factory New),0.03,0.01
+2022-09-18,AUG | Momentum (Factory New),0.03,0.01
+2022-09-25,AUG | Momentum (Factory New),0.03,0.01
+2022-01-30,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03044491863262176
+2022-02-06,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030429482034898633
+2022-02-13,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030425322520949403
+2022-02-20,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03041603466381179
+2022-02-27,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03041519955079099
+2022-03-06,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030409902841185395
+2022-03-13,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030409344348310018
+2022-03-20,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030404774273254727
+2022-03-27,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030443161426919055
+2022-04-03,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030404206246233925
+2022-04-10,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03039831124583991
+2022-04-17,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030397745183119985
+2022-04-24,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030510611855042502
+2022-05-01,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030395862955813625
+2022-05-08,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03039146879565338
+2022-05-15,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03038919068404222
+2022-05-22,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03038470452487447
+2022-05-29,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030384511353751933
+2022-06-05,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030380233830767493
+2022-06-12,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030380084850859135
+2022-06-19,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030378041268790967
+2022-06-26,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03037597675918873
+2022-07-03,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030373896390156276
+2022-07-10,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03037182314377729
+2022-07-17,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03036975631977071
+2022-07-24,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030367704149090253
+2022-07-31,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030365669874186377
+2022-08-07,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030363654857679924
+2022-08-14,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030361659653203994
+2022-08-21,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03035968442367369
+2022-08-28,MAG-7 | SWAG-7 (Field-Tested),0.03,0.03035772912843494
+2022-09-04,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030355793616469156
+2022-09-11,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030353877676367783
+2022-09-18,MAG-7 | SWAG-7 (Field-Tested),0.03,0.030351981064201932
+2022-09-25,MAG-7 | SWAG-7 (Field-Tested),0.03,0.0303501035194381
+2022-01-30,M4A4 | X-Ray (Field-Tested),0.139,0.1377931427964877
+2022-02-06,M4A4 | X-Ray (Field-Tested),0.142,0.1428591778626882
+2022-02-13,M4A4 | X-Ray (Field-Tested),0.158,0.15790471529267186
+2022-02-20,M4A4 | X-Ray (Field-Tested),0.174,0.17346336852031
+2022-02-27,M4A4 | X-Ray (Field-Tested),0.159,0.15964155501312954
+2022-03-06,M4A4 | X-Ray (Field-Tested),0.154,0.154239285637229
+2022-03-13,M4A4 | X-Ray (Field-Tested),0.15,0.1495391023153181
+2022-03-20,M4A4 | X-Ray (Field-Tested),0.162,0.16094215374523108
+2022-03-27,M4A4 | X-Ray (Field-Tested),0.16,0.15919534676413039
+2022-04-03,M4A4 | X-Ray (Field-Tested),0.174,0.1729972846793745
+2022-04-10,M4A4 | X-Ray (Field-Tested),0.177,0.1757757019946264
+2022-04-17,M4A4 | X-Ray (Field-Tested),0.177,0.17801651958636652
+2022-04-24,M4A4 | X-Ray (Field-Tested),0.203,0.20427194255341455
+2022-05-01,M4A4 | X-Ray (Field-Tested),0.215,0.2154428636372678
+2022-05-08,M4A4 | X-Ray (Field-Tested),0.2,0.19832174606235475
+2022-05-15,M4A4 | X-Ray (Field-Tested),0.181,0.18148010392517974
+2022-05-22,M4A4 | X-Ray (Field-Tested),0.192,0.192167036390548
+2022-05-29,M4A4 | X-Ray (Field-Tested),0.183,0.1818524554141737
+2022-06-05,M4A4 | X-Ray (Field-Tested),0.171,0.17177325864469536
+2022-06-12,M4A4 | X-Ray (Field-Tested),0.15,0.1492452433019461
+2022-06-19,M4A4 | X-Ray (Field-Tested),0.143,0.14217597170671564
+2022-06-26,M4A4 | X-Ray (Field-Tested),0.14,0.1400414134025487
+2022-07-03,M4A4 | X-Ray (Field-Tested),0.143,0.14255070823598517
+2022-07-10,M4A4 | X-Ray (Field-Tested),0.138,0.1376330044151207
+2022-07-17,M4A4 | X-Ray (Field-Tested),0.136,0.136782219895551
+2022-07-24,M4A4 | X-Ray (Field-Tested),0.134,0.1340074011296721
+2022-07-31,M4A4 | X-Ray (Field-Tested),0.14,0.14145252213812065
+2022-08-07,M4A4 | X-Ray (Field-Tested),0.134,0.13260385261014657
+2022-08-14,M4A4 | X-Ray (Field-Tested),0.15,0.15013626304328306
+2022-08-21,M4A4 | X-Ray (Field-Tested),0.151,0.15180912518448494
+2022-08-28,M4A4 | X-Ray (Field-Tested),0.143,0.14319999478726514
+2022-09-04,M4A4 | X-Ray (Field-Tested),0.144,0.14327307432499092
+2022-09-11,M4A4 | X-Ray (Field-Tested),0.144,0.14445674756833315
+2022-09-18,M4A4 | X-Ray (Field-Tested),0.14,0.14057201498257157
+2022-09-25,M4A4 | X-Ray (Field-Tested),0.151,0.15107853962015058
+2022-01-30,AK-47 | Safari Mesh (Well-Worn),0.564,0.564
+2022-02-06,AK-47 | Safari Mesh (Well-Worn),0.61,0.61
+2022-02-13,AK-47 | Safari Mesh (Well-Worn),0.645,0.645
+2022-02-20,AK-47 | Safari Mesh (Well-Worn),0.655,0.655
+2022-02-27,AK-47 | Safari Mesh (Well-Worn),0.65,0.65
+2022-03-06,AK-47 | Safari Mesh (Well-Worn),0.693,0.693
+2022-03-13,AK-47 | Safari Mesh (Well-Worn),0.742,0.742
+2022-03-20,AK-47 | Safari Mesh (Well-Worn),0.734,0.734
+2022-03-27,AK-47 | Safari Mesh (Well-Worn),0.695,0.695
+2022-04-03,AK-47 | Safari Mesh (Well-Worn),0.679,0.679
+2022-04-10,AK-47 | Safari Mesh (Well-Worn),0.712,0.712
+2022-04-17,AK-47 | Safari Mesh (Well-Worn),0.702,0.702
+2022-04-24,AK-47 | Safari Mesh (Well-Worn),0.717,0.717
+2022-05-01,AK-47 | Safari Mesh (Well-Worn),0.675,0.675
+2022-05-08,AK-47 | Safari Mesh (Well-Worn),0.621,0.621
+2022-05-15,AK-47 | Safari Mesh (Well-Worn),0.588,0.588
+2022-05-22,AK-47 | Safari Mesh (Well-Worn),0.572,0.572
+2022-05-29,AK-47 | Safari Mesh (Well-Worn),0.597,0.597
+2022-06-05,AK-47 | Safari Mesh (Well-Worn),0.577,0.577
+2022-06-12,AK-47 | Safari Mesh (Well-Worn),0.561,0.561
+2022-06-19,AK-47 | Safari Mesh (Well-Worn),0.546,0.546
+2022-06-26,AK-47 | Safari Mesh (Well-Worn),0.485,0.485
+2022-07-03,AK-47 | Safari Mesh (Well-Worn),0.553,0.553
+2022-07-10,AK-47 | Safari Mesh (Well-Worn),0.595,0.595
+2022-07-17,AK-47 | Safari Mesh (Well-Worn),0.619,0.619
+2022-07-24,AK-47 | Safari Mesh (Well-Worn),0.628,0.628
+2022-07-31,AK-47 | Safari Mesh (Well-Worn),0.64,0.64
+2022-08-07,AK-47 | Safari Mesh (Well-Worn),0.656,0.656
+2022-08-14,AK-47 | Safari Mesh (Well-Worn),0.689,0.689
+2022-08-21,AK-47 | Safari Mesh (Well-Worn),0.682,0.682
+2022-08-28,AK-47 | Safari Mesh (Well-Worn),0.675,0.675
+2022-09-04,AK-47 | Safari Mesh (Well-Worn),0.666,0.666
+2022-09-11,AK-47 | Safari Mesh (Well-Worn),0.679,0.679
+2022-09-18,AK-47 | Safari Mesh (Well-Worn),0.652,0.652
+2022-09-25,AK-47 | Safari Mesh (Well-Worn),0.64,0.64
+2022-01-30,★ Karambit | Doppler (Factory New),851.0,769.5688277800975
+2022-02-06,★ Karambit | Doppler (Factory New),737.774,754.4445134303786
+2022-02-13,★ Karambit | Doppler (Factory New),795.65,770.1536796736724
+2022-02-20,★ Karambit | Doppler (Factory New),756.903,746.9107729666225
+2022-02-27,★ Karambit | Doppler (Factory New),806.111,774.8043711676368
+2022-03-06,★ Karambit | Doppler (Factory New),816.401,783.5710235898829
+2022-03-13,★ Karambit | Doppler (Factory New),831.867,808.1740954406565
+2022-03-20,★ Karambit | Doppler (Factory New),890.33,828.8845743258629
+2022-03-27,★ Karambit | Doppler (Factory New),886.745,860.015051974057
+2022-04-03,★ Karambit | Doppler (Factory New),904.664,862.8072255694395
+2022-04-10,★ Karambit | Doppler (Factory New),1026.11,892.1076997270621
+2022-04-17,★ Karambit | Doppler (Factory New),977.456,918.3850007380024
+2022-04-24,★ Karambit | Doppler (Factory New),919.817,912.1772660656568
+2022-05-01,★ Karambit | Doppler (Factory New),896.732,926.9565949073537
+2022-05-08,★ Karambit | Doppler (Factory New),895.732,943.1294769004153
+2022-05-15,★ Karambit | Doppler (Factory New),865.211,897.0229069879832
+2022-05-23,★ Karambit | Doppler (Factory New),847.248,888.4555697816127
+2022-05-30,★ Karambit | Doppler (Factory New),831.386,857.186666149157
+2022-06-06,★ Karambit | Doppler (Factory New),864.111,890.8046544680175
+2022-06-13,★ Karambit | Doppler (Factory New),837.854,881.6955409438664
+2022-06-20,★ Karambit | Doppler (Factory New),846.95,851.2689946599659
+2022-06-27,★ Karambit | Doppler (Factory New),781.4,826.5673022192694
+2022-07-04,★ Karambit | Doppler (Factory New),807.12,805.1759586476388
+2022-07-11,★ Karambit | Doppler (Factory New),910.983,880.9849125181345
+2022-07-18,★ Karambit | Doppler (Factory New),792.533,860.3389412027012
+2022-07-25,★ Karambit | Doppler (Factory New),842.015,884.1773735948072
+2022-08-01,★ Karambit | Doppler (Factory New),840.0,892.8822235149628
+2022-08-08,★ Karambit | Doppler (Factory New),1039.018,925.3426968662288
+2022-08-15,★ Karambit | Doppler (Factory New),860.658,969.1094007242316
+2022-08-22,★ Karambit | Doppler (Factory New),867.692,896.7206359363371
+2022-08-29,★ Karambit | Doppler (Factory New),806.719,876.4248815508504
+2022-09-05,★ Karambit | Doppler (Factory New),907.939,902.9482335254917
+2022-09-12,★ Karambit | Doppler (Factory New),977.052,923.2836524954406
+2022-09-19,★ Karambit | Doppler (Factory New),878.124,879.7184106844805
+2022-09-26,★ Karambit | Doppler (Factory New),1158.48,944.7763762797641
