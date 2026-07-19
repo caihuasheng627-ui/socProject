@@ -2,29 +2,35 @@
   "lstm_c": {
     "n_items": 154,
     "n_common_dates": 174,
-    "n_capped_items": 8,
-    "returnPct": 23.63,
-    "maxDrawdownPct": -7.75,
-    "trades": 791,
-    "winRate": 65.4
+    "n_capped_items": 7,
+    "returnPct": 22.95,
+    "maxDrawdownPct": -6.7,
+    "trades": 790,
+    "winRate": 65.3,
+    "n_spikes_removed": 1,
+    "n_dirty_items": 1
   },
   "lstm_d": {
     "n_items": 154,
     "n_common_dates": 174,
     "n_capped_items": 7,
-    "returnPct": 27.66,
-    "maxDrawdownPct": -3.37,
+    "returnPct": 27.03,
+    "maxDrawdownPct": -3.96,
     "trades": 858,
-    "winRate": 70.7
+    "winRate": 70.7,
+    "n_spikes_removed": 1,
+    "n_dirty_items": 1
   },
   "hybrid": {
     "n_items": 154,
     "n_common_dates": 174,
-    "n_capped_items": 8,
-    "returnPct": 28.22,
-    "maxDrawdownPct": -2.85,
-    "trades": 881,
-    "winRate": 71.5
+    "n_capped_items": 7,
+    "returnPct": 27.4,
+    "maxDrawdownPct": -3.29,
+    "trades": 880,
+    "winRate": 71.4,
+    "n_spikes_removed": 1,
+    "n_dirty_items": 1
   },
   "gru": {
     "n_items": 10,
@@ -33,7 +39,9 @@
     "returnPct": 42.34,
     "maxDrawdownPct": -21.7,
     "trades": 27,
-    "winRate": 63.2
+    "winRate": 63.2,
+    "n_spikes_removed": 0,
+    "n_dirty_items": 0
   },
   "arima": {
     "n_items": 5,
@@ -42,34 +50,42 @@
     "returnPct": 3.19,
     "maxDrawdownPct": -1.03,
     "trades": 2,
-    "winRate": 100.0
+    "winRate": 100.0,
+    "n_spikes_removed": 0,
+    "n_dirty_items": 0
   },
   "rf": {
     "n_items": 154,
     "n_common_dates": 234,
-    "n_capped_items": 12,
-    "returnPct": 26.7,
-    "maxDrawdownPct": -7.41,
-    "trades": 558,
-    "winRate": 75.2
+    "n_capped_items": 9,
+    "returnPct": 25.18,
+    "maxDrawdownPct": -7.61,
+    "trades": 542,
+    "winRate": 75.9,
+    "n_spikes_removed": 2,
+    "n_dirty_items": 1
   },
   "lightgbm": {
     "n_items": 154,
     "n_common_dates": 234,
-    "n_capped_items": 11,
-    "returnPct": 31.22,
-    "maxDrawdownPct": -9.47,
-    "trades": 681,
-    "winRate": 76.2
+    "n_capped_items": 7,
+    "returnPct": 26.45,
+    "maxDrawdownPct": -8.28,
+    "trades": 575,
+    "winRate": 77.8,
+    "n_spikes_removed": 2,
+    "n_dirty_items": 1
   },
   "xgboost": {
     "n_items": 154,
     "n_common_dates": 234,
-    "n_capped_items": 8,
-    "returnPct": 26.54,
-    "maxDrawdownPct": -8.77,
-    "trades": 619,
-    "winRate": 73.9
+    "n_capped_items": 6,
+    "returnPct": 23.97,
+    "maxDrawdownPct": -7.51,
+    "trades": 504,
+    "winRate": 75.0,
+    "n_spikes_removed": 2,
+    "n_dirty_items": 1
   },
   "买入持有": {
     "n_items": 154,

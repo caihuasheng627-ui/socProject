@@ -1,152 +1,164 @@
 {
   "LSTM-C": {
-    "rmse": 12.71,
-    "mae": 2.09,
-    "mape": 5.61,
-    "r2": 0.99,
+    "rmse": 10.95,
+    "mae": 1.92,
+    "mape": 5.56,
+    "r2": 0.9925,
     "items": 154,
     "rows": 25888,
     "direction": {
-      "accuracy": 0.4515,
-      "auc": 0.5037,
-      "precision": 0.3113,
-      "recall": 0.6401,
-      "f1": 0.4189,
-      "n": 25786
-    },
-    "backtest": {
-      "n_items": 154,
-      "n_common_dates": 174,
-      "n_capped_items": 8,
-      "returnPct": 23.63,
-      "maxDrawdownPct": -7.75,
-      "trades": 791,
-      "winRate": 65.4
-    }
-  },
-  "LSTM-D": {
-    "rmse": 13.36,
-    "mae": 2.21,
-    "mape": 4.44,
-    "r2": 0.9889,
-    "items": 154,
-    "rows": 25888,
-    "direction": {
-      "accuracy": 0.4126,
-      "auc": 0.4386,
-      "precision": 0.2645,
-      "recall": 0.5065,
-      "f1": 0.3475,
+      "accuracy": 0.4509,
+      "auc": 0.5034,
+      "precision": 0.311,
+      "recall": 0.6406,
+      "f1": 0.4187,
       "n": 25786
     },
     "backtest": {
       "n_items": 154,
       "n_common_dates": 174,
       "n_capped_items": 7,
-      "returnPct": 27.66,
-      "maxDrawdownPct": -3.37,
-      "trades": 858,
-      "winRate": 70.7
+      "returnPct": 22.95,
+      "maxDrawdownPct": -6.7,
+      "trades": 790,
+      "winRate": 65.3,
+      "n_spikes_removed": 1,
+      "n_dirty_items": 1
     }
   },
-  "Hybrid": {
-    "rmse": 12.71,
-    "mae": 2.09,
-    "mape": 4.38,
-    "r2": 0.99,
+  "LSTM-D": {
+    "rmse": 11.57,
+    "mae": 2.04,
+    "mape": 4.39,
+    "r2": 0.9916,
     "items": 154,
     "rows": 25888,
     "direction": {
-      "accuracy": 0.4173,
-      "auc": 0.434,
-      "precision": 0.2592,
-      "recall": 0.4775,
-      "f1": 0.336,
+      "accuracy": 0.4124,
+      "auc": 0.4383,
+      "precision": 0.2641,
+      "recall": 0.506,
+      "f1": 0.3471,
       "n": 25786
     },
     "backtest": {
       "n_items": 154,
       "n_common_dates": 174,
-      "n_capped_items": 8,
-      "returnPct": 28.22,
-      "maxDrawdownPct": -2.85,
-      "trades": 881,
-      "winRate": 71.5
+      "n_capped_items": 7,
+      "returnPct": 27.03,
+      "maxDrawdownPct": -3.96,
+      "trades": 858,
+      "winRate": 70.7,
+      "n_spikes_removed": 1,
+      "n_dirty_items": 1
+    }
+  },
+  "Hybrid": {
+    "rmse": 10.95,
+    "mae": 1.92,
+    "mape": 4.33,
+    "r2": 0.9925,
+    "items": 154,
+    "rows": 25888,
+    "direction": {
+      "accuracy": 0.4172,
+      "auc": 0.4337,
+      "precision": 0.2589,
+      "recall": 0.4769,
+      "f1": 0.3356,
+      "n": 25786
+    },
+    "backtest": {
+      "n_items": 154,
+      "n_common_dates": 174,
+      "n_capped_items": 7,
+      "returnPct": 27.4,
+      "maxDrawdownPct": -3.29,
+      "trades": 880,
+      "winRate": 71.4,
+      "n_spikes_removed": 1,
+      "n_dirty_items": 1
     }
   },
   "RF": {
-    "rmse": 14.84,
-    "mae": 2.36,
-    "mape": 2.28,
-    "r2": 0.9861,
+    "rmse": 13.55,
+    "mae": 2.31,
+    "mape": 2.07,
+    "r2": 0.9883,
     "items": 154,
     "rows": 35128,
     "direction": {
       "accuracy": 0.3933,
-      "auc": 0.4445,
-      "precision": 0.302,
-      "recall": 0.6032,
-      "f1": 0.4025,
+      "auc": 0.4438,
+      "precision": 0.3013,
+      "recall": 0.6003,
+      "f1": 0.4012,
       "n": 34992
     },
     "backtest": {
       "n_items": 154,
       "n_common_dates": 234,
-      "n_capped_items": 12,
-      "returnPct": 26.7,
-      "maxDrawdownPct": -7.41,
-      "trades": 558,
-      "winRate": 75.2
+      "n_capped_items": 9,
+      "returnPct": 25.18,
+      "maxDrawdownPct": -7.61,
+      "trades": 542,
+      "winRate": 75.9,
+      "n_spikes_removed": 2,
+      "n_dirty_items": 1
     }
   },
   "LightGBM": {
-    "rmse": 17.89,
-    "mae": 2.76,
-    "mape": 2.04,
-    "r2": 0.9797,
+    "rmse": 15.79,
+    "mae": 2.54,
+    "mape": 2.15,
+    "r2": 0.9841,
     "items": 154,
     "rows": 35128,
     "direction": {
-      "accuracy": 0.6097,
-      "auc": 0.6134,
-      "precision": 0.4457,
-      "recall": 0.6247,
-      "f1": 0.5202,
+      "accuracy": 0.6616,
+      "auc": 0.6419,
+      "precision": 0.5002,
+      "recall": 0.5808,
+      "f1": 0.5375,
       "n": 34992
     },
     "backtest": {
       "n_items": 154,
       "n_common_dates": 234,
-      "n_capped_items": 11,
-      "returnPct": 31.22,
-      "maxDrawdownPct": -9.47,
-      "trades": 681,
-      "winRate": 76.2
+      "n_capped_items": 7,
+      "returnPct": 26.45,
+      "maxDrawdownPct": -8.28,
+      "trades": 575,
+      "winRate": 77.8,
+      "n_spikes_removed": 2,
+      "n_dirty_items": 1
     }
   },
   "XGBoost": {
-    "rmse": 17.38,
-    "mae": 2.78,
-    "mape": 2.11,
-    "r2": 0.9809,
+    "rmse": 17.98,
+    "mae": 3.0,
+    "mape": 2.33,
+    "r2": 0.9794,
     "items": 154,
     "rows": 35128,
     "direction": {
-      "accuracy": 0.4713,
-      "auc": 0.5022,
-      "precision": 0.3404,
-      "recall": 0.598,
-      "f1": 0.4338,
+      "accuracy": 0.6149,
+      "auc": 0.5788,
+      "precision": 0.4359,
+      "recall": 0.467,
+      "f1": 0.4509,
       "n": 34992
     },
     "backtest": {
       "n_items": 154,
       "n_common_dates": 234,
-      "n_capped_items": 8,
-      "returnPct": 26.54,
-      "maxDrawdownPct": -8.77,
-      "trades": 619,
-      "winRate": 73.9
+      "n_capped_items": 6,
+      "returnPct": 23.97,
+      "maxDrawdownPct": -7.51,
+      "trades": 504,
+      "winRate": 75.0,
+      "n_spikes_removed": 2,
+      "n_dirty_items": 1
     }
   },
   "ARIMA": {
@@ -164,7 +176,9 @@
       "returnPct": 3.19,
       "maxDrawdownPct": -1.03,
       "trades": 2,
-      "winRate": 100.0
+      "winRate": 100.0,
+      "n_spikes_removed": 0,
+      "n_dirty_items": 0
     }
   },
   "GRU": {
@@ -182,7 +196,9 @@
       "returnPct": 42.34,
       "maxDrawdownPct": -21.7,
       "trades": 27,
-      "winRate": 63.2
+      "winRate": 63.2,
+      "n_spikes_removed": 0,
+      "n_dirty_items": 0
     }
   }
 }

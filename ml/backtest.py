@@ -1,20 +1,16 @@
 """
-回测引擎 V2: 逐日逐笔模拟交易
+回测引擎 V3: 逐日逐笔模拟交易
 ==============================================
-修复 (7/19 方案 D):
-  A. 统一日期网格 — 只保留所有 154 件物品都有数据的日期 (去稀疏跳空)
-  B. 单物品收益 cap +200% — 极端值截断
-  C. 固定持有期 — BUY 后必须持有 7 天才允许 SELL (对齐预测 horizon)
+修复 (7/19):
+  1. 数据层清洗 — 剔除薄流动性尖峰 (日收益>50% 且 daily_volume<10)
+  2. 统一日期网格 — ≥80% 物品共有日期 (去稀疏跳空)
+  3. 固定持有期 — BUY 后必须持有 7 天才允许 SELL (对齐预测 horizon)
+  4. 单品收益 cap +200% — 安全网 (清洗后应极少触发)
 
 交易规则:
   预测涨幅 >= +2% → 买入 (若无持仓)
   预测跌幅 <= -2% → 卖出 (若持仓且已持满 7 天)
   ±2% 之间        → 不动
-
-资金模型:
-  - 初始资金默认 $10,000, 等权分给该模型覆盖的所有物品
-  - 每日组合价值 = Σ(各物品 现金 + 持仓市值)
-  - 自动附加 "买入持有" 基准
 
 用法:
   python backtest.py LSTM-C=../data/preds/pred_lstm_c.csv XGBoost=../data/preds/pred_xgb.csv
@@ -29,12 +25,15 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 OUTPUT_DIR = Path("../data/backtest")
+VAL_PATH = Path("../data/val.csv")
 REQUIRED_COLS = ["date", "market_hash_name", "current_price", "predicted_price"]
-HOLD_DAYS = 7          # 方案 C: 对齐预测 horizon
+HOLD_DAYS = 7
+SPIKE_RET_THRESHOLD = 0.50   # 日收益率绝对值 >50%
+SPIKE_VOL_THRESHOLD = 10     # 且挂单量 <10
 
 
 # ============================================================
-# 第 1 步: 读预测 CSV + 统一日期网格 (方案 A)
+# 第 1 步: 读预测 CSV + 数据层清洗尖峰
 # ============================================================
 def load_predictions(path):
     df = pd.read_csv(path)
@@ -47,10 +46,62 @@ def load_predictions(path):
     return df
 
 
+def clean_spikes(pred_df, val_path=VAL_PATH):
+    """
+    数据层清洗: 用 val.csv 的 daily_volume 识别并剔除薄流动性尖峰。
+    规则: 日收益率绝对值 >50% 且当天挂单量 <10 → 标记为脏数据。
+    剔除预测 DataFrame 中对应的 (item, date) 行。
+    返回: (清洗后 DataFrame, 脏物品数, 剔除行数, 详情列表)
+    """
+    if not Path(val_path).exists():
+        print(f"  ⚠️ {val_path} 不存在, 跳过数据清洗")
+        return pred_df, 0, 0, []
+
+    val = pd.read_csv(val_path, parse_dates=["date"])
+    dirty_pairs = set()
+    spike_details = []
+
+    for name, group in val.groupby("market_hash_name"):
+        group = group.sort_values("date")
+        prices = group["price"].values
+        volumes = group["daily_volume"].values
+        dates = group["date"].values
+        for i in range(1, len(prices)):
+            if prices[i-1] > 0 and volumes[i] > 0:  # 有量才判 (vol=0 可能是元旦停服)
+                ret = (prices[i] - prices[i-1]) / prices[i-1]
+                if abs(ret) > SPIKE_RET_THRESHOLD and volumes[i] < SPIKE_VOL_THRESHOLD:
+                    dirty_pairs.add((name, pd.Timestamp(dates[i])))
+                    spike_details.append({
+                        "item": name,
+                        "date": str(dates[i])[:10],
+                        "price": round(float(prices[i]), 2),
+                        "prev_price": round(float(prices[i-1]), 2),
+                        "ret_pct": round(float(ret * 100), 1),
+                        "volume": int(volumes[i]),
+                    })
+
+    if not dirty_pairs:
+        return pred_df, 0, 0, []
+
+    before = len(pred_df)
+    pred_dates = set(
+        (r.market_hash_name, r.date)
+        for r in pred_df.itertuples(index=False)
+    )
+    removed = pred_dates & dirty_pairs
+    mask = pred_df.apply(
+        lambda row: (row["market_hash_name"], row["date"]) not in removed, axis=1
+    )
+    cleaned = pred_df[mask].copy()
+    after = len(cleaned)
+    n_items = len(set(p[0] for p in removed))
+
+    return cleaned, n_items, before - after, spike_details
+
+
 def align_date_grid(pred_df, min_pct=0.80):
     """
-    方案 A: 只保留 ≥min_pct 物品都有数据的日期。
-    缺失物品用前向填充 (ffill) 补齐。
+    只保留 ≥min_pct 物品都有数据的日期。缺失物品用 ffill 补齐。
     """
     n_items = pred_df["market_hash_name"].nunique()
     min_n = int(n_items * min_pct)
@@ -63,12 +114,12 @@ def align_date_grid(pred_df, min_pct=0.80):
 
 
 # ============================================================
-# 第 2 步: 单物品模拟 (方案 C: 强制持满 7 天)
+# 第 2 步: 单物品模拟 (强制持满 7 天)
 # ============================================================
 def simulate_item(group, budget, fee, buy_th, sell_th):
     """
-    group: 单物品预测 df (已按日期排序, 日期网格已对齐)
-    方案 C: BUY 后必须持有 HOLD_DAYS 天才允许 SELL
+    group: 单物品预测 df (已排序, 日期网格已对齐, 尖峰已清洗)
+    BUY 后必须持有 HOLD_DAYS 天才允许 SELL
     """
     cash, units = budget, 0.0
     buy_price = None
@@ -101,13 +152,14 @@ def simulate_item(group, budget, fee, buy_th, sell_th):
 
 
 # ============================================================
-# 第 3 步: 组合回测 (方案 B: 单物品收益 cap +200%)
+# 第 3 步: 组合回测
 # ============================================================
 def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
     """
-    方案 B: 每件物品最终收益上限 +200% (即 3x)
+    1. 统一日期网格 (≥80% 物品)
+    2. 逐物品模拟 (持满 7 天)
+    3. 单品收益 cap +200% (安全网)
     """
-    # 方案 A: 统一日期网格
     aligned, common_dates = align_date_grid(pred_df)
     items = aligned["market_hash_name"].unique()
     n_items = len(items)
@@ -125,14 +177,9 @@ def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
         total_trades += trades
         all_closed += closed
 
-        # 计算最终价值
-        last_row = group.iloc[-1]
-        final = values.get(last_row.date,
-                           budget + 0 * last_row.current_price)  # fallback
-        # Actually compute from the last value
         final = list(values.values())[-1] if values else budget
 
-        # 方案 B: cap 单物品收益
+        # 安全网: cap 单物品收益 +200%
         raw_ret = (final / budget - 1) * 100
         capped_ret = min(raw_ret, 200.0)
         capped_final = budget * (1 + capped_ret / 100)
@@ -217,35 +264,60 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print(f"回测引擎 V2 (方案 D: 统一日期 + cap 200% + 持满7天)")
+    print(f"回测引擎 V3 (数据清洗 + 日期对齐 + 持满7天 + cap安全网)")
     print(f"  资金 ${args.capital:,.0f} | 手续费 {args.fee:.1%} | "
           f"阈值 ±{args.buy_th:.0%} | 持有 ≥{HOLD_DAYS}天")
+    print(f"  尖峰清洗: 日收益>{SPIKE_RET_THRESHOLD:.0%} & 挂单量<{SPIKE_VOL_THRESHOLD}")
     print("=" * 60)
 
     curves, results, price_frames = {}, {}, []
+
+    # 先跑一次清洗看有多少尖峰 (只对第一个模型做详细汇报)
+    first_clean_done = False
 
     for spec in args.specs:
         label, _, path = spec.rpartition("=")
         if not label:
             label = Path(path).stem.removeprefix("pred_").removeprefix("predictions_")
         pred_df = load_predictions(path)
-        price_frames.append(pred_df[["date", "market_hash_name", "current_price"]])
+
+        # 数据层清洗
+        cleaned, n_dirty_items, n_removed, spike_details = clean_spikes(pred_df)
+        if not first_clean_done:
+            first_clean_done = True
+            if n_removed > 0:
+                print(f"\n  🧹 数据清洗: 剔除 {n_removed} 行 ({n_dirty_items} 件物品的尖峰)")
+                for s in spike_details[:5]:
+                    print(f"     {s['date']}  {s['item'][:45]}  "
+                          f"${s['prev_price']:.0f}→${s['price']:.0f} ({s['ret_pct']:+.0f}%)  "
+                          f"vol={s['volume']}")
+                if len(spike_details) > 5:
+                    print(f"     ... 共 {len(spike_details)} 个尖峰")
+            else:
+                print(f"\n  🧹 数据清洗: 未发现尖峰 (全部通过)")
+
+        price_frames.append(cleaned[["date", "market_hash_name", "current_price"]])
 
         curve_df, metrics = run_backtest(
-            pred_df, args.capital, args.fee, args.buy_th, args.sell_th
+            cleaned, args.capital, args.fee, args.buy_th, args.sell_th
         )
+        # 补记清洗统计
+        metrics["n_spikes_removed"] = n_removed
+        metrics["n_dirty_items"] = n_dirty_items
+
         curves[label] = curve_df
         results[label] = metrics
 
         csv_path = outdir / f"backtest_curve_{label}.csv"
         curve_df.to_csv(csv_path, index=False)
         win = f"{metrics['winRate']}%" if metrics.get("winRate") is not None else "—"
+        cap_info = f"cap {metrics['n_capped_items']}件" if metrics['n_capped_items'] > 0 else ""
         print(f"  [{label:<10}] {metrics['n_items']:>3}件×{metrics['n_common_dates']}天 | "
               f"收益 {metrics['returnPct']:>+8.2f}% | "
               f"最大回撤 {metrics['maxDrawdownPct']:>6.2f}% | "
               f"交易 {metrics['trades']:>4}笔 | "
               f"胜率 {win} | "
-              f"cap {metrics['n_capped_items']}件")
+              f"{cap_info}")
 
     # --- 买入持有基准 ---
     all_prices = (pd.concat(price_frames)
@@ -279,7 +351,7 @@ def main():
     print(f"\n  ✅ {outdir / 'backtest_curves.json'}")
     print(f"  ✅ {outdir / 'backtest_results.json'}")
     print("\n" + "=" * 60)
-    print("回测 V2 完成!")
+    print("回测 V3 完成!")
     print("=" * 60)
     return curves, results
 
