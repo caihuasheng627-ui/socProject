@@ -4095,10 +4095,10 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-04,AUG | Momentum (Battle-Scarred),0.03,2347,AUG,Restricted,BS,0,1,124,52,0,-77,27500000
 2023-01-05,AUG | Momentum (Battle-Scarred),0.03,2688,AUG,Restricted,BS,0,1,123,53,0,-76,27500000
 2023-01-06,AUG | Momentum (Battle-Scarred),0.03,1713,AUG,Restricted,BS,0,1,122,54,0,-75,27500000
-2023-01-07,AUG | Momentum (Battle-Scarred),0.053,2636,AUG,Restricted,BS,0,0,121,55,0,-74,27500000
+2023-01-07,AUG | Momentum (Battle-Scarred),0.03,2636,AUG,Restricted,BS,0,0,121,55,0,-74,27500000
 2023-01-08,AUG | Momentum (Battle-Scarred),0.03,1565,AUG,Restricted,BS,0,1,120,56,0,-73,27500000
-2023-01-09,AUG | Momentum (Battle-Scarred),0.075,4635,AUG,Restricted,BS,0,0,119,57,0,-72,27500000
-2023-01-10,AUG | Momentum (Battle-Scarred),0.088,7683,AUG,Restricted,BS,0,0,118,58,0,-71,27500000
+2023-01-09,AUG | Momentum (Battle-Scarred),0.039,4635,AUG,Restricted,BS,0,0,119,57,0,-72,27500000
+2023-01-10,AUG | Momentum (Battle-Scarred),0.039,7683,AUG,Restricted,BS,0,0,118,58,0,-71,27500000
 2023-01-11,AUG | Momentum (Battle-Scarred),0.039,5039,AUG,Restricted,BS,0,1,117,59,0,-70,27500000
 2023-01-12,AUG | Momentum (Battle-Scarred),0.03,2096,AUG,Restricted,BS,0,1,116,60,0,-69,27500000
 2023-01-13,AUG | Momentum (Battle-Scarred),0.03,2442,AUG,Restricted,BS,0,1,115,61,0,-68,27500000
@@ -4131,9 +4131,9 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,AUG | Momentum (Battle-Scarred),0.03,4793,AUG,Restricted,BS,0,1,88,88,0,-41,28000000
 2023-02-10,AUG | Momentum (Battle-Scarred),0.03,4711,AUG,Restricted,BS,0,1,87,89,0,-40,28000000
 2023-02-11,AUG | Momentum (Battle-Scarred),0.03,10344,AUG,Restricted,BS,0,1,86,90,0,-39,28000000
-2023-02-12,AUG | Momentum (Battle-Scarred),0.052,14160,AUG,Restricted,BS,0,0,85,91,0,-38,28000000
-2023-02-13,AUG | Momentum (Battle-Scarred),0.091,11678,AUG,Restricted,BS,0,0,84,92,0,-37,28000000
-2023-02-14,AUG | Momentum (Battle-Scarred),0.06,4912,AUG,Restricted,BS,0,0,83,93,0,-36,28000000
+2023-02-12,AUG | Momentum (Battle-Scarred),0.033,14160,AUG,Restricted,BS,0,0,85,91,0,-38,28000000
+2023-02-13,AUG | Momentum (Battle-Scarred),0.033,11678,AUG,Restricted,BS,0,0,84,92,0,-37,28000000
+2023-02-14,AUG | Momentum (Battle-Scarred),0.033,4912,AUG,Restricted,BS,0,0,83,93,0,-36,28000000
 2023-02-15,AUG | Momentum (Battle-Scarred),0.033,3015,AUG,Restricted,BS,0,1,82,94,0,-35,28000000
 2023-02-16,AUG | Momentum (Battle-Scarred),0.03,2535,AUG,Restricted,BS,0,1,81,95,0,-34,28000000
 2023-02-17,AUG | Momentum (Battle-Scarred),0.03,2787,AUG,Restricted,BS,0,1,80,96,0,-33,28000000
@@ -4366,8 +4366,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,AUG | Momentum (Factory New),0.03,836,AUG,Restricted,FN,0,1,88,88,0,-41,28000000
 2023-02-10,AUG | Momentum (Factory New),0.03,998,AUG,Restricted,FN,0,1,87,89,0,-40,28000000
 2023-02-11,AUG | Momentum (Factory New),0.039,5422,AUG,Restricted,FN,0,1,86,90,0,-39,28000000
-2023-02-12,AUG | Momentum (Factory New),0.067,2796,AUG,Restricted,FN,0,0,85,91,0,-38,28000000
-2023-02-13,AUG | Momentum (Factory New),0.049,1542,AUG,Restricted,FN,0,1,84,92,0,-37,28000000
+2023-02-12,AUG | Momentum (Factory New),0.03,2796,AUG,Restricted,FN,0,0,85,91,0,-38,28000000
+2023-02-13,AUG | Momentum (Factory New),0.03,1542,AUG,Restricted,FN,0,1,84,92,0,-37,28000000
 2023-02-14,AUG | Momentum (Factory New),0.03,811,AUG,Restricted,FN,0,1,83,93,0,-36,28000000
 2023-02-15,AUG | Momentum (Factory New),0.03,1111,AUG,Restricted,FN,0,1,82,94,0,-35,28000000
 2023-02-16,AUG | Momentum (Factory New),0.03,1565,AUG,Restricted,FN,0,1,81,95,0,-34,28000000
@@ -4437,7 +4437,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-21,AUG | Momentum (Factory New),0.03,28,AUG,Restricted,FN,0,1,17,159,0,30,29000000
 2023-04-22,AUG | Momentum (Factory New),0.03,28,AUG,Restricted,FN,0,1,16,160,0,31,29000000
 2023-04-23,AUG | Momentum (Factory New),0.033,55,AUG,Restricted,FN,0,1,15,161,0,32,29000000
-2023-04-24,AUG | Momentum (Factory New),0.055,38,AUG,Restricted,FN,0,0,14,162,0,33,29000000
+2023-04-24,AUG | Momentum (Factory New),0.03,38,AUG,Restricted,FN,0,0,14,162,0,33,29000000
 2023-04-25,AUG | Momentum (Factory New),0.03,18,AUG,Restricted,FN,0,1,13,163,0,34,29000000
 2023-04-26,AUG | Momentum (Factory New),0.037,14,AUG,Restricted,FN,0,1,12,164,0,35,29000000
 2023-04-27,AUG | Momentum (Factory New),0.03,19,AUG,Restricted,FN,0,1,11,165,0,36,29000000
@@ -4448,7 +4448,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-02,AUG | Momentum (Factory New),0.03,14,AUG,Restricted,FN,0,1,6,170,0,41,28000000
 2023-05-03,AUG | Momentum (Factory New),0.032,32,AUG,Restricted,FN,0,1,5,171,0,42,28000000
 2023-05-04,AUG | Momentum (Factory New),0.03,21,AUG,Restricted,FN,0,1,4,172,0,43,28000000
-2023-05-05,AUG | Momentum (Factory New),0.05,53,AUG,Restricted,FN,0,1,3,173,0,44,28000000
+2023-05-05,AUG | Momentum (Factory New),0.03,53,AUG,Restricted,FN,0,1,3,173,0,44,28000000
 2023-05-06,AUG | Momentum (Factory New),0.03,21,AUG,Restricted,FN,0,1,2,174,0,45,28000000
 2023-05-07,AUG | Momentum (Factory New),0.031,37,AUG,Restricted,FN,0,1,1,175,0,46,28000000
 2023-05-08,AUG | Momentum (Factory New),0.03,16,AUG,Restricted,FN,0,1,0,176,1,47,28000000
@@ -4576,7 +4576,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-15,AUG | Torque (Minimal Wear),0.03,2706,AUG,Industrial Grade,MW,0,1,113,63,0,-66,27500000
 2023-01-16,AUG | Torque (Minimal Wear),0.03,1260,AUG,Industrial Grade,MW,0,1,112,64,0,-65,27500000
 2023-01-17,AUG | Torque (Minimal Wear),0.03,1142,AUG,Industrial Grade,MW,0,1,111,65,0,-64,27500000
-2023-01-18,AUG | Torque (Minimal Wear),0.085,3677,AUG,Industrial Grade,MW,0,0,110,66,0,-63,27500000
+2023-01-18,AUG | Torque (Minimal Wear),0.03,3677,AUG,Industrial Grade,MW,0,0,110,66,0,-63,27500000
 2023-01-19,AUG | Torque (Minimal Wear),0.03,1403,AUG,Industrial Grade,MW,0,1,109,67,0,-62,27500000
 2023-01-20,AUG | Torque (Minimal Wear),0.03,1681,AUG,Industrial Grade,MW,0,1,108,68,0,-61,27500000
 2023-01-21,AUG | Torque (Minimal Wear),0.03,1669,AUG,Industrial Grade,MW,0,1,107,69,0,-60,27500000
@@ -4600,8 +4600,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-08,AUG | Torque (Minimal Wear),0.03,2168,AUG,Industrial Grade,MW,0,1,89,87,0,-42,28000000
 2023-02-09,AUG | Torque (Minimal Wear),0.03,2498,AUG,Industrial Grade,MW,0,1,88,88,0,-41,28000000
 2023-02-10,AUG | Torque (Minimal Wear),0.03,3709,AUG,Industrial Grade,MW,0,1,87,89,0,-40,28000000
-2023-02-11,AUG | Torque (Minimal Wear),0.112,42037,AUG,Industrial Grade,MW,0,0,86,90,0,-39,28000000
-2023-02-12,AUG | Torque (Minimal Wear),0.139,20277,AUG,Industrial Grade,MW,0,0,85,91,0,-38,28000000
+2023-02-11,AUG | Torque (Minimal Wear),0.03,42037,AUG,Industrial Grade,MW,0,0,86,90,0,-39,28000000
+2023-02-12,AUG | Torque (Minimal Wear),0.03,20277,AUG,Industrial Grade,MW,0,0,85,91,0,-38,28000000
 2023-02-13,AUG | Torque (Minimal Wear),0.04,6543,AUG,Industrial Grade,MW,0,1,84,92,0,-37,28000000
 2023-02-14,AUG | Torque (Minimal Wear),0.03,3174,AUG,Industrial Grade,MW,0,1,83,93,0,-36,28000000
 2023-02-15,AUG | Torque (Minimal Wear),0.03,3373,AUG,Industrial Grade,MW,0,1,82,94,0,-35,28000000
@@ -4670,7 +4670,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-19,AUG | Torque (Minimal Wear),0.03,2390,AUG,Industrial Grade,MW,0,1,19,157,0,28,29000000
 2023-04-20,AUG | Torque (Minimal Wear),0.03,361,AUG,Industrial Grade,MW,0,1,18,158,0,29,29000000
 2023-04-21,AUG | Torque (Minimal Wear),0.03,118,AUG,Industrial Grade,MW,0,1,17,159,0,30,29000000
-2023-04-22,AUG | Torque (Minimal Wear),0.05,266,AUG,Industrial Grade,MW,0,1,16,160,0,31,29000000
+2023-04-22,AUG | Torque (Minimal Wear),0.03,266,AUG,Industrial Grade,MW,0,1,16,160,0,31,29000000
 2023-04-23,AUG | Torque (Minimal Wear),0.03,135,AUG,Industrial Grade,MW,0,1,15,161,0,32,29000000
 2023-04-24,AUG | Torque (Minimal Wear),0.03,47,AUG,Industrial Grade,MW,0,1,14,162,0,33,29000000
 2023-04-25,AUG | Torque (Minimal Wear),0.03,81,AUG,Industrial Grade,MW,0,1,13,163,0,34,29000000
@@ -4835,8 +4835,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-08,AUG | Torque (Well-Worn),0.03,732,AUG,Industrial Grade,WW,0,1,89,87,0,-42,28000000
 2023-02-09,AUG | Torque (Well-Worn),0.085,7429,AUG,Industrial Grade,WW,0,0,88,88,0,-41,28000000
 2023-02-10,AUG | Torque (Well-Worn),0.372,5344,AUG,Industrial Grade,WW,0,0,87,89,0,-40,28000000
-2023-02-11,AUG | Torque (Well-Worn),1.102,19594,AUG,Industrial Grade,WW,0,0,86,90,0,-39,28000000
-2023-02-12,AUG | Torque (Well-Worn),0.899,13459,AUG,Industrial Grade,WW,0,0,85,91,0,-38,28000000
+2023-02-11,AUG | Torque (Well-Worn),0.253,19594,AUG,Industrial Grade,WW,0,0,86,90,0,-39,28000000
+2023-02-12,AUG | Torque (Well-Worn),0.253,13459,AUG,Industrial Grade,WW,0,0,85,91,0,-38,28000000
 2023-02-13,AUG | Torque (Well-Worn),0.253,4348,AUG,Industrial Grade,WW,0,0,84,92,0,-37,28000000
 2023-02-14,AUG | Torque (Well-Worn),0.154,2435,AUG,Industrial Grade,WW,0,0,83,93,0,-36,28000000
 2023-02-15,AUG | Torque (Well-Worn),0.115,1866,AUG,Industrial Grade,WW,0,0,82,94,0,-35,28000000
@@ -4908,7 +4908,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-22,AUG | Torque (Well-Worn),0.038,43,AUG,Industrial Grade,WW,0,1,16,160,0,31,29000000
 2023-04-23,AUG | Torque (Well-Worn),0.03,29,AUG,Industrial Grade,WW,0,1,15,161,0,32,29000000
 2023-04-24,AUG | Torque (Well-Worn),0.03,19,AUG,Industrial Grade,WW,0,1,14,162,0,33,29000000
-2023-04-25,AUG | Torque (Well-Worn),0.055,110,AUG,Industrial Grade,WW,0,0,13,163,0,34,29000000
+2023-04-25,AUG | Torque (Well-Worn),0.035,110,AUG,Industrial Grade,WW,0,0,13,163,0,34,29000000
 2023-04-26,AUG | Torque (Well-Worn),0.038,30,AUG,Industrial Grade,WW,0,1,12,164,0,35,29000000
 2023-04-27,AUG | Torque (Well-Worn),0.035,25,AUG,Industrial Grade,WW,0,1,11,165,0,36,29000000
 2023-04-28,AUG | Torque (Well-Worn),0.03,27,AUG,Industrial Grade,WW,0,1,10,166,0,37,29000000
@@ -4917,7 +4917,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-01,AUG | Torque (Well-Worn),0.034,23,AUG,Industrial Grade,WW,0,1,7,169,0,40,28000000
 2023-05-02,AUG | Torque (Well-Worn),0.036,27,AUG,Industrial Grade,WW,0,1,6,170,0,41,28000000
 2023-05-03,AUG | Torque (Well-Worn),0.031,52,AUG,Industrial Grade,WW,0,1,5,171,0,42,28000000
-2023-05-04,AUG | Torque (Well-Worn),0.06,59,AUG,Industrial Grade,WW,0,0,4,172,0,43,28000000
+2023-05-04,AUG | Torque (Well-Worn),0.033,59,AUG,Industrial Grade,WW,0,0,4,172,0,43,28000000
 2023-05-05,AUG | Torque (Well-Worn),0.033,59,AUG,Industrial Grade,WW,0,1,3,173,0,44,28000000
 2023-05-06,AUG | Torque (Well-Worn),0.03,26,AUG,Industrial Grade,WW,0,1,2,174,0,45,28000000
 2023-05-07,AUG | Torque (Well-Worn),0.03,29,AUG,Industrial Grade,WW,0,1,1,175,0,46,28000000
@@ -4984,9 +4984,9 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-14,AWP | Asiimov (Field-Tested),0.03,1161,AWP,Covert,FT,0,1,175,1,0,-128,26000000
 2022-11-15,AWP | Asiimov (Field-Tested),0.03,1073,AWP,Covert,FT,0,1,174,2,0,-127,26000000
 2022-11-16,AWP | Asiimov (Field-Tested),0.03,1228,AWP,Covert,FT,0,1,173,3,0,-126,26000000
-2022-11-17,AWP | Asiimov (Field-Tested),0.131,8060,AWP,Covert,FT,0,0,172,4,0,-125,26000000
-2022-11-18,AWP | Asiimov (Field-Tested),0.351,4249,AWP,Covert,FT,0,0,171,5,0,-124,26000000
-2022-11-19,AWP | Asiimov (Field-Tested),0.132,2207,AWP,Covert,FT,0,0,170,6,0,-123,26000000
+2022-11-17,AWP | Asiimov (Field-Tested),0.03,8060,AWP,Covert,FT,0,0,172,4,0,-125,26000000
+2022-11-18,AWP | Asiimov (Field-Tested),0.03,4249,AWP,Covert,FT,0,0,171,5,0,-124,26000000
+2022-11-19,AWP | Asiimov (Field-Tested),0.03,2207,AWP,Covert,FT,0,0,170,6,0,-123,26000000
 2022-11-20,AWP | Asiimov (Field-Tested),0.03,1190,AWP,Covert,FT,0,1,169,7,0,-122,26000000
 2022-11-21,AWP | Asiimov (Field-Tested),0.03,1758,AWP,Covert,FT,0,1,168,8,0,-121,26000000
 2022-11-22,AWP | Asiimov (Field-Tested),0.03,1048,AWP,Covert,FT,0,1,167,9,0,-120,26000000
@@ -5305,8 +5305,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-08,AWP | Asiimov (Well-Worn),0.03,938,AWP,Covert,WW,0,1,89,87,0,-42,28000000
 2023-02-09,AWP | Asiimov (Well-Worn),0.03,1187,AWP,Covert,WW,0,1,88,88,0,-41,28000000
 2023-02-10,AWP | Asiimov (Well-Worn),0.03,1070,AWP,Covert,WW,0,1,87,89,0,-40,28000000
-2023-02-11,AWP | Asiimov (Well-Worn),0.092,8709,AWP,Covert,WW,0,0,86,90,0,-39,28000000
-2023-02-12,AWP | Asiimov (Well-Worn),0.101,4197,AWP,Covert,WW,0,0,85,91,0,-38,28000000
+2023-02-11,AWP | Asiimov (Well-Worn),0.03,8709,AWP,Covert,WW,0,0,86,90,0,-39,28000000
+2023-02-12,AWP | Asiimov (Well-Worn),0.03,4197,AWP,Covert,WW,0,0,85,91,0,-38,28000000
 2023-02-13,AWP | Asiimov (Well-Worn),0.03,1684,AWP,Covert,WW,0,1,84,92,0,-37,28000000
 2023-02-14,AWP | Asiimov (Well-Worn),0.03,1114,AWP,Covert,WW,0,1,83,93,0,-36,28000000
 2023-02-15,AWP | Asiimov (Well-Worn),0.03,1443,AWP,Covert,WW,0,1,82,94,0,-35,28000000
@@ -5398,7 +5398,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-12,AWP | Asiimov (Well-Worn),0.034,28,AWP,Covert,WW,0,1,0,180,1,51,28000000
 2023-05-13,AWP | Asiimov (Well-Worn),0.034,32,AWP,Covert,WW,0,1,0,181,1,52,28000000
 2023-05-14,AWP | Asiimov (Well-Worn),0.034,39,AWP,Covert,WW,0,1,0,182,1,53,28000000
-2023-05-15,AWP | Asiimov (Well-Worn),0.054,53,AWP,Covert,WW,0,0,0,183,1,54,28000000
+2023-05-15,AWP | Asiimov (Well-Worn),0.037,53,AWP,Covert,WW,0,0,0,183,1,54,28000000
 2023-05-16,AWP | Asiimov (Well-Worn),0.037,18,AWP,Covert,WW,0,1,0,184,1,55,28000000
 2023-05-17,AWP | Asiimov (Well-Worn),0.037,36,AWP,Covert,WW,0,1,0,185,1,56,28000000
 2023-05-18,AWP | Asiimov (Well-Worn),0.043,34,AWP,Covert,WW,0,1,0,186,1,57,28000000
@@ -8361,8 +8361,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,Dual Berettas | Colony (Field-Tested),0.03,2305,Dual Berettas,Industrial Grade,FT,0,1,88,88,0,-41,28000000
 2023-02-10,Dual Berettas | Colony (Field-Tested),0.03,1978,Dual Berettas,Industrial Grade,FT,0,1,87,89,0,-40,28000000
 2023-02-11,Dual Berettas | Colony (Field-Tested),0.03,7089,Dual Berettas,Industrial Grade,FT,0,1,86,90,0,-39,28000000
-2023-02-12,Dual Berettas | Colony (Field-Tested),0.069,43977,Dual Berettas,Industrial Grade,FT,0,0,85,91,0,-38,28000000
-2023-02-13,Dual Berettas | Colony (Field-Tested),0.083,9660,Dual Berettas,Industrial Grade,FT,0,0,84,92,0,-37,28000000
+2023-02-12,Dual Berettas | Colony (Field-Tested),0.03,43977,Dual Berettas,Industrial Grade,FT,0,0,85,91,0,-38,28000000
+2023-02-13,Dual Berettas | Colony (Field-Tested),0.03,9660,Dual Berettas,Industrial Grade,FT,0,0,84,92,0,-37,28000000
 2023-02-14,Dual Berettas | Colony (Field-Tested),0.039,3215,Dual Berettas,Industrial Grade,FT,0,1,83,93,0,-36,28000000
 2023-02-15,Dual Berettas | Colony (Field-Tested),0.03,2572,Dual Berettas,Industrial Grade,FT,0,1,82,94,0,-35,28000000
 2023-02-16,Dual Berettas | Colony (Field-Tested),0.03,2924,Dual Berettas,Industrial Grade,FT,0,1,81,95,0,-34,28000000
@@ -9034,8 +9034,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-08,FAMAS | Commemoration (Minimal Wear),0.03,3834,FAMAS,Mil-Spec,MW,0,1,120,56,0,-73,27500000
 2023-01-09,FAMAS | Commemoration (Minimal Wear),0.03,2326,FAMAS,Mil-Spec,MW,0,1,119,57,0,-72,27500000
 2023-01-10,FAMAS | Commemoration (Minimal Wear),0.043,4656,FAMAS,Mil-Spec,MW,0,1,118,58,0,-71,27500000
-2023-01-11,FAMAS | Commemoration (Minimal Wear),0.053,4811,FAMAS,Mil-Spec,MW,0,0,117,59,0,-70,27500000
-2023-01-12,FAMAS | Commemoration (Minimal Wear),0.051,2657,FAMAS,Mil-Spec,MW,0,0,116,60,0,-69,27500000
+2023-01-11,FAMAS | Commemoration (Minimal Wear),0.03,4811,FAMAS,Mil-Spec,MW,0,0,117,59,0,-70,27500000
+2023-01-12,FAMAS | Commemoration (Minimal Wear),0.03,2657,FAMAS,Mil-Spec,MW,0,0,116,60,0,-69,27500000
 2023-01-13,FAMAS | Commemoration (Minimal Wear),0.03,1879,FAMAS,Mil-Spec,MW,0,1,115,61,0,-68,27500000
 2023-01-14,FAMAS | Commemoration (Minimal Wear),0.03,1935,FAMAS,Mil-Spec,MW,0,1,114,62,0,-67,27500000
 2023-01-15,FAMAS | Commemoration (Minimal Wear),0.03,2209,FAMAS,Mil-Spec,MW,0,1,113,63,0,-66,27500000
@@ -9066,7 +9066,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,FAMAS | Commemoration (Minimal Wear),0.03,3034,FAMAS,Mil-Spec,MW,0,1,88,88,0,-41,28000000
 2023-02-10,FAMAS | Commemoration (Minimal Wear),0.03,2790,FAMAS,Mil-Spec,MW,0,1,87,89,0,-40,28000000
 2023-02-11,FAMAS | Commemoration (Minimal Wear),0.03,41508,FAMAS,Mil-Spec,MW,0,1,86,90,0,-39,28000000
-2023-02-12,FAMAS | Commemoration (Minimal Wear),0.09,25292,FAMAS,Mil-Spec,MW,0,0,85,91,0,-38,28000000
+2023-02-12,FAMAS | Commemoration (Minimal Wear),0.03,25292,FAMAS,Mil-Spec,MW,0,0,85,91,0,-38,28000000
 2023-02-13,FAMAS | Commemoration (Minimal Wear),0.03,7720,FAMAS,Mil-Spec,MW,0,1,84,92,0,-37,28000000
 2023-02-14,FAMAS | Commemoration (Minimal Wear),0.03,4748,FAMAS,Mil-Spec,MW,0,1,83,93,0,-36,28000000
 2023-02-15,FAMAS | Commemoration (Minimal Wear),0.03,3846,FAMAS,Mil-Spec,MW,0,1,82,94,0,-35,28000000
@@ -9270,7 +9270,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-09,FAMAS | Commemoration (Well-Worn),0.03,645,FAMAS,Mil-Spec,WW,0,1,119,57,0,-72,27500000
 2023-01-10,FAMAS | Commemoration (Well-Worn),0.03,491,FAMAS,Mil-Spec,WW,0,1,118,58,0,-71,27500000
 2023-01-11,FAMAS | Commemoration (Well-Worn),0.03,1374,FAMAS,Mil-Spec,WW,0,1,117,59,0,-70,27500000
-2023-01-12,FAMAS | Commemoration (Well-Worn),0.061,1993,FAMAS,Mil-Spec,WW,0,0,116,60,0,-69,27500000
+2023-01-12,FAMAS | Commemoration (Well-Worn),0.03,1993,FAMAS,Mil-Spec,WW,0,0,116,60,0,-69,27500000
 2023-01-13,FAMAS | Commemoration (Well-Worn),0.03,655,FAMAS,Mil-Spec,WW,0,1,115,61,0,-68,27500000
 2023-01-14,FAMAS | Commemoration (Well-Worn),0.03,1241,FAMAS,Mil-Spec,WW,0,1,114,62,0,-67,27500000
 2023-01-15,FAMAS | Commemoration (Well-Worn),0.03,639,FAMAS,Mil-Spec,WW,0,1,113,63,0,-66,27500000
@@ -9287,7 +9287,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-26,FAMAS | Commemoration (Well-Worn),0.03,853,FAMAS,Mil-Spec,WW,0,1,102,74,0,-55,27500000
 2023-01-27,FAMAS | Commemoration (Well-Worn),0.03,859,FAMAS,Mil-Spec,WW,0,1,101,75,0,-54,27500000
 2023-01-28,FAMAS | Commemoration (Well-Worn),0.03,695,FAMAS,Mil-Spec,WW,0,1,100,76,0,-53,27500000
-2023-01-29,FAMAS | Commemoration (Well-Worn),0.24,996,FAMAS,Mil-Spec,WW,0,0,99,77,0,-52,27500000
+2023-01-29,FAMAS | Commemoration (Well-Worn),0.03,996,FAMAS,Mil-Spec,WW,0,0,99,77,0,-52,27500000
 2023-01-30,FAMAS | Commemoration (Well-Worn),0.03,553,FAMAS,Mil-Spec,WW,0,1,98,78,0,-51,27500000
 2023-01-31,FAMAS | Commemoration (Well-Worn),0.03,1028,FAMAS,Mil-Spec,WW,0,1,97,79,0,-50,27500000
 2023-02-01,FAMAS | Commemoration (Well-Worn),0.03,737,FAMAS,Mil-Spec,WW,0,1,96,80,0,-49,28000000
@@ -9300,9 +9300,9 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-08,FAMAS | Commemoration (Well-Worn),0.03,844,FAMAS,Mil-Spec,WW,0,1,89,87,0,-42,28000000
 2023-02-09,FAMAS | Commemoration (Well-Worn),0.03,716,FAMAS,Mil-Spec,WW,0,1,88,88,0,-41,28000000
 2023-02-10,FAMAS | Commemoration (Well-Worn),0.03,980,FAMAS,Mil-Spec,WW,0,1,87,89,0,-40,28000000
-2023-02-11,FAMAS | Commemoration (Well-Worn),0.209,11057,FAMAS,Mil-Spec,WW,0,0,86,90,0,-39,28000000
-2023-02-12,FAMAS | Commemoration (Well-Worn),0.421,9316,FAMAS,Mil-Spec,WW,0,0,85,91,0,-38,28000000
-2023-02-13,FAMAS | Commemoration (Well-Worn),0.072,3144,FAMAS,Mil-Spec,WW,0,0,84,92,0,-37,28000000
+2023-02-11,FAMAS | Commemoration (Well-Worn),0.04,11057,FAMAS,Mil-Spec,WW,0,0,86,90,0,-39,28000000
+2023-02-12,FAMAS | Commemoration (Well-Worn),0.04,9316,FAMAS,Mil-Spec,WW,0,0,85,91,0,-38,28000000
+2023-02-13,FAMAS | Commemoration (Well-Worn),0.04,3144,FAMAS,Mil-Spec,WW,0,0,84,92,0,-37,28000000
 2023-02-14,FAMAS | Commemoration (Well-Worn),0.04,1351,FAMAS,Mil-Spec,WW,0,1,83,93,0,-36,28000000
 2023-02-15,FAMAS | Commemoration (Well-Worn),0.031,1503,FAMAS,Mil-Spec,WW,0,1,82,94,0,-35,28000000
 2023-02-16,FAMAS | Commemoration (Well-Worn),0.03,1178,FAMAS,Mil-Spec,WW,0,1,81,95,0,-34,28000000
@@ -9376,7 +9376,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-25,FAMAS | Commemoration (Well-Worn),0.031,35,FAMAS,Mil-Spec,WW,0,1,13,163,0,34,29000000
 2023-04-26,FAMAS | Commemoration (Well-Worn),0.037,29,FAMAS,Mil-Spec,WW,0,1,12,164,0,35,29000000
 2023-04-27,FAMAS | Commemoration (Well-Worn),0.036,39,FAMAS,Mil-Spec,WW,0,1,11,165,0,36,29000000
-2023-04-28,FAMAS | Commemoration (Well-Worn),0.06,110,FAMAS,Mil-Spec,WW,0,0,10,166,0,37,29000000
+2023-04-28,FAMAS | Commemoration (Well-Worn),0.034,110,FAMAS,Mil-Spec,WW,0,0,10,166,0,37,29000000
 2023-04-29,FAMAS | Commemoration (Well-Worn),0.034,46,FAMAS,Mil-Spec,WW,0,1,9,167,0,38,29000000
 2023-04-30,FAMAS | Commemoration (Well-Worn),0.03,69,FAMAS,Mil-Spec,WW,0,1,8,168,0,39,29000000
 2023-05-01,FAMAS | Commemoration (Well-Worn),0.034,32,FAMAS,Mil-Spec,WW,0,1,7,169,0,40,28000000
@@ -9844,8 +9844,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-23,Five-SeveN | Copper Galaxy (Field-Tested),0.03,139,Five-SeveN,Mil-Spec,FT,0,1,15,161,0,32,29000000
 2023-04-24,Five-SeveN | Copper Galaxy (Field-Tested),0.03,101,Five-SeveN,Mil-Spec,FT,0,1,14,162,0,33,29000000
 2023-04-25,Five-SeveN | Copper Galaxy (Field-Tested),0.03,75,Five-SeveN,Mil-Spec,FT,0,1,13,163,0,34,29000000
-2023-04-26,Five-SeveN | Copper Galaxy (Field-Tested),0.05,182,Five-SeveN,Mil-Spec,FT,0,1,12,164,0,35,29000000
-2023-04-27,Five-SeveN | Copper Galaxy (Field-Tested),0.055,140,Five-SeveN,Mil-Spec,FT,0,0,11,165,0,36,29000000
+2023-04-26,Five-SeveN | Copper Galaxy (Field-Tested),0.03,182,Five-SeveN,Mil-Spec,FT,0,1,12,164,0,35,29000000
+2023-04-27,Five-SeveN | Copper Galaxy (Field-Tested),0.03,140,Five-SeveN,Mil-Spec,FT,0,0,11,165,0,36,29000000
 2023-04-28,Five-SeveN | Copper Galaxy (Field-Tested),0.03,111,Five-SeveN,Mil-Spec,FT,0,1,10,166,0,37,29000000
 2023-04-29,Five-SeveN | Copper Galaxy (Field-Tested),0.03,81,Five-SeveN,Mil-Spec,FT,0,1,9,167,0,38,29000000
 2023-04-30,Five-SeveN | Copper Galaxy (Field-Tested),0.03,83,Five-SeveN,Mil-Spec,FT,0,1,8,168,0,39,29000000
@@ -11151,8 +11151,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-04,Galil AR | Sandstorm (Field-Tested),0.03,2074,Galil AR,Mil-Spec,FT,0,1,124,52,0,-77,27500000
 2023-01-05,Galil AR | Sandstorm (Field-Tested),0.03,2014,Galil AR,Mil-Spec,FT,0,1,123,53,0,-76,27500000
 2023-01-06,Galil AR | Sandstorm (Field-Tested),0.03,1778,Galil AR,Mil-Spec,FT,0,1,122,54,0,-75,27500000
-2023-01-07,Galil AR | Sandstorm (Field-Tested),0.076,6640,Galil AR,Mil-Spec,FT,0,0,121,55,0,-74,27500000
-2023-01-08,Galil AR | Sandstorm (Field-Tested),0.056,5712,Galil AR,Mil-Spec,FT,0,0,120,56,0,-73,27500000
+2023-01-07,Galil AR | Sandstorm (Field-Tested),0.035,6640,Galil AR,Mil-Spec,FT,0,0,121,55,0,-74,27500000
+2023-01-08,Galil AR | Sandstorm (Field-Tested),0.035,5712,Galil AR,Mil-Spec,FT,0,0,120,56,0,-73,27500000
 2023-01-09,Galil AR | Sandstorm (Field-Tested),0.035,4540,Galil AR,Mil-Spec,FT,0,1,119,57,0,-72,27500000
 2023-01-10,Galil AR | Sandstorm (Field-Tested),0.035,2179,Galil AR,Mil-Spec,FT,0,1,118,58,0,-71,27500000
 2023-01-11,Galil AR | Sandstorm (Field-Tested),0.03,1810,Galil AR,Mil-Spec,FT,0,1,117,59,0,-70,27500000
@@ -11247,8 +11247,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-10,Galil AR | Sandstorm (Field-Tested),0.03,2651,Galil AR,Mil-Spec,FT,0,1,28,148,0,19,29000000
 2023-04-11,Galil AR | Sandstorm (Field-Tested),0.03,2781,Galil AR,Mil-Spec,FT,0,1,27,149,0,20,29000000
 2023-04-12,Galil AR | Sandstorm (Field-Tested),0.03,3205,Galil AR,Mil-Spec,FT,0,1,26,150,0,21,29000000
-2023-04-13,Galil AR | Sandstorm (Field-Tested),0.224,2968,Galil AR,Mil-Spec,FT,0,0,25,151,0,22,29000000
-2023-04-14,Galil AR | Sandstorm (Field-Tested),0.224,2574,Galil AR,Mil-Spec,FT,0,0,24,152,0,23,29000000
+2023-04-13,Galil AR | Sandstorm (Field-Tested),0.03,2968,Galil AR,Mil-Spec,FT,0,0,25,151,0,22,29000000
+2023-04-14,Galil AR | Sandstorm (Field-Tested),0.03,2574,Galil AR,Mil-Spec,FT,0,0,24,152,0,23,29000000
 2023-04-15,Galil AR | Sandstorm (Field-Tested),0.03,2372,Galil AR,Mil-Spec,FT,0,1,23,153,0,24,29000000
 2023-04-16,Galil AR | Sandstorm (Field-Tested),0.03,2378,Galil AR,Mil-Spec,FT,0,1,22,154,0,25,29000000
 2023-04-17,Galil AR | Sandstorm (Field-Tested),0.03,3138,Galil AR,Mil-Spec,FT,0,1,21,155,0,26,29000000
@@ -11425,7 +11425,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,Galil AR | Sandstorm (Minimal Wear),0.03,802,Galil AR,Mil-Spec,MW,0,1,88,88,0,-41,28000000
 2023-02-10,Galil AR | Sandstorm (Minimal Wear),0.03,915,Galil AR,Mil-Spec,MW,0,1,87,89,0,-40,28000000
 2023-02-11,Galil AR | Sandstorm (Minimal Wear),0.03,4671,Galil AR,Mil-Spec,MW,0,1,86,90,0,-39,28000000
-2023-02-12,Galil AR | Sandstorm (Minimal Wear),0.058,3285,Galil AR,Mil-Spec,MW,0,0,85,91,0,-38,28000000
+2023-02-12,Galil AR | Sandstorm (Minimal Wear),0.03,3285,Galil AR,Mil-Spec,MW,0,0,85,91,0,-38,28000000
 2023-02-13,Galil AR | Sandstorm (Minimal Wear),0.033,1221,Galil AR,Mil-Spec,MW,0,1,84,92,0,-37,28000000
 2023-02-14,Galil AR | Sandstorm (Minimal Wear),0.03,784,Galil AR,Mil-Spec,MW,0,1,83,93,0,-36,28000000
 2023-02-15,Galil AR | Sandstorm (Minimal Wear),0.03,998,Galil AR,Mil-Spec,MW,0,1,82,94,0,-35,28000000
@@ -11480,7 +11480,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-05,Galil AR | Sandstorm (Minimal Wear),0.03,909,Galil AR,Mil-Spec,MW,0,1,33,143,0,14,29000000
 2023-04-06,Galil AR | Sandstorm (Minimal Wear),0.03,1255,Galil AR,Mil-Spec,MW,0,1,32,144,0,15,29000000
 2023-04-07,Galil AR | Sandstorm (Minimal Wear),0.03,974,Galil AR,Mil-Spec,MW,0,1,31,145,0,16,29000000
-2023-04-08,Galil AR | Sandstorm (Minimal Wear),0.15,934,Galil AR,Mil-Spec,MW,0,0,30,146,0,17,29000000
+2023-04-08,Galil AR | Sandstorm (Minimal Wear),0.03,934,Galil AR,Mil-Spec,MW,0,0,30,146,0,17,29000000
 2023-04-09,Galil AR | Sandstorm (Minimal Wear),0.031,1040,Galil AR,Mil-Spec,MW,0,1,29,147,0,18,29000000
 2023-04-10,Galil AR | Sandstorm (Minimal Wear),0.03,1173,Galil AR,Mil-Spec,MW,0,1,28,148,0,19,29000000
 2023-04-11,Galil AR | Sandstorm (Minimal Wear),0.03,861,Galil AR,Mil-Spec,MW,0,1,27,149,0,20,29000000
@@ -13787,7 +13787,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-17,M4A4 | Magnesium (Well-Worn),0.073,350,M4A4,Industrial Grade,WW,0,0,111,65,0,-64,27500000
 2023-01-18,M4A4 | Magnesium (Well-Worn),0.075,405,M4A4,Industrial Grade,WW,0,0,110,66,0,-63,27500000
 2023-01-19,M4A4 | Magnesium (Well-Worn),0.076,403,M4A4,Industrial Grade,WW,0,0,109,67,0,-62,27500000
-2023-01-20,M4A4 | Magnesium (Well-Worn),0.32,360,M4A4,Industrial Grade,WW,0,0,108,68,0,-61,27500000
+2023-01-20,M4A4 | Magnesium (Well-Worn),0.076,360,M4A4,Industrial Grade,WW,0,0,108,68,0,-61,27500000
 2023-01-21,M4A4 | Magnesium (Well-Worn),0.076,459,M4A4,Industrial Grade,WW,0,0,107,69,0,-60,27500000
 2023-01-22,M4A4 | Magnesium (Well-Worn),0.08,436,M4A4,Industrial Grade,WW,0,0,106,70,0,-59,27500000
 2023-01-23,M4A4 | Magnesium (Well-Worn),0.076,282,M4A4,Industrial Grade,WW,0,0,105,71,0,-58,27500000
@@ -16620,7 +16620,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-18,MAG-7 | SWAG-7 (Factory New),0.03,879,MAG-7,Restricted,FN,0,1,110,66,0,-63,27500000
 2023-01-19,MAG-7 | SWAG-7 (Factory New),0.03,990,MAG-7,Restricted,FN,0,1,109,67,0,-62,27500000
 2023-01-20,MAG-7 | SWAG-7 (Factory New),0.03,1240,MAG-7,Restricted,FN,0,1,108,68,0,-61,27500000
-2023-01-21,MAG-7 | SWAG-7 (Factory New),0.241,3146,MAG-7,Restricted,FN,0,0,107,69,0,-60,27500000
+2023-01-21,MAG-7 | SWAG-7 (Factory New),0.03,3146,MAG-7,Restricted,FN,0,0,107,69,0,-60,27500000
 2023-01-22,MAG-7 | SWAG-7 (Factory New),0.03,4332,MAG-7,Restricted,FN,0,1,106,70,0,-59,27500000
 2023-01-23,MAG-7 | SWAG-7 (Factory New),0.03,834,MAG-7,Restricted,FN,0,1,105,71,0,-58,27500000
 2023-01-24,MAG-7 | SWAG-7 (Factory New),0.03,1209,MAG-7,Restricted,FN,0,1,104,72,0,-57,27500000
@@ -16962,7 +16962,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-04,MAG-7 | SWAG-7 (Field-Tested),0.036,21,MAG-7,Restricted,FT,0,1,4,172,0,43,28000000
 2023-05-05,MAG-7 | SWAG-7 (Field-Tested),0.039,23,MAG-7,Restricted,FT,0,1,3,173,0,44,28000000
 2023-05-06,MAG-7 | SWAG-7 (Field-Tested),0.033,33,MAG-7,Restricted,FT,0,1,2,174,0,45,28000000
-2023-05-07,MAG-7 | SWAG-7 (Field-Tested),0.05,22,MAG-7,Restricted,FT,0,1,1,175,0,46,28000000
+2023-05-07,MAG-7 | SWAG-7 (Field-Tested),0.033,22,MAG-7,Restricted,FT,0,1,1,175,0,46,28000000
 2023-05-08,MAG-7 | SWAG-7 (Field-Tested),0.032,17,MAG-7,Restricted,FT,0,1,0,176,1,47,28000000
 2023-05-09,MAG-7 | SWAG-7 (Field-Tested),0.03,25,MAG-7,Restricted,FT,0,1,0,177,1,48,28000000
 2023-05-10,MAG-7 | SWAG-7 (Field-Tested),0.03,20,MAG-7,Restricted,FT,0,1,0,178,1,49,28000000
@@ -17259,7 +17259,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-10,MP7 | Bloodsport (Field-Tested),0.03,1899,MP7,Covert,FT,0,1,0,172,1,-132,26000000
 2022-11-11,MP7 | Bloodsport (Field-Tested),0.03,1986,MP7,Covert,FT,0,1,0,173,1,-131,26000000
 2022-11-12,MP7 | Bloodsport (Field-Tested),0.03,1746,MP7,Covert,FT,0,1,0,174,1,-130,26000000
-2022-11-13,MP7 | Bloodsport (Field-Tested),0.35,2726,MP7,Covert,FT,0,0,0,0,1,-129,26000000
+2022-11-13,MP7 | Bloodsport (Field-Tested),0.03,2726,MP7,Covert,FT,0,0,0,0,1,-129,26000000
 2022-11-14,MP7 | Bloodsport (Field-Tested),0.03,1588,MP7,Covert,FT,0,1,175,1,0,-128,26000000
 2022-11-15,MP7 | Bloodsport (Field-Tested),0.03,1417,MP7,Covert,FT,0,1,174,2,0,-127,26000000
 2022-11-16,MP7 | Bloodsport (Field-Tested),0.03,2207,MP7,Covert,FT,0,1,173,3,0,-126,26000000
@@ -17317,7 +17317,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-07,MP7 | Bloodsport (Field-Tested),0.03,2055,MP7,Covert,FT,0,1,121,55,0,-74,27500000
 2023-01-08,MP7 | Bloodsport (Field-Tested),0.03,1861,MP7,Covert,FT,0,1,120,56,0,-73,27500000
 2023-01-09,MP7 | Bloodsport (Field-Tested),0.03,1752,MP7,Covert,FT,0,1,119,57,0,-72,27500000
-2023-01-10,MP7 | Bloodsport (Field-Tested),0.047,5461,MP7,Covert,FT,0,1,118,58,0,-71,27500000
+2023-01-10,MP7 | Bloodsport (Field-Tested),0.03,5461,MP7,Covert,FT,0,1,118,58,0,-71,27500000
 2023-01-11,MP7 | Bloodsport (Field-Tested),0.03,2137,MP7,Covert,FT,0,1,117,59,0,-70,27500000
 2023-01-12,MP7 | Bloodsport (Field-Tested),0.03,2010,MP7,Covert,FT,0,1,116,60,0,-69,27500000
 2023-01-13,MP7 | Bloodsport (Field-Tested),0.03,2022,MP7,Covert,FT,0,1,115,61,0,-68,27500000
@@ -17338,7 +17338,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-28,MP7 | Bloodsport (Field-Tested),0.03,5926,MP7,Covert,FT,0,1,100,76,0,-53,27500000
 2023-01-29,MP7 | Bloodsport (Field-Tested),0.03,5950,MP7,Covert,FT,0,1,99,77,0,-52,27500000
 2023-01-30,MP7 | Bloodsport (Field-Tested),0.03,5438,MP7,Covert,FT,0,1,98,78,0,-51,27500000
-2023-01-31,MP7 | Bloodsport (Field-Tested),0.25,4094,MP7,Covert,FT,0,0,97,79,0,-50,27500000
+2023-01-31,MP7 | Bloodsport (Field-Tested),0.03,4094,MP7,Covert,FT,0,0,97,79,0,-50,27500000
 2023-02-01,MP7 | Bloodsport (Field-Tested),0.03,4064,MP7,Covert,FT,0,1,96,80,0,-49,28000000
 2023-02-02,MP7 | Bloodsport (Field-Tested),0.031,3855,MP7,Covert,FT,0,1,95,81,0,-48,28000000
 2023-02-03,MP7 | Bloodsport (Field-Tested),0.03,3704,MP7,Covert,FT,0,1,94,82,0,-47,28000000
@@ -17789,7 +17789,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-07,MP7 | Groundwater (Field-Tested),0.03,1233,MP7,Industrial Grade,FT,0,1,121,55,0,-74,27500000
 2023-01-08,MP7 | Groundwater (Field-Tested),0.03,1088,MP7,Industrial Grade,FT,0,1,120,56,0,-73,27500000
 2023-01-09,MP7 | Groundwater (Field-Tested),0.045,2856,MP7,Industrial Grade,FT,0,1,119,57,0,-72,27500000
-2023-01-10,MP7 | Groundwater (Field-Tested),0.047,2627,MP7,Industrial Grade,FT,0,1,118,58,0,-71,27500000
+2023-01-10,MP7 | Groundwater (Field-Tested),0.03,2627,MP7,Industrial Grade,FT,0,1,118,58,0,-71,27500000
 2023-01-11,MP7 | Groundwater (Field-Tested),0.03,1880,MP7,Industrial Grade,FT,0,1,117,59,0,-70,27500000
 2023-01-12,MP7 | Groundwater (Field-Tested),0.03,1326,MP7,Industrial Grade,FT,0,1,116,60,0,-69,27500000
 2023-01-13,MP7 | Groundwater (Field-Tested),0.03,1253,MP7,Industrial Grade,FT,0,1,115,61,0,-68,27500000
@@ -18508,7 +18508,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-18,MP9 | Setting Sun (Minimal Wear),0.03,2050,MP9,Mil-Spec,MW,0,1,110,66,0,-63,27500000
 2023-01-19,MP9 | Setting Sun (Minimal Wear),0.03,1991,MP9,Mil-Spec,MW,0,1,109,67,0,-62,27500000
 2023-01-20,MP9 | Setting Sun (Minimal Wear),0.03,1403,MP9,Mil-Spec,MW,0,1,108,68,0,-61,27500000
-2023-01-21,MP9 | Setting Sun (Minimal Wear),0.239,4656,MP9,Mil-Spec,MW,0,0,107,69,0,-60,27500000
+2023-01-21,MP9 | Setting Sun (Minimal Wear),0.03,4656,MP9,Mil-Spec,MW,0,0,107,69,0,-60,27500000
 2023-01-22,MP9 | Setting Sun (Minimal Wear),0.03,2774,MP9,Mil-Spec,MW,0,1,106,70,0,-59,27500000
 2023-01-23,MP9 | Setting Sun (Minimal Wear),0.03,1411,MP9,Mil-Spec,MW,0,1,105,71,0,-58,27500000
 2023-01-24,MP9 | Setting Sun (Minimal Wear),0.03,1438,MP9,Mil-Spec,MW,0,1,104,72,0,-57,27500000
@@ -19635,7 +19635,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-14,Nova | Modern Hunter (Battle-Scarred),0.045,849,Nova,Mil-Spec,BS,0,1,175,1,0,-128,26000000
 2022-11-15,Nova | Modern Hunter (Battle-Scarred),0.044,614,Nova,Mil-Spec,BS,0,1,174,2,0,-127,26000000
 2022-11-16,Nova | Modern Hunter (Battle-Scarred),0.046,667,Nova,Mil-Spec,BS,0,1,173,3,0,-126,26000000
-2022-11-17,Nova | Modern Hunter (Battle-Scarred),0.124,548,Nova,Mil-Spec,BS,0,0,172,4,0,-125,26000000
+2022-11-17,Nova | Modern Hunter (Battle-Scarred),0.045,548,Nova,Mil-Spec,BS,0,0,172,4,0,-125,26000000
 2022-11-18,Nova | Modern Hunter (Battle-Scarred),0.046,672,Nova,Mil-Spec,BS,0,1,171,5,0,-124,26000000
 2022-11-19,Nova | Modern Hunter (Battle-Scarred),0.044,716,Nova,Mil-Spec,BS,0,1,170,6,0,-123,26000000
 2022-11-20,Nova | Modern Hunter (Battle-Scarred),0.044,708,Nova,Mil-Spec,BS,0,1,169,7,0,-122,26000000
@@ -20010,7 +20010,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-03-28,Nova | Modern Hunter (Field-Tested),0.03,2245,Nova,Mil-Spec,FT,0,1,41,135,0,6,30000000
 2023-03-29,Nova | Modern Hunter (Field-Tested),0.03,2253,Nova,Mil-Spec,FT,0,1,40,136,0,7,30000000
 2023-03-30,Nova | Modern Hunter (Field-Tested),0.03,2021,Nova,Mil-Spec,FT,0,1,39,137,0,8,30000000
-2023-03-31,Nova | Modern Hunter (Field-Tested),1.064,1567,Nova,Mil-Spec,FT,0,0,38,138,0,9,30000000
+2023-03-31,Nova | Modern Hunter (Field-Tested),0.03,1567,Nova,Mil-Spec,FT,0,0,38,138,0,9,30000000
 2023-04-01,Nova | Modern Hunter (Field-Tested),0.03,2054,Nova,Mil-Spec,FT,0,1,37,139,0,10,29000000
 2023-04-02,Nova | Modern Hunter (Field-Tested),0.03,1968,Nova,Mil-Spec,FT,0,1,36,140,0,11,29000000
 2023-04-03,Nova | Modern Hunter (Field-Tested),0.03,2411,Nova,Mil-Spec,FT,0,1,35,141,0,12,29000000
@@ -20204,7 +20204,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,Nova | Modern Hunter (Minimal Wear),0.03,849,Nova,Mil-Spec,MW,0,1,88,88,0,-41,28000000
 2023-02-10,Nova | Modern Hunter (Minimal Wear),0.03,1002,Nova,Mil-Spec,MW,0,1,87,89,0,-40,28000000
 2023-02-11,Nova | Modern Hunter (Minimal Wear),0.03,2477,Nova,Mil-Spec,MW,0,1,86,90,0,-39,28000000
-2023-02-12,Nova | Modern Hunter (Minimal Wear),0.053,2513,Nova,Mil-Spec,MW,0,0,85,91,0,-38,28000000
+2023-02-12,Nova | Modern Hunter (Minimal Wear),0.03,2513,Nova,Mil-Spec,MW,0,0,85,91,0,-38,28000000
 2023-02-13,Nova | Modern Hunter (Minimal Wear),0.03,1306,Nova,Mil-Spec,MW,0,1,84,92,0,-37,28000000
 2023-02-14,Nova | Modern Hunter (Minimal Wear),0.03,865,Nova,Mil-Spec,MW,0,1,83,93,0,-36,28000000
 2023-02-15,Nova | Modern Hunter (Minimal Wear),0.03,1015,Nova,Mil-Spec,MW,0,1,82,94,0,-35,28000000
@@ -20278,7 +20278,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-24,Nova | Modern Hunter (Minimal Wear),0.039,1448,Nova,Mil-Spec,MW,0,1,14,162,0,33,29000000
 2023-04-25,Nova | Modern Hunter (Minimal Wear),0.048,2305,Nova,Mil-Spec,MW,0,1,13,163,0,34,29000000
 2023-04-26,Nova | Modern Hunter (Minimal Wear),0.043,190,Nova,Mil-Spec,MW,0,1,12,164,0,35,29000000
-2023-04-27,Nova | Modern Hunter (Minimal Wear),0.06,65,Nova,Mil-Spec,MW,0,0,11,165,0,36,29000000
+2023-04-27,Nova | Modern Hunter (Minimal Wear),0.039,65,Nova,Mil-Spec,MW,0,0,11,165,0,36,29000000
 2023-04-28,Nova | Modern Hunter (Minimal Wear),0.037,37,Nova,Mil-Spec,MW,0,1,10,166,0,37,29000000
 2023-04-29,Nova | Modern Hunter (Minimal Wear),0.035,25,Nova,Mil-Spec,MW,0,1,9,167,0,38,29000000
 2023-04-30,Nova | Modern Hunter (Minimal Wear),0.039,44,Nova,Mil-Spec,MW,0,1,8,168,0,39,29000000
@@ -20837,7 +20837,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-11,Nova | Sobek's Bite (Factory New),0.03,1900,Nova,Mil-Spec,FN,0,1,0,173,1,-131,26000000
 2022-11-12,Nova | Sobek's Bite (Factory New),0.03,1877,Nova,Mil-Spec,FN,0,1,0,174,1,-130,26000000
 2022-11-13,Nova | Sobek's Bite (Factory New),0.03,2182,Nova,Mil-Spec,FN,0,1,0,0,1,-129,26000000
-2022-11-14,Nova | Sobek's Bite (Factory New),0.129,4969,Nova,Mil-Spec,FN,0,0,175,1,0,-128,26000000
+2022-11-14,Nova | Sobek's Bite (Factory New),0.03,4969,Nova,Mil-Spec,FN,0,0,175,1,0,-128,26000000
 2022-11-15,Nova | Sobek's Bite (Factory New),0.03,1761,Nova,Mil-Spec,FN,0,1,174,2,0,-127,26000000
 2022-11-16,Nova | Sobek's Bite (Factory New),0.03,1790,Nova,Mil-Spec,FN,0,1,173,3,0,-126,26000000
 2022-11-17,Nova | Sobek's Bite (Factory New),0.03,1679,Nova,Mil-Spec,FN,0,1,172,4,0,-125,26000000
@@ -20894,7 +20894,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-07,Nova | Sobek's Bite (Factory New),0.03,2069,Nova,Mil-Spec,FN,0,1,121,55,0,-74,27500000
 2023-01-08,Nova | Sobek's Bite (Factory New),0.044,2039,Nova,Mil-Spec,FN,0,1,120,56,0,-73,27500000
 2023-01-09,Nova | Sobek's Bite (Factory New),0.03,1657,Nova,Mil-Spec,FN,0,1,119,57,0,-72,27500000
-2023-01-10,Nova | Sobek's Bite (Factory New),0.108,10658,Nova,Mil-Spec,FN,0,0,118,58,0,-71,27500000
+2023-01-10,Nova | Sobek's Bite (Factory New),0.03,10658,Nova,Mil-Spec,FN,0,0,118,58,0,-71,27500000
 2023-01-11,Nova | Sobek's Bite (Factory New),0.03,2369,Nova,Mil-Spec,FN,0,1,117,59,0,-70,27500000
 2023-01-12,Nova | Sobek's Bite (Factory New),0.03,1575,Nova,Mil-Spec,FN,0,1,116,60,0,-69,27500000
 2023-01-13,Nova | Sobek's Bite (Factory New),0.03,1575,Nova,Mil-Spec,FN,0,1,115,61,0,-68,27500000
@@ -20927,7 +20927,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-09,Nova | Sobek's Bite (Factory New),0.03,2197,Nova,Mil-Spec,FN,0,1,88,88,0,-41,28000000
 2023-02-10,Nova | Sobek's Bite (Factory New),0.03,2846,Nova,Mil-Spec,FN,0,1,87,89,0,-40,28000000
 2023-02-11,Nova | Sobek's Bite (Factory New),0.03,7873,Nova,Mil-Spec,FN,0,1,86,90,0,-39,28000000
-2023-02-12,Nova | Sobek's Bite (Factory New),0.07,31043,Nova,Mil-Spec,FN,0,0,85,91,0,-38,28000000
+2023-02-12,Nova | Sobek's Bite (Factory New),0.03,31043,Nova,Mil-Spec,FN,0,0,85,91,0,-38,28000000
 2023-02-13,Nova | Sobek's Bite (Factory New),0.03,4511,Nova,Mil-Spec,FN,0,1,84,92,0,-37,28000000
 2023-02-14,Nova | Sobek's Bite (Factory New),0.03,2857,Nova,Mil-Spec,FN,0,1,83,93,0,-36,28000000
 2023-02-15,Nova | Sobek's Bite (Factory New),0.03,3624,Nova,Mil-Spec,FN,0,1,82,94,0,-35,28000000
@@ -21009,7 +21009,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-02,Nova | Sobek's Bite (Factory New),0.03,67,Nova,Mil-Spec,FN,0,1,6,170,0,41,28000000
 2023-05-03,Nova | Sobek's Bite (Factory New),0.03,72,Nova,Mil-Spec,FN,0,1,5,171,0,42,28000000
 2023-05-04,Nova | Sobek's Bite (Factory New),0.03,142,Nova,Mil-Spec,FN,0,1,4,172,0,43,28000000
-2023-05-05,Nova | Sobek's Bite (Factory New),0.05,296,Nova,Mil-Spec,FN,0,1,3,173,0,44,28000000
+2023-05-05,Nova | Sobek's Bite (Factory New),0.03,296,Nova,Mil-Spec,FN,0,1,3,173,0,44,28000000
 2023-05-06,Nova | Sobek's Bite (Factory New),0.03,75,Nova,Mil-Spec,FN,0,1,2,174,0,45,28000000
 2023-05-07,Nova | Sobek's Bite (Factory New),0.03,87,Nova,Mil-Spec,FN,0,1,1,175,0,46,28000000
 2023-05-08,Nova | Sobek's Bite (Factory New),0.03,99,Nova,Mil-Spec,FN,0,1,0,176,1,47,28000000
@@ -21126,7 +21126,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-29,P250 | Cartel (Factory New),0.03,2003,P250,Classified,FN,0,1,130,46,0,-83,27000000
 2022-12-30,P250 | Cartel (Factory New),0.03,1705,P250,Classified,FN,0,1,129,47,0,-82,27000000
 2022-12-31,P250 | Cartel (Factory New),0.03,1500,P250,Classified,FN,0,1,128,48,0,-81,27000000
-2023-01-01,P250 | Cartel (Factory New),0.505,7604,P250,Classified,FN,0,0,127,49,0,-80,27500000
+2023-01-01,P250 | Cartel (Factory New),0.03,7604,P250,Classified,FN,0,0,127,49,0,-80,27500000
 2023-01-02,P250 | Cartel (Factory New),0.03,6461,P250,Classified,FN,0,1,126,50,0,-79,27500000
 2023-01-03,P250 | Cartel (Factory New),0.03,3771,P250,Classified,FN,0,1,125,51,0,-78,27500000
 2023-01-04,P250 | Cartel (Factory New),0.03,1870,P250,Classified,FN,0,1,124,52,0,-77,27500000
@@ -21495,7 +21495,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-11,P250 | Forest Night (Factory New),0.03,39,P250,Consumer Grade,FN,0,1,0,179,1,50,28000000
 2023-05-12,P250 | Forest Night (Factory New),0.03,30,P250,Consumer Grade,FN,0,1,0,180,1,51,28000000
 2023-05-13,P250 | Forest Night (Factory New),0.03,62,P250,Consumer Grade,FN,0,1,0,181,1,52,28000000
-2023-05-14,P250 | Forest Night (Factory New),0.05,95,P250,Consumer Grade,FN,0,1,0,182,1,53,28000000
+2023-05-14,P250 | Forest Night (Factory New),0.03,95,P250,Consumer Grade,FN,0,1,0,182,1,53,28000000
 2023-05-15,P250 | Forest Night (Factory New),0.03,49,P250,Consumer Grade,FN,0,1,0,183,1,54,28000000
 2023-05-16,P250 | Forest Night (Factory New),0.03,30,P250,Consumer Grade,FN,0,1,0,184,1,55,28000000
 2023-05-17,P250 | Forest Night (Factory New),0.03,24,P250,Consumer Grade,FN,0,1,0,185,1,56,28000000
@@ -21945,22 +21945,22 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-19,P250 | See Ya Later (Factory New),0.034,2526,P250,Classified,FN,0,1,19,157,0,28,29000000
 2023-04-20,P250 | See Ya Later (Factory New),0.03,3598,P250,Classified,FN,0,1,18,158,0,29,29000000
 2023-04-21,P250 | See Ya Later (Factory New),0.031,1943,P250,Classified,FN,0,1,17,159,0,30,29000000
-2023-04-22,P250 | See Ya Later (Factory New),0.05,202,P250,Classified,FN,0,1,16,160,0,31,29000000
+2023-04-22,P250 | See Ya Later (Factory New),0.034,202,P250,Classified,FN,0,1,16,160,0,31,29000000
 2023-04-23,P250 | See Ya Later (Factory New),0.03,113,P250,Classified,FN,0,1,15,161,0,32,29000000
 2023-04-24,P250 | See Ya Later (Factory New),0.044,350,P250,Classified,FN,0,1,14,162,0,33,29000000
-2023-04-25,P250 | See Ya Later (Factory New),0.05,192,P250,Classified,FN,0,1,13,163,0,34,29000000
+2023-04-25,P250 | See Ya Later (Factory New),0.03,192,P250,Classified,FN,0,1,13,163,0,34,29000000
 2023-04-26,P250 | See Ya Later (Factory New),0.03,95,P250,Classified,FN,0,1,12,164,0,35,29000000
 2023-04-27,P250 | See Ya Later (Factory New),0.03,78,P250,Classified,FN,0,1,11,165,0,36,29000000
 2023-04-28,P250 | See Ya Later (Factory New),0.03,70,P250,Classified,FN,0,1,10,166,0,37,29000000
 2023-04-29,P250 | See Ya Later (Factory New),0.03,106,P250,Classified,FN,0,1,9,167,0,38,29000000
 2023-04-30,P250 | See Ya Later (Factory New),0.03,210,P250,Classified,FN,0,1,8,168,0,39,29000000
-2023-05-01,P250 | See Ya Later (Factory New),0.05,378,P250,Classified,FN,0,1,7,169,0,40,28000000
+2023-05-01,P250 | See Ya Later (Factory New),0.03,378,P250,Classified,FN,0,1,7,169,0,40,28000000
 2023-05-02,P250 | See Ya Later (Factory New),0.03,44,P250,Classified,FN,0,1,6,170,0,41,28000000
 2023-05-03,P250 | See Ya Later (Factory New),0.03,55,P250,Classified,FN,0,1,5,171,0,42,28000000
 2023-05-04,P250 | See Ya Later (Factory New),0.03,135,P250,Classified,FN,0,1,4,172,0,43,28000000
 2023-05-05,P250 | See Ya Later (Factory New),0.03,55,P250,Classified,FN,0,1,3,173,0,44,28000000
 2023-05-06,P250 | See Ya Later (Factory New),0.03,66,P250,Classified,FN,0,1,2,174,0,45,28000000
-2023-05-07,P250 | See Ya Later (Factory New),0.05,166,P250,Classified,FN,0,1,1,175,0,46,28000000
+2023-05-07,P250 | See Ya Later (Factory New),0.03,166,P250,Classified,FN,0,1,1,175,0,46,28000000
 2023-05-08,P250 | See Ya Later (Factory New),0.03,95,P250,Classified,FN,0,1,0,176,1,47,28000000
 2023-05-09,P250 | See Ya Later (Factory New),0.03,109,P250,Classified,FN,0,1,0,177,1,48,28000000
 2023-05-10,P250 | See Ya Later (Factory New),0.05,91,P250,Classified,FN,0,1,0,178,1,49,28000000
@@ -22250,7 +22250,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-03,P90 | ScaraB Rush (Factory New),0.03,1445,P90,Mil-Spec,FN,0,1,0,165,1,-139,26000000
 2022-11-04,P90 | ScaraB Rush (Factory New),0.03,1619,P90,Mil-Spec,FN,0,1,0,166,1,-138,26000000
 2022-11-05,P90 | ScaraB Rush (Factory New),0.03,2325,P90,Mil-Spec,FN,0,1,0,167,1,-137,26000000
-2022-11-06,P90 | ScaraB Rush (Factory New),0.053,1823,P90,Mil-Spec,FN,0,0,0,168,1,-136,26000000
+2022-11-06,P90 | ScaraB Rush (Factory New),0.03,1823,P90,Mil-Spec,FN,0,0,0,168,1,-136,26000000
 2022-11-07,P90 | ScaraB Rush (Factory New),0.03,1428,P90,Mil-Spec,FN,0,1,0,169,1,-135,26000000
 2022-11-08,P90 | ScaraB Rush (Factory New),0.03,1008,P90,Mil-Spec,FN,0,1,0,170,1,-134,26000000
 2022-11-09,P90 | ScaraB Rush (Factory New),0.03,1568,P90,Mil-Spec,FN,0,1,0,171,1,-133,26000000
@@ -23243,7 +23243,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-11,Recoil Case,0.319,34,Recoil Case,Base Grade,,0,0,148,28,0,-101,27000000
 2022-12-12,Recoil Case,0.316,25,Recoil Case,Base Grade,,0,0,147,29,0,-100,27000000
 2022-12-13,Recoil Case,0.378,67,Recoil Case,Base Grade,,0,0,146,30,0,-99,27000000
-2022-12-14,Recoil Case,0.897,19,Recoil Case,Base Grade,,0,0,145,31,0,-98,27000000
+2022-12-14,Recoil Case,0.359,19,Recoil Case,Base Grade,,0,0,145,31,0,-98,27000000
 2022-12-15,Recoil Case,0.359,33,Recoil Case,Base Grade,,0,0,144,32,0,-97,27000000
 2022-12-16,Recoil Case,0.387,49,Recoil Case,Base Grade,,0,0,143,33,0,-96,27000000
 2022-12-17,Recoil Case,0.356,33,Recoil Case,Base Grade,,0,0,142,34,0,-95,27000000
@@ -23308,7 +23308,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-14,Recoil Case,0.422,66,Recoil Case,Base Grade,,0,0,83,93,0,-36,28000000
 2023-02-15,Recoil Case,0.393,71,Recoil Case,Base Grade,,0,0,82,94,0,-35,28000000
 2023-02-16,Recoil Case,0.398,53,Recoil Case,Base Grade,,0,0,81,95,0,-34,28000000
-2023-02-17,Recoil Case,1.331,56,Recoil Case,Base Grade,,0,0,80,96,0,-33,28000000
+2023-02-17,Recoil Case,0.404,56,Recoil Case,Base Grade,,0,0,80,96,0,-33,28000000
 2023-02-18,Recoil Case,0.392,109,Recoil Case,Base Grade,,0,0,79,97,0,-32,28000000
 2023-02-19,Recoil Case,0.404,73,Recoil Case,Base Grade,,0,0,78,98,0,-31,28000000
 2023-02-20,Recoil Case,0.413,72,Recoil Case,Base Grade,,0,0,77,99,0,-30,28000000
@@ -23401,7 +23401,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-18,Recoil Case,0.37,2,Recoil Case,Base Grade,,0,0,0,186,1,57,28000000
 2023-05-19,Recoil Case,0.42,1,Recoil Case,Base Grade,,0,0,0,187,1,58,28000000
 2023-05-20,Recoil Case,0.38,3,Recoil Case,Base Grade,,0,0,0,188,1,59,28000000
-2023-05-21,Recoil Case,0.863,3,Recoil Case,Base Grade,,0,0,0,0,1,60,28000000
+2023-05-21,Recoil Case,0.42,3,Recoil Case,Base Grade,,0,0,0,0,1,60,28000000
 2023-05-22,Recoil Case,0.46,1,Recoil Case,Base Grade,,0,0,-14,1,0,61,28000000
 2022-09-28,Revolution Case,0.121,178,Revolution Case,Base Grade,,0,0,33,129,0,-175,24000000
 2022-09-29,Revolution Case,0.115,174,Revolution Case,Base Grade,,0,0,32,130,0,-174,24000000
@@ -23415,7 +23415,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-10-07,Revolution Case,0.133,149,Revolution Case,Base Grade,,0,0,24,138,0,-166,24500000
 2022-10-08,Revolution Case,0.142,285,Revolution Case,Base Grade,,0,0,23,139,0,-165,24500000
 2022-10-09,Revolution Case,0.141,158,Revolution Case,Base Grade,,0,0,22,140,0,-164,24500000
-2022-10-10,Revolution Case,0.311,138,Revolution Case,Base Grade,,0,0,21,141,0,-163,24500000
+2022-10-10,Revolution Case,0.141,138,Revolution Case,Base Grade,,0,0,21,141,0,-163,24500000
 2022-10-11,Revolution Case,0.146,143,Revolution Case,Base Grade,,0,0,20,142,0,-162,24500000
 2022-10-12,Revolution Case,0.134,110,Revolution Case,Base Grade,,0,0,19,143,0,-161,24500000
 2022-10-13,Revolution Case,0.137,192,Revolution Case,Base Grade,,0,0,18,144,0,-160,24500000
@@ -23472,7 +23472,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-03,Revolution Case,0.103,172,Revolution Case,Base Grade,,0,0,156,20,0,-109,27000000
 2022-12-04,Revolution Case,0.108,192,Revolution Case,Base Grade,,0,0,155,21,0,-108,27000000
 2022-12-05,Revolution Case,0.109,236,Revolution Case,Base Grade,,0,0,154,22,0,-107,27000000
-2022-12-06,Revolution Case,0.448,116,Revolution Case,Base Grade,,0,0,153,23,0,-106,27000000
+2022-12-06,Revolution Case,0.108,116,Revolution Case,Base Grade,,0,0,153,23,0,-106,27000000
 2022-12-07,Revolution Case,0.106,174,Revolution Case,Base Grade,,0,0,152,24,0,-105,27000000
 2022-12-08,Revolution Case,0.108,121,Revolution Case,Base Grade,,0,0,151,25,0,-104,27000000
 2022-12-09,Revolution Case,0.11,198,Revolution Case,Base Grade,,0,0,150,26,0,-103,27000000
@@ -24219,7 +24219,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-04,SG 553 | Danger Close (Well-Worn),0.03,2305,SG 553,Mil-Spec,WW,0,1,124,52,0,-77,27500000
 2023-01-05,SG 553 | Danger Close (Well-Worn),0.03,2404,SG 553,Mil-Spec,WW,0,1,123,53,0,-76,27500000
 2023-01-06,SG 553 | Danger Close (Well-Worn),0.03,1880,SG 553,Mil-Spec,WW,0,1,122,54,0,-75,27500000
-2023-01-07,SG 553 | Danger Close (Well-Worn),0.054,4440,SG 553,Mil-Spec,WW,0,0,121,55,0,-74,27500000
+2023-01-07,SG 553 | Danger Close (Well-Worn),0.03,4440,SG 553,Mil-Spec,WW,0,0,121,55,0,-74,27500000
 2023-01-08,SG 553 | Danger Close (Well-Worn),0.03,2761,SG 553,Mil-Spec,WW,0,1,120,56,0,-73,27500000
 2023-01-09,SG 553 | Danger Close (Well-Worn),0.044,5773,SG 553,Mil-Spec,WW,0,1,119,57,0,-72,27500000
 2023-01-10,SG 553 | Danger Close (Well-Worn),0.03,1599,SG 553,Mil-Spec,WW,0,1,118,58,0,-71,27500000
@@ -26195,7 +26195,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-03-29,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.172,689,MP9,Restricted,FT,1,0,40,136,0,7,30000000
 2023-03-30,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.173,459,MP9,Restricted,FT,1,0,39,137,0,8,30000000
 2023-03-31,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.177,551,MP9,Restricted,FT,1,0,38,138,0,9,30000000
-2023-04-01,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.282,607,MP9,Restricted,FT,1,0,37,139,0,10,29000000
+2023-04-01,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.184,607,MP9,Restricted,FT,1,0,37,139,0,10,29000000
 2023-04-02,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.184,662,MP9,Restricted,FT,1,0,36,140,0,11,29000000
 2023-04-03,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.19,685,MP9,Restricted,FT,1,0,35,141,0,12,29000000
 2023-04-04,StatTrak™ MP9 | Mount Fuji (Field-Tested),0.195,521,MP9,Restricted,FT,1,0,34,142,0,13,29000000
@@ -26315,7 +26315,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-03,StatTrak™ PP-Bizon | Osiris (Factory New),0.101,156,PP-Bizon,Restricted,FN,1,0,156,20,0,-109,27000000
 2022-12-04,StatTrak™ PP-Bizon | Osiris (Factory New),0.102,206,PP-Bizon,Restricted,FN,1,0,155,21,0,-108,27000000
 2022-12-05,StatTrak™ PP-Bizon | Osiris (Factory New),0.102,167,PP-Bizon,Restricted,FN,1,0,154,22,0,-107,27000000
-2022-12-06,StatTrak™ PP-Bizon | Osiris (Factory New),0.321,179,PP-Bizon,Restricted,FN,1,0,153,23,0,-106,27000000
+2022-12-06,StatTrak™ PP-Bizon | Osiris (Factory New),0.103,179,PP-Bizon,Restricted,FN,1,0,153,23,0,-106,27000000
 2022-12-07,StatTrak™ PP-Bizon | Osiris (Factory New),0.103,162,PP-Bizon,Restricted,FN,1,0,152,24,0,-105,27000000
 2022-12-08,StatTrak™ PP-Bizon | Osiris (Factory New),0.103,172,PP-Bizon,Restricted,FN,1,0,151,25,0,-104,27000000
 2022-12-09,StatTrak™ PP-Bizon | Osiris (Factory New),0.106,164,PP-Bizon,Restricted,FN,1,0,150,26,0,-103,27000000
@@ -27238,14 +27238,14 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-05,StatTrak™ XM1014 | Quicksilver (Factory New),0.107,196,XM1014,Classified,FN,1,0,0,167,1,-137,26000000
 2022-11-06,StatTrak™ XM1014 | Quicksilver (Factory New),0.107,196,XM1014,Classified,FN,1,0,0,168,1,-136,26000000
 2022-11-07,StatTrak™ XM1014 | Quicksilver (Factory New),0.106,185,XM1014,Classified,FN,1,0,0,169,1,-135,26000000
-2022-11-08,StatTrak™ XM1014 | Quicksilver (Factory New),0.159,187,XM1014,Classified,FN,1,0,0,170,1,-134,26000000
+2022-11-08,StatTrak™ XM1014 | Quicksilver (Factory New),0.107,187,XM1014,Classified,FN,1,0,0,170,1,-134,26000000
 2022-11-09,StatTrak™ XM1014 | Quicksilver (Factory New),0.105,175,XM1014,Classified,FN,1,0,0,171,1,-133,26000000
 2022-11-10,StatTrak™ XM1014 | Quicksilver (Factory New),0.107,174,XM1014,Classified,FN,1,0,0,172,1,-132,26000000
 2022-11-11,StatTrak™ XM1014 | Quicksilver (Factory New),0.108,325,XM1014,Classified,FN,1,0,0,173,1,-131,26000000
 2022-11-12,StatTrak™ XM1014 | Quicksilver (Factory New),0.109,223,XM1014,Classified,FN,1,0,0,174,1,-130,26000000
 2022-11-13,StatTrak™ XM1014 | Quicksilver (Factory New),0.11,286,XM1014,Classified,FN,1,0,0,0,1,-129,26000000
 2022-11-14,StatTrak™ XM1014 | Quicksilver (Factory New),0.109,176,XM1014,Classified,FN,1,0,175,1,0,-128,26000000
-2022-11-15,StatTrak™ XM1014 | Quicksilver (Factory New),0.202,186,XM1014,Classified,FN,1,0,174,2,0,-127,26000000
+2022-11-15,StatTrak™ XM1014 | Quicksilver (Factory New),0.11,186,XM1014,Classified,FN,1,0,174,2,0,-127,26000000
 2022-11-16,StatTrak™ XM1014 | Quicksilver (Factory New),0.109,153,XM1014,Classified,FN,1,0,173,3,0,-126,26000000
 2022-11-17,StatTrak™ XM1014 | Quicksilver (Factory New),0.11,155,XM1014,Classified,FN,1,0,172,4,0,-125,26000000
 2022-11-18,StatTrak™ XM1014 | Quicksilver (Factory New),0.111,234,XM1014,Classified,FN,1,0,171,5,0,-124,26000000
@@ -27479,7 +27479,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-08,Tec-9 | Avalanche (Factory New),0.03,1074,Tec-9,Classified,FN,0,1,0,170,1,-134,26000000
 2022-11-09,Tec-9 | Avalanche (Factory New),0.03,1401,Tec-9,Classified,FN,0,1,0,171,1,-133,26000000
 2022-11-10,Tec-9 | Avalanche (Factory New),0.03,1347,Tec-9,Classified,FN,0,1,0,172,1,-132,26000000
-2022-11-11,Tec-9 | Avalanche (Factory New),0.128,3239,Tec-9,Classified,FN,0,0,0,173,1,-131,26000000
+2022-11-11,Tec-9 | Avalanche (Factory New),0.03,3239,Tec-9,Classified,FN,0,0,0,173,1,-131,26000000
 2022-11-12,Tec-9 | Avalanche (Factory New),0.03,1264,Tec-9,Classified,FN,0,1,0,174,1,-130,26000000
 2022-11-13,Tec-9 | Avalanche (Factory New),0.03,1734,Tec-9,Classified,FN,0,1,0,0,1,-129,26000000
 2022-11-14,Tec-9 | Avalanche (Factory New),0.03,1283,Tec-9,Classified,FN,0,1,175,1,0,-128,26000000
@@ -27632,8 +27632,8 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-10,Tec-9 | Avalanche (Factory New),0.03,2510,Tec-9,Classified,FN,0,1,28,148,0,19,29000000
 2023-04-11,Tec-9 | Avalanche (Factory New),0.03,2322,Tec-9,Classified,FN,0,1,27,149,0,20,29000000
 2023-04-12,Tec-9 | Avalanche (Factory New),0.03,3855,Tec-9,Classified,FN,0,1,26,150,0,21,29000000
-2023-04-13,Tec-9 | Avalanche (Factory New),0.222,2313,Tec-9,Classified,FN,0,0,25,151,0,22,29000000
-2023-04-14,Tec-9 | Avalanche (Factory New),0.232,2246,Tec-9,Classified,FN,0,0,24,152,0,23,29000000
+2023-04-13,Tec-9 | Avalanche (Factory New),0.03,2313,Tec-9,Classified,FN,0,0,25,151,0,22,29000000
+2023-04-14,Tec-9 | Avalanche (Factory New),0.03,2246,Tec-9,Classified,FN,0,0,24,152,0,23,29000000
 2023-04-15,Tec-9 | Avalanche (Factory New),0.03,1829,Tec-9,Classified,FN,0,1,23,153,0,24,29000000
 2023-04-16,Tec-9 | Avalanche (Factory New),0.03,1779,Tec-9,Classified,FN,0,1,22,154,0,25,29000000
 2023-04-17,Tec-9 | Avalanche (Factory New),0.038,2533,Tec-9,Classified,FN,0,1,21,155,0,26,29000000
@@ -27776,7 +27776,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-06,Tec-9 | Hades (Factory New),0.03,2042,Tec-9,Restricted,FN,0,1,122,54,0,-75,27500000
 2023-01-07,Tec-9 | Hades (Factory New),0.03,2658,Tec-9,Restricted,FN,0,1,121,55,0,-74,27500000
 2023-01-08,Tec-9 | Hades (Factory New),0.045,3151,Tec-9,Restricted,FN,0,1,120,56,0,-73,27500000
-2023-01-09,Tec-9 | Hades (Factory New),0.074,2056,Tec-9,Restricted,FN,0,0,119,57,0,-72,27500000
+2023-01-09,Tec-9 | Hades (Factory New),0.03,2056,Tec-9,Restricted,FN,0,0,119,57,0,-72,27500000
 2023-01-10,Tec-9 | Hades (Factory New),0.03,1623,Tec-9,Restricted,FN,0,1,118,58,0,-71,27500000
 2023-01-11,Tec-9 | Hades (Factory New),0.03,1547,Tec-9,Restricted,FN,0,1,117,59,0,-70,27500000
 2023-01-12,Tec-9 | Hades (Factory New),0.03,1662,Tec-9,Restricted,FN,0,1,116,60,0,-69,27500000
@@ -29337,11 +29337,11 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-16,UMP-45 | Fallout Warning (Battle-Scarred),0.03,12,UMP-45,Restricted,BS,0,1,0,184,1,55,28000000
 2023-05-17,UMP-45 | Fallout Warning (Battle-Scarred),0.03,13,UMP-45,Restricted,BS,0,1,0,185,1,56,28000000
 2023-05-18,UMP-45 | Fallout Warning (Battle-Scarred),0.031,22,UMP-45,Restricted,BS,0,1,0,186,1,57,28000000
-2023-05-19,UMP-45 | Fallout Warning (Battle-Scarred),0.062,36,UMP-45,Restricted,BS,0,0,0,187,1,58,28000000
+2023-05-19,UMP-45 | Fallout Warning (Battle-Scarred),0.03,36,UMP-45,Restricted,BS,0,0,0,187,1,58,28000000
 2023-05-20,UMP-45 | Fallout Warning (Battle-Scarred),0.03,15,UMP-45,Restricted,BS,0,1,0,188,1,59,28000000
 2023-05-21,UMP-45 | Fallout Warning (Battle-Scarred),0.03,29,UMP-45,Restricted,BS,0,1,0,0,1,60,28000000
 2023-05-22,UMP-45 | Fallout Warning (Battle-Scarred),0.03,17,UMP-45,Restricted,BS,0,1,-14,1,0,61,28000000
-2023-05-23,UMP-45 | Fallout Warning (Battle-Scarred),0.05,36,UMP-45,Restricted,BS,0,1,-15,2,0,62,28000000
+2023-05-23,UMP-45 | Fallout Warning (Battle-Scarred),0.03,36,UMP-45,Restricted,BS,0,1,-15,2,0,62,28000000
 2022-09-28,UMP-45 | Houndstooth (Factory New),0.08,578,UMP-45,Classified,FN,0,0,33,129,0,-175,24000000
 2022-09-29,UMP-45 | Houndstooth (Factory New),0.081,589,UMP-45,Classified,FN,0,0,32,130,0,-174,24000000
 2022-09-30,UMP-45 | Houndstooth (Factory New),0.081,497,UMP-45,Classified,FN,0,0,31,131,0,-173,24000000
@@ -31711,7 +31711,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-10,★ Bayonet | Doppler (Factory New),826.297,1,Bayonet,Rare,FN,0,0,0,178,1,49,28000000
 2023-05-11,★ Bayonet | Doppler (Factory New),1086.912,2,Bayonet,Rare,FN,0,0,0,179,1,50,28000000
 2023-05-12,★ Bayonet | Doppler (Factory New),825.213,1,Bayonet,Rare,FN,0,0,0,180,1,51,28000000
-2023-05-13,★ Bayonet | Doppler (Factory New),1190.11,1,Bayonet,Rare,FN,0,0,0,181,1,52,28000000
+2023-05-13,★ Bayonet | Doppler (Factory New),826.297,1,Bayonet,Rare,FN,0,0,0,181,1,52,28000000
 2023-05-14,★ Bayonet | Doppler (Factory New),810.78,3,Bayonet,Rare,FN,0,0,0,182,1,53,28000000
 2023-05-15,★ Bayonet | Doppler (Factory New),919.68,1,Bayonet,Rare,FN,0,0,0,183,1,54,28000000
 2023-05-16,★ Bayonet | Doppler (Factory New),760.0,1,Bayonet,Rare,FN,0,0,0,184,1,55,28000000
@@ -31972,7 +31972,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-10-14,★ Bowie Knife | Doppler (Factory New),262.841,5,Bowie Knife,Rare,FN,0,0,17,145,0,-159,24500000
 2022-10-15,★ Bowie Knife | Doppler (Factory New),266.896,5,Bowie Knife,Rare,FN,0,0,16,146,0,-158,24500000
 2022-10-16,★ Bowie Knife | Doppler (Factory New),204.922,3,Bowie Knife,Rare,FN,0,0,15,147,0,-157,24500000
-2022-10-18,★ Bowie Knife | Doppler (Factory New),509.068,5,Bowie Knife,Rare,FN,0,0,13,149,0,-155,24500000
+2022-10-18,★ Bowie Knife | Doppler (Factory New),259.307,5,Bowie Knife,Rare,FN,0,0,13,149,0,-155,24500000
 2022-10-19,★ Bowie Knife | Doppler (Factory New),253.334,7,Bowie Knife,Rare,FN,0,0,12,150,0,-154,24500000
 2022-10-20,★ Bowie Knife | Doppler (Factory New),238.442,4,Bowie Knife,Rare,FN,0,0,11,151,0,-153,24500000
 2022-10-21,★ Bowie Knife | Doppler (Factory New),259.307,5,Bowie Knife,Rare,FN,0,0,10,152,0,-152,24500000
@@ -31987,14 +31987,14 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-10-30,★ Bowie Knife | Doppler (Factory New),265.886,8,Bowie Knife,Rare,FN,0,0,1,161,0,-143,24500000
 2022-10-31,★ Bowie Knife | Doppler (Factory New),243.681,8,Bowie Knife,Rare,FN,0,0,0,162,1,-142,24500000
 2022-11-01,★ Bowie Knife | Doppler (Factory New),253.162,11,Bowie Knife,Rare,FN,0,0,0,163,1,-141,26000000
-2022-11-02,★ Bowie Knife | Doppler (Factory New),457.297,4,Bowie Knife,Rare,FN,0,0,0,164,1,-140,26000000
+2022-11-02,★ Bowie Knife | Doppler (Factory New),256.666,4,Bowie Knife,Rare,FN,0,0,0,164,1,-140,26000000
 2022-11-03,★ Bowie Knife | Doppler (Factory New),317.355,7,Bowie Knife,Rare,FN,0,0,0,165,1,-139,26000000
 2022-11-04,★ Bowie Knife | Doppler (Factory New),254.413,9,Bowie Knife,Rare,FN,0,0,0,166,1,-138,26000000
 2022-11-05,★ Bowie Knife | Doppler (Factory New),256.666,8,Bowie Knife,Rare,FN,0,0,0,167,1,-137,26000000
 2022-11-06,★ Bowie Knife | Doppler (Factory New),258.535,5,Bowie Knife,Rare,FN,0,0,0,168,1,-136,26000000
 2022-11-07,★ Bowie Knife | Doppler (Factory New),256.082,7,Bowie Knife,Rare,FN,0,0,0,169,1,-135,26000000
 2022-11-08,★ Bowie Knife | Doppler (Factory New),240.682,4,Bowie Knife,Rare,FN,0,0,0,170,1,-134,26000000
-2022-11-09,★ Bowie Knife | Doppler (Factory New),425.577,4,Bowie Knife,Rare,FN,0,0,0,171,1,-133,26000000
+2022-11-09,★ Bowie Knife | Doppler (Factory New),258.535,4,Bowie Knife,Rare,FN,0,0,0,171,1,-133,26000000
 2022-11-10,★ Bowie Knife | Doppler (Factory New),304.677,16,Bowie Knife,Rare,FN,0,0,0,172,1,-132,26000000
 2022-11-11,★ Bowie Knife | Doppler (Factory New),259.004,9,Bowie Knife,Rare,FN,0,0,0,173,1,-131,26000000
 2022-11-12,★ Bowie Knife | Doppler (Factory New),244.205,12,Bowie Knife,Rare,FN,0,0,0,174,1,-130,26000000
@@ -32011,7 +32011,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-23,★ Bowie Knife | Doppler (Factory New),233.795,7,Bowie Knife,Rare,FN,0,0,166,10,0,-119,26000000
 2022-11-24,★ Bowie Knife | Doppler (Factory New),230.628,7,Bowie Knife,Rare,FN,0,0,165,11,0,-118,26000000
 2022-11-25,★ Bowie Knife | Doppler (Factory New),217.895,4,Bowie Knife,Rare,FN,0,0,164,12,0,-117,26000000
-2022-11-26,★ Bowie Knife | Doppler (Factory New),341.237,7,Bowie Knife,Rare,FN,0,0,163,13,0,-116,26000000
+2022-11-26,★ Bowie Knife | Doppler (Factory New),230.628,7,Bowie Knife,Rare,FN,0,0,163,13,0,-116,26000000
 2022-11-27,★ Bowie Knife | Doppler (Factory New),227.511,7,Bowie Knife,Rare,FN,0,0,162,14,0,-115,26000000
 2022-11-28,★ Bowie Knife | Doppler (Factory New),231.522,4,Bowie Knife,Rare,FN,0,0,161,15,0,-114,26000000
 2022-11-29,★ Bowie Knife | Doppler (Factory New),222.518,3,Bowie Knife,Rare,FN,0,0,160,16,0,-113,26000000
@@ -32020,7 +32020,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-02,★ Bowie Knife | Doppler (Factory New),226.98,5,Bowie Knife,Rare,FN,0,0,157,19,0,-110,27000000
 2022-12-03,★ Bowie Knife | Doppler (Factory New),235.264,5,Bowie Knife,Rare,FN,0,0,156,20,0,-109,27000000
 2022-12-04,★ Bowie Knife | Doppler (Factory New),338.263,8,Bowie Knife,Rare,FN,0,0,155,21,0,-108,27000000
-2022-12-05,★ Bowie Knife | Doppler (Factory New),431.807,4,Bowie Knife,Rare,FN,0,0,154,22,0,-107,27000000
+2022-12-05,★ Bowie Knife | Doppler (Factory New),244.567,4,Bowie Knife,Rare,FN,0,0,154,22,0,-107,27000000
 2022-12-06,★ Bowie Knife | Doppler (Factory New),280.04,5,Bowie Knife,Rare,FN,0,0,153,23,0,-106,27000000
 2022-12-07,★ Bowie Knife | Doppler (Factory New),231.931,9,Bowie Knife,Rare,FN,0,0,152,24,0,-105,27000000
 2022-12-08,★ Bowie Knife | Doppler (Factory New),244.567,5,Bowie Knife,Rare,FN,0,0,151,25,0,-104,27000000
@@ -32031,12 +32031,12 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-13,★ Bowie Knife | Doppler (Factory New),256.32,4,Bowie Knife,Rare,FN,0,0,146,30,0,-99,27000000
 2022-12-14,★ Bowie Knife | Doppler (Factory New),253.744,6,Bowie Knife,Rare,FN,0,0,145,31,0,-98,27000000
 2022-12-15,★ Bowie Knife | Doppler (Factory New),234.145,6,Bowie Knife,Rare,FN,0,0,144,32,0,-97,27000000
-2022-12-16,★ Bowie Knife | Doppler (Factory New),361.427,7,Bowie Knife,Rare,FN,0,0,143,33,0,-96,27000000
+2022-12-16,★ Bowie Knife | Doppler (Factory New),253.744,7,Bowie Knife,Rare,FN,0,0,143,33,0,-96,27000000
 2022-12-17,★ Bowie Knife | Doppler (Factory New),236.253,5,Bowie Knife,Rare,FN,0,0,142,34,0,-95,27000000
-2022-12-18,★ Bowie Knife | Doppler (Factory New),483.388,4,Bowie Knife,Rare,FN,0,0,141,35,0,-94,27000000
+2022-12-18,★ Bowie Knife | Doppler (Factory New),240.935,4,Bowie Knife,Rare,FN,0,0,141,35,0,-94,27000000
 2022-12-19,★ Bowie Knife | Doppler (Factory New),226.018,3,Bowie Knife,Rare,FN,0,0,140,36,0,-93,27000000
 2022-12-20,★ Bowie Knife | Doppler (Factory New),240.935,4,Bowie Knife,Rare,FN,0,0,139,37,0,-92,27000000
-2022-12-21,★ Bowie Knife | Doppler (Factory New),369.679,5,Bowie Knife,Rare,FN,0,0,138,38,0,-91,27000000
+2022-12-21,★ Bowie Knife | Doppler (Factory New),248.627,5,Bowie Knife,Rare,FN,0,0,138,38,0,-91,27000000
 2022-12-22,★ Bowie Knife | Doppler (Factory New),248.627,5,Bowie Knife,Rare,FN,0,0,137,39,0,-90,27000000
 2022-12-23,★ Bowie Knife | Doppler (Factory New),256.207,7,Bowie Knife,Rare,FN,0,0,136,40,0,-89,27000000
 2022-12-24,★ Bowie Knife | Doppler (Factory New),241.887,7,Bowie Knife,Rare,FN,0,0,135,41,0,-88,27000000
@@ -32063,14 +32063,14 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-14,★ Bowie Knife | Doppler (Factory New),397.559,6,Bowie Knife,Rare,FN,0,0,114,62,0,-67,27500000
 2023-01-15,★ Bowie Knife | Doppler (Factory New),391.76,6,Bowie Knife,Rare,FN,0,0,113,63,0,-66,27500000
 2023-01-16,★ Bowie Knife | Doppler (Factory New),279.987,4,Bowie Knife,Rare,FN,0,0,112,64,0,-65,27500000
-2023-01-17,★ Bowie Knife | Doppler (Factory New),557.28,3,Bowie Knife,Rare,FN,0,0,111,65,0,-64,27500000
+2023-01-17,★ Bowie Knife | Doppler (Factory New),391.76,3,Bowie Knife,Rare,FN,0,0,111,65,0,-64,27500000
 2023-01-18,★ Bowie Knife | Doppler (Factory New),278.669,3,Bowie Knife,Rare,FN,0,0,110,66,0,-63,27500000
-2023-01-19,★ Bowie Knife | Doppler (Factory New),468.484,4,Bowie Knife,Rare,FN,0,0,109,67,0,-62,27500000
+2023-01-19,★ Bowie Knife | Doppler (Factory New),279.987,4,Bowie Knife,Rare,FN,0,0,109,67,0,-62,27500000
 2023-01-20,★ Bowie Knife | Doppler (Factory New),269.078,7,Bowie Knife,Rare,FN,0,0,108,68,0,-61,27500000
 2023-01-21,★ Bowie Knife | Doppler (Factory New),292.693,7,Bowie Knife,Rare,FN,0,0,107,69,0,-60,27500000
 2023-01-22,★ Bowie Knife | Doppler (Factory New),263.01,7,Bowie Knife,Rare,FN,0,0,106,70,0,-59,27500000
 2023-01-23,★ Bowie Knife | Doppler (Factory New),318.085,9,Bowie Knife,Rare,FN,0,0,105,71,0,-58,27500000
-2023-01-24,★ Bowie Knife | Doppler (Factory New),549.446,7,Bowie Knife,Rare,FN,0,0,104,72,0,-57,27500000
+2023-01-24,★ Bowie Knife | Doppler (Factory New),263.01,7,Bowie Knife,Rare,FN,0,0,104,72,0,-57,27500000
 2023-01-25,★ Bowie Knife | Doppler (Factory New),261.95,3,Bowie Knife,Rare,FN,0,0,103,73,0,-56,27500000
 2023-01-26,★ Bowie Knife | Doppler (Factory New),254.739,5,Bowie Knife,Rare,FN,0,0,102,74,0,-55,27500000
 2023-01-27,★ Bowie Knife | Doppler (Factory New),260.415,10,Bowie Knife,Rare,FN,0,0,101,75,0,-54,27500000
@@ -32181,7 +32181,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-12,★ Bowie Knife | Doppler (Factory New),476.71,1,Bowie Knife,Rare,FN,0,0,0,180,1,51,28000000
 2023-05-13,★ Bowie Knife | Doppler (Factory New),449.903,1,Bowie Knife,Rare,FN,0,0,0,181,1,52,28000000
 2023-05-14,★ Bowie Knife | Doppler (Factory New),593.505,2,Bowie Knife,Rare,FN,0,0,0,182,1,53,28000000
-2023-05-15,★ Bowie Knife | Doppler (Factory New),750.016,1,Bowie Knife,Rare,FN,0,0,0,183,1,54,28000000
+2023-05-15,★ Bowie Knife | Doppler (Factory New),499.99,1,Bowie Knife,Rare,FN,0,0,0,183,1,54,28000000
 2023-05-16,★ Bowie Knife | Doppler (Factory New),499.99,1,Bowie Knife,Rare,FN,0,0,0,184,1,55,28000000
 2023-05-17,★ Bowie Knife | Doppler (Factory New),432.314,1,Bowie Knife,Rare,FN,0,0,0,185,1,56,28000000
 2023-05-18,★ Bowie Knife | Doppler (Factory New),515.0,1,Bowie Knife,Rare,FN,0,0,0,186,1,57,28000000
@@ -33271,7 +33271,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-22,★ Driver Gloves | Convoy (Field-Tested),78.56,9,Driver Gloves,Rare,FT,0,0,106,70,0,-59,27500000
 2023-01-23,★ Driver Gloves | Convoy (Field-Tested),83.647,4,Driver Gloves,Rare,FT,0,0,105,71,0,-58,27500000
 2023-01-24,★ Driver Gloves | Convoy (Field-Tested),88.959,8,Driver Gloves,Rare,FT,0,0,104,72,0,-57,27500000
-2023-01-25,★ Driver Gloves | Convoy (Field-Tested),123.449,3,Driver Gloves,Rare,FT,0,0,103,73,0,-56,27500000
+2023-01-25,★ Driver Gloves | Convoy (Field-Tested),83.647,3,Driver Gloves,Rare,FT,0,0,103,73,0,-56,27500000
 2023-01-26,★ Driver Gloves | Convoy (Field-Tested),83.686,4,Driver Gloves,Rare,FT,0,0,102,74,0,-55,27500000
 2023-01-27,★ Driver Gloves | Convoy (Field-Tested),80.94,11,Driver Gloves,Rare,FT,0,0,101,75,0,-54,27500000
 2023-01-28,★ Driver Gloves | Convoy (Field-Tested),81.602,7,Driver Gloves,Rare,FT,0,0,100,76,0,-53,27500000
@@ -33345,7 +33345,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-06,★ Driver Gloves | Convoy (Field-Tested),99.398,8,Driver Gloves,Rare,FT,0,0,32,144,0,15,29000000
 2023-04-07,★ Driver Gloves | Convoy (Field-Tested),101.201,14,Driver Gloves,Rare,FT,0,0,31,145,0,16,29000000
 2023-04-08,★ Driver Gloves | Convoy (Field-Tested),110.352,8,Driver Gloves,Rare,FT,0,0,30,146,0,17,29000000
-2023-04-09,★ Driver Gloves | Convoy (Field-Tested),208.339,9,Driver Gloves,Rare,FT,0,0,29,147,0,18,29000000
+2023-04-09,★ Driver Gloves | Convoy (Field-Tested),108.111,9,Driver Gloves,Rare,FT,0,0,29,147,0,18,29000000
 2023-04-10,★ Driver Gloves | Convoy (Field-Tested),108.111,11,Driver Gloves,Rare,FT,0,0,28,148,0,19,29000000
 2023-04-11,★ Driver Gloves | Convoy (Field-Tested),107.026,5,Driver Gloves,Rare,FT,0,0,27,149,0,20,29000000
 2023-04-12,★ Driver Gloves | Convoy (Field-Tested),109.376,8,Driver Gloves,Rare,FT,0,0,26,150,0,21,29000000
@@ -33388,7 +33388,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-19,★ Driver Gloves | Convoy (Field-Tested),86.25,1,Driver Gloves,Rare,FT,0,0,0,187,1,58,28000000
 2023-05-20,★ Driver Gloves | Convoy (Field-Tested),95.45,1,Driver Gloves,Rare,FT,0,0,0,188,1,59,28000000
 2023-05-21,★ Driver Gloves | Convoy (Field-Tested),92.95,1,Driver Gloves,Rare,FT,0,0,0,0,1,60,28000000
-2023-05-22,★ Driver Gloves | Convoy (Field-Tested),152.837,2,Driver Gloves,Rare,FT,0,0,-14,1,0,61,28000000
+2023-05-22,★ Driver Gloves | Convoy (Field-Tested),107.021,2,Driver Gloves,Rare,FT,0,0,-14,1,0,61,28000000
 2023-05-23,★ Driver Gloves | Convoy (Field-Tested),109.638,1,Driver Gloves,Rare,FT,0,0,-15,2,0,62,28000000
 2023-05-24,★ Driver Gloves | Convoy (Field-Tested),107.021,1,Driver Gloves,Rare,FT,0,0,-16,3,0,63,28000000
 2023-05-25,★ Driver Gloves | Convoy (Field-Tested),126.47,1,Driver Gloves,Rare,FT,0,0,-17,4,0,64,28000000
@@ -33617,7 +33617,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-07,★ Driver Gloves | Overtake (Field-Tested),143.99,1,Driver Gloves,Rare,FT,0,0,1,175,0,46,28000000
 2023-05-08,★ Driver Gloves | Overtake (Field-Tested),148.82,2,Driver Gloves,Rare,FT,0,0,0,176,1,47,28000000
 2023-05-09,★ Driver Gloves | Overtake (Field-Tested),115.0,1,Driver Gloves,Rare,FT,0,0,0,177,1,48,28000000
-2023-05-10,★ Driver Gloves | Overtake (Field-Tested),219.65,1,Driver Gloves,Rare,FT,0,0,0,178,1,49,28000000
+2023-05-10,★ Driver Gloves | Overtake (Field-Tested),147.584,1,Driver Gloves,Rare,FT,0,0,0,178,1,49,28000000
 2023-05-11,★ Driver Gloves | Overtake (Field-Tested),165.936,1,Driver Gloves,Rare,FT,0,0,0,179,1,50,28000000
 2023-05-12,★ Driver Gloves | Overtake (Field-Tested),116.67,1,Driver Gloves,Rare,FT,0,0,0,180,1,51,28000000
 2023-05-13,★ Driver Gloves | Overtake (Field-Tested),147.584,1,Driver Gloves,Rare,FT,0,0,0,181,1,52,28000000
@@ -33627,7 +33627,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-17,★ Driver Gloves | Overtake (Field-Tested),150.0,1,Driver Gloves,Rare,FT,0,0,0,185,1,56,28000000
 2023-05-18,★ Driver Gloves | Overtake (Field-Tested),130.49,1,Driver Gloves,Rare,FT,0,0,0,186,1,57,28000000
 2023-05-19,★ Driver Gloves | Overtake (Field-Tested),140.3,1,Driver Gloves,Rare,FT,0,0,0,187,1,58,28000000
-2023-05-20,★ Driver Gloves | Overtake (Field-Tested),180.664,1,Driver Gloves,Rare,FT,0,0,0,188,1,59,28000000
+2023-05-20,★ Driver Gloves | Overtake (Field-Tested),130.49,1,Driver Gloves,Rare,FT,0,0,0,188,1,59,28000000
 2023-05-21,★ Driver Gloves | Overtake (Field-Tested),123.06,1,Driver Gloves,Rare,FT,0,0,0,0,1,60,28000000
 2023-05-22,★ Driver Gloves | Overtake (Field-Tested),122.43,1,Driver Gloves,Rare,FT,0,0,-14,1,0,61,28000000
 2023-05-23,★ Driver Gloves | Overtake (Field-Tested),120.704,1,Driver Gloves,Rare,FT,0,0,-15,2,0,62,28000000
@@ -33832,7 +33832,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-12,★ Driver Gloves | Racing Green (Battle-Scarred),64.758,11,Driver Gloves,Rare,BS,0,0,26,150,0,21,29000000
 2023-04-13,★ Driver Gloves | Racing Green (Battle-Scarred),64.881,14,Driver Gloves,Rare,BS,0,0,25,151,0,22,29000000
 2023-04-14,★ Driver Gloves | Racing Green (Battle-Scarred),66.276,11,Driver Gloves,Rare,BS,0,0,24,152,0,23,29000000
-2023-04-15,★ Driver Gloves | Racing Green (Battle-Scarred),129.872,15,Driver Gloves,Rare,BS,0,0,23,153,0,24,29000000
+2023-04-15,★ Driver Gloves | Racing Green (Battle-Scarred),67.747,15,Driver Gloves,Rare,BS,0,0,23,153,0,24,29000000
 2023-04-16,★ Driver Gloves | Racing Green (Battle-Scarred),68.1,16,Driver Gloves,Rare,BS,0,0,22,154,0,25,29000000
 2023-04-17,★ Driver Gloves | Racing Green (Battle-Scarred),67.747,17,Driver Gloves,Rare,BS,0,0,21,155,0,26,29000000
 2023-04-18,★ Driver Gloves | Racing Green (Battle-Scarred),68.902,20,Driver Gloves,Rare,BS,0,0,20,156,0,27,29000000
@@ -34469,7 +34469,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-19,★ Flip Knife | Doppler (Factory New),379.835,8,Flip Knife,Rare,FN,0,0,109,67,0,-62,27500000
 2023-01-20,★ Flip Knife | Doppler (Factory New),378.676,7,Flip Knife,Rare,FN,0,0,108,68,0,-61,27500000
 2023-01-21,★ Flip Knife | Doppler (Factory New),373.509,15,Flip Knife,Rare,FN,0,0,107,69,0,-60,27500000
-2023-01-22,★ Flip Knife | Doppler (Factory New),845.482,3,Flip Knife,Rare,FN,0,0,106,70,0,-59,27500000
+2023-01-22,★ Flip Knife | Doppler (Factory New),379.835,3,Flip Knife,Rare,FN,0,0,106,70,0,-59,27500000
 2023-01-23,★ Flip Knife | Doppler (Factory New),385.885,15,Flip Knife,Rare,FN,0,0,105,71,0,-58,27500000
 2023-01-24,★ Flip Knife | Doppler (Factory New),373.469,7,Flip Knife,Rare,FN,0,0,104,72,0,-57,27500000
 2023-01-25,★ Flip Knife | Doppler (Factory New),387.914,7,Flip Knife,Rare,FN,0,0,103,73,0,-56,27500000
@@ -35111,7 +35111,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-11-05,★ Karambit | Doppler (Factory New),899.214,5,Karambit,Rare,FN,0,0,0,167,1,-137,26000000
 2022-11-06,★ Karambit | Doppler (Factory New),918.874,3,Karambit,Rare,FN,0,0,0,168,1,-136,26000000
 2022-11-07,★ Karambit | Doppler (Factory New),909.272,2,Karambit,Rare,FN,0,0,0,169,1,-135,26000000
-2022-11-08,★ Karambit | Doppler (Factory New),529.175,2,Karambit,Rare,FN,0,0,0,170,1,-134,26000000
+2022-11-08,★ Karambit | Doppler (Factory New),909.272,2,Karambit,Rare,FN,0,0,0,170,1,-134,26000000
 2022-11-09,★ Karambit | Doppler (Factory New),889.867,2,Karambit,Rare,FN,0,0,0,171,1,-133,26000000
 2022-11-10,★ Karambit | Doppler (Factory New),918.729,5,Karambit,Rare,FN,0,0,0,172,1,-132,26000000
 2022-11-11,★ Karambit | Doppler (Factory New),1012.418,5,Karambit,Rare,FN,0,0,0,173,1,-131,26000000
@@ -35185,7 +35185,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-01-23,★ Karambit | Doppler (Factory New),1156.507,5,Karambit,Rare,FN,0,0,105,71,0,-58,27500000
 2023-01-24,★ Karambit | Doppler (Factory New),1043.37,2,Karambit,Rare,FN,0,0,104,72,0,-57,27500000
 2023-01-25,★ Karambit | Doppler (Factory New),1055.601,5,Karambit,Rare,FN,0,0,103,73,0,-56,27500000
-2023-01-26,★ Karambit | Doppler (Factory New),1430.141,3,Karambit,Rare,FN,0,0,102,74,0,-55,27500000
+2023-01-26,★ Karambit | Doppler (Factory New),1074.191,3,Karambit,Rare,FN,0,0,102,74,0,-55,27500000
 2023-01-27,★ Karambit | Doppler (Factory New),1085.658,1,Karambit,Rare,FN,0,0,101,75,0,-54,27500000
 2023-01-28,★ Karambit | Doppler (Factory New),1022.499,3,Karambit,Rare,FN,0,0,100,76,0,-53,27500000
 2023-01-29,★ Karambit | Doppler (Factory New),1074.191,6,Karambit,Rare,FN,0,0,99,77,0,-52,27500000
@@ -35385,7 +35385,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-18,★ M9 Bayonet | Doppler (Factory New),944.73,1,M9 Bayonet,Rare,FN,0,0,141,35,0,-94,27000000
 2022-12-19,★ M9 Bayonet | Doppler (Factory New),827.5,2,M9 Bayonet,Rare,FN,0,0,140,36,0,-93,27000000
 2022-12-20,★ M9 Bayonet | Doppler (Factory New),899.988,1,M9 Bayonet,Rare,FN,0,0,139,37,0,-92,27000000
-2022-12-21,★ M9 Bayonet | Doppler (Factory New),574.55,3,M9 Bayonet,Rare,FN,0,0,138,38,0,-91,27000000
+2022-12-21,★ M9 Bayonet | Doppler (Factory New),843.68,3,M9 Bayonet,Rare,FN,0,0,138,38,0,-91,27000000
 2022-12-22,★ M9 Bayonet | Doppler (Factory New),811.58,2,M9 Bayonet,Rare,FN,0,0,137,39,0,-90,27000000
 2022-12-23,★ M9 Bayonet | Doppler (Factory New),843.68,2,M9 Bayonet,Rare,FN,0,0,136,40,0,-89,27000000
 2022-12-24,★ M9 Bayonet | Doppler (Factory New),848.103,3,M9 Bayonet,Rare,FN,0,0,135,41,0,-88,27000000
@@ -35931,7 +35931,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-13,★ StatTrak™ Bayonet | Doppler (Factory New),1069.307,3,Bayonet,Rare,FN,1,0,25,151,0,22,29000000
 2023-04-14,★ StatTrak™ Bayonet | Doppler (Factory New),1115.354,5,Bayonet,Rare,FN,1,0,24,152,0,23,29000000
 2023-04-15,★ StatTrak™ Bayonet | Doppler (Factory New),1082.967,8,Bayonet,Rare,FN,1,0,23,153,0,24,29000000
-2023-04-16,★ StatTrak™ Bayonet | Doppler (Factory New),1437.427,2,Bayonet,Rare,FN,1,0,22,154,0,25,29000000
+2023-04-16,★ StatTrak™ Bayonet | Doppler (Factory New),1082.967,2,Bayonet,Rare,FN,1,0,22,154,0,25,29000000
 2023-04-17,★ StatTrak™ Bayonet | Doppler (Factory New),1006.99,1,Bayonet,Rare,FN,1,0,21,155,0,26,29000000
 2023-04-18,★ StatTrak™ Bayonet | Doppler (Factory New),1000.017,1,Bayonet,Rare,FN,1,0,20,156,0,27,29000000
 2023-04-19,★ StatTrak™ Bayonet | Doppler (Factory New),1136.827,2,Bayonet,Rare,FN,1,0,19,157,0,28,29000000
@@ -36118,7 +36118,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-04-14,★ StatTrak™ Flip Knife | Doppler (Factory New),866.462,1,Flip Knife,Rare,FN,1,0,24,152,0,23,29000000
 2023-04-15,★ StatTrak™ Flip Knife | Doppler (Factory New),800.94,2,Flip Knife,Rare,FN,1,0,23,153,0,24,29000000
 2023-04-16,★ StatTrak™ Flip Knife | Doppler (Factory New),761.858,5,Flip Knife,Rare,FN,1,0,22,154,0,25,29000000
-2023-04-17,★ StatTrak™ Flip Knife | Doppler (Factory New),1095.014,1,Flip Knife,Rare,FN,1,0,21,155,0,26,29000000
+2023-04-17,★ StatTrak™ Flip Knife | Doppler (Factory New),788.022,1,Flip Knife,Rare,FN,1,0,21,155,0,26,29000000
 2023-04-18,★ StatTrak™ Flip Knife | Doppler (Factory New),788.022,3,Flip Knife,Rare,FN,1,0,20,156,0,27,29000000
 2023-04-19,★ StatTrak™ Flip Knife | Doppler (Factory New),681.012,1,Flip Knife,Rare,FN,1,0,19,157,0,28,29000000
 2023-04-20,★ StatTrak™ Flip Knife | Doppler (Factory New),727.067,4,Flip Knife,Rare,FN,1,0,18,158,0,29,29000000
@@ -36138,7 +36138,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-05-07,★ StatTrak™ Flip Knife | Doppler (Factory New),645.79,1,Flip Knife,Rare,FN,1,0,1,175,0,46,28000000
 2023-05-08,★ StatTrak™ Flip Knife | Doppler (Factory New),564.83,1,Flip Knife,Rare,FN,1,0,0,176,1,47,28000000
 2023-05-09,★ StatTrak™ Flip Knife | Doppler (Factory New),600.345,1,Flip Knife,Rare,FN,1,0,0,177,1,48,28000000
-2023-05-10,★ StatTrak™ Flip Knife | Doppler (Factory New),995.53,1,Flip Knife,Rare,FN,1,0,0,178,1,49,28000000
+2023-05-10,★ StatTrak™ Flip Knife | Doppler (Factory New),600.345,1,Flip Knife,Rare,FN,1,0,0,178,1,49,28000000
 2023-05-11,★ StatTrak™ Flip Knife | Doppler (Factory New),590.71,1,Flip Knife,Rare,FN,1,0,0,179,1,50,28000000
 2023-05-12,★ StatTrak™ Flip Knife | Doppler (Factory New),707.974,1,Flip Knife,Rare,FN,1,0,0,180,1,51,28000000
 2023-05-13,★ StatTrak™ Flip Knife | Doppler (Factory New),588.52,1,Flip Knife,Rare,FN,1,0,0,181,1,52,28000000
@@ -36211,9 +36211,9 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-12-22,★ StatTrak™ M9 Bayonet | Doppler (Factory New),779.89,1,M9 Bayonet,Rare,FN,1,0,137,39,0,-90,27000000
 2022-12-23,★ StatTrak™ M9 Bayonet | Doppler (Factory New),787.291,4,M9 Bayonet,Rare,FN,1,0,136,40,0,-89,27000000
 2022-12-26,★ StatTrak™ M9 Bayonet | Doppler (Factory New),836.149,2,M9 Bayonet,Rare,FN,1,0,133,43,0,-86,27000000
-2023-01-02,★ StatTrak™ M9 Bayonet | Doppler (Factory New),1100.0,1,M9 Bayonet,Rare,FN,1,0,126,50,0,-79,27500000
+2023-01-02,★ StatTrak™ M9 Bayonet | Doppler (Factory New),787.291,1,M9 Bayonet,Rare,FN,1,0,126,50,0,-79,27500000
 2023-01-05,★ StatTrak™ M9 Bayonet | Doppler (Factory New),756.27,1,M9 Bayonet,Rare,FN,1,0,123,53,0,-76,27500000
-2023-01-07,★ StatTrak™ M9 Bayonet | Doppler (Factory New),1254.65,1,M9 Bayonet,Rare,FN,1,0,121,55,0,-74,27500000
+2023-01-07,★ StatTrak™ M9 Bayonet | Doppler (Factory New),836.149,1,M9 Bayonet,Rare,FN,1,0,121,55,0,-74,27500000
 2023-01-08,★ StatTrak™ M9 Bayonet | Doppler (Factory New),756.02,1,M9 Bayonet,Rare,FN,1,0,120,56,0,-73,27500000
 2023-01-09,★ StatTrak™ M9 Bayonet | Doppler (Factory New),768.545,1,M9 Bayonet,Rare,FN,1,0,119,57,0,-72,27500000
 2023-01-13,★ StatTrak™ M9 Bayonet | Doppler (Factory New),919.991,1,M9 Bayonet,Rare,FN,1,0,115,61,0,-68,27500000
@@ -36236,7 +36236,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2023-02-10,★ StatTrak™ M9 Bayonet | Doppler (Factory New),867.938,2,M9 Bayonet,Rare,FN,1,0,87,89,0,-40,28000000
 2023-02-11,★ StatTrak™ M9 Bayonet | Doppler (Factory New),718.91,1,M9 Bayonet,Rare,FN,1,0,86,90,0,-39,28000000
 2023-02-12,★ StatTrak™ M9 Bayonet | Doppler (Factory New),920.0,1,M9 Bayonet,Rare,FN,1,0,85,91,0,-38,28000000
-2023-02-14,★ StatTrak™ M9 Bayonet | Doppler (Factory New),1502.568,2,M9 Bayonet,Rare,FN,1,0,83,93,0,-36,28000000
+2023-02-14,★ StatTrak™ M9 Bayonet | Doppler (Factory New),850.648,2,M9 Bayonet,Rare,FN,1,0,83,93,0,-36,28000000
 2023-02-15,★ StatTrak™ M9 Bayonet | Doppler (Factory New),804.7,1,M9 Bayonet,Rare,FN,1,0,82,94,0,-35,28000000
 2023-02-16,★ StatTrak™ M9 Bayonet | Doppler (Factory New),850.648,4,M9 Bayonet,Rare,FN,1,0,81,95,0,-34,28000000
 2023-02-17,★ StatTrak™ M9 Bayonet | Doppler (Factory New),783.013,1,M9 Bayonet,Rare,FN,1,0,80,96,0,-33,28000000

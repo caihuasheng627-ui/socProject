@@ -1,0 +1,109 @@
+============================================================
+SkinVest AI — 训练数据集质量报告
+============================================================
+生成时间: 2026-07-19 14:41:12.584269
+数据来源: Kaggle leawind/steam-market-price-dataset-csgo
+时间范围: 2019-01-01 ~ 2023-05-26
+
+数据集概览:
+  总行数: 230,687
+  物品数: 154
+  日期跨度: 2019-01-01 ~ 2023-05-26
+  文件大小: 23.3 MB
+
+列信息:
+  date: object
+  market_hash_name: object
+  price: float64
+  daily_volume: int64
+  weapon_type: object
+  rarity: object
+  wear: object
+  is_stattrak: int64
+  is_floor_price: int64
+  days_to_next_major: int64
+  days_since_last_major: int64
+  is_major_active: int64
+  days_since_cs2_announce: int64
+  steam_ccu: int64
+
+价格统计:
+  Mean:  $35.45
+  Median: $0.12
+  Min:   $0.03
+  Max:   $1976.89
+  Std:   $119.74
+
+成交量统计:
+  Mean:  3311
+  Median: 901
+  Max:   855,542
+
+稀有度分布:
+  Mil-Spec: 44
+  Restricted: 38
+  Rare: 21
+  Classified: 15
+  Covert: 13
+  Industrial Grade: 13
+  Consumer Grade: 5
+  Base Grade: 5
+
+
+  武器类别分布 (前 15):
+    AK-47: 14,942
+    Nova: 13,876
+    UMP-45: 12,832
+    M4A4: 11,214
+    AUG: 10,610
+    Glock-18: 9,639
+    MAC-10: 9,612
+    Bowie Knife: 8,025
+    MP9: 8,010
+    Five-SeveN: 8,005
+    Galil AR: 7,948
+    Driver Gloves: 7,232
+    AWP: 7,021
+    Tec-9: 6,419
+    SG 553: 6,416
+
+  大类别分布:
+    Rifle: 50
+    Pistol: 35
+    SMG: 26
+    Heavy: 17
+    Knife: 14
+    Glove: 7
+    Case: 5
+
+  磨损分布:
+    FN: 99,484
+    FT: 57,707
+    MW: 31,144
+    BS: 20,368
+    WW: 15,091
+    nan: 6,893
+
+  StatTrak 分布: {0: 208738, 1: 21949}
+
+Top 20 物品 (按总成交量):
+  CZ75-Auto | Circaetus (Battle-Scarred): 141,221,237
+  Danger Zone Case: 103,918,757
+  R8 Revolver | Amber Fade (Factory New): 82,376,472
+  R8 Revolver | Amber Fade (Minimal Wear): 77,202,423
+  CZ75-Auto | Framework (Battle-Scarred): 40,605,736
+  Dreams & Nightmares Case: 32,034,360
+  Glock-18 | Blue Fissure (Factory New): 31,328,212
+  AUG | Amber Slipstream (Well-Worn): 12,534,877
+  FAMAS | CaliCamo (Factory New): 9,521,314
+  AUG | Amber Slipstream (Battle-Scarred): 5,965,669
+  AK-47 | Safari Mesh (Minimal Wear): 5,082,173
+  AUG | Amber Fade (Field-Tested): 5,055,259
+  CZ75-Auto | Army Sheen (Factory New): 4,630,483
+  AK-47 | Uncharted (Minimal Wear): 4,099,554
+  AUG | Amber Fade (Well-Worn): 3,897,937
+  AUG | Amber Fade (Factory New): 3,470,179
+  P250 | See Ya Later (Factory New): 3,404,967
+  FAMAS | Commemoration (Minimal Wear): 3,388,744
+  AUG | Momentum (Battle-Scarred): 3,340,657
+  M4A1-S | Briefing (Factory New): 3,339,614

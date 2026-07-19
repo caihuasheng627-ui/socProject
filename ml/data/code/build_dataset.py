@@ -30,7 +30,6 @@ import base64
 from pathlib import Path
 from collections import Counter
 
-import kagglehub
 import numpy as np
 import pandas as pd
 
@@ -82,8 +81,8 @@ EXCLUDE_KEYWORDS = [
     "Name Tag", "Storage Unit", "Tool",
 ]
 
-# 输出目录
-OUTPUT_DIR = Path(__file__).parent
+# 输出目录: ml/data/ (脚本在 ml/data/code/ 下)
+OUTPUT_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_CSV = OUTPUT_DIR / "training_dataset.csv"
 OUTPUT_REPORT = OUTPUT_DIR / "dataset_report.txt"
 
@@ -93,6 +92,7 @@ OUTPUT_REPORT = OUTPUT_DIR / "dataset_report.txt"
 
 def load_dataset():
     """定位并加载 Kaggle 数据集"""
+    import kagglehub
     print("=" * 60)
     print("步骤 1: 加载 Kaggle 数据集")
     print("=" * 60)
@@ -335,27 +335,85 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# 步骤 4.5: 价格异常清洗 (floor spike + outlier)
+# 步骤 4.5: 价格异常清洗 (floor 标记 + 尖峰替换)
 # ============================================================
 
-def clean_price_spikes(df: pd.DataFrame, floor: float = 0.05) -> pd.DataFrame:
+def clean_price_spikes(
+    df: pd.DataFrame,
+    floor: float = 0.05,
+    spike_ratio: float = 0.50,
+    low_vol_spike_ratio: float = 0.30,
+    window: int = 7,
+    low_volume: int = 5,
+) -> pd.DataFrame:
     """
-    仅添加地板价标记列，不修改任何价格数据。
-    下游模型可利用 is_floor_price 作为特征自行处理。
+    1. 标记 is_floor_price (price <= floor) — 列格式不变
+    2. 按物品检测价格尖峰并替换为滚动中位数 (不删行、不加列):
+       - 相对滚动中位数偏离 > spike_ratio (默认 50%)
+       - 薄量日 (daily_volume < low_volume) 用更严阈值 30%
+       - 单日孤立尖刺: 相对前后日均值偏离大, 且前后日彼此接近
+    目的: 清掉薄流动性 / Doppler 相位混淆造成的假尖峰, 防止回测复利爆炸。
     """
     print("\n" + "=" * 60)
-    print("步骤 4.5: 价格标记 (is_floor_price)")
+    print("步骤 4.5: 价格尖峰清洗 + is_floor_price 标记")
     print("=" * 60)
 
     df = df.copy()
-    df["is_floor_price"] = (df["price"] <= floor).astype(int)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["market_hash_name", "date"]).reset_index(drop=True)
 
-    floor_count = df["is_floor_price"].sum()
-    floor_pct = 100 * floor_count / len(df)
-    affected_items = df[df["is_floor_price"] == 1]["market_hash_name"].nunique()
-    print(f"  is_floor_price=1: {floor_count:,} 行 ({floor_pct:.1f}%), {affected_items} 个物品")
-    print(f"  价格数据未修改 — 仅添加标记列供下游使用")
-    return df
+    df["is_floor_price"] = (df["price"] <= floor).astype(int)
+    floor_count = int(df["is_floor_price"].sum())
+    floor_pct = 100 * floor_count / max(len(df), 1)
+    affected_floor = df.loc[df["is_floor_price"] == 1, "market_hash_name"].nunique()
+    print(f"  is_floor_price=1: {floor_count:,} 行 ({floor_pct:.1f}%), {affected_floor} 个物品")
+
+    n_replaced = 0
+    n_items_hit = 0
+    cleaned_parts = []
+
+    for name, g in df.groupby("market_hash_name", sort=False):
+        g = g.copy()
+        price = g["price"].astype(float)
+        vol = g["daily_volume"].astype(float) if "daily_volume" in g.columns else pd.Series(0, index=g.index)
+
+        # 滚动中位数 (居中窗口; 两端 min_periods=3 避免早期过松)
+        roll_med = price.rolling(window=window, center=True, min_periods=3).median()
+        # 两端用扩展/反向填充补齐
+        roll_med = roll_med.fillna(price.expanding(min_periods=1).median())
+        roll_med = roll_med.replace(0, np.nan).fillna(price.median())
+
+        rel = (price - roll_med).abs() / roll_med.clip(lower=1e-6)
+        thr = np.where(vol < low_volume, low_vol_spike_ratio, spike_ratio)
+        spike_vs_med = rel > thr
+
+        # 孤立尖刺: 当天相对前后日均值偏离大, 前后日彼此接近 (典型 259→560→304)
+        prev_p = price.shift(1)
+        next_p = price.shift(-1)
+        neighbor = (prev_p + next_p) / 2.0
+        neighbor_ok = prev_p.notna() & next_p.notna() & (neighbor > 0)
+        rel_nb = (price - neighbor).abs() / neighbor.clip(lower=1e-6)
+        neighbors_close = (prev_p - next_p).abs() / neighbor.clip(lower=1e-6) < 0.25
+        isolated = neighbor_ok & neighbors_close & (rel_nb > spike_ratio)
+
+        spike_mask = spike_vs_med | isolated
+        n_hit = int(spike_mask.sum())
+        if n_hit > 0:
+            g.loc[spike_mask, "price"] = roll_med.loc[spike_mask].values
+            n_replaced += n_hit
+            n_items_hit += 1
+
+        cleaned_parts.append(g)
+
+    out = pd.concat(cleaned_parts, ignore_index=True)
+    # 保持与历史 CSV 一致的日期字符串格式
+    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+
+    print(f"  尖峰替换: {n_replaced:,} 行 / {n_items_hit} 个物品 "
+          f"(阈值 med>{spike_ratio:.0%}, 薄量<{low_volume} 用>{low_vol_spike_ratio:.0%}, "
+          f"窗口={window})")
+    print(f"  列格式未变: {list(out.columns)}")
+    return out
 
 
 # ============================================================

@@ -4141,7 +4141,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-03-17,AUG | Torque (Well-Worn),0.03,656,AUG,Industrial Grade,WW,0,1,53,130,0,-370,25000000
 2022-03-18,AUG | Torque (Well-Worn),0.03,679,AUG,Industrial Grade,WW,0,1,52,131,0,-369,25000000
 2022-03-19,AUG | Torque (Well-Worn),0.03,420,AUG,Industrial Grade,WW,0,1,51,132,0,-368,25000000
-2022-03-20,AUG | Torque (Well-Worn),0.768,489,AUG,Industrial Grade,WW,0,0,50,133,0,-367,25000000
+2022-03-20,AUG | Torque (Well-Worn),0.03,489,AUG,Industrial Grade,WW,0,0,50,133,0,-367,25000000
 2022-03-21,AUG | Torque (Well-Worn),0.03,528,AUG,Industrial Grade,WW,0,1,49,134,0,-366,25000000
 2022-03-22,AUG | Torque (Well-Worn),0.03,546,AUG,Industrial Grade,WW,0,1,48,135,0,-365,25000000
 2022-03-23,AUG | Torque (Well-Worn),0.03,568,AUG,Industrial Grade,WW,0,1,47,136,0,-364,25000000
@@ -16285,7 +16285,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-19,MAG-7 | SWAG-7 (Factory New),0.03,707,MAG-7,Restricted,FN,0,1,134,28,0,-276,24000000
 2022-06-20,MAG-7 | SWAG-7 (Factory New),0.03,730,MAG-7,Restricted,FN,0,1,133,29,0,-275,24000000
 2022-06-21,MAG-7 | SWAG-7 (Factory New),0.03,513,MAG-7,Restricted,FN,0,1,132,30,0,-274,24000000
-2022-06-22,MAG-7 | SWAG-7 (Factory New),0.054,669,MAG-7,Restricted,FN,0,0,131,31,0,-273,24000000
+2022-06-22,MAG-7 | SWAG-7 (Factory New),0.03,669,MAG-7,Restricted,FN,0,0,131,31,0,-273,24000000
 2022-06-23,MAG-7 | SWAG-7 (Factory New),0.03,1050,MAG-7,Restricted,FN,0,1,130,32,0,-272,24000000
 2022-06-24,MAG-7 | SWAG-7 (Factory New),0.03,746,MAG-7,Restricted,FN,0,1,129,33,0,-271,24000000
 2022-06-25,MAG-7 | SWAG-7 (Factory New),0.03,736,MAG-7,Restricted,FN,0,1,128,34,0,-270,24000000
@@ -22902,7 +22902,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-02-08,Recoil Case,0.327,37,Recoil Case,Base Grade,,0,0,90,93,0,-407,25500000
 2022-02-09,Recoil Case,0.31,45,Recoil Case,Base Grade,,0,0,89,94,0,-406,25500000
 2022-02-10,Recoil Case,0.313,33,Recoil Case,Base Grade,,0,0,88,95,0,-405,25500000
-2022-02-11,Recoil Case,2.462,47,Recoil Case,Base Grade,,0,0,87,96,0,-404,25500000
+2022-02-11,Recoil Case,0.321,47,Recoil Case,Base Grade,,0,0,87,96,0,-404,25500000
 2022-02-12,Recoil Case,0.309,46,Recoil Case,Base Grade,,0,0,86,97,0,-403,25500000
 2022-02-13,Recoil Case,0.327,62,Recoil Case,Base Grade,,0,0,85,98,0,-402,25500000
 2022-02-14,Recoil Case,0.321,41,Recoil Case,Base Grade,,0,0,84,99,0,-401,25500000
@@ -26148,7 +26148,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-01,StatTrak™ PP-Bizon | Osiris (Factory New),0.105,277,PP-Bizon,Restricted,FN,1,0,152,10,0,-294,24000000
 2022-06-02,StatTrak™ PP-Bizon | Osiris (Factory New),0.104,218,PP-Bizon,Restricted,FN,1,0,151,11,0,-293,24000000
 2022-06-03,StatTrak™ PP-Bizon | Osiris (Factory New),0.099,253,PP-Bizon,Restricted,FN,1,0,150,12,0,-292,24000000
-2022-06-04,StatTrak™ PP-Bizon | Osiris (Factory New),0.769,217,PP-Bizon,Restricted,FN,1,0,149,13,0,-291,24000000
+2022-06-04,StatTrak™ PP-Bizon | Osiris (Factory New),0.101,217,PP-Bizon,Restricted,FN,1,0,149,13,0,-291,24000000
 2022-06-05,StatTrak™ PP-Bizon | Osiris (Factory New),0.098,182,PP-Bizon,Restricted,FN,1,0,148,14,0,-290,24000000
 2022-06-06,StatTrak™ PP-Bizon | Osiris (Factory New),0.101,220,PP-Bizon,Restricted,FN,1,0,147,15,0,-289,24000000
 2022-06-07,StatTrak™ PP-Bizon | Osiris (Factory New),0.097,200,PP-Bizon,Restricted,FN,1,0,146,16,0,-288,24000000
@@ -31819,11 +31819,11 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-02-11,★ Bowie Knife | Doppler (Factory New),267.756,9,Bowie Knife,Rare,FN,0,0,87,96,0,-404,25500000
 2022-02-12,★ Bowie Knife | Doppler (Factory New),266.636,12,Bowie Knife,Rare,FN,0,0,86,97,0,-403,25500000
 2022-02-13,★ Bowie Knife | Doppler (Factory New),259.14,4,Bowie Knife,Rare,FN,0,0,85,98,0,-402,25500000
-2022-02-14,★ Bowie Knife | Doppler (Factory New),560.889,2,Bowie Knife,Rare,FN,0,0,84,99,0,-401,25500000
+2022-02-14,★ Bowie Knife | Doppler (Factory New),266.636,2,Bowie Knife,Rare,FN,0,0,84,99,0,-401,25500000
 2022-02-15,★ Bowie Knife | Doppler (Factory New),304.228,3,Bowie Knife,Rare,FN,0,0,83,100,0,-400,25500000
 2022-02-16,★ Bowie Knife | Doppler (Factory New),259.957,3,Bowie Knife,Rare,FN,0,0,82,101,0,-399,25500000
 2022-02-17,★ Bowie Knife | Doppler (Factory New),261.491,5,Bowie Knife,Rare,FN,0,0,81,102,0,-398,25500000
-2022-02-18,★ Bowie Knife | Doppler (Factory New),550.827,4,Bowie Knife,Rare,FN,0,0,80,103,0,-397,25500000
+2022-02-18,★ Bowie Knife | Doppler (Factory New),261.491,4,Bowie Knife,Rare,FN,0,0,80,103,0,-397,25500000
 2022-02-19,★ Bowie Knife | Doppler (Factory New),319.553,13,Bowie Knife,Rare,FN,0,0,79,104,0,-396,25500000
 2022-02-20,★ Bowie Knife | Doppler (Factory New),250.289,6,Bowie Knife,Rare,FN,0,0,78,105,0,-395,25500000
 2022-02-21,★ Bowie Knife | Doppler (Factory New),257.761,7,Bowie Knife,Rare,FN,0,0,77,106,0,-394,25500000
@@ -31841,7 +31841,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-03-05,★ Bowie Knife | Doppler (Factory New),282.313,8,Bowie Knife,Rare,FN,0,0,65,118,0,-382,25000000
 2022-03-06,★ Bowie Knife | Doppler (Factory New),273.768,11,Bowie Knife,Rare,FN,0,0,64,119,0,-381,25000000
 2022-03-07,★ Bowie Knife | Doppler (Factory New),279.821,7,Bowie Knife,Rare,FN,0,0,63,120,0,-380,25000000
-2022-03-08,★ Bowie Knife | Doppler (Factory New),414.645,6,Bowie Knife,Rare,FN,0,0,62,121,0,-379,25000000
+2022-03-08,★ Bowie Knife | Doppler (Factory New),279.821,6,Bowie Knife,Rare,FN,0,0,62,121,0,-379,25000000
 2022-03-09,★ Bowie Knife | Doppler (Factory New),246.715,6,Bowie Knife,Rare,FN,0,0,61,122,0,-378,25000000
 2022-03-10,★ Bowie Knife | Doppler (Factory New),276.667,8,Bowie Knife,Rare,FN,0,0,60,123,0,-377,25000000
 2022-03-11,★ Bowie Knife | Doppler (Factory New),415.204,6,Bowie Knife,Rare,FN,0,0,59,124,0,-376,25000000
@@ -31857,14 +31857,14 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-03-21,★ Bowie Knife | Doppler (Factory New),274.044,6,Bowie Knife,Rare,FN,0,0,49,134,0,-366,25000000
 2022-03-22,★ Bowie Knife | Doppler (Factory New),288.275,7,Bowie Knife,Rare,FN,0,0,48,135,0,-365,25000000
 2022-03-23,★ Bowie Knife | Doppler (Factory New),306.962,3,Bowie Knife,Rare,FN,0,0,47,136,0,-364,25000000
-2022-03-24,★ Bowie Knife | Doppler (Factory New),428.179,6,Bowie Knife,Rare,FN,0,0,46,137,0,-363,25000000
+2022-03-24,★ Bowie Knife | Doppler (Factory New),274.044,6,Bowie Knife,Rare,FN,0,0,46,137,0,-363,25000000
 2022-03-25,★ Bowie Knife | Doppler (Factory New),263.288,5,Bowie Knife,Rare,FN,0,0,45,138,0,-362,25000000
 2022-03-26,★ Bowie Knife | Doppler (Factory New),273.221,5,Bowie Knife,Rare,FN,0,0,44,139,0,-361,25000000
 2022-03-27,★ Bowie Knife | Doppler (Factory New),266.444,10,Bowie Knife,Rare,FN,0,0,43,140,0,-360,25000000
 2022-03-28,★ Bowie Knife | Doppler (Factory New),290.887,3,Bowie Knife,Rare,FN,0,0,42,141,0,-359,25000000
-2022-03-29,★ Bowie Knife | Doppler (Factory New),444.502,7,Bowie Knife,Rare,FN,0,0,41,142,0,-358,25000000
+2022-03-29,★ Bowie Knife | Doppler (Factory New),280.018,7,Bowie Knife,Rare,FN,0,0,41,142,0,-358,25000000
 2022-03-30,★ Bowie Knife | Doppler (Factory New),280.018,2,Bowie Knife,Rare,FN,0,0,40,143,0,-357,25000000
-2022-03-31,★ Bowie Knife | Doppler (Factory New),461.304,5,Bowie Knife,Rare,FN,0,0,39,144,0,-356,25000000
+2022-03-31,★ Bowie Knife | Doppler (Factory New),393.162,5,Bowie Knife,Rare,FN,0,0,39,144,0,-356,25000000
 2022-04-01,★ Bowie Knife | Doppler (Factory New),263.409,8,Bowie Knife,Rare,FN,0,0,38,145,0,-355,24500000
 2022-04-02,★ Bowie Knife | Doppler (Factory New),406.317,5,Bowie Knife,Rare,FN,0,0,37,146,0,-354,24500000
 2022-04-03,★ Bowie Knife | Doppler (Factory New),393.162,6,Bowie Knife,Rare,FN,0,0,36,147,0,-353,24500000
@@ -31873,22 +31873,22 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-04-06,★ Bowie Knife | Doppler (Factory New),274.148,5,Bowie Knife,Rare,FN,0,0,33,150,0,-350,24500000
 2022-04-07,★ Bowie Knife | Doppler (Factory New),279.648,7,Bowie Knife,Rare,FN,0,0,32,151,0,-349,24500000
 2022-04-08,★ Bowie Knife | Doppler (Factory New),308.721,8,Bowie Knife,Rare,FN,0,0,31,152,0,-348,24500000
-2022-04-09,★ Bowie Knife | Doppler (Factory New),459.272,3,Bowie Knife,Rare,FN,0,0,30,153,0,-347,24500000
+2022-04-09,★ Bowie Knife | Doppler (Factory New),295.518,3,Bowie Knife,Rare,FN,0,0,30,153,0,-347,24500000
 2022-04-10,★ Bowie Knife | Doppler (Factory New),283.021,6,Bowie Knife,Rare,FN,0,0,29,154,0,-346,24500000
-2022-04-11,★ Bowie Knife | Doppler (Factory New),460.889,7,Bowie Knife,Rare,FN,0,0,28,155,0,-345,24500000
+2022-04-11,★ Bowie Knife | Doppler (Factory New),307.428,7,Bowie Knife,Rare,FN,0,0,28,155,0,-345,24500000
 2022-04-12,★ Bowie Knife | Doppler (Factory New),295.518,7,Bowie Knife,Rare,FN,0,0,27,156,0,-344,24500000
 2022-04-13,★ Bowie Knife | Doppler (Factory New),307.428,6,Bowie Knife,Rare,FN,0,0,26,157,0,-343,24500000
 2022-04-14,★ Bowie Knife | Doppler (Factory New),269.466,4,Bowie Knife,Rare,FN,0,0,25,158,0,-342,24500000
 2022-04-15,★ Bowie Knife | Doppler (Factory New),287.981,12,Bowie Knife,Rare,FN,0,0,24,159,0,-341,24500000
 2022-04-16,★ Bowie Knife | Doppler (Factory New),278.592,7,Bowie Knife,Rare,FN,0,0,23,160,0,-340,24500000
-2022-04-17,★ Bowie Knife | Doppler (Factory New),443.93,4,Bowie Knife,Rare,FN,0,0,22,161,0,-339,24500000
+2022-04-17,★ Bowie Knife | Doppler (Factory New),285.946,4,Bowie Knife,Rare,FN,0,0,22,161,0,-339,24500000
 2022-04-18,★ Bowie Knife | Doppler (Factory New),351.754,6,Bowie Knife,Rare,FN,0,0,21,162,0,-338,24500000
 2022-04-19,★ Bowie Knife | Doppler (Factory New),273.012,5,Bowie Knife,Rare,FN,0,0,20,163,0,-337,24500000
 2022-04-20,★ Bowie Knife | Doppler (Factory New),285.946,6,Bowie Knife,Rare,FN,0,0,19,164,0,-336,24500000
 2022-04-21,★ Bowie Knife | Doppler (Factory New),288.666,9,Bowie Knife,Rare,FN,0,0,18,165,0,-335,24500000
 2022-04-22,★ Bowie Knife | Doppler (Factory New),386.974,6,Bowie Knife,Rare,FN,0,0,17,166,0,-334,24500000
 2022-04-23,★ Bowie Knife | Doppler (Factory New),297.575,9,Bowie Knife,Rare,FN,0,0,16,167,0,-333,24500000
-2022-04-24,★ Bowie Knife | Doppler (Factory New),458.36,5,Bowie Knife,Rare,FN,0,0,15,168,0,-332,24500000
+2022-04-24,★ Bowie Knife | Doppler (Factory New),297.547,5,Bowie Knife,Rare,FN,0,0,15,168,0,-332,24500000
 2022-04-25,★ Bowie Knife | Doppler (Factory New),297.547,4,Bowie Knife,Rare,FN,0,0,14,169,0,-331,24500000
 2022-04-26,★ Bowie Knife | Doppler (Factory New),294.019,9,Bowie Knife,Rare,FN,0,0,13,170,0,-330,24500000
 2022-04-27,★ Bowie Knife | Doppler (Factory New),278.266,8,Bowie Knife,Rare,FN,0,0,12,171,0,-329,24500000
@@ -31897,7 +31897,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-04-30,★ Bowie Knife | Doppler (Factory New),377.026,9,Bowie Knife,Rare,FN,0,0,9,174,0,-326,24500000
 2022-05-01,★ Bowie Knife | Doppler (Factory New),339.517,3,Bowie Knife,Rare,FN,0,0,8,175,0,-325,26000000
 2022-05-02,★ Bowie Knife | Doppler (Factory New),293.999,5,Bowie Knife,Rare,FN,0,0,7,176,0,-324,26000000
-2022-05-03,★ Bowie Knife | Doppler (Factory New),425.495,7,Bowie Knife,Rare,FN,0,0,6,177,0,-323,26000000
+2022-05-03,★ Bowie Knife | Doppler (Factory New),339.517,7,Bowie Knife,Rare,FN,0,0,6,177,0,-323,26000000
 2022-05-04,★ Bowie Knife | Doppler (Factory New),263.272,10,Bowie Knife,Rare,FN,0,0,5,178,0,-322,26000000
 2022-05-05,★ Bowie Knife | Doppler (Factory New),272.034,8,Bowie Knife,Rare,FN,0,0,4,179,0,-321,26000000
 2022-05-06,★ Bowie Knife | Doppler (Factory New),347.267,9,Bowie Knife,Rare,FN,0,0,3,180,0,-320,26000000
@@ -31914,7 +31914,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-05-17,★ Bowie Knife | Doppler (Factory New),284.497,5,Bowie Knife,Rare,FN,0,0,0,191,1,-309,26000000
 2022-05-18,★ Bowie Knife | Doppler (Factory New),299.674,4,Bowie Knife,Rare,FN,0,0,0,192,1,-308,26000000
 2022-05-19,★ Bowie Knife | Doppler (Factory New),252.342,4,Bowie Knife,Rare,FN,0,0,0,193,1,-307,26000000
-2022-05-20,★ Bowie Knife | Doppler (Factory New),408.687,8,Bowie Knife,Rare,FN,0,0,0,194,1,-306,26000000
+2022-05-20,★ Bowie Knife | Doppler (Factory New),275.6,8,Bowie Knife,Rare,FN,0,0,0,194,1,-306,26000000
 2022-05-21,★ Bowie Knife | Doppler (Factory New),275.6,7,Bowie Knife,Rare,FN,0,0,0,195,1,-305,26000000
 2022-05-22,★ Bowie Knife | Doppler (Factory New),251.398,8,Bowie Knife,Rare,FN,0,0,0,0,1,-304,26000000
 2022-05-23,★ Bowie Knife | Doppler (Factory New),271.82,12,Bowie Knife,Rare,FN,0,0,161,1,0,-303,26000000
@@ -31930,7 +31930,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-02,★ Bowie Knife | Doppler (Factory New),264.28,7,Bowie Knife,Rare,FN,0,0,151,11,0,-293,24000000
 2022-06-03,★ Bowie Knife | Doppler (Factory New),348.965,9,Bowie Knife,Rare,FN,0,0,150,12,0,-292,24000000
 2022-06-04,★ Bowie Knife | Doppler (Factory New),259.43,10,Bowie Knife,Rare,FN,0,0,149,13,0,-291,24000000
-2022-06-05,★ Bowie Knife | Doppler (Factory New),515.983,5,Bowie Knife,Rare,FN,0,0,148,14,0,-290,24000000
+2022-06-05,★ Bowie Knife | Doppler (Factory New),290.571,5,Bowie Knife,Rare,FN,0,0,148,14,0,-290,24000000
 2022-06-06,★ Bowie Knife | Doppler (Factory New),290.571,4,Bowie Knife,Rare,FN,0,0,147,15,0,-289,24000000
 2022-06-07,★ Bowie Knife | Doppler (Factory New),260.833,8,Bowie Knife,Rare,FN,0,0,146,16,0,-288,24000000
 2022-06-08,★ Bowie Knife | Doppler (Factory New),307.029,2,Bowie Knife,Rare,FN,0,0,145,17,0,-287,24000000
@@ -31938,7 +31938,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-10,★ Bowie Knife | Doppler (Factory New),278.134,5,Bowie Knife,Rare,FN,0,0,143,19,0,-285,24000000
 2022-06-11,★ Bowie Knife | Doppler (Factory New),267.267,7,Bowie Knife,Rare,FN,0,0,142,20,0,-284,24000000
 2022-06-12,★ Bowie Knife | Doppler (Factory New),277.352,6,Bowie Knife,Rare,FN,0,0,141,21,0,-283,24000000
-2022-06-13,★ Bowie Knife | Doppler (Factory New),512.609,3,Bowie Knife,Rare,FN,0,0,140,22,0,-282,24000000
+2022-06-13,★ Bowie Knife | Doppler (Factory New),278.134,3,Bowie Knife,Rare,FN,0,0,140,22,0,-282,24000000
 2022-06-14,★ Bowie Knife | Doppler (Factory New),366.131,7,Bowie Knife,Rare,FN,0,0,139,23,0,-281,24000000
 2022-06-15,★ Bowie Knife | Doppler (Factory New),269.983,5,Bowie Knife,Rare,FN,0,0,138,24,0,-280,24000000
 2022-06-16,★ Bowie Knife | Doppler (Factory New),289.476,8,Bowie Knife,Rare,FN,0,0,137,25,0,-279,24000000
@@ -31961,7 +31961,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-07-03,★ Bowie Knife | Doppler (Factory New),287.423,11,Bowie Knife,Rare,FN,0,0,120,42,0,-262,23000000
 2022-07-04,★ Bowie Knife | Doppler (Factory New),245.931,8,Bowie Knife,Rare,FN,0,0,119,43,0,-261,23000000
 2022-07-05,★ Bowie Knife | Doppler (Factory New),241.402,3,Bowie Knife,Rare,FN,0,0,118,44,0,-260,23000000
-2022-07-06,★ Bowie Knife | Doppler (Factory New),394.173,6,Bowie Knife,Rare,FN,0,0,117,45,0,-259,23000000
+2022-07-06,★ Bowie Knife | Doppler (Factory New),272.088,6,Bowie Knife,Rare,FN,0,0,117,45,0,-259,23000000
 2022-07-07,★ Bowie Knife | Doppler (Factory New),262.425,2,Bowie Knife,Rare,FN,0,0,116,46,0,-258,23000000
 2022-07-08,★ Bowie Knife | Doppler (Factory New),329.256,8,Bowie Knife,Rare,FN,0,0,115,47,0,-257,23000000
 2022-07-09,★ Bowie Knife | Doppler (Factory New),272.088,12,Bowie Knife,Rare,FN,0,0,114,48,0,-256,23000000
@@ -31985,7 +31985,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-07-27,★ Bowie Knife | Doppler (Factory New),238.145,2,Bowie Knife,Rare,FN,0,0,96,66,0,-238,23000000
 2022-07-28,★ Bowie Knife | Doppler (Factory New),264.826,7,Bowie Knife,Rare,FN,0,0,95,67,0,-237,23000000
 2022-07-29,★ Bowie Knife | Doppler (Factory New),343.603,11,Bowie Knife,Rare,FN,0,0,94,68,0,-236,23000000
-2022-07-30,★ Bowie Knife | Doppler (Factory New),438.542,5,Bowie Knife,Rare,FN,0,0,93,69,0,-235,23000000
+2022-07-30,★ Bowie Knife | Doppler (Factory New),270.702,5,Bowie Knife,Rare,FN,0,0,93,69,0,-235,23000000
 2022-07-31,★ Bowie Knife | Doppler (Factory New),266.558,5,Bowie Knife,Rare,FN,0,0,92,70,0,-234,23000000
 2022-08-01,★ Bowie Knife | Doppler (Factory New),270.702,8,Bowie Knife,Rare,FN,0,0,91,71,0,-233,23500000
 2022-08-02,★ Bowie Knife | Doppler (Factory New),272.138,5,Bowie Knife,Rare,FN,0,0,90,72,0,-232,23500000
@@ -31996,7 +31996,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-08-07,★ Bowie Knife | Doppler (Factory New),277.492,5,Bowie Knife,Rare,FN,0,0,85,77,0,-227,23500000
 2022-08-08,★ Bowie Knife | Doppler (Factory New),256.957,7,Bowie Knife,Rare,FN,0,0,84,78,0,-226,23500000
 2022-08-09,★ Bowie Knife | Doppler (Factory New),275.795,4,Bowie Knife,Rare,FN,0,0,83,79,0,-225,23500000
-2022-08-10,★ Bowie Knife | Doppler (Factory New),397.061,4,Bowie Knife,Rare,FN,0,0,82,80,0,-224,23500000
+2022-08-10,★ Bowie Knife | Doppler (Factory New),277.015,4,Bowie Knife,Rare,FN,0,0,82,80,0,-224,23500000
 2022-08-11,★ Bowie Knife | Doppler (Factory New),277.015,4,Bowie Knife,Rare,FN,0,0,81,81,0,-223,23500000
 2022-08-12,★ Bowie Knife | Doppler (Factory New),306.231,12,Bowie Knife,Rare,FN,0,0,80,82,0,-222,23500000
 2022-08-13,★ Bowie Knife | Doppler (Factory New),254.825,4,Bowie Knife,Rare,FN,0,0,79,83,0,-221,23500000
@@ -32009,7 +32009,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-08-20,★ Bowie Knife | Doppler (Factory New),268.721,6,Bowie Knife,Rare,FN,0,0,72,90,0,-214,23500000
 2022-08-21,★ Bowie Knife | Doppler (Factory New),295.468,7,Bowie Knife,Rare,FN,0,0,71,91,0,-213,23500000
 2022-08-22,★ Bowie Knife | Doppler (Factory New),367.601,8,Bowie Knife,Rare,FN,0,0,70,92,0,-212,23500000
-2022-08-23,★ Bowie Knife | Doppler (Factory New),458.112,4,Bowie Knife,Rare,FN,0,0,69,93,0,-211,23500000
+2022-08-23,★ Bowie Knife | Doppler (Factory New),286.463,4,Bowie Knife,Rare,FN,0,0,69,93,0,-211,23500000
 2022-08-24,★ Bowie Knife | Doppler (Factory New),250.912,5,Bowie Knife,Rare,FN,0,0,68,94,0,-210,23500000
 2022-08-25,★ Bowie Knife | Doppler (Factory New),257.934,5,Bowie Knife,Rare,FN,0,0,67,95,0,-209,23500000
 2022-08-26,★ Bowie Knife | Doppler (Factory New),286.463,8,Bowie Knife,Rare,FN,0,0,66,96,0,-208,23500000
@@ -35122,7 +35122,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-08-09,★ Karambit | Doppler (Factory New),1015.548,3,Karambit,Rare,FN,0,0,83,79,0,-225,23500000
 2022-08-10,★ Karambit | Doppler (Factory New),895.427,6,Karambit,Rare,FN,0,0,82,80,0,-224,23500000
 2022-08-11,★ Karambit | Doppler (Factory New),863.117,2,Karambit,Rare,FN,0,0,81,81,0,-223,23500000
-2022-08-12,★ Karambit | Doppler (Factory New),1300.033,2,Karambit,Rare,FN,0,0,80,82,0,-222,23500000
+2022-08-12,★ Karambit | Doppler (Factory New),895.427,2,Karambit,Rare,FN,0,0,80,82,0,-222,23500000
 2022-08-13,★ Karambit | Doppler (Factory New),863.39,1,Karambit,Rare,FN,0,0,79,83,0,-221,23500000
 2022-08-14,★ Karambit | Doppler (Factory New),1085.56,6,Karambit,Rare,FN,0,0,78,84,0,-220,23500000
 2022-08-15,★ Karambit | Doppler (Factory New),860.658,4,Karambit,Rare,FN,0,0,77,85,0,-219,23500000
@@ -35372,7 +35372,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-08-18,★ M9 Bayonet | Doppler (Factory New),720.375,6,M9 Bayonet,Rare,FN,0,0,74,88,0,-216,23500000
 2022-08-19,★ M9 Bayonet | Doppler (Factory New),725.24,5,M9 Bayonet,Rare,FN,0,0,73,89,0,-215,23500000
 2022-08-20,★ M9 Bayonet | Doppler (Factory New),687.0,3,M9 Bayonet,Rare,FN,0,0,72,90,0,-214,23500000
-2022-08-21,★ M9 Bayonet | Doppler (Factory New),439.935,2,M9 Bayonet,Rare,FN,0,0,71,91,0,-213,23500000
+2022-08-21,★ M9 Bayonet | Doppler (Factory New),720.375,2,M9 Bayonet,Rare,FN,0,0,71,91,0,-213,23500000
 2022-08-22,★ M9 Bayonet | Doppler (Factory New),689.774,5,M9 Bayonet,Rare,FN,0,0,70,92,0,-212,23500000
 2022-08-23,★ M9 Bayonet | Doppler (Factory New),741.199,6,M9 Bayonet,Rare,FN,0,0,69,93,0,-211,23500000
 2022-08-24,★ M9 Bayonet | Doppler (Factory New),732.258,3,M9 Bayonet,Rare,FN,0,0,68,94,0,-210,23500000
@@ -35716,7 +35716,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-04-27,★ StatTrak™ Bayonet | Doppler (Factory New),606.418,1,Bayonet,Rare,FN,1,0,12,171,0,-329,24500000
 2022-04-28,★ StatTrak™ Bayonet | Doppler (Factory New),498.53,1,Bayonet,Rare,FN,1,0,11,172,0,-328,24500000
 2022-04-29,★ StatTrak™ Bayonet | Doppler (Factory New),495.14,1,Bayonet,Rare,FN,1,0,10,173,0,-327,24500000
-2022-04-30,★ StatTrak™ Bayonet | Doppler (Factory New),338.673,2,Bayonet,Rare,FN,1,0,9,174,0,-326,24500000
+2022-04-30,★ StatTrak™ Bayonet | Doppler (Factory New),498.53,2,Bayonet,Rare,FN,1,0,9,174,0,-326,24500000
 2022-05-01,★ StatTrak™ Bayonet | Doppler (Factory New),522.017,4,Bayonet,Rare,FN,1,0,8,175,0,-325,26000000
 2022-05-02,★ StatTrak™ Bayonet | Doppler (Factory New),497.0,1,Bayonet,Rare,FN,1,0,7,176,0,-324,26000000
 2022-05-03,★ StatTrak™ Bayonet | Doppler (Factory New),580.693,1,Bayonet,Rare,FN,1,0,6,177,0,-323,26000000
@@ -35734,7 +35734,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-05-22,★ StatTrak™ Bayonet | Doppler (Factory New),573.23,2,Bayonet,Rare,FN,1,0,0,0,1,-304,26000000
 2022-05-23,★ StatTrak™ Bayonet | Doppler (Factory New),483.943,3,Bayonet,Rare,FN,1,0,161,1,0,-303,26000000
 2022-05-24,★ StatTrak™ Bayonet | Doppler (Factory New),469.402,2,Bayonet,Rare,FN,1,0,160,2,0,-302,26000000
-2022-05-26,★ StatTrak™ Bayonet | Doppler (Factory New),931.502,3,Bayonet,Rare,FN,1,0,158,4,0,-300,26000000
+2022-05-26,★ StatTrak™ Bayonet | Doppler (Factory New),510.55,3,Bayonet,Rare,FN,1,0,158,4,0,-300,26000000
 2022-05-27,★ StatTrak™ Bayonet | Doppler (Factory New),510.55,1,Bayonet,Rare,FN,1,0,157,5,0,-299,26000000
 2022-05-29,★ StatTrak™ Bayonet | Doppler (Factory New),577.745,1,Bayonet,Rare,FN,1,0,155,7,0,-297,26000000
 2022-05-31,★ StatTrak™ Bayonet | Doppler (Factory New),468.323,1,Bayonet,Rare,FN,1,0,153,9,0,-295,26000000
@@ -35743,7 +35743,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-03,★ StatTrak™ Bayonet | Doppler (Factory New),535.098,1,Bayonet,Rare,FN,1,0,150,12,0,-292,24000000
 2022-06-04,★ StatTrak™ Bayonet | Doppler (Factory New),574.989,1,Bayonet,Rare,FN,1,0,149,13,0,-291,24000000
 2022-06-06,★ StatTrak™ Bayonet | Doppler (Factory New),589.18,2,Bayonet,Rare,FN,1,0,147,15,0,-289,24000000
-2022-06-07,★ StatTrak™ Bayonet | Doppler (Factory New),748.48,1,Bayonet,Rare,FN,1,0,146,16,0,-288,24000000
+2022-06-07,★ StatTrak™ Bayonet | Doppler (Factory New),535.098,1,Bayonet,Rare,FN,1,0,146,16,0,-288,24000000
 2022-06-08,★ StatTrak™ Bayonet | Doppler (Factory New),471.39,1,Bayonet,Rare,FN,1,0,145,17,0,-287,24000000
 2022-06-09,★ StatTrak™ Bayonet | Doppler (Factory New),466.59,1,Bayonet,Rare,FN,1,0,144,18,0,-286,24000000
 2022-06-11,★ StatTrak™ Bayonet | Doppler (Factory New),479.203,1,Bayonet,Rare,FN,1,0,142,20,0,-284,24000000
@@ -35821,7 +35821,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-09-15,★ StatTrak™ Bayonet | Doppler (Factory New),619.133,1,Bayonet,Rare,FN,1,0,46,116,0,-188,24000000
 2022-09-16,★ StatTrak™ Bayonet | Doppler (Factory New),560.702,3,Bayonet,Rare,FN,1,0,45,117,0,-187,24000000
 2022-09-17,★ StatTrak™ Bayonet | Doppler (Factory New),667.448,1,Bayonet,Rare,FN,1,0,44,118,0,-186,24000000
-2022-09-18,★ StatTrak™ Bayonet | Doppler (Factory New),386.808,2,Bayonet,Rare,FN,1,0,43,119,0,-185,24000000
+2022-09-18,★ StatTrak™ Bayonet | Doppler (Factory New),600.292,2,Bayonet,Rare,FN,1,0,43,119,0,-185,24000000
 2022-09-19,★ StatTrak™ Bayonet | Doppler (Factory New),604.258,3,Bayonet,Rare,FN,1,0,42,120,0,-184,24000000
 2022-09-20,★ StatTrak™ Bayonet | Doppler (Factory New),591.12,1,Bayonet,Rare,FN,1,0,41,121,0,-183,24000000
 2022-09-21,★ StatTrak™ Bayonet | Doppler (Factory New),600.292,1,Bayonet,Rare,FN,1,0,40,122,0,-182,24000000
@@ -35940,7 +35940,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-06-06,★ StatTrak™ Flip Knife | Doppler (Factory New),322.336,5,Flip Knife,Rare,FN,1,0,147,15,0,-289,24000000
 2022-06-07,★ StatTrak™ Flip Knife | Doppler (Factory New),342.65,1,Flip Knife,Rare,FN,1,0,146,16,0,-288,24000000
 2022-06-08,★ StatTrak™ Flip Knife | Doppler (Factory New),381.69,1,Flip Knife,Rare,FN,1,0,145,17,0,-287,24000000
-2022-06-10,★ StatTrak™ Flip Knife | Doppler (Factory New),446.646,1,Flip Knife,Rare,FN,1,0,143,19,0,-285,24000000
+2022-06-10,★ StatTrak™ Flip Knife | Doppler (Factory New),342.65,1,Flip Knife,Rare,FN,1,0,143,19,0,-285,24000000
 2022-06-11,★ StatTrak™ Flip Knife | Doppler (Factory New),313.067,2,Flip Knife,Rare,FN,1,0,142,20,0,-284,24000000
 2022-06-12,★ StatTrak™ Flip Knife | Doppler (Factory New),423.425,1,Flip Knife,Rare,FN,1,0,141,21,0,-283,24000000
 2022-06-13,★ StatTrak™ Flip Knife | Doppler (Factory New),311.0,1,Flip Knife,Rare,FN,1,0,140,22,0,-282,24000000
@@ -36117,7 +36117,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-05-27,★ StatTrak™ M9 Bayonet | Doppler (Factory New),683.831,1,M9 Bayonet,Rare,FN,1,0,157,5,0,-299,26000000
 2022-05-28,★ StatTrak™ M9 Bayonet | Doppler (Factory New),665.014,1,M9 Bayonet,Rare,FN,1,0,156,6,0,-298,26000000
 2022-05-29,★ StatTrak™ M9 Bayonet | Doppler (Factory New),681.875,2,M9 Bayonet,Rare,FN,1,0,155,7,0,-297,26000000
-2022-05-31,★ StatTrak™ M9 Bayonet | Doppler (Factory New),896.186,2,M9 Bayonet,Rare,FN,1,0,153,9,0,-295,26000000
+2022-05-31,★ StatTrak™ M9 Bayonet | Doppler (Factory New),683.831,2,M9 Bayonet,Rare,FN,1,0,153,9,0,-295,26000000
 2022-06-01,★ StatTrak™ M9 Bayonet | Doppler (Factory New),838.747,3,M9 Bayonet,Rare,FN,1,0,152,10,0,-294,24000000
 2022-06-04,★ StatTrak™ M9 Bayonet | Doppler (Factory New),707.5,2,M9 Bayonet,Rare,FN,1,0,149,13,0,-291,24000000
 2022-06-05,★ StatTrak™ M9 Bayonet | Doppler (Factory New),644.25,1,M9 Bayonet,Rare,FN,1,0,148,14,0,-290,24000000
@@ -36187,7 +36187,7 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-08-31,★ StatTrak™ M9 Bayonet | Doppler (Factory New),704.422,3,M9 Bayonet,Rare,FN,1,0,61,101,0,-203,23500000
 2022-09-01,★ StatTrak™ M9 Bayonet | Doppler (Factory New),788.183,1,M9 Bayonet,Rare,FN,1,0,60,102,0,-202,24000000
 2022-09-02,★ StatTrak™ M9 Bayonet | Doppler (Factory New),721.463,2,M9 Bayonet,Rare,FN,1,0,59,103,0,-201,24000000
-2022-09-03,★ StatTrak™ M9 Bayonet | Doppler (Factory New),1202.04,1,M9 Bayonet,Rare,FN,1,0,58,104,0,-200,24000000
+2022-09-03,★ StatTrak™ M9 Bayonet | Doppler (Factory New),786.77,1,M9 Bayonet,Rare,FN,1,0,58,104,0,-200,24000000
 2022-09-04,★ StatTrak™ M9 Bayonet | Doppler (Factory New),892.544,2,M9 Bayonet,Rare,FN,1,0,57,105,0,-199,24000000
 2022-09-05,★ StatTrak™ M9 Bayonet | Doppler (Factory New),786.77,1,M9 Bayonet,Rare,FN,1,0,56,106,0,-198,24000000
 2022-09-06,★ StatTrak™ M9 Bayonet | Doppler (Factory New),675.18,1,M9 Bayonet,Rare,FN,1,0,55,107,0,-197,24000000
@@ -36202,6 +36202,6 @@ date,market_hash_name,price,daily_volume,weapon_type,rarity,wear,is_stattrak,is_
 2022-09-18,★ StatTrak™ M9 Bayonet | Doppler (Factory New),789.44,1,M9 Bayonet,Rare,FN,1,0,43,119,0,-185,24000000
 2022-09-19,★ StatTrak™ M9 Bayonet | Doppler (Factory New),667.232,1,M9 Bayonet,Rare,FN,1,0,42,120,0,-184,24000000
 2022-09-21,★ StatTrak™ M9 Bayonet | Doppler (Factory New),699.378,4,M9 Bayonet,Rare,FN,1,0,40,122,0,-182,24000000
-2022-09-24,★ StatTrak™ M9 Bayonet | Doppler (Factory New),909.9,3,M9 Bayonet,Rare,FN,1,0,37,125,0,-179,24000000
+2022-09-24,★ StatTrak™ M9 Bayonet | Doppler (Factory New),699.378,3,M9 Bayonet,Rare,FN,1,0,37,125,0,-179,24000000
 2022-09-25,★ StatTrak™ M9 Bayonet | Doppler (Factory New),651.695,1,M9 Bayonet,Rare,FN,1,0,36,126,0,-178,24000000
 2022-09-26,★ StatTrak™ M9 Bayonet | Doppler (Factory New),780.006,1,M9 Bayonet,Rare,FN,1,0,35,127,0,-177,24000000
