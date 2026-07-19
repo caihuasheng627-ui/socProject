@@ -1,0 +1,81 @@
+{
+  "lstm_c": {
+    "n_items": 154,
+    "n_common_dates": 174,
+    "n_capped_items": 8,
+    "returnPct": 23.63,
+    "maxDrawdownPct": -7.75,
+    "trades": 791,
+    "winRate": 65.4
+  },
+  "lstm_d": {
+    "n_items": 154,
+    "n_common_dates": 174,
+    "n_capped_items": 7,
+    "returnPct": 27.66,
+    "maxDrawdownPct": -3.37,
+    "trades": 858,
+    "winRate": 70.7
+  },
+  "hybrid": {
+    "n_items": 154,
+    "n_common_dates": 174,
+    "n_capped_items": 8,
+    "returnPct": 28.22,
+    "maxDrawdownPct": -2.85,
+    "trades": 881,
+    "winRate": 71.5
+  },
+  "gru": {
+    "n_items": 10,
+    "n_common_dates": 174,
+    "n_capped_items": 1,
+    "returnPct": 42.34,
+    "maxDrawdownPct": -21.7,
+    "trades": 27,
+    "winRate": 63.2
+  },
+  "arima": {
+    "n_items": 5,
+    "n_common_dates": 35,
+    "n_capped_items": 0,
+    "returnPct": 3.19,
+    "maxDrawdownPct": -1.03,
+    "trades": 2,
+    "winRate": 100.0
+  },
+  "rf": {
+    "n_items": 154,
+    "n_common_dates": 234,
+    "n_capped_items": 12,
+    "returnPct": 26.7,
+    "maxDrawdownPct": -7.41,
+    "trades": 558,
+    "winRate": 75.2
+  },
+  "lightgbm": {
+    "n_items": 154,
+    "n_common_dates": 234,
+    "n_capped_items": 11,
+    "returnPct": 31.22,
+    "maxDrawdownPct": -9.47,
+    "trades": 681,
+    "winRate": 76.2
+  },
+  "xgboost": {
+    "n_items": 154,
+    "n_common_dates": 234,
+    "n_capped_items": 8,
+    "returnPct": 26.54,
+    "maxDrawdownPct": -8.77,
+    "trades": 619,
+    "winRate": 73.9
+  },
+  "买入持有": {
+    "n_items": 154,
+    "returnPct": 4.16,
+    "maxDrawdownPct": null,
+    "trades": null,
+    "winRate": null
+  }
+}

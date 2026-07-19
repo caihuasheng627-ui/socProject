@@ -1,0 +1,132 @@
+{
+  "model": "XGBoost Classifier",
+  "classes": [
+    "die",
+    "ping",
+    "zhang"
+  ],
+  "n_features": 23,
+  "n_samples": 2000,
+  "feature_importance_all_classes": [
+    {
+      "rank": 1,
+      "feature": "log_price",
+      "mean_abs_shap": 0.944123
+    },
+    {
+      "rank": 2,
+      "feature": "MA_7",
+      "mean_abs_shap": 0.16969
+    },
+    {
+      "rank": 3,
+      "feature": "MA_30",
+      "mean_abs_shap": 0.168146
+    },
+    {
+      "rank": 4,
+      "feature": "days_since_cs2_announce",
+      "mean_abs_shap": 0.151464
+    },
+    {
+      "rank": 5,
+      "feature": "Volatility_30",
+      "mean_abs_shap": 0.129738
+    },
+    {
+      "rank": 6,
+      "feature": "MA_90",
+      "mean_abs_shap": 0.109662
+    },
+    {
+      "rank": 7,
+      "feature": "days_since_last_major",
+      "mean_abs_shap": 0.081681
+    },
+    {
+      "rank": 8,
+      "feature": "Volume_MA_7",
+      "mean_abs_shap": 0.076278
+    },
+    {
+      "rank": 9,
+      "feature": "MA_30_dev",
+      "mean_abs_shap": 0.060597
+    },
+    {
+      "rank": 10,
+      "feature": "steam_ccu",
+      "mean_abs_shap": 0.05325
+    },
+    {
+      "rank": 11,
+      "feature": "days_to_next_major",
+      "mean_abs_shap": 0.04915
+    },
+    {
+      "rank": 12,
+      "feature": "Return_1d",
+      "mean_abs_shap": 0.03492
+    },
+    {
+      "rank": 13,
+      "feature": "MACD",
+      "mean_abs_shap": 0.023558
+    },
+    {
+      "rank": 14,
+      "feature": "Return_7d",
+      "mean_abs_shap": 0.022867
+    },
+    {
+      "rank": 15,
+      "feature": "BB_position",
+      "mean_abs_shap": 0.02073
+    },
+    {
+      "rank": 16,
+      "feature": "Volume_Change_Ratio",
+      "mean_abs_shap": 0.018865
+    },
+    {
+      "rank": 17,
+      "feature": "RSI_14",
+      "mean_abs_shap": 0.0142
+    },
+    {
+      "rank": 18,
+      "feature": "weapon_type_enc",
+      "mean_abs_shap": 0.013353
+    },
+    {
+      "rank": 19,
+      "feature": "is_stattrak",
+      "mean_abs_shap": 0.011676
+    },
+    {
+      "rank": 20,
+      "feature": "wear_enc",
+      "mean_abs_shap": 0.004168
+    },
+    {
+      "rank": 21,
+      "feature": "rarity_enc",
+      "mean_abs_shap": 0.002476
+    },
+    {
+      "rank": 22,
+      "feature": "is_floor_price",
+      "mean_abs_shap": 0.0
+    },
+    {
+      "rank": 23,
+      "feature": "is_major_active",
+      "mean_abs_shap": 0.0
+    }
+  ],
+  "top3_all": [
+    "log_price",
+    "MA_7",
+    "MA_30"
+  ]
+}
