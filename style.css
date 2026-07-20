@@ -129,7 +129,7 @@
 
 html, body {
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: 'Outfit', "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg-root);
   color: var(--text-primary);
   font-size: 14px;
@@ -2365,6 +2365,265 @@ i.ph-duotone {
 .loader-text {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ============ 首屏 Landing ============ */
+.landing {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #06050a;
+  color: var(--text-primary);
+}
+
+.landing--exit {
+  animation: landingExit 0.55s var(--ease-out-expo) forwards;
+  pointer-events: none;
+}
+
+@keyframes landingExit {
+  to {
+    opacity: 0;
+    transform: scale(1.02);
+    visibility: hidden;
+  }
+}
+
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--accent-orange);
+}
+
+.landing-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 107, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 107, 0, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 20%, transparent 75%);
+  animation: landingGridDrift 28s linear infinite;
+}
+
+@keyframes landingGridDrift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 64px 64px, 64px 64px; }
+}
+
+.landing-bg-glow {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 55% 40% at 50% 35%, rgba(255, 107, 0, 0.18), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 70% 70%, rgba(77, 140, 247, 0.08), transparent 55%),
+    linear-gradient(180deg, #0a090f 0%, #06050a 55%, #04040a 100%);
+  animation: landingGlowPulse 6s ease-in-out infinite alternate;
+}
+
+@keyframes landingGlowPulse {
+  from { opacity: 0.85; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.04); }
+}
+
+.landing-bg-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28%;
+  top: -30%;
+  background: linear-gradient(180deg, transparent, rgba(255, 107, 0, 0.06), transparent);
+  animation: landingScan 7s var(--ease-in-out) infinite;
+}
+
+@keyframes landingScan {
+  0% { top: -30%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 110%; opacity: 0; }
+}
+
+.landing-bg-mark {
+  position: absolute;
+  width: min(78vw, 720px);
+  height: auto;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+  animation: landingMarkSpin 48s linear infinite;
+}
+
+@keyframes landingMarkSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.landing-inner {
+  position: relative;
+  z-index: 1;
+  width: min(920px, 92vw);
+  text-align: center;
+  padding: 24px 16px 40px;
+}
+
+.landing-brand {
+  margin: 0 0 18px;
+  font-family: 'Syne', 'Outfit', sans-serif;
+  font-size: clamp(42px, 9vw, 88px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  background: linear-gradient(135deg, #fff 10%, #ff8c40 55%, #ff6b00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landingRise 0.9s var(--ease-out-expo) both;
+}
+
+.landing-headline {
+  margin: 0 auto 14px;
+  max-width: 16em;
+  font-family: 'Syne', 'Outfit', sans-serif;
+  font-size: clamp(20px, 3.4vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-primary);
+  animation: landingRise 0.9s var(--ease-out-expo) 0.08s both;
+}
+
+.landing-lead {
+  margin: 0 auto 28px;
+  max-width: 34em;
+  font-size: clamp(14px, 1.7vw, 17px);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  animation: landingRise 0.9s var(--ease-out-expo) 0.16s both;
+}
+
+.landing-cta {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 36px;
+  animation: landingRise 0.9s var(--ease-out-expo) 0.24s both;
+}
+
+.landing-enter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--gradient-primary);
+  color: #120a04;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255, 140, 64, 0.35), var(--shadow-orange);
+  transition: transform var(--duration-fast) var(--ease-out-expo), box-shadow var(--duration-base) ease;
+}
+
+.landing-enter:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(255, 140, 64, 0.5), 0 0 40px rgba(255, 107, 0, 0.35);
+}
+
+.landing-enter:active {
+  transform: translateY(0);
+}
+
+.landing-enter svg {
+  animation: landingArrow 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes landingArrow {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.landing-highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 28px;
+  animation: landingRise 0.9s var(--ease-out-expo) 0.32s both;
+}
+
+.landing-highlights li {
+  position: relative;
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.landing-highlights li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -16px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 107, 0, 0.55);
+  transform: translateY(-50%);
+}
+
+@keyframes landingRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-highlights {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .landing-highlights li:not(:last-child)::after {
+    display: none;
+  }
+  .landing-bg-mark {
+    width: 120vw;
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-bg-grid,
+  .landing-bg-glow,
+  .landing-bg-scan,
+  .landing-bg-mark,
+  .landing-enter svg,
+  .landing-brand,
+  .landing-headline,
+  .landing-lead,
+  .landing-cta,
+  .landing-highlights {
+    animation: none !important;
+  }
+  .landing--exit {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* ============ 骨架屏 ============ */
