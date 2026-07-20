@@ -13,7 +13,7 @@
 | 入口 | 地址 |
 |------|------|
 | GitHub | https://github.com/caihuasheng627-ui/socproject |
-| GitHub Pages | https://caihuasheng627-ui.github.io/socProject/（启用 Pages 后） |
+| GitHub Pages | https://caihuasheng627-ui.github.io/socProject |
 > Pages / 静态演示默认走 Mock。完整预测、对话、辩论、持仓诊断需启动后端（见下方部署）。
 
 ---
