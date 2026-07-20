@@ -1,0 +1,67 @@
+{
+  "date": "2026-07-20",
+  "metrics": {
+    "monitored": 154,
+    "gainers": 40,
+    "losers": 81
+  },
+  "portfolio": [
+    {
+      "name": "AK-47 | Elite Build (Minimal Wear)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "AWP | Asiimov (Field-Tested)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "M4A1-S | Briefing (Factory New)",
+      "quantity": 2,
+      "holdingType": "sim"
+    },
+    {
+      "name": "USP-S | Cyrex (Factory New)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "★ Karambit | Doppler (Factory New)",
+      "quantity": 1,
+      "holdingType": "sim"
+    },
+    {
+      "name": "★ Driver Gloves | Overtake (Field-Tested)",
+      "quantity": 1,
+      "holdingType": "real"
+    }
+  ],
+  "aiSummary": "(Mock 模式 · 未配置 DEEPSEEK_API_KEY)\n已收到你的问题:「今日 CS2 饰品市场:监控 154 件,上涨 40 件,下跌 81 件。你的持仓:AK-47 | Elite Buil」\n基于 Hybrid 模型(LSTM-C/D 路由)与近 7 日行情,该饰品短期偏强震荡,7 天预测涨幅约 +1.5%~+2.5%(置信度 ~78%)。建议关注成交量与 Major 赛程节奏,设止损 -5%。\n\n⚠ 饰品市场高波动,以上不构成投资建议。",
+  "news": [
+    {
+      "title": "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
+      "summary": "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
+      "source": "valve",
+      "sentiment": "positive"
+    },
+    {
+      "title": "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
+      "summary": "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
+      "source": "hltv",
+      "sentiment": "positive"
+    },
+    {
+      "title": "BUFF 平台部分高价值饰品挂单减少",
+      "summary": "高价值饰品流动性下降,短期价格波动可能加大。",
+      "source": "internal",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "社区热议新箱子掉落率调整",
+      "summary": "若掉落率下调,箱子价格可能上行。",
+      "source": "reddit",
+      "sentiment": "positive"
+    }
+  ]
+}

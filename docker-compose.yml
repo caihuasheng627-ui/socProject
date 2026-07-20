@@ -1,0 +1,55 @@
+# SkinVision AI — Docker 一键部署
+# 用法:
+#   cp backend/.env.example backend/.env   # 可选填 DEEPSEEK_API_KEY
+#   docker compose up --build -d
+# API http://localhost:8000  |  Web http://localhost:8080
+# 前端切真实后端(浏览器控制台):
+#   localStorage.setItem('sv_api_url','http://localhost:8000');
+#   localStorage.setItem('sv_use_mock','false'); location.reload();
+services:
+  api:
+    build: .
+    container_name: skinvision-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      PRED_CACHE_TTL_HOURS: ${PRED_CACHE_TTL_HOURS:-6}
+      USD_CNY_RATE: ${USD_CNY_RATE:-7.2}
+      USE_BUFF_LIVE: ${USE_BUFF_LIVE:-0}
+      ENABLE_INCREMENTAL_TRAIN: ${ENABLE_INCREMENTAL_TRAIN:-0}
+    volumes:
+      # 持久化 SQLite(持仓/预警/缓存),重启不丢
+      - sqlite-data:/app/backend/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端静态托管
+  web:
+    image: nginx:alpine
+    container_name: skinvision-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./app.js:/usr/share/nginx/html/app.js:ro
+      - ./style.css:/usr/share/nginx/html/style.css:ro
+      - ./data.js:/usr/share/nginx/html/data.js:ro
+      - ./i18n.js:/usr/share/nginx/html/i18n.js:ro
+      - ./js:/usr/share/nginx/html/js:ro
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  sqlite-data:

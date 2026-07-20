@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>CSVest — CS2 饰品 AI 智能分析平台</title>
 
-  <!-- Inter Font (Modern Dark premium typography) -->
+  <!-- Display: Syne · UI: Outfit (landing + app) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -17,7 +17,8 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+            sans: ['Outfit', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+            display: ['Syne', 'Outfit', 'sans-serif'],
           },
         },
       },
@@ -67,6 +68,49 @@
       </div>
     </div>
 
+    <!-- ============ 首屏 Landing ============ -->
+    <section
+      v-if="showLanding"
+      class="landing"
+      :class="{ 'landing--exit': landingExiting }"
+      aria-label="CSVest landing"
+    >
+      <div class="landing-bg" aria-hidden="true">
+        <div class="landing-bg-grid"></div>
+        <div class="landing-bg-glow"></div>
+        <div class="landing-bg-scan"></div>
+        <svg class="landing-bg-mark" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="320" cy="320" r="220" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+          <circle cx="320" cy="320" r="150" stroke="currentColor" stroke-width="1.2" opacity="0.28"/>
+          <circle cx="320" cy="320" r="80" stroke="currentColor" stroke-width="1.5" opacity="0.45"/>
+          <path d="M320 60 V140 M320 500 V580 M60 320 H140 M500 320 H580" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+          <circle cx="320" cy="320" r="8" fill="currentColor" opacity="0.7"/>
+        </svg>
+      </div>
+
+      <div class="landing-inner">
+        <p class="landing-brand">CSVest</p>
+        <h1 class="landing-headline">{{ t('landing.headline') }}</h1>
+        <p class="landing-lead">{{ t('landing.lead') }}</p>
+
+        <div class="landing-cta">
+          <button type="button" class="landing-enter" @click="enterSystem">
+            <span>{{ t('landing.cta') }}</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+              <path d="M5 12h14M13 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <ul class="landing-highlights" :aria-label="t('landing.highlightsLabel')">
+          <li>{{ t('landing.h1') }}</li>
+          <li>{{ t('landing.h2') }}</li>
+          <li>{{ t('landing.h3') }}</li>
+        </ul>
+      </div>
+    </section>
+
+    <template v-if="!showLanding">
     <!-- 移动端侧边栏遮罩 -->
     <div class="sidebar-overlay" :class="{ show: sidebarOpen }" @click="sidebarOpen = false"></div>
 
@@ -119,14 +163,15 @@
     <!-- 主内容区 -->
     <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
-        <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" style="display: none;">
-          <i :class="sidebarOpen ? 'ph-bold ph-x' : 'ph-bold ph-list'" aria-hidden="true"></i>
+        <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" :aria-expanded="sidebarOpen">
+          <span class="menu-toggle-icon" aria-hidden="true" v-html="renderLucideIcon(sidebarOpen ? 'x' : 'menu', 18)"></span>
         </button>
         <div class="breadcrumb">
-          <span>{{ t('app.name') }}</span>
-          <i class="ph ph-caret-right" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
+          <span class="breadcrumb-app">{{ t('app.name') }}</span>
+          <i class="ph ph-caret-right breadcrumb-sep" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
           <span class="page-title">{{ currentMenu?.label }}</span>
         </div>
+        <div class="mobile-page-title">{{ currentMenu?.label }}</div>
 
         <div class="topbar-actions">
           <!-- 语言切换按钮 -->
@@ -1178,6 +1223,7 @@
         </div>
       </div>
     </div>
+    </template>
 
     <!-- Toast 通知 -->
     <div class="toast-container" aria-live="polite">

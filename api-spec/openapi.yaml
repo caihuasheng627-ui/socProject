@@ -16,7 +16,7 @@ info:
     **LLM**: DeepSeek-V3 (中文优化)
     **RAG**: LangChain + Qdrant / pgvector
     **Agent**: 双 Agent 辩论机制 (🐂 Bull vs 🐻 Bear)
-  version: 1.1.0
+  version: 1.2.0
   contact:
     name: 蔡华升 (前端) / 课程组
     email: caihuasheng627@users.noreply.github.com
@@ -332,6 +332,12 @@ paths:
             type: string
             enum: [bull_bear, tech_fundamental]
             default: bull_bear
+        - name: live
+          in: query
+          description: 🆕 true=现场重跑 DeepSeek;默认 false=预录回放(Expo)
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: 成功
@@ -491,6 +497,59 @@ paths:
           description: 成功
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ============ 🆕 组合诊断(方案 B 核心创新)============
+  /api/portfolio/value_history:
+    get:
+      tags: [Portfolio]
+      summary: 持仓总市值历史曲线
+      description: |
+        SQL 聚合:`portfolio JOIN price_history GROUP BY date`。
+        用于「我的库存」页总值曲线(冷启动用已落库历史价回填)。
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dates:
+                    type: array
+                    items:
+                      type: string
+                  values:
+                    type: array
+                    items:
+                      type: number
+                  total:
+                    type: number
+
+  /api/portfolio/diagnose:
+    post:
+      tags: [Portfolio]
+      summary: AI 组合诊断(三块输出)
+      description: |
+        方案 B 核心创新。逐件 Hybrid 预测(走 predictions 缓存)→ 三块固定输出:
+          1. 7/30 天库存总值预估区间
+          2. 逐件调仓建议(卖/持/加)+ RAG 理由
+          3. 风险贡献 Top N(波动 × 市值)
+        库存 >20 件时分批。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioDiagnosis'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   # ============ 模型对比 ============
   /api/models/comparison:
@@ -860,8 +919,14 @@ components:
           type: string
         name:
           type: string
+        holdingType:
+          type: string
+          enum: [real, sim]
+          description: 🆕 real=真实持仓 / sim=模拟持仓
         buyPrice:
           type: number
+          nullable: true
+          description: 可空(模拟持仓可不填成本)
         quantity:
           type: integer
         buyDate:
@@ -875,6 +940,85 @@ components:
           type: number
         pnlPct:
           type: number
+
+    PortfolioDiagnosis:
+      type: object
+      description: 🆕 组合诊断三块输出
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        totalItems:
+          type: integer
+        valueRange:
+          type: object
+          description: 块1 — 总值区间
+          properties:
+            current:
+              type: number
+            pred7d_low:
+              type: number
+            pred7d_high:
+              type: number
+            pred30d_low:
+              type: number
+            pred30d_high:
+              type: number
+            expected7d_change_pct:
+              type: number
+        adjustments:
+          type: array
+          description: 块2 — 逐件调仓建议
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              skinId:
+                type: string
+              name:
+                type: string
+              holdingType:
+                type: string
+              quantity:
+                type: integer
+              currentPrice:
+                type: number
+              marketValue:
+                type: number
+              pred7d:
+                type: number
+              pred30d:
+                type: number
+              predChange7d:
+                type: number
+              action:
+                type: string
+                enum: [加仓, 持有, 持有(减仓观察), 卖出]
+              reason:
+                type: string
+              vol30:
+                type: number
+              maxDrawdown30:
+                type: number
+        riskTopN:
+          type: array
+          description: 块3 — 风险贡献 Top N
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              marketValue:
+                type: number
+              vol30:
+                type: number
+              maxDrawdown30:
+                type: number
+              riskSharePct:
+                type: number
+        aiSummary:
+          type: string
 
     ModelResult:
       type: object

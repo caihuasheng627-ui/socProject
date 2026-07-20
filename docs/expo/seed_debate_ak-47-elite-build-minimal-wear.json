@@ -1,0 +1,42 @@
+{
+  "skinId": "ak-47-elite-build-minimal-wear",
+  "mode": "pre_recorded",
+  "rounds": [
+    {
+      "round": 1,
+      "bull": "模型预测 7 天涨幅 9.67%,趋势偏多,目标价 $1.65。成交量与 Major 节奏支撑短期上行。",
+      "bear": "近 30 日波动较大,若跌破 $1.36 则趋势破坏。高估值饰品流动性风险不容忽视。"
+    },
+    {
+      "round": 2,
+      "bull": "止损 $1.36 可控,风险收益比尚可,维持看多。",
+      "bear": "模型置信度仅 90.3,预测涨幅有限,建议轻仓试探。"
+    },
+    {
+      "round": 3,
+      "bull": "综合看,温和看多,建议小仓位持有。",
+      "bear": "同意观望偏多,严守止损。"
+    }
+  ],
+  "consensus": {
+    "recommendation": "观望偏多(轻仓)",
+    "entryRange": "$1.42 ~ $1.45",
+    "stopLoss": "$1.36",
+    "targetPrice": "$1.6",
+    "consensusScore": 69.0,
+    "confidence": "medium",
+    "risks": [
+      "饰品市场高波动,模型预测存在误差",
+      "流动性不足时滑点放大"
+    ]
+  },
+  "prediction": {
+    "current_price": 1.46,
+    "predicted_price": 1.6,
+    "model": "LSTM-D",
+    "date": "2023-05-20",
+    "change_pct": 9.67,
+    "confidence": 90.3
+  },
+  "name": "AK-47 | Elite Build (Minimal Wear)"
+}

@@ -9,7 +9,10 @@ class CSVestAPI {
     this.baseURL = localStorage.getItem('sv_api_url') || 'http://localhost:8000';
     this.token = localStorage.getItem('sv_token') || null;
     this.timeout = 30000; // 30s
-    this.useMock = localStorage.getItem('sv_use_mock') === 'true' || true; // 默认 mock
+    // 未设置时默认 mock；显式设为 'false' 才走真实后端
+    // 旧写法 `=== 'true' || true` 恒为 true，导致永远连不上后端
+    const mockFlag = localStorage.getItem('sv_use_mock');
+    this.useMock = mockFlag === null ? true : mockFlag === 'true';
     this.online = false;
   }
 
