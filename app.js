@@ -236,6 +236,7 @@ const app = createApp({
     };
 
     // ============ 数据 ============
+    const apiOnline = ref(false);
     const skins = ref(window.CSVestData.SKINS_POOL);
     const topGainers = ref(window.CSVestData.TOP_GAINERS);
     const topLosers = ref(window.CSVestData.TOP_LOSERS);
@@ -243,6 +244,89 @@ const app = createApp({
     const newsFeed = ref(window.CSVestData.NEWS_FEED);
     const debateData = window.CSVestData.DEBATE_SAMPLE;
     const modelComparison = window.CSVestData.MODEL_COMPARISON;
+    const USD_CNY = 7.2;
+
+    const api = () => window.CSVestAPI || window.SkinVisionAPI;
+
+    const reconnectLeaders = () => {
+      topGainers.value = [...skins.value].sort((a, b) => (b.change7d || 0) - (a.change7d || 0)).slice(0, 8);
+      topLosers.value = [...skins.value].sort((a, b) => (a.change7d || 0) - (b.change7d || 0)).slice(0, 8);
+      hotVolume.value = [...skins.value].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
+    };
+
+    const loadSkinsFromApi = async () => {
+      const client = api();
+      if (!client) return false;
+      const res = await client.getSkins({ limit: 100, sort: 'volume_desc' });
+      const items = res?.items || [];
+      if (!items.length) return false;
+      skins.value = items.map(s => ({
+        ...s,
+        image: s.image || '🎮',
+        price: s.price ?? (s.priceUsd != null ? +(s.priceUsd * USD_CNY).toFixed(2) : 0),
+      }));
+      reconnectLeaders();
+      const prefer = skins.value.find(s => /ak-47|ak47/i.test(s.id || s.name || ''))
+        || skins.value.find(s => /awp/i.test(s.id || s.name || ''))
+        || skins.value[0];
+      if (prefer) selectedSkin.value = prefer;
+      return true;
+    };
+
+    const loadPredictions = async (skinId) => {
+      const client = api();
+      if (!client || !skinId) return;
+      try {
+        const res = await client.predict(skinId, 7);
+        const rate = (selectedSkin.value?.price && selectedSkin.value?.priceUsd)
+          ? selectedSkin.value.price / selectedSkin.value.priceUsd
+          : USD_CNY;
+        modelPredictions.value = (res.predictions || []).map(p => {
+          // 后端模型价多为 USD，前端列表价为 CNY
+          const looksUsd = selectedSkin.value?.priceUsd != null
+            && Math.abs((p.price || 0) - selectedSkin.value.priceUsd) < Math.abs((p.price || 0) - (selectedSkin.value.price || 0));
+          const priceCny = looksUsd ? +(p.price * rate).toFixed(2) : +(p.price || 0).toFixed(2);
+          return {
+            name: p.model,
+            type: p.type || 'ML',
+            price: priceCny,
+            change: +(p.change || 0).toFixed(2),
+            confidence: Math.round(p.confidence || 0),
+          };
+        });
+        return res;
+      } catch (err) {
+        console.warn('[CSVest] predict failed', err);
+        return null;
+      }
+    };
+
+    const connectBackend = async () => {
+      const client = api();
+      if (!client) {
+        console.warn('[CSVest] js/api.js not loaded');
+        return false;
+      }
+      try {
+        client.setBaseURL(localStorage.getItem('sv_api_url') || 'http://localhost:8000');
+        // 探测到后端则强制走真实 API（覆盖默认 mock）
+        await client.health();
+        client.setUseMock(false);
+        apiOnline.value = true;
+        await loadSkinsFromApi();
+        try {
+          const news = await client.getNews({ limit: 10 });
+          const items = Array.isArray(news) ? news : (news?.items || []);
+          if (items.length) newsFeed.value = items;
+        } catch (_) { /* keep mock news */ }
+        showToast({ title: '已连接后端', message: 'http://localhost:8000', type: 'success' });
+        return true;
+      } catch (err) {
+        apiOnline.value = false;
+        console.warn('[CSVest] backend offline, mock data:', err?.message || err);
+        return false;
+      }
+    };
     const regressionModels = ref([
       { ...modelComparison.regression[0], course: 'DL · panel Embedding' },
       { ...modelComparison.regression[1], course: 'DL · price tiers' },
@@ -271,28 +355,37 @@ const app = createApp({
       if (filterCategory.value === 'all') return skins.value;
       // 反向查找:从 i18n key 找到中文标签
       const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
-      return skins.value.filter(s => s.category === zhLabel);
+      return skins.value.filter(s => s.category === zhLabel || categoryMap[s.category] === filterCategory.value);
     });
 
-    const refreshData = () => {
-      // 模拟数据波动
+    const refreshData = async () => {
+      if (apiOnline.value) {
+        try {
+          await loadSkinsFromApi();
+          if (selectedSkin.value?.id) await loadPredictions(selectedSkin.value.id);
+          showToast({ title: t('network.online') || '已刷新', type: 'success' });
+          return;
+        } catch (err) {
+          console.warn('[CSVest] refresh failed', err);
+        }
+      }
+      // Mock 波动兜底
       skins.value = skins.value.map(s => ({
         ...s,
         change24h: s.change24h + (Math.random() - 0.5) * 0.5,
         change7d: s.change7d + (Math.random() - 0.5) * 0.3,
         price: s.price * (1 + (Math.random() - 0.5) * 0.01),
       }));
-      // 重新计算涨跌榜
-      topGainers.value = [...skins.value].sort((a, b) => b.change7d - a.change7d).slice(0, 8);
-      topLosers.value = [...skins.value].sort((a, b) => a.change7d - b.change7d).slice(0, 8);
+      reconnectLeaders();
     };
 
     // ============ AI 预测详情 ============
-    const selectedSkin = ref(skins.value[1]); // 默认 AK-47 Fire Serpent
+    const selectedSkin = ref(skins.value[1] || skins.value[0]);
     const klineChart = ref(null);
     const timeframe = ref('90D');
     const klineLoading = ref(false);
     let klineChartInstance = null;
+    const modelPredictions = ref([]);
 
     const viewSkin = (skinId) => {
       const skin = skins.value.find(s => s.id === skinId);
@@ -306,25 +399,11 @@ const app = createApp({
       return ['独立分析', '互相质疑', '达成共识'][idx];
     };
 
-    // 模型预测结果
-    const modelPredictions = computed(() => {
-      if (!selectedSkin.value) return [];
-      const base = selectedSkin.value.price;
-      return [
-        { name: 'ARIMA', type: '统计', price: base * 1.012, change: 1.2, confidence: 65 },
-        { name: 'XGBoost', type: 'ML', price: base * 1.018, change: 1.8, confidence: 78 },
-        { name: 'LightGBM', type: 'ML', price: base * 1.016, change: 1.6, confidence: 76 },
-        { name: 'Random Forest', type: 'ML', price: base * 1.014, change: 1.4, confidence: 72 },
-        { name: 'LSTM', type: 'DL ⭐', price: base * 1.025, change: 2.5, confidence: 82 },
-        { name: 'GRU', type: 'DL', price: base * 1.022, change: 2.2, confidence: 80 },
-      ];
-    });
-
     // 相关新闻
     const relatedNews = computed(() => {
       if (!selectedSkin.value) return [];
       return newsFeed.value.filter(n =>
-        !n.relatedSkins.length || n.relatedSkins.includes(selectedSkin.value.id)
+        !n.relatedSkins?.length || n.relatedSkins.includes(selectedSkin.value.id)
       ).slice(0, 4);
     });
 
@@ -332,35 +411,80 @@ const app = createApp({
       return sentiment === 'positive' ? '📈' : sentiment === 'negative' ? '📉' : '📰';
     };
 
-    // K线图渲染
+    // K线图渲染（优先后端真实 K 线 + 模型预测）
     const renderKline = async () => {
       if (!klineChart.value || !selectedSkin.value) return;
 
       klineLoading.value = true;
-      // 模拟短暂加载(让用户感知到数据刷新)
-      await new Promise(resolve => setTimeout(resolve, 200));
-
       klineChartInstance = getOrCreateChart(klineChartInstance, klineChart.value);
 
-      const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value];
-      const { kline, volumes } = window.CSVestData.generateKLineData(
-        selectedSkin.value.price,
-        days,
-        selectedSkin.value.category === '箱子' ? 0.02 : 0.035
-      );
+      const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value] || 90;
+      let kline = [];
+      let volumes = [];
+      let ma7 = [];
+      let ma30 = [];
+      let predChange = 0.02;
 
-      const ma7 = window.CSVestData.calculateMA(kline, 7);
-      const ma30 = window.CSVestData.calculateMA(kline, 30);
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          const [kl, pred] = await Promise.all([
+            client.getKLine(selectedSkin.value.id, days),
+            loadPredictions(selectedSkin.value.id),
+          ]);
+          const rate = (selectedSkin.value.price && selectedSkin.value.priceUsd)
+            ? selectedSkin.value.price / selectedSkin.value.priceUsd
+            : USD_CNY;
+          // 后端 K 线为 USD，转成 CNY 与列表价一致
+          kline = (kl.data || []).map(d => [
+            d.date,
+            +(d.open * rate).toFixed(2),
+            +(d.close * rate).toFixed(2),
+            +(d.low * rate).toFixed(2),
+            +(d.high * rate).toFixed(2),
+          ]);
+          volumes = (kl.volumes || []).map((v, i) => [i, v.volume, v.direction]);
+          ma7 = (kl.ma7 || []).map(v => v == null ? '-' : +(v * rate).toFixed(2));
+          ma30 = (kl.ma30 || []).map(v => v == null ? '-' : +(v * rate).toFixed(2));
+          const lstm = (pred?.predictions || []).find(p => /LSTM/i.test(p.model))
+            || (pred?.predictions || [])[0];
+          if (lstm?.change != null) predChange = lstm.change / 100;
+        }
+      } catch (err) {
+        console.warn('[CSVest] kline api failed, mock fallback', err);
+      }
 
-      // 预测数据(虚线显示)
+      if (!kline.length) {
+        const mock = window.CSVestData.generateKLineData(
+          selectedSkin.value.price,
+          days,
+          selectedSkin.value.category === '箱子' ? 0.02 : 0.035
+        );
+        kline = mock.kline;
+        volumes = mock.volumes;
+        ma7 = window.CSVestData.calculateMA(kline, 7);
+        ma30 = window.CSVestData.calculateMA(kline, 30);
+        if (!modelPredictions.value.length) {
+          const base = selectedSkin.value.price;
+          modelPredictions.value = [
+            { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65 },
+            { name: 'XGBoost', type: 'ML', price: +(base * 1.018).toFixed(2), change: 1.8, confidence: 78 },
+            { name: 'LightGBM', type: 'ML', price: +(base * 1.016).toFixed(2), change: 1.6, confidence: 76 },
+            { name: 'Random Forest', type: 'ML', price: +(base * 1.014).toFixed(2), change: 1.4, confidence: 72 },
+            { name: 'LSTM', type: 'DL ⭐', price: +(base * 1.025).toFixed(2), change: 2.5, confidence: 82 },
+            { name: 'GRU', type: 'DL', price: +(base * 1.022).toFixed(2), change: 2.2, confidence: 80 },
+          ];
+        }
+      }
+
       const lastClose = parseFloat(kline[kline.length - 1][2]);
       const predictedDates = [];
       const predictedValues = [];
-      for (let i = 1; i <= 30; i++) {
+      const horizon = 7;
+      for (let i = 1; i <= horizon; i++) {
         const d = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-        const predicted = lastClose * (1 + 0.0008 * i + (Math.random() - 0.5) * 0.01);
-        predictedValues.push(predicted.toFixed(2));
+        predictedValues.push((lastClose * (1 + predChange * (i / horizon))).toFixed(2));
       }
 
       const option = {
@@ -430,8 +554,8 @@ const app = createApp({
             type: 'candlestick',
             data: kline.map(d => [d[1], d[3], d[4], d[2]]),
             itemStyle: {
-              color: '#ef4444',  // 涨红色(中国市场)
-              color0: '#10b981', // 跌绿色
+              color: '#ef4444',
+              color0: '#10b981',
               borderColor: '#ef4444',
               borderColor0: '#10b981',
             },
@@ -1095,6 +1219,9 @@ const app = createApp({
         if (loader) loader.classList.add('hidden');
       }, 300);
 
+      // 自动探测后端；通了就切真实 API
+      await connectBackend();
+
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
       if (!showLanding.value) {
         renderKline();
@@ -1169,6 +1296,7 @@ const app = createApp({
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, filteredSkins,
+      apiOnline, connectBackend,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, relatedNews, newsIcon, roundTitle, debateData,
