@@ -242,9 +242,90 @@ const app = createApp({
     const topLosers = ref(window.CSVestData.TOP_LOSERS);
     const hotVolume = ref(window.CSVestData.HOT_VOLUME);
     const newsFeed = ref(window.CSVestData.NEWS_FEED);
-    const debateData = window.CSVestData.DEBATE_SAMPLE;
+    const debateData = ref(window.CSVestData.DEBATE_SAMPLE);
+
+    const buildDebateFromSkin = (skin, meta = {}) => {
+      const price = +(skin?.price || 0);
+      const target = +(meta.targetPrice ?? price * 1.05);
+      const chg = price ? +(((target - price) / price) * 100).toFixed(2) : 0;
+      const entryLow = +(meta.entryLow ?? price * 0.97).toFixed(2);
+      const entryHigh = +(meta.entryHigh ?? price * 0.99).toFixed(2);
+      const stop = +(price * 0.93).toFixed(2);
+      const bullTarget = +(target * 1.03).toFixed(2);
+      return {
+        skin: skin?.name || '',
+        currentPrice: price,
+        rounds: [
+          {
+            round: 1,
+            bull: `🟢 多头 Agent:模型预测 7 天涨幅 ${chg}%,趋势偏多,目标价 $${bullTarget}。成交量与 Major 节奏支撑短期上行。`,
+            bear: `🔴 空头 Agent:近 30 日波动较大,若跌破 $${stop} 则趋势破坏。当前价 $${price.toFixed(2)},需警惕流动性与回撤。`,
+          },
+          {
+            round: 2,
+            bull: `🟢 多头 Agent:止损 $${stop} 可控,风险收益比尚可,维持看多。建议入场 $${entryLow}-$${entryHigh}。`,
+            bear: `🔴 空头 Agent:模型共识有限,预测涨幅不稳定,建议轻仓试探。`,
+          },
+          {
+            round: 3,
+            bull: '🟢 多头 Agent:综合看,温和看多,建议小仓位持有。',
+            bear: '🔴 空头 Agent:同意观望偏多,严守止损。',
+          },
+        ],
+        consensus: {
+          recommendation: chg >= 0 ? '观望偏多(轻仓)' : '谨慎观望',
+          entryRange: `$${entryLow} - ${entryHigh}`,
+          stopLoss: `$${stop}`,
+          targetPrice: `$${target.toFixed(2)} (7天)`,
+          consensusScore: meta.consensusScore || 60,
+          confidence: '中等',
+          risks: ['饰品市场高波动,模型预测存在误差', '流动性不足时滑点放大'],
+        },
+      };
+    };
+
+    const loadDebate = async (skinId) => {
+      const skin = skins.value.find(s => s.id === skinId) || selectedSkin.value;
+      const fallback = () => {
+        debateData.value = buildDebateFromSkin(skin, predictionMeta.value);
+      };
+      const client = api();
+      if (!client || !skinId) {
+        fallback();
+        return;
+      }
+      try {
+        const res = await client.debate(skinId);
+        if (res?.error || !res?.rounds?.length) {
+          fallback();
+          return;
+        }
+        // 若预录辩论挂的是别的饰品价,仍以当前皮肤价重建
+        const seedCur = res.prediction?.current_price;
+        const liveCur = skin?.price;
+        if (liveCur && seedCur && Math.abs(seedCur - liveCur) / Math.max(liveCur, 0.01) > 0.5) {
+          fallback();
+          return;
+        }
+        debateData.value = {
+          skin: skin?.name || res.name || '',
+          currentPrice: liveCur ?? seedCur,
+          rounds: res.rounds,
+          consensus: {
+            recommendation: res.consensus?.recommendation || '观望',
+            entryRange: res.consensus?.entryRange || '',
+            stopLoss: res.consensus?.stopLoss || '',
+            targetPrice: res.consensus?.targetPrice || '',
+            consensusScore: res.consensus?.consensusScore || 60,
+            confidence: res.consensus?.confidence || 'medium',
+            risks: res.consensus?.risks || [],
+          },
+        };
+      } catch (e) {
+        fallback();
+      }
+    };
     const modelComparison = window.CSVestData.MODEL_COMPARISON;
-    const USD_CNY = 7.2;
 
     const api = () => window.CSVestAPI || window.SkinVisionAPI;
 
@@ -257,13 +338,23 @@ const app = createApp({
     const loadSkinsFromApi = async () => {
       const client = api();
       if (!client) return false;
-      const res = await client.getSkins({ limit: 100, sort: 'volume_desc' });
+      // 后端全集约 154 件; 旧 limit=100 + 按成交量排序会把刀/手套挤掉
+      const res = await client.getSkins({ limit: 500, sort: 'volume_desc' });
       const items = res?.items || [];
       if (!items.length) return false;
       skins.value = items.map(s => ({
         ...s,
         image: s.image || '🎮',
-        price: s.price ?? (s.priceUsd != null ? +(s.priceUsd * USD_CNY).toFixed(2) : 0),
+        // 后端/训练同口径 USD
+        price: s.price ?? s.priceUsd ?? 0,
+        priceUsd: s.priceUsd ?? s.price ?? 0,
+        category: s.category || inferCategory(s),
+        // 后端历史不足时 change 可能为 null；wear 可能是字符串 "nan"
+        change24h: s.change24h ?? 0,
+        change7d: s.change7d ?? 0,
+        volume24h: s.volume24h ?? 0,
+        liquidity: s.liquidity ?? 0,
+        wear: (s.wear && String(s.wear).toLowerCase() !== 'nan') ? s.wear : '—',
       }));
       reconnectLeaders();
       const prefer = skins.value.find(s => /ak-47|ak47/i.test(s.id || s.name || ''))
@@ -273,27 +364,49 @@ const app = createApp({
       return true;
     };
 
+    const inferCategory = (s) => {
+      const text = `${s.weaponType || ''} ${s.name || ''} ${s.id || ''}`.toLowerCase();
+      if (/knife|bayonet|karambit|butterfly|talon|stiletto|navaja|skeleton|falchion|bowie|★/.test(text)) return '刀具';
+      if (/glove|hand wraps|wraps/.test(text)) return '手套';
+      if (/case|container/.test(text)) return '箱子';
+      if (/^awp|ssg|scar|g3sg1/.test(text) || /\bawp\b|\bssg\b/.test(text)) return '狙击枪';
+      if (/ak-47|ak47|m4a1|m4a4|famas|galil|aug|sg 553|sg553/.test(text)) return '步枪';
+      return s.category || '手枪';
+    };
+
     const loadPredictions = async (skinId) => {
       const client = api();
       if (!client || !skinId) return;
       try {
         const res = await client.predict(skinId, 7);
-        const rate = (selectedSkin.value?.price && selectedSkin.value?.priceUsd)
-          ? selectedSkin.value.price / selectedSkin.value.priceUsd
-          : USD_CNY;
+        const curUsd = res.currentPrice
+          ?? res.currentPriceUsd
+          ?? selectedSkin.value?.price
+          ?? 0;
+        // 后端返回 USD 预测价
         modelPredictions.value = (res.predictions || []).map(p => {
-          // 后端模型价多为 USD，前端列表价为 CNY
-          const looksUsd = selectedSkin.value?.priceUsd != null
-            && Math.abs((p.price || 0) - selectedSkin.value.priceUsd) < Math.abs((p.price || 0) - (selectedSkin.value.price || 0));
-          const priceCny = looksUsd ? +(p.price * rate).toFixed(2) : +(p.price || 0).toFixed(2);
+          const change = +(p.change || 0);
+          const price = (p.price != null && p.price > 0)
+            ? +(+p.price).toFixed(2)
+            : +(curUsd * (1 + change / 100)).toFixed(2);
           return {
             name: p.model,
             type: p.type || 'ML',
-            price: priceCny,
-            change: +(p.change || 0).toFixed(2),
+            price,
+            change: +change.toFixed(2),
             confidence: Math.round(p.confidence || 0),
           };
         });
+        const levelMap = {
+          very_high: '很高', high: '偏高', medium: '中等', low: '偏低',
+        };
+        predictionMeta.value = {
+          consensusScore: Math.round(res.consensus?.score ?? 0),
+          consensusLevel: levelMap[res.consensus?.level] || res.consensus?.level || '',
+          entryLow: res.entryRange?.low ?? +(curUsd * 0.97).toFixed(2),
+          entryHigh: res.entryRange?.high ?? +(curUsd * 0.99).toFixed(2),
+          targetPrice: res.targetPrice ?? +(curUsd * 1.05).toFixed(2),
+        };
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
@@ -353,9 +466,11 @@ const app = createApp({
     };
     const filteredSkins = computed(() => {
       if (filterCategory.value === 'all') return skins.value;
-      // 反向查找:从 i18n key 找到中文标签
       const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
-      return skins.value.filter(s => s.category === zhLabel || categoryMap[s.category] === filterCategory.value);
+      return skins.value.filter(s => {
+        const cat = s.category || inferCategory(s);
+        return cat === zhLabel || categoryMap[cat] === filterCategory.value;
+      });
     });
 
     const refreshData = async () => {
@@ -380,18 +495,37 @@ const app = createApp({
     };
 
     // ============ AI 预测详情 ============
-    const selectedSkin = ref(skins.value[1] || skins.value[0]);
+    const selectedSkin = ref(skins.value[0]);
     const klineChart = ref(null);
     const timeframe = ref('90D');
     const klineLoading = ref(false);
     let klineChartInstance = null;
     const modelPredictions = ref([]);
+    const predictionMeta = ref({
+      consensusScore: 76,
+      consensusLevel: '',
+      entryLow: 0,
+      entryHigh: 0,
+      targetPrice: 0,
+    });
+
+    const syncPredictionMetaFromSkin = (skin) => {
+      const price = skin?.price || 0;
+      predictionMeta.value = {
+        consensusScore: predictionMeta.value.consensusScore || 76,
+        consensusLevel: predictionMeta.value.consensusLevel || '',
+        entryLow: +(price * 0.97).toFixed(2),
+        entryHigh: +(price * 0.99).toFixed(2),
+        targetPrice: +(price * 1.05).toFixed(2),
+      };
+    };
 
     const viewSkin = (skinId) => {
       const skin = skins.value.find(s => s.id === skinId);
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
+        loadDebate(skin.id);
       }
     };
 
@@ -432,23 +566,29 @@ const app = createApp({
             client.getKLine(selectedSkin.value.id, days),
             loadPredictions(selectedSkin.value.id),
           ]);
-          const rate = (selectedSkin.value.price && selectedSkin.value.priceUsd)
-            ? selectedSkin.value.price / selectedSkin.value.priceUsd
-            : USD_CNY;
-          // 后端 K 线为 USD，转成 CNY 与列表价一致
+          // K 线与列表价统一为 USD
           kline = (kl.data || []).map(d => [
             d.date,
-            +(d.open * rate).toFixed(2),
-            +(d.close * rate).toFixed(2),
-            +(d.low * rate).toFixed(2),
-            +(d.high * rate).toFixed(2),
+            +(+d.open).toFixed(2),
+            +(+d.close).toFixed(2),
+            +(+d.low).toFixed(2),
+            +(+d.high).toFixed(2),
           ]);
           volumes = (kl.volumes || []).map((v, i) => [i, v.volume, v.direction]);
-          ma7 = (kl.ma7 || []).map(v => v == null ? '-' : +(v * rate).toFixed(2));
-          ma30 = (kl.ma30 || []).map(v => v == null ? '-' : +(v * rate).toFixed(2));
-          const lstm = (pred?.predictions || []).find(p => /LSTM/i.test(p.model))
-            || (pred?.predictions || [])[0];
-          if (lstm?.change != null) predChange = lstm.change / 100;
+          ma7 = (kl.ma7 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
+          ma30 = (kl.ma30 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
+          // 用全模型涨跌幅中位数，抗单模型（如 LSTM）离群值
+          const changes = (pred?.predictions || [])
+            .map(p => p.change)
+            .filter(c => c != null && isFinite(c))
+            .sort((a, b) => a - b);
+          if (changes.length) {
+            const mid = Math.floor(changes.length / 2);
+            const median = changes.length % 2
+              ? changes[mid]
+              : (changes[mid - 1] + changes[mid]) / 2;
+            predChange = median / 100;
+          }
         }
       } catch (err) {
         console.warn('[CSVest] kline api failed, mock fallback', err);
@@ -474,6 +614,7 @@ const app = createApp({
             { name: 'LSTM', type: 'DL ⭐', price: +(base * 1.025).toFixed(2), change: 2.5, confidence: 82 },
             { name: 'GRU', type: 'DL', price: +(base * 1.022).toFixed(2), change: 2.2, confidence: 80 },
           ];
+          syncPredictionMetaFromSkin(selectedSkin.value);
         }
       }
 
@@ -481,10 +622,28 @@ const app = createApp({
       const predictedDates = [];
       const predictedValues = [];
       const horizon = 7;
+      // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
+      const lastLabel = String(kline[kline.length - 1][0]);
+      const [lm, ld] = lastLabel.split('/').map(Number);
+      const baseDate = (lm >= 1 && lm <= 12 && ld >= 1 && ld <= 31)
+        ? new Date(new Date().getFullYear(), lm - 1, ld)
+        : new Date();
+      // 简单确定性伪随机（按饰品 id 播种），避免每次渲染曲线抖动
+      let seed = 0;
+      for (const ch of String(selectedSkin.value.id || '')) seed = (seed * 31 + ch.charCodeAt(0)) % 997;
+      const rand = () => {
+        seed = (seed * 137 + 71) % 997;
+        return seed / 997 - 0.5;
+      };
+      // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
+      const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
       for (let i = 1; i <= horizon; i++) {
-        const d = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
+        const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-        predictedValues.push((lastClose * (1 + predChange * (i / horizon))).toFixed(2));
+        const t = i / horizon;
+        const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
+        const wiggle = i === horizon ? 0 : rand() * dailyVol;
+        predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
       }
 
       const option = {
@@ -552,7 +711,8 @@ const app = createApp({
           {
             name: 'K线',
             type: 'candlestick',
-            data: kline.map(d => [d[1], d[3], d[4], d[2]]),
+            // ECharts candlestick: [open, close, low, high]
+            data: kline.map(d => [d[1], d[2], d[3], d[4]]),
             itemStyle: {
               color: '#ef4444',
               color0: '#10b981',
@@ -698,18 +858,18 @@ const app = createApp({
       if (q.includes('龙狙') || q.includes('dragonlore') || q.includes('awp')) {
         return window.CSVestData.AI_PRESET_RESPONSES['awp-dragonlore-ft'];
       }
-      if (q.includes('5000') || q.includes('预算') || q.includes('推荐')) {
-        return `根据您的 **5000 预算 + 中等风险** 偏好,推荐以下组合:
+      if (q.includes('5000') || q.includes('700') || q.includes('预算') || q.includes('推荐')) {
+        return `根据您的 **$700 预算 + 中等风险** 偏好,推荐以下组合:
 
 **🥇 首选组合 (稳健型):**
-1. **AK-47 | Redline (FT)** × 5 件 = ¥2,148
+1. **AK-47 | Redline (FT)** × 5 件 = $298
    - 高流动性 (98分)、价格稳定、社区共识度高
-2. **AWP | Asiimov (FT)** × 2 件 = ¥2,560
+2. **AWP | Asiimov (FT)** × 2 件 = $356
    - 中等价位、波动率适中、模型预测 +3.21% (7天)
-3. **Dreams & Nightmares Case** × 30 件 = ¥275
+3. **Dreams & Nightmares Case** × 30 件 = $38
    - 极致流动性、开箱期望值高
 
-**总投入: ¥4,983** | **预期 30 天收益: +5%~+8%**
+**总投入: $692** | **预期 30 天收益: +5%~+8%**
 
 **⚠️ 风险提示:**
 - 历史回测仅供参考,实际收益受市场波动影响
@@ -721,17 +881,17 @@ const app = createApp({
       if (q.includes('涨') || q.includes('今天')) {
         return `今日涨幅榜 Top 3:
 
-1. **AWP | Dragon Lore (FT)** +8.45% (¥42,788)
+1. **AWP | Dragon Lore (FT)** +8.45% ($5,943)
    - 驱动: 职业选手偏好 + IEM Cologne 预期
 
-2. **M9 Bayonet | Doppler (FN)** +7.89% (¥12,800)
+2. **M9 Bayonet | Doppler (FN)** +7.89% ($1,778)
    - 驱动: 刀具市场整体回暖
 
-3. **AK-47 | Fire Serpent (FN)** +5.67% (¥15,850)
+3. **AK-47 | Fire Serpent (FN)** +5.67% ($2,201)
    - 驱动: Valve 更新未削弱 + 赛事需求
 
 **📊 整体市场情绪:** 贪婪(指数 68)
-**🔥 热点板块:** 高端饰品 (¥10k+) 持续走强
+**🔥 热点板块:** 高端饰品 ($1.5k+) 持续走强
 
 需要我分析某个具体饰品吗?`;
       }
@@ -758,7 +918,7 @@ const app = createApp({
         return `我可以帮您设置价格预警!请告诉我:
 
 1. 📦 关注的饰品 (如 "AK-47 火蛇")
-2. 🎯 目标价格 (如 ¥15,000)
+2. 🎯 目标价格 (如 $2,200)
 3. 📈 触发条件 (涨破 / 跌破)
 
 您也可以前往左侧菜单 **🔔 价格预警** 页面直接创建。`;
@@ -833,10 +993,10 @@ const app = createApp({
 
     // ============ 预警 ============
     const alerts = ref([
-      { id: 1, skinId: 'ak47-fireserpent-fn', skinName: 'AK-47 | Fire Serpent (FN)', type: 'above', targetPrice: 16500, currentPrice: 15850, active: true, triggered: false, createdAt: '2026-07-10 14:23' },
-      { id: 2, skinId: 'awp-dragonlore-ft', skinName: 'AWP | Dragon Lore (FT)', type: 'above', targetPrice: 45000, currentPrice: 42788, active: true, triggered: true, createdAt: '2026-07-08 09:15' },
-      { id: 3, skinId: 'm4a1s-printstream-ft', skinName: 'M4A1-S | Printstream (FT)', type: 'below', targetPrice: 900, currentPrice: 980, active: true, triggered: false, createdAt: '2026-07-12 16:40' },
-      { id: 4, skinId: 'gloves-pandora-ft', skinName: '★ Sport Gloves | Pandora\'s Box (FT)', type: 'below', targetPrice: 20000, currentPrice: 22600, active: false, triggered: false, createdAt: '2026-07-05 11:20' },
+      { id: 1, skinId: 'ak47-fireserpent-fn', skinName: 'AK-47 | Fire Serpent (FN)', type: 'above', targetPrice: 2291.67, currentPrice: 2201.39, active: true, triggered: false, createdAt: '2026-07-10 14:23' },
+      { id: 2, skinId: 'awp-dragonlore-ft', skinName: 'AWP | Dragon Lore (FT)', type: 'above', targetPrice: 6250.00, currentPrice: 5942.78, active: true, triggered: true, createdAt: '2026-07-08 09:15' },
+      { id: 3, skinId: 'm4a1s-printstream-ft', skinName: 'M4A1-S | Printstream (FT)', type: 'below', targetPrice: 125.00, currentPrice: 136.11, active: true, triggered: false, createdAt: '2026-07-12 16:40' },
+      { id: 4, skinId: 'gloves-pandora-ft', skinName: '★ Sport Gloves | Pandora\'s Box (FT)', type: 'below', targetPrice: 2777.78, currentPrice: 3138.89, active: false, triggered: false, createdAt: '2026-07-05 11:20' },
     ]);
 
     const showAlertModal = ref(false);
@@ -1062,8 +1222,8 @@ const app = createApp({
 
     // ============ 工具函数 ============
     const formatPrice = (num) => {
-      if (num === null || num === undefined) return '0';
-      return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (num === null || num === undefined) return '0.00';
+      return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
     // 渲染 Phosphor SVG 图标 (内嵌,不依赖字体)
@@ -1110,7 +1270,7 @@ const app = createApp({
           id: `skin-${s.id}`,
           icon: s.image,
           title: s.name,
-          subtitle: `${s.category} · ¥${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
+          subtitle: `${s.category} · $${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
           kbd: '',
           action: () => { viewSkin(s.id); },
         }));
@@ -1262,6 +1422,7 @@ const app = createApp({
       window.processPhIcons && window.processPhIcons();
       if (newPage === 'prediction') {
         renderKline();
+        if (selectedSkin.value?.id) loadDebate(selectedSkin.value.id);
       } else if (newPage === 'models') {
         setTimeout(() => {
           renderRadar();
@@ -1274,9 +1435,10 @@ const app = createApp({
     });
 
     // 监听选中饰品变化
-    watch(selectedSkin, () => {
+    watch(selectedSkin, (skin) => {
       if (currentPage.value === 'prediction') {
         renderKline();
+        if (skin?.id) loadDebate(skin.id);
       }
     });
 
@@ -1299,7 +1461,7 @@ const app = createApp({
       apiOnline, connectBackend,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, relatedNews, newsIcon, roundTitle, debateData,
+      modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
       // 资讯

@@ -251,7 +251,7 @@
                     <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                   </div>
                   <div style="text-align: right;">
-                    <div class="skin-price" style="font-size: 14px;">¥{{ formatPrice(skin.price) }}</div>
+                    <div class="skin-price" style="font-size: 14px;">${{ formatPrice(skin.price) }}</div>
                     <div class="change-up" style="display: inline-block;">+{{ skin.change7d.toFixed(2) }}%</div>
                   </div>
                 </div>
@@ -279,7 +279,7 @@
                     <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                   </div>
                   <div style="text-align: right;">
-                    <div class="skin-price" style="font-size: 14px;">¥{{ formatPrice(skin.price) }}</div>
+                    <div class="skin-price" style="font-size: 14px;">${{ formatPrice(skin.price) }}</div>
                     <div class="change-down" style="display: inline-block;">{{ skin.change7d.toFixed(2) }}%</div>
                   </div>
                 </div>
@@ -323,7 +323,7 @@
                 </div>
                 <div class="skin-price-row">
                   <div>
-                    <span class="skin-currency">¥</span>
+                    <span class="skin-currency">$</span>
                     <span class="skin-price">{{ formatPrice(skin.price) }}</span>
                   </div>
                   <div :class="skin.change7d >= 0 ? 'change-up' : 'change-down'" class="skin-change">
@@ -360,7 +360,7 @@
             <div class="flex items-end gap-6 mb-4">
               <div>
                 <div class="text-muted text-sm">{{ t('prediction.currentPrice') }}</div>
-                <div class="prediction-current-price">¥{{ formatPrice(selectedSkin.price) }}</div>
+                <div class="prediction-current-price">${{ formatPrice(selectedSkin.price) }}</div>
                 <div :class="selectedSkin.change24h >= 0 ? 'change-up' : 'change-down'" class="skin-change" style="display: inline-block;">
                   24h {{ selectedSkin.change24h >= 0 ? '+' : '' }}{{ selectedSkin.change24h.toFixed(2) }}% ·
                   7d {{ selectedSkin.change7d >= 0 ? '+' : '' }}{{ selectedSkin.change7d.toFixed(2) }}%
@@ -371,11 +371,11 @@
                 <div class="text-muted text-sm">{{ t('prediction.consensus') }}</div>
                 <div class="flex items-center gap-3 mt-2">
                   <div class="consensus-meter" style="flex: 1;">
-                    <div class="consensus-bar" :style="{ width: '76%' }"></div>
+                    <div class="consensus-bar" :style="{ width: (predictionMeta.consensusScore || 0) + '%' }"></div>
                   </div>
-                  <strong style="color: var(--accent-orange); font-size: 20px;">76%</strong>
+                  <strong style="color: var(--accent-orange); font-size: 20px;">{{ predictionMeta.consensusScore || 0 }}%</strong>
                 </div>
-                <div class="text-muted text-sm">{{ t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: 6, classification: 4 }) }}</div>
+                <div class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length || 6, classification: 4 }) }}</div>
               </div>
             </div>
           </div>
@@ -426,7 +426,7 @@
                       <strong>{{ pred.name }}</strong>
                       <span class="tag" style="margin-left: 6px; font-size: 10px;">{{ pred.type }}</span>
                     </td>
-                    <td>¥{{ formatPrice(pred.price) }}</td>
+                    <td>${{ formatPrice(pred.price) }}</td>
                     <td :class="pred.change >= 0 ? 'text-up' : 'text-down'">
                       {{ pred.change >= 0 ? '+' : '' }}{{ pred.change.toFixed(2) }}%
                     </td>
@@ -444,9 +444,9 @@
                 <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
                 <div class="flex items-center gap-3">
                   <div style="font-size: 22px; font-weight: 700; color: var(--accent-orange);">
-                    ¥{{ formatPrice(selectedSkin ? selectedSkin.price * 0.97 : 0) }} - {{ formatPrice(selectedSkin ? selectedSkin.price * 0.99 : 0) }}
+                    ${{ formatPrice(predictionMeta.entryLow) }} - {{ formatPrice(predictionMeta.entryHigh) }}
                   </div>
-                  <span class="tag tag-orange">{{ t('prediction.target7d') }} ¥{{ formatPrice(selectedSkin ? selectedSkin.price * 1.05 : 0) }}</span>
+                  <span class="tag tag-orange">{{ t('prediction.target7d') }} ${{ formatPrice(predictionMeta.targetPrice) }}</span>
                 </div>
               </div>
             </div>
@@ -682,7 +682,7 @@
                   <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.category.' + categoryMap[skin.category] || skin.category) }}</div>
                 </div>
                 <div style="text-align: right;">
-                  <div class="font-bold">¥{{ formatPrice(skin.price) }}</div>
+                  <div class="font-bold">${{ formatPrice(skin.price) }}</div>
                   <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
                 </div>
               </div>
@@ -804,8 +804,8 @@
                       {{ alert.type === 'above' ? t('alerts.above') : t('alerts.below') }}
                     </span>
                   </td>
-                  <td class="font-bold">¥{{ formatPrice(alert.targetPrice) }}</td>
-                  <td>¥{{ formatPrice(alert.currentPrice) }}</td>
+                  <td class="font-bold">${{ formatPrice(alert.targetPrice) }}</td>
+                  <td>${{ formatPrice(alert.currentPrice) }}</td>
                   <td class="text-muted text-sm">{{ alert.createdAt }}</td>
                   <td>
                     <button class="btn btn-ghost btn-sm">{{ alert.active ? t('common.disable') : t('common.enable') }}</button>
@@ -841,16 +841,16 @@
           <div class="portfolio-summary mb-4">
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.totalCost') }}</div>
-              <div class="summary-value">¥{{ formatPrice(portfolioMetrics.totalCost) }}</div>
+              <div class="summary-value">${{ formatPrice(portfolioMetrics.totalCost) }}</div>
             </div>
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.totalValue') }}</div>
-              <div class="summary-value">¥{{ formatPrice(portfolioMetrics.totalValue) }}</div>
+              <div class="summary-value">${{ formatPrice(portfolioMetrics.totalValue) }}</div>
             </div>
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.pnl') }}</div>
               <div class="summary-value" :class="portfolioMetrics.pnl >= 0 ? 'text-up' : 'text-down'">
-                {{ portfolioMetrics.pnl >= 0 ? '+' : '' }}¥{{ formatPrice(Math.abs(portfolioMetrics.pnl)) }}
+                {{ portfolioMetrics.pnl >= 0 ? '+' : '' }}${{ formatPrice(Math.abs(portfolioMetrics.pnl)) }}
               </div>
               <div class="summary-delta" :class="portfolioMetrics.pnlPct >= 0 ? 'text-up' : 'text-down'">
                 {{ portfolioMetrics.pnlPct >= 0 ? '+' : '' }}{{ portfolioMetrics.pnlPct }}%
@@ -895,13 +895,13 @@
               <tbody>
                 <tr v-for="item in portfolio" :key="item.id">
                   <td><strong>{{ item.name }}</strong></td>
-                  <td>¥{{ formatPrice(item.buyPrice) }}</td>
+                  <td>${{ formatPrice(item.buyPrice) }}</td>
                   <td>{{ item.quantity }}</td>
-                  <td>¥{{ formatPrice(item.buyPrice * item.quantity) }}</td>
-                  <td>¥{{ formatPrice(getCurrentPrice(item.skinId)) }}</td>
-                  <td>¥{{ formatPrice(getCurrentPrice(item.skinId) * item.quantity) }}</td>
+                  <td>${{ formatPrice(item.buyPrice * item.quantity) }}</td>
+                  <td>${{ formatPrice(getCurrentPrice(item.skinId)) }}</td>
+                  <td>${{ formatPrice(getCurrentPrice(item.skinId) * item.quantity) }}</td>
                   <td :class="getItemPnl(item) >= 0 ? 'text-up' : 'text-down'">
-                    {{ getItemPnl(item) >= 0 ? '+' : '' }}¥{{ formatPrice(Math.abs(getItemPnl(item))) }}
+                    {{ getItemPnl(item) >= 0 ? '+' : '' }}${{ formatPrice(Math.abs(getItemPnl(item))) }}
                   </td>
                   <td :class="getItemPnlPct(item) >= 0 ? 'text-up' : 'text-down'">
                     {{ getItemPnlPct(item) >= 0 ? '+' : '' }}{{ getItemPnlPct(item).toFixed(2) }}%
@@ -973,13 +973,13 @@
                     </span>
                   </td>
                   <td><span class="tag">{{ m.type }}</span></td>
-                  <td>{{ m.rmse.toFixed(2) }}</td>
-                  <td>{{ m.mae.toFixed(2) }}</td>
-                  <td>{{ m.mape.toFixed(2) }}%</td>
-                  <td>{{ m.r2.toFixed(2) }}</td>
-                  <td>{{ m.speed }}</td>
-                  <td :class="m.returnPct >= 15 ? 'text-up' : 'text-down'">
-                    {{ m.returnPct >= 0 ? '+' : '' }}{{ m.returnPct.toFixed(1) }}%
+                  <td>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</td>
+                  <td>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</td>
+                  <td>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</td>
+                  <td>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</td>
+                  <td>{{ m.speed || '—' }}</td>
+                  <td :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
+                    {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
                   </td>
                   <td class="text-muted text-sm">{{ m.course }}</td>
                 </tr>
@@ -1005,10 +1005,10 @@
                 <tbody>
                   <tr v-for="m in classificationModels" :key="m.name">
                     <td><strong>{{ m.name }}</strong></td>
-                    <td>{{ (m.accuracy * 100).toFixed(1) }}%</td>
-                    <td>{{ m.auc.toFixed(2) }}</td>
-                    <td :class="m.returnPct >= 15 ? 'text-up' : 'text-down'">
-                      +{{ m.returnPct.toFixed(1) }}%
+                    <td>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</td>
+                    <td>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</td>
+                    <td :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
+                      {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
                     </td>
                   </tr>
                   <tr>
@@ -1119,7 +1119,7 @@
           <label class="form-label">{{ t('portfolio.modal.skin') }}</label>
           <select class="form-select" v-model="newPortfolio.skinId">
             <option value="">{{ t('common.please') }}...</option>
-            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }} (¥{{ formatPrice(s.price) }})</option>
+            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }} (${{ formatPrice(s.price) }})</option>
           </select>
         </div>
         <div class="form-group">

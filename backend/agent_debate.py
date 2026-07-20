@@ -25,7 +25,8 @@ import rag
 
 
 def _load_seed_debate(slug: str) -> dict | None:
-    """找该 skin 的预录辩论 JSON(docs/expo/seed_debate_<slug>.json)。"""
+    """找该 skin 的预录辩论 JSON(docs/expo/seed_debate_<slug>.json)。
+    仅精确匹配 skinId/slug,避免把别的饰品(含错误价位)套到当前页。"""
     if not SEED_DIR.exists():
         return None
     for p in SEED_DIR.glob("seed_debate_*.json"):
@@ -33,12 +34,6 @@ def _load_seed_debate(slug: str) -> dict | None:
             data = json.loads(p.read_text(encoding="utf-8"))
             if data.get("skinId") == slug or data.get("slug") == slug:
                 return data
-        except Exception:
-            continue
-    # 兜底:任一预录(Expo 演示)
-    for p in SEED_DIR.glob("seed_debate_*.json"):
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
     return None

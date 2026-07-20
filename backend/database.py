@@ -51,18 +51,25 @@ WEAR_FULL = {
 # weapon_type → 前端 category(中文)
 def weapon_to_category(weapon: str) -> str:
     w = (weapon or "").lower()
-    if "knife" in w or "bayonet" in w or w.startswith("★") or "karambit" in w \
-       or "m9" in w or "butterfly" in w or "flip" in w or "gut" in w or "falchion" in w \
-       or "talon" in w or "stiletto" in w or "navaja" in w or "skeleton" in w or "css" in w:
+    name = w
+    if "knife" in name or "bayonet" in name or "karambit" in name \
+       or "butterfly" in name or "talon" in name or "stiletto" in name \
+       or "navaja" in name or "skeleton" in name or "falchion" in name \
+       or "bowie" in name or "flip" in name or "gut " in name \
+       or name.startswith("★") or name.startswith("m9"):
         return "刀具"
-    if "gloves" in w or "glove" in w:
+    if "gloves" in name or "glove" in name or "hand wraps" in name or "wraps" in name:
         return "手套"
-    if "case" in w or "container" in w:
+    if "case" in name or "container" in name:
         return "箱子"
-    if w.startswith("awp") or w.startswith("ssg") or w.startswith("scar") or w.startswith("g3sg1"):
+    if name.startswith("awp") or name.startswith("ssg") or name.startswith("scar") \
+       or name.startswith("g3sg1"):
         return "狙击枪"
-    if any(w.startswith(p) for p in ("ak-47", "m4a1", "m4a4", "famas", "galil", "aug", "sg")):
+    if any(name.startswith(p) for p in (
+        "ak-47", "ak47", "m4a1", "m4a4", "famas", "galil", "aug", "sg 553", "sg553"
+    )):
         return "步枪"
+    # 其余枪械(手枪 / SMG / 霰弹)暂归入手枪筛选项,避免丢失
     return "手枪"
 
 # rarity → 1-7 等级(策划书 §3.4)

@@ -248,20 +248,8 @@ class CSVestAPI {
   // ============ 双 Agent 辩论 ============
   async debate(skinId, mode = 'bull_bear', onProgress) {
     return this._safeCall(
-      async () => {
-        if (onProgress) {
-          // 流式获取进度
-          const response = await fetch(`${this.baseURL}/api/debate/${skinId}?mode=${mode}&stream=true`, {
-            method: 'POST',
-          });
-          const reader = response.body.getReader();
-          // ... 解析流式响应
-          return await response.json();
-        } else {
-          return this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' });
-        }
-      },
-      () => window.CSVestData.DEBATE_SAMPLE
+      async () => this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' }),
+      () => null
     );
   }
 

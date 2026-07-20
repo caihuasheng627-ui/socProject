@@ -6,26 +6,26 @@
 
 // CS2 饰品池（来自策划书 3.4 节：20-30 个高流动性饰品）
 const SKINS_POOL = [
-  { id: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', category: '步枪', wear: 'Field-Tested', price: 429.50, change24h: 2.34, change7d: -1.23, volume24h: 1630, liquidity: 98, rarity: 4, image: '🔫' },
-  { id: 'ak47-fireserpent-fn', name: 'AK-47 | Fire Serpent (FN)', category: '步枪', wear: 'Factory New', price: 15850.00, change24h: 0.85, change7d: 5.67, volume24h: 55, liquidity: 72, rarity: 7, image: '🐍' },
-  { id: 'awp-dragonlore-ft', name: 'AWP | Dragon Lore (FT)', category: '狙击枪', wear: 'Field-Tested', price: 42788.00, change24h: 1.23, change7d: 8.45, volume24h: 16, liquidity: 65, rarity: 7, image: '🐉' },
-  { id: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', category: '狙击枪', wear: 'Field-Tested', price: 1280.00, change24h: -0.45, change7d: 3.21, volume24h: 240, liquidity: 90, rarity: 5, image: '🎯' },
-  { id: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', category: '步枪', wear: 'Field-Tested', price: 980.00, change24h: 3.12, change7d: 6.78, volume24h: 312, liquidity: 88, rarity: 5, image: '🖨️' },
-  { id: 'm4a4-howl-mw', name: 'M4A4 | Howl (MW)', category: '步枪', wear: 'Minimal Wear', price: 26800.00, change24h: -0.23, change7d: -2.15, volume24h: 8, liquidity: 60, rarity: 7, image: '🐺' },
-  { id: 'deagle-printstream-ft', name: 'Desert Eagle | Printstream (FT)', category: '手枪', wear: 'Field-Tested', price: 320.50, change24h: 1.56, change7d: 4.32, volume24h: 480, liquidity: 92, rarity: 4, image: '🦅' },
-  { id: 'deagle-crimsonweb-mw', name: 'Desert Eagle | Crimson Web (MW)', category: '手枪', wear: 'Minimal Wear', price: 280.00, change24h: -1.20, change7d: 2.10, volume24h: 350, liquidity: 85, rarity: 4, image: '🕸️' },
-  { id: 'butterfly-northern-fn', name: '★ Butterfly Knife | Northern Forest (FN)', category: '刀具', wear: 'Factory New', price: 3110.00, change24h: 0.92, change7d: 3.45, volume24h: 26, liquidity: 70, rarity: 6, image: '🦋' },
-  { id: 'm9-doppler-fn', name: '★ M9 Bayonet | Doppler (FN)', category: '刀具', wear: 'Factory New', price: 12800.00, change24h: 2.15, change7d: 7.89, volume24h: 18, liquidity: 68, rarity: 6, image: '🔪' },
-  { id: 'karambit-doppler-fn', name: '★ Karambit | Doppler (FN)', category: '刀具', wear: 'Factory New', price: 18500.00, change24h: 1.85, change7d: 5.23, volume24h: 12, liquidity: 65, rarity: 6, image: '🌀' },
-  { id: 'gloves-pandora-ft', name: '★ Sport Gloves | Pandora\'s Box (FT)', category: '手套', wear: 'Field-Tested', price: 22600.00, change24h: 0.45, change7d: 2.67, volume24h: 6, liquidity: 58, rarity: 7, image: '🎁' },
-  { id: 'gloves-crimson-ft', name: '★ Specialist Gloves | Crimson Web (FT)', category: '手套', wear: 'Field-Tested', price: 9800.00, change24h: -0.65, change7d: -1.45, volume24h: 14, liquidity: 62, rarity: 6, image: '🧤' },
-  { id: 'case-dreams', name: 'Dreams & Nightmares Case', category: '箱子', wear: 'N/A', price: 9.15, change24h: 0.00, change7d: 0.00, volume24h: 90471, liquidity: 99, rarity: 1, image: '📦' },
-  { id: 'case-dangerzone', name: 'Danger Zone Case', category: '箱子', wear: 'N/A', price: 18.50, change24h: 1.20, change7d: 2.45, volume24h: 12500, liquidity: 95, rarity: 1, image: '⚠️' },
-  { id: 'case-prisma', name: 'Prisma Case', category: '箱子', wear: 'N/A', price: 6.80, change24h: -0.30, change7d: 1.20, volume24h: 18900, liquidity: 96, rarity: 1, image: '🌈' },
-  { id: 'usps-killconfirmed-ft', name: 'USP-S | Kill Confirmed (FT)', category: '手枪', wear: 'Field-Tested', price: 145.00, change24h: 0.85, change7d: 2.15, volume24h: 580, liquidity: 90, rarity: 3, image: '✅' },
-  { id: 'glock-fade-ft', name: 'Glock-18 | Fade (FT)', category: '手枪', wear: 'Factory New', price: 680.00, change24h: 1.45, change7d: 3.78, volume24h: 120, liquidity: 80, rarity: 4, image: '🌅' },
-  { id: 'awp-hyperbeast-ft', name: 'AWP | Hyper Beast (FT)', category: '狙击枪', wear: 'Field-Tested', price: 195.00, change24h: -0.55, change7d: 1.85, volume24h: 410, liquidity: 88, rarity: 3, image: '👹' },
-  { id: 'famas-roll-cage-ft', name: 'FAMAS | Roll Cage (FT)', category: '步枪', wear: 'Field-Tested', price: 38.50, change24h: 0.25, change7d: 0.85, volume24h: 1200, liquidity: 92, rarity: 2, image: '🏎️' },
+  { id: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', category: '步枪', wear: 'Field-Tested', price: 59.65, change24h: 2.34, change7d: -1.23, volume24h: 1630, liquidity: 98, rarity: 4, image: '🔫' },
+  { id: 'ak47-fireserpent-fn', name: 'AK-47 | Fire Serpent (FN)', category: '步枪', wear: 'Factory New', price: 2201.39, change24h: 0.85, change7d: 5.67, volume24h: 55, liquidity: 72, rarity: 7, image: '🐍' },
+  { id: 'awp-dragonlore-ft', name: 'AWP | Dragon Lore (FT)', category: '狙击枪', wear: 'Field-Tested', price: 5942.78, change24h: 1.23, change7d: 8.45, volume24h: 16, liquidity: 65, rarity: 7, image: '🐉' },
+  { id: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', category: '狙击枪', wear: 'Field-Tested', price: 177.78, change24h: -0.45, change7d: 3.21, volume24h: 240, liquidity: 90, rarity: 5, image: '🎯' },
+  { id: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', category: '步枪', wear: 'Field-Tested', price: 136.11, change24h: 3.12, change7d: 6.78, volume24h: 312, liquidity: 88, rarity: 5, image: '🖨️' },
+  { id: 'm4a4-howl-mw', name: 'M4A4 | Howl (MW)', category: '步枪', wear: 'Minimal Wear', price: 3722.22, change24h: -0.23, change7d: -2.15, volume24h: 8, liquidity: 60, rarity: 7, image: '🐺' },
+  { id: 'deagle-printstream-ft', name: 'Desert Eagle | Printstream (FT)', category: '手枪', wear: 'Field-Tested', price: 44.51, change24h: 1.56, change7d: 4.32, volume24h: 480, liquidity: 92, rarity: 4, image: '🦅' },
+  { id: 'deagle-crimsonweb-mw', name: 'Desert Eagle | Crimson Web (MW)', category: '手枪', wear: 'Minimal Wear', price: 38.89, change24h: -1.20, change7d: 2.10, volume24h: 350, liquidity: 85, rarity: 4, image: '🕸️' },
+  { id: 'butterfly-northern-fn', name: '★ Butterfly Knife | Northern Forest (FN)', category: '刀具', wear: 'Factory New', price: 431.94, change24h: 0.92, change7d: 3.45, volume24h: 26, liquidity: 70, rarity: 6, image: '🦋' },
+  { id: 'm9-doppler-fn', name: '★ M9 Bayonet | Doppler (FN)', category: '刀具', wear: 'Factory New', price: 1777.78, change24h: 2.15, change7d: 7.89, volume24h: 18, liquidity: 68, rarity: 6, image: '🔪' },
+  { id: 'karambit-doppler-fn', name: '★ Karambit | Doppler (FN)', category: '刀具', wear: 'Factory New', price: 2569.44, change24h: 1.85, change7d: 5.23, volume24h: 12, liquidity: 65, rarity: 6, image: '🌀' },
+  { id: 'gloves-pandora-ft', name: '★ Sport Gloves | Pandora\'s Box (FT)', category: '手套', wear: 'Field-Tested', price: 3138.89, change24h: 0.45, change7d: 2.67, volume24h: 6, liquidity: 58, rarity: 7, image: '🎁' },
+  { id: 'gloves-crimson-ft', name: '★ Specialist Gloves | Crimson Web (FT)', category: '手套', wear: 'Field-Tested', price: 1361.11, change24h: -0.65, change7d: -1.45, volume24h: 14, liquidity: 62, rarity: 6, image: '🧤' },
+  { id: 'case-dreams', name: 'Dreams & Nightmares Case', category: '箱子', wear: 'N/A', price: 1.27, change24h: 0.00, change7d: 0.00, volume24h: 90471, liquidity: 99, rarity: 1, image: '📦' },
+  { id: 'case-dangerzone', name: 'Danger Zone Case', category: '箱子', wear: 'N/A', price: 2.57, change24h: 1.20, change7d: 2.45, volume24h: 12500, liquidity: 95, rarity: 1, image: '⚠️' },
+  { id: 'case-prisma', name: 'Prisma Case', category: '箱子', wear: 'N/A', price: 0.94, change24h: -0.30, change7d: 1.20, volume24h: 18900, liquidity: 96, rarity: 1, image: '🌈' },
+  { id: 'usps-killconfirmed-ft', name: 'USP-S | Kill Confirmed (FT)', category: '手枪', wear: 'Field-Tested', price: 20.14, change24h: 0.85, change7d: 2.15, volume24h: 580, liquidity: 90, rarity: 3, image: '✅' },
+  { id: 'glock-fade-ft', name: 'Glock-18 | Fade (FT)', category: '手枪', wear: 'Factory New', price: 94.44, change24h: 1.45, change7d: 3.78, volume24h: 120, liquidity: 80, rarity: 4, image: '🌅' },
+  { id: 'awp-hyperbeast-ft', name: 'AWP | Hyper Beast (FT)', category: '狙击枪', wear: 'Field-Tested', price: 27.08, change24h: -0.55, change7d: 1.85, volume24h: 410, liquidity: 88, rarity: 3, image: '👹' },
+  { id: 'famas-roll-cage-ft', name: 'FAMAS | Roll Cage (FT)', category: '步枪', wear: 'Field-Tested', price: 5.35, change24h: 0.25, change7d: 0.85, volume24h: 1200, liquidity: 92, rarity: 2, image: '🏎️' },
 ];
 
 // K线图生成器（基于策划书 3.3 节：BUFF API 历史价格 ~2次/天 × 90天）
@@ -48,13 +48,17 @@ function generateKLineData(basePrice, days = 90, volatility = 0.03, trend = 0.00
     const low = Math.min(open, close) * (1 - Math.random() * 0.015);
     const volume = Math.floor(Math.random() * 5000 + 1000) * (basePrice > 1000 ? 0.1 : 1);
 
-    data.push([dateStr, open.toFixed(2), close.toFixed(2), low.toFixed(2), high.toFixed(2)]);
-    volumes.push([i, volume, close > open ? 1 : -1]);
+    data.push([dateStr, open, close, low, high]);
+    // 索引须按时间顺序（旧→新），与 K 线类目轴对齐
+    volumes.push([data.length - 1, volume, close > open ? 1 : -1]);
     currentPrice = close;
   }
 
-  // 最后一天设为当前价格
-  data[data.length - 1][2] = basePrice.toFixed(2);
+  // 整体缩放使最后收盘价 = 当前价格（避免最后一天出现跳变异常 K 线）
+  const ratio = basePrice / currentPrice;
+  for (const d of data) {
+    for (let j = 1; j <= 4; j++) d[j] = (d[j] * ratio).toFixed(2);
+  }
   return { kline: data, volumes };
 }
 
@@ -67,7 +71,7 @@ function calculateMA(data, period) {
     } else {
       let sum = 0;
       for (let j = 0; j < period; j++) {
-        sum += parseFloat(data[i - j][1]); // 使用 close 价格
+        sum += parseFloat(data[i - j][2]); // close 在索引 2（[date, open, close, low, high]）
       }
       result.push((sum / period).toFixed(2));
     }
@@ -158,12 +162,12 @@ const HOT_VOLUME = [...SKINS_POOL].sort((a, b) => b.volume24h - a.volume24h).sli
 // 双 Agent 辩论示例
 const DEBATE_SAMPLE = {
   skin: 'AK-47 | Fire Serpent (FN)',
-  currentPrice: 15850,
+  currentPrice: 2201.39,
   rounds: [
     {
       round: 1,
-      bull: '🟢 多头 Agent:技术面显示 MA_30 上穿 MA_90 形成金叉,ML 模型预测 7 天内上涨 5.67% (+¥898),RSI 处于 58 健康区间。叠加 IEM Cologne 赛事临近,AK 系列历史表现强势。',
-      bear: '🔴 空头 Agent:当前价格已突破历史阻力位 ¥15,500,估值偏高。MACD 红柱缩短,动能减弱。社区情绪调查显示看多比例已超 75%,反向指标。'
+      bull: '🟢 多头 Agent:技术面显示 MA_30 上穿 MA_90 形成金叉,ML 模型预测 7 天内上涨 5.67% (+$125),RSI 处于 58 健康区间。叠加 IEM Cologne 赛事临近,AK 系列历史表现强势。',
+      bear: '🔴 空头 Agent:当前价格已突破历史阻力位 $2,150,估值偏高。MACD 红柱缩短,动能减弱。社区情绪调查显示看多比例已超 75%,反向指标。'
     },
     {
       round: 2,
@@ -172,15 +176,15 @@ const DEBATE_SAMPLE = {
     },
     {
       round: 3,
-      bull: '🟢 多头 Agent:承认结构变化是潜在风险,下调短期预期。但 ML 模型已加入 Days_Since_Release 和 Steam_CCU 等外部特征,应已捕捉结构性差异。建议入场区间 ¥15,400-15,600 而非追高。',
-      bear: '🔴 空头 Agent:认可保守入场策略。补充一点:LSTM 与 XGBoost 共识度 76%,中等偏高,但 GRU 给出反向信号。建议设置 ¥14,800 止损。'
+      bull: '🟢 多头 Agent:承认结构变化是潜在风险,下调短期预期。但 ML 模型已加入 Days_Since_Release 和 Steam_CCU 等外部特征,应已捕捉结构性差异。建议入场区间 $2,140-2,170 而非追高。',
+      bear: '🔴 空头 Agent:认可保守入场策略。补充一点:LSTM 与 XGBoost 共识度 76%,中等偏高,但 GRU 给出反向信号。建议设置 $2,055 止损。'
     }
   ],
   consensus: {
     recommendation: '谨慎看多',
-    entryRange: '¥15,400 - 15,600',
-    stopLoss: '¥14,800',
-    targetPrice: '¥16,800 (30天)',
+    entryRange: '$2,140 - 2,170',
+    stopLoss: '$2,055',
+    targetPrice: '$2,333 (30天)',
     consensusScore: 76,
     confidence: '中等偏高',
     risks: ['短期回调风险', 'CS2 后市场结构变化', '职业比赛结果不确定性']
@@ -189,9 +193,9 @@ const DEBATE_SAMPLE = {
 
 // 模拟持仓（默认数据）
 const DEFAULT_PORTFOLIO = [
-  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 380, quantity: 5, buyDate: '2026-06-15' },
-  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 850, quantity: 2, buyDate: '2026-06-28' },
-  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 1200, quantity: 1, buyDate: '2026-07-05' },
+  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 52.78, quantity: 5, buyDate: '2026-06-15' },
+  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 118.06, quantity: 2, buyDate: '2026-06-28' },
+  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 166.67, quantity: 1, buyDate: '2026-07-05' },
 ];
 
 // 风险指标生成
@@ -216,29 +220,29 @@ function calculateRiskMetrics(portfolio, currentPrices) {
 
 // AI 对话预设回复
 const AI_PRESET_RESPONSES = {
-  'ak47-fireserpent-fn': `基于最新数据,AK-47 | Fire Serpent (FN) 当前价格 ¥15,850。
+  'ak47-fireserpent-fn': `基于最新数据,AK-47 | Fire Serpent (FN) 当前价格 $2,201。
 
 **多模型分析:**
-- LSTM 预测 7 天: ¥16,120 (+1.7%) ⭐
-- XGBoost 预测 7 天: ¥16,015 (+1.0%)
+- LSTM 预测 7 天: $2,239 (+1.7%) ⭐
+- XGBoost 预测 7 天: $2,223 (+1.0%)
 - 模型共识度: 76% (中等偏高)
 
 **RAG 关联事件:**
 1. 7月12日 Valve 更新中 AK-47 未受削弱,市场信心增强
 2. 距离 IEM Cologne 还有 10 天,历史同期 AK 皮肤平均上涨 3.2%
 
-**建议:** 谨慎看多,入场区间 ¥15,400-15,600,目标价 ¥16,800。⚠️ 仅供参考,不构成投资建议。`,
-  'awp-dragonlore-ft': `AWP | Dragon Lore (FT) 当前价格 ¥42,788,近 7 天 +8.45%。
+**建议:** 谨慎看多,入场区间 $2,140-2,170,目标价 $2,333。⚠️ 仅供参考,不构成投资建议。`,
+  'awp-dragonlore-ft': `AWP | Dragon Lore (FT) 当前价格 $5,943,近 7 天 +8.45%。
 
 **市场热点:**
 - Top 战队近期频繁使用,职业选手偏好上升
 - MA_30 强势突破,技术面看多
 
 **模型预测:**
-- 30 天目标价: ¥48,500 (+13.4%)
+- 30 天目标价: $6,736 (+13.4%)
 - 共识度: 82% (高)
 
-**风险提示:** 高端饰品流动性差,实际成交价可能低于挂价。建议小仓位参与,设置 ¥40,000 止损。`,
+**风险提示:** 高端饰品流动性差,实际成交价可能低于挂价。建议小仓位参与,设置 $5,556 止损。`,
   'default': `已为您分析该饰品。基于 6 个回归模型 + 4 个分类模型的综合判断,模型共识度 68%。
 
 **核心建议:**
@@ -252,7 +256,7 @@ const AI_PRESET_RESPONSES = {
 // 推荐问题
 const SUGGESTED_QUESTIONS = [
   '🔍 AK-47 火蛇现在该买吗?',
-  '💰 5000 预算,中等风险,推荐什么?',
+  '💰 $700 预算,中等风险,推荐什么?',
   '📈 今天哪些饰品在涨?',
   '🎯 哪个饰品最值得长期持有?',
   '⚠️ 帮我设置价格预警',

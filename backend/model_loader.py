@@ -85,10 +85,10 @@ def _skin_window(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
     feat = g[feat_cols].values.astype(np.float32)
     price = g["price"].values
     dates = g["date"].values
-    # 最后一个可用窗口:用倒数第 1 天之前 60 天 → 预测该日 +7
-    # 与 make_predictions 一致:窗口 = [i-60:i], current = price[i]
+    # v4 契约(forecast_contract.build_sequence_windows):窗口含决策日
+    # X = features[i-LOOKBACK+1 : i+1], current = price[i], 预测第 7 个后续观测
     i = len(g) - 1
-    X = feat[i - LOOKBACK:i][None, ...]            # (1, 60, F)
+    X = feat[i - LOOKBACK + 1:i + 1][None, ...]    # (1, 60, F) 含决策日
     cur_price = float(price[i])
     cur_date = str(pd.Timestamp(dates[i]).strftime("%Y-%m-%d"))
     # 窗口内 NaN 用 0 填(滚动特征早期可能有 NaN,训练时已 fillna)
@@ -130,7 +130,7 @@ class ModelLoader:
             import pickle
             self.tf_available = True
         except Exception as e:
-            print(f"[model_loader] ⚠ TensorFlow 不可用,Hybrid 降级 Mock: {e}")
+            print(f"[model_loader] WARN TensorFlow unavailable, Hybrid mock: {e}")
             return
 
         try:
@@ -179,11 +179,11 @@ class ModelLoader:
                 self.scalers["gru"] = _pkl("gru_scaler.pkl")
                 self.gru_items = set(_pkl("gru_items.pkl"))
 
-            print(f"[model_loader] ✅ 模型加载完成: {list(self.models.keys())} | "
+            print(f"[model_loader] OK models loaded: {list(self.models.keys())} | "
                   f"item_map={len(self.item_map)} group_map={len(self.group_map)} "
                   f"gru_items={len(self.gru_items)} route={self.hybrid_route}")
         except Exception as e:
-            print(f"[model_loader] ⚠ 模型加载失败,降级 Mock: {e}")
+            print(f"[model_loader] WARN model load failed, mock fallback: {e}")
             self.tf_available = False
 
     # ---------- 工具 ----------
@@ -296,17 +296,30 @@ class ModelLoader:
     # ---------- 树模型(读 pred CSV,回测同口径)----------
     _tree_cache: dict[str, pd.DataFrame] = {}
 
+    def _resolve_pred_csv(self, csv_name: str) -> Path | None:
+        """优先 v4 契约的 *_test.csv,再回退旧文件名。"""
+        stem = csv_name[:-4] if csv_name.endswith(".csv") else csv_name
+        for candidate in (
+            PRED_DIR / f"{stem}_test.csv",
+            PRED_DIR / csv_name,
+            PRED_DIR / f"{stem}_val.csv",
+        ):
+            if candidate.exists():
+                return candidate
+        return None
+
     def _tree_pred(self, csv_name: str, model_name: str, mtype: str,
                    market_hash_name: str) -> dict | None:
-        path = PRED_DIR / csv_name
-        if not path.exists():
+        path = self._resolve_pred_csv(csv_name)
+        if path is None:
             return None
-        if csv_name not in self._tree_cache:
+        cache_key = path.name
+        if cache_key not in self._tree_cache:
             try:
-                self._tree_cache[csv_name] = pd.read_csv(path, parse_dates=["date"])
+                self._tree_cache[cache_key] = pd.read_csv(path, parse_dates=["date"])
             except Exception:
                 return None
-        df = self._tree_cache[csv_name]
+        df = self._tree_cache[cache_key]
         sub = df[df["market_hash_name"] == market_hash_name]
         if sub.empty:
             return None
@@ -324,18 +337,16 @@ class ModelLoader:
         }
 
     def predict_all_models(self, market_hash_name: str, horizon: int = 7) -> list[dict]:
-        """返回 6 模型预测列表(供 /api/predict)。树模型缺数据则跳过。"""
+        """返回多模型预测列表(供 /api/predict)。
+
+        优先读同一决策日的 test 预测 CSV,避免 live LSTM 与旧 val 树模型混比;
+        CSV 缺失时 LSTM/GRU 再回退实时推理。
+        """
         results: list[dict] = []
-        # DL: Hybrid 主力
-        h = self.predict_hybrid(market_hash_name)
-        if h:
-            results.append({**h, "model": "LSTM", "type": "DL"})
-        # GRU(仅 top10)
-        g = self.predict_gru_for(market_hash_name)
-        if g:
-            results.append({**g, "type": "DL"})
-        # 树 + 统计
+        # 统一决策日: Hybrid / C / D / GRU / 树 都优先 test CSV
         for csv_name, model_name, mtype in [
+            ("pred_lstm_hybrid.csv", "LSTM", "DL"),
+            ("pred_gru.csv", "GRU", "DL"),
             ("pred_arima.csv", "ARIMA", "统计"),
             ("pred_xgboost.csv", "XGBoost", "ML"),
             ("pred_lightgbm.csv", "LightGBM", "ML"),
@@ -343,7 +354,23 @@ class ModelLoader:
         ]:
             r = self._tree_pred(csv_name, model_name, mtype, market_hash_name)
             if r:
+                # Hybrid 文件对外仍标 LSTM(部署主力)
+                if model_name == "LSTM":
+                    r["model"] = "LSTM"
+                    r["confidence"] = self._confidence("LSTM")
                 results.append(r)
+
+        have = {r["model"] for r in results}
+        # CSV 无 Hybrid 时: live Hybrid 兜底
+        if "LSTM" not in have:
+            h = self.predict_hybrid(market_hash_name)
+            if h:
+                results.insert(0, {**h, "model": "LSTM", "type": "DL"})
+        if "GRU" not in have:
+            g = self.predict_gru_for(market_hash_name)
+            if g:
+                results.append({**g, "type": "DL"})
+
         # horizon=30 时把 7 天预测外推(标注)
         if horizon == 30:
             for r in results:

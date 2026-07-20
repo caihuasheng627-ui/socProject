@@ -22,10 +22,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import (
-    USD_CNY_RATE, PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, ensure_dirs,
+    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, ensure_dirs,
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
+    weapon_to_category,
 )
 from model_loader import get_loader
 import rag
@@ -103,9 +104,12 @@ def _skin_to_dict(conn, row) -> dict:
     return {
         "id": row["slug"],
         "name": row["market_hash_name"],
-        "category": row["category"],
+        # 按 weapon_type 重算,避免库内旧映射漏刀/手套
+        "category": weapon_to_category(row["weapon_type"] or row["market_hash_name"] or "")
+                    or row["category"],
         "wear": row["wear_full"] or row["wear"],
-        "price": round(cur * USD_CNY_RATE, 2) if cur else None,   # 前端展示 CNY
+        # 与训练数据同口径: USD
+        "price": round(cur, 2) if cur else None,
         "priceUsd": round(cur, 2) if cur else None,
         "change24h": ch24,
         "change7d": ch7,
@@ -114,6 +118,7 @@ def _skin_to_dict(conn, row) -> dict:
         "rarity": row["rarity_rank"],
         "image": "🎮",
         "source": "BUFF",
+        "weaponType": row["weapon_type"],
     }
 
 
@@ -149,7 +154,7 @@ def health():
 # ============================================================
 @app.get("/api/skins")
 def list_skins(category: str | None = None, sort: str = "volume_desc",
-               limit: int = Query(20, le=100)):
+               limit: int = Query(200, le=500)):
     with get_connection() as conn:
         q = """SELECT s.* FROM skins s
                WHERE EXISTS (SELECT 1 FROM price_history p WHERE p.skin_id=s.id)"""
@@ -235,7 +240,7 @@ def predict(req: PredictReq):
             raise HTTPException(404, "skin not found")
         skin_id = skin["id"]
         name = skin["market_hash_name"]
-        cur, _ = latest_price(conn, skin_id)
+        live_cur, _ = latest_price(conn, skin_id)
 
         # 缓存命中?
         exp = (_utcnow() - timedelta(hours=PRED_CACHE_TTL_HOURS)).isoformat()
@@ -243,18 +248,36 @@ def predict(req: PredictReq):
             "SELECT * FROM predictions WHERE skin_id=? AND horizon=? AND expires_at>?",
             (skin_id, req.horizon, exp),
         ).fetchall()
+        decision_cur = live_cur
+        decision_date = None
         if cached:
-            preds = [{"model": c["model"], "type": c["type"], "price": c["predicted_price"],
+            preds = [{"model": c["model"], "type": c["type"],
+                      "price": c["predicted_price"],
+                      "priceUsd": c["predicted_price"],
                       "change": c["change_pct"], "confidence": c["confidence"]} for c in cached]
+            # 缓存里 current_price 是决策日 USD
+            if cached[0]["current_price"]:
+                decision_cur = float(cached[0]["current_price"])
         else:
             raw = _loader.predict_all_models(name, req.horizon)
             preds = []
             now_iso = _utcnow().isoformat()
             exp_iso = (_utcnow() + timedelta(hours=PRED_CACHE_TTL_HOURS)).isoformat()
+            # 用各模型决策日 current_price 的中位数作统一基准(通常相同)
+            raw_curs = [float(r["current_price"]) for r in raw if r.get("current_price")]
+            if raw_curs:
+                decision_cur = sorted(raw_curs)[len(raw_curs) // 2]
             for r in raw:
-                preds.append({"model": r["model"], "type": r.get("type", "ML"),
-                              "price": r["predicted_price"], "change": r["change_pct"],
-                              "confidence": r["confidence"]})
+                if r.get("date"):
+                    decision_date = r["date"]
+                preds.append({
+                    "model": r["model"], "type": r.get("type", "ML"),
+                    "price": r["predicted_price"],
+                    "priceUsd": r["predicted_price"],
+                    "change": r["change_pct"],
+                    "confidence": r["confidence"],
+                    "decisionDate": r.get("date"),
+                })
                 conn.execute(
                     """INSERT INTO predictions(skin_id, horizon, model, type, predicted_price,
                        current_price, change_pct, confidence, generated_at, expires_at)
@@ -277,16 +300,21 @@ def predict(req: PredictReq):
     level = ("very_high" if consensus_score >= 80 else "high" if consensus_score >= 65
              else "medium" if consensus_score >= 45 else "low")
 
+    cur = decision_cur if decision_cur else live_cur
     return {
         "skinId": skin["slug"],
         "horizon": req.horizon,
-        "currentPrice": round(cur * USD_CNY_RATE, 2) if cur else None,
+        "currency": "USD",
+        "currentPrice": round(cur, 2) if cur else None,
         "currentPriceUsd": round(cur, 2) if cur else None,
+        "livePriceUsd": round(live_cur, 2) if live_cur else None,
+        "decisionDate": decision_date,
         "predictions": preds,
         "consensus": {"score": consensus_score, "level": level},
-        "entryRange": {"low": round((cur or 0) * 0.97 * USD_CNY_RATE, 2),
-                       "high": round((cur or 0) * 0.99 * USD_CNY_RATE, 2)},
-        "targetPrice": round((cur or 0) * 1.05 * USD_CNY_RATE, 2),
+        "entryRange": {"low": round((cur or 0) * 0.97, 2),
+                       "high": round((cur or 0) * 0.99, 2)},
+        # 7 天目标:按共识涨跌幅,而非写死 +5%
+        "targetPrice": round((cur or 0) * (1 + avg_chg / 100), 2) if cur else None,
         "generatedAt": _utcnow().isoformat(),
     }
 
@@ -301,7 +329,7 @@ def entry_range(req: EntryRangeReq):
     mult = {"conservative": (0.95, 0.98, 0.95, 1.03, 1.06),
             "moderate": (0.97, 0.99, 0.92, 1.05, 1.12),
             "aggressive": (0.98, 1.0, 0.88, 1.08, 1.20)}[req.riskLevel]
-    return {k: round((cur or 0) * v * USD_CNY_RATE, 2) for k, v in
+    return {k: round((cur or 0) * v, 2) for k, v in
             zip(["entryLow", "entryHigh", "stopLoss", "target7d", "target30d"], mult)}
 
 
@@ -511,22 +539,45 @@ def delete_alert(alert_id: int):
 @app.get("/api/models/comparison")
 def models_comparison():
     mc_path = OUTPUT_DIR / "model_comparison.json"
-    cmp_path = OUTPUT_DIR / "compare_results.json"
+    cmp_path = OUTPUT_DIR / "compare_results_test.json"
+    if not cmp_path.exists():
+        cmp_path = OUTPUT_DIR / "compare_results.json"
     regression, classification = [], []
     if mc_path.exists():
         mc = json.loads(mc_path.read_text(encoding="utf-8"))
         regression = mc.get("regression", [])
+    # 无独立 model_comparison.json 时,从 compare_results_* 组装回归表
+    if not regression and cmp_path.exists():
+        cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
+        models_blk = cmp.get("models") if isinstance(cmp, dict) else None
+        if isinstance(models_blk, dict):
+            for name, blk in models_blk.items():
+                if not isinstance(blk, dict):
+                    continue
+                regression.append({
+                    "name": name,
+                    "type": ("DL" if any(x in name.upper() for x in ("LSTM", "GRU"))
+                             else "Route" if "Hybrid" in name else "ML"),
+                    "rmse": blk.get("rmse"), "mae": blk.get("mae"),
+                    "mape": blk.get("mape"), "r2": blk.get("r2"),
+                    "returnPct": None, "speed": "—", "course": "fair test",
+                })
     if cmp_path.exists():
         cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
-        for name, blk in cmp.items():
-            d = blk.get("direction") or {}
-            if d:
-                classification.append({
-                    "name": name, "type": "DL" if "LSTM" in name or "GRU" in name else "ML",
-                    "accuracy": d.get("accuracy"), "auc": d.get("auc"),
-                    "precision": d.get("precision"), "recall": d.get("recall"),
-                    "f1": d.get("f1"),
-                })
+        models_blk = cmp.get("models") if isinstance(cmp, dict) else cmp
+        if isinstance(models_blk, dict):
+            for name, blk in models_blk.items():
+                if not isinstance(blk, dict):
+                    continue
+                d = blk.get("direction") or {}
+                if d:
+                    classification.append({
+                        "name": name,
+                        "type": "DL" if any(x in name.upper() for x in ("LSTM", "GRU")) else "ML",
+                        "accuracy": d.get("accuracy"), "auc": d.get("auc"),
+                        "precision": d.get("precision"), "recall": d.get("recall"),
+                        "f1": d.get("f1"),
+                    })
     buy_hold = {"name": "Buy & Hold", "type": "基准",
                 "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
                 "returnPct": 0, "speed": "—", "course": "基准策略"}
