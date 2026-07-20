@@ -99,6 +99,15 @@ const app = createApp({
       }
     };
 
+    const renderLucideIcon = (name, size = 18) => {
+      try {
+        if (typeof window === 'undefined' || !window.renderLucide) return '';
+        return window.renderLucide(name, { size, strokeWidth: 2 });
+      } catch (e) {
+        return '';
+      }
+    };
+
     const currentPage = ref('dashboard');
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
@@ -1153,7 +1162,7 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu, renderMenuIcon,
+      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon,
       // 首屏
       showLanding, landingExiting, enterSystem,
       // 行情

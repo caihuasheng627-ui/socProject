@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>SkinVision AI — CS2 饰品 AI 智能分析平台</title>
 
   <!-- Display: Syne · UI: Outfit (landing + app) -->
@@ -163,14 +163,15 @@
     <!-- 主内容区 -->
     <main class="main-content" id="main-content" tabindex="-1">
       <header class="topbar">
-        <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" style="display: none;">
-          <i :class="sidebarOpen ? 'ph-bold ph-x' : 'ph-bold ph-list'" aria-hidden="true"></i>
+        <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'" :aria-expanded="sidebarOpen">
+          <span class="menu-toggle-icon" aria-hidden="true" v-html="renderLucideIcon(sidebarOpen ? 'x' : 'menu', 18)"></span>
         </button>
         <div class="breadcrumb">
-          <span>{{ t('app.name') }}</span>
-          <i class="ph ph-caret-right" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
+          <span class="breadcrumb-app">{{ t('app.name') }}</span>
+          <i class="ph ph-caret-right breadcrumb-sep" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
           <span class="page-title">{{ currentMenu?.label }}</span>
         </div>
+        <div class="mobile-page-title">{{ currentMenu?.label }}</div>
 
         <div class="topbar-actions">
           <!-- 语言切换按钮 -->
