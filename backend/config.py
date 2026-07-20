@@ -26,7 +26,9 @@ MODEL_DIR = ML_DIR / "models"       # .keras / .pkl / scaler
 PRED_DIR = ML_DIR / "preds"         # 预录预测 CSV(回测/兜底用)
 OUTPUT_DIR = ML_DIR / "outputs"     # 模型对比 / SHAP / 回测 JSON
 
-DB_PATH = BACKEND_DIR / "skinvision.db"
+# Docker volume 挂载 backend/data,本地与容器共用同一路径
+DATA_RUNTIME_DIR = BACKEND_DIR / "data"
+DB_PATH = DATA_RUNTIME_DIR / "skinvision.db"
 SEED_DIR = REPO_ROOT / "docs" / "expo"   # Expo 种子数据(预录辩论 JSON 等)
 
 # ---------- DeepSeek ----------
@@ -53,5 +55,5 @@ USD_CNY_RATE = float(os.getenv("USD_CNY_RATE", "7.2"))
 
 
 def ensure_dirs() -> None:
-    for d in (DATA_DIR, MODEL_DIR, PRED_DIR, OUTPUT_DIR, SEED_DIR):
+    for d in (DATA_DIR, MODEL_DIR, PRED_DIR, OUTPUT_DIR, SEED_DIR, DATA_RUNTIME_DIR):
         d.mkdir(parents=True, exist_ok=True)

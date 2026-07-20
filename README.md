@@ -1,224 +1,236 @@
 # SkinVision AI — CS2 饰品 AI 智能分析平台
 
-> **课程:** SWS3022 — AI/ML for Financial Services
-> **前端角色:** 蔡华升 (前端开发)
-> **版本:** V1.1 · 2026-07-15
+> **课程:** SWS3022 — AI/ML for Financial Services  
+> **版本:** V1.2 · 2026-07-20  
+> **仓库:** https://github.com/caihuasheng627-ui/socproject
 
-融合 AI 预测模型、RAG 知识库和 AI Agent 的 CS2 饰品市场智能分析平台前端实现。
-
----
-
-## 🚀 在线访问
-
-- **CloudStudio 演示:** 
-- **GitHub:** https://github.com/caihuasheng627-ui/socProject
-- **GitHub Pages:** https://caihuasheng627-ui.github.io/socProject/ (启用 Pages 后)
-
-> 在线版本使用模拟数据(MVP),完整功能需配合 FastAPI 后端 + 真实 BUFF/Skinport API。
+全栈实现：前端看板 + FastAPI 后端 + Hybrid LSTM / 树模型预测 + DeepSeek RAG / 双 Agent 辩论 + Docker 一键部署。
 
 ---
 
-## 📦 技术栈
+## 在线访问
+
+| 入口 | 地址 |
+|------|------|
+| GitHub | https://github.com/caihuasheng627-ui/socproject |
+| GitHub Pages | https://caihuasheng627-ui.github.io/socProject/（启用 Pages 后） |
+
+> Pages / 静态演示默认走 Mock。完整预测、对话、辩论、持仓诊断需启动后端（见下方部署）。
+
+---
+
+## 技术栈
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 框架 | Vue 3 (CDN) | Composition API + 响应式数据 |
-| 样式 | Tailwind CSS (CDN) + 自定义 CSS | 深色 CS2 风格主题 |
-| 图表 | ECharts 5.4 | K线图、雷达图、回测曲线、SHAP |
-| Markdown | marked.js | AI 回复内容渲染 |
-| 部署 | CloudStudio | 静态资源一键部署 |
-
-**无构建步骤:** 所有资源通过 CDN 加载,双击 `index.html` 即可在本地运行。
+| 前端 | Vue 3 + Tailwind + ECharts（CDN） | 无构建步骤，中英 i18n |
+| API | FastAPI + Uvicorn + SQLite | OpenAPI v1.2.0，约 15+ 端点 |
+| LLM | DeepSeek-V3 | Chat SSE / RAG / 辩论 / 组合诊断 |
+| ML | LSTM-C/D Hybrid + GRU + ARIMA/XGB/LGBM/RF | 训练产物在 `ml/`，推理在 `backend/model_loader.py` |
+| 部署 | Docker Compose | API `:8000` + Nginx 前端 `:8080` |
 
 ---
 
-## 📁 项目结构
+## 项目结构
 
 ```
-skinvision-ai/
-├── index.html            # 入口 HTML (含全部页面模板)
-├── css/
-│   └── style.css         # 深色主题 + 自定义组件样式
-├── js/
-│   ├── data.js           # Mock 数据层 (20饰品 + 新闻 + 模型)
-│   └── app.js            # Vue 主应用 + 图表渲染
-└── README.md             # 本文档
+socproject/
+├── index.html / app.js / style.css / data.js / i18n.js   # 前端入口
+├── js/api.js                                            # API 客户端（Mock 可回退）
+├── api-spec/openapi.yaml                                # 前后端契约 v1.2.0
+├── backend/                                             # FastAPI 后端（组员 3）
+│   ├── main.py / database.py / model_loader.py
+│   ├── llm.py / rag.py / agent_debate.py
+│   ├── portfolio_diagnose.py / scheduler.py
+│   └── .env.example
+├── ml/                                                  # 训练 / 模型 / 预测 CSV（组员 1+2）
+│   ├── models/  preds/  data/  outputs/
+│   └── README.md
+├── docs/expo/                                           # Expo 种子（预录辩论 / 日报 / 持仓）
+├── Dockerfile                                           # 后端镜像
+├── docker-compose.yml                                   # 一键起 API + Web
+└── README.md
 ```
 
 ---
 
-## 🎯 功能模块
+## 功能概览
 
-按策划书 4. 节功能清单实现:
+1. **行情看板** — 饰品列表、分类筛选、涨跌与流动性  
+2. **物品详情 + AI 预测** — K 线 / MA、多模型 7 日预测、共识度、入场区间、RAG 解释、🐂🐻 双 Agent 辩论  
+3. **AI 对话** — DeepSeek 流式 SSE（无 Key 时 Mock）  
+4. **市场日报 / 资讯** — 指标卡片 + RAG 资讯流  
+5. **价格预警** — 涨破 / 跌破 CRUD  
+6. **模拟持仓** — real/sim 持仓、`value_history` 市值曲线、`diagnose` 组合诊断  
+7. **模型实验室** — 对比表 / 回测曲线 / SHAP  
 
-### 1️⃣ 📊 行情看板
-- 20 个高流动性 CS2 饰品(来自策划书 3.4)
-- 7 日涨跌榜 Top 5
-- 分类筛选(步枪/狙击枪/手枪/刀具/手套/箱子)
-- 实时价格、涨跌幅、成交量、流动性指标
-
-### 2️⃣ 🔍 物品详情 + AI 预测 ⭐ 核心
-- **K线图**: ECharts 实现,90/180 天历史 + 30 天 AI 预测虚线
-- **技术指标**: MA7 / MA30 叠加,Volume 副图
-- **多模型预测**: 6 个回归模型对比 (ARIMA/XGBoost/LightGBM/RF/LSTM/GRU)
-- **共识度评分**: 76% 横向条
-- **入场区间**: 动态计算 + 目标价 + 止损位
-- **RAG 解释**: 关联新闻/赛事/公告,4 条相关资讯卡片
-- **🐂🐻 双 Agent 辩论**: 3 轮迭代(独立分析→互相质疑→达成共识)
-
-### 3️⃣ 💬 AI 对话顾问 ⭐ 亮点
-- 自然语言对话界面
-- 6 个推荐问题快捷入口
-- 流式输出 + Loading 动画
-- 智能回复:分析饰品 / 推荐组合 / 解读新闻
-- 支持 Markdown 渲染(加粗/列表/emoji)
-
-### 4️⃣ 📰 AI 市场日报
-- 关键指标卡片(监控数/上涨/下跌)
-- 成交量 Top 5
-- AI 市场总结(DeepSeek 风格)
-- RAG 资讯流(6 条新闻 + 情感分析)
-
-### 5️⃣ 🔔 价格预警
-- 3 个关键指标(活跃/今日触发/本周触发)
-- 预警列表(状态徽章可视化)
-- 新建预警弹窗(饰品/条件/目标价/备注)
-- 支持涨破/跌破两种条件
-
-### 6️⃣ 📋 模拟持仓
-- 6 个风险指标(总成本/市值/盈亏/Sharpe/最大回撤/波动率)
-- 持仓明细表(盈亏、收益率自动计算)
-- 添加持仓弹窗(自动填充当前价)
-- 一键平仓
-
-### 7️⃣ 🤖 模型实验室
-- **回归模型对比表**: 6 模型 × 7 指标(对应策划书 5.4)
-- **分类模型对比表**: 4 模型(对应 5.2)
-- **雷达图**: 6 维度多模型对比
-- **回测曲线**: 60 天 5 模型收益对比 + 买入持有基准
-- **SHAP 特征重要性**: 8 个核心特征(对应 5.3)
-- **训练策略说明**: TimeSeriesSplit / Walk-Forward / SMOTE 等
+**ML 部署口径（Hybrid）：** 高价段 → LSTM-C；低/中价段 → LSTM-D；树模型读 `ml/preds/pred_*.csv` 兜底。
 
 ---
 
-## 🎨 设计亮点
+## 部署方式（推荐：Docker 一键起）
 
-- **CS2 主题色**: 橙色 (#ff6b00) 品牌色 + 深色背景
-- **中国股市配色**: 涨红跌绿 (与策划书一致)
-- **响应式布局**: 4 栏 → 3 栏 → 2 栏自适应
-- **微动画**: 状态点脉冲 / 消息淡入 / Loading 打字效果
-- **数据可视化**: K线红涨绿跌符合中国习惯
+### 前置
 
----
+- Docker Desktop / Docker Engine + Compose 插件  
+- （可选）DeepSeek API Key；无 Key 时 Chat / 现场辩论 / RAG 汇总自动降级  
 
-## 🚀 本地运行
+### 步骤
 
 ```bash
-# 方式 1: 直接打开
-双击 index.html
+git clone https://github.com/caihuasheng627-ui/socproject.git
+cd socproject
 
-# 方式 2: 启动本地服务器 (推荐,避免某些资源跨域问题)
-cd skinvision-ai
-python -m http.server 3000
-# 访问 http://localhost:3000
+# 环境变量（可先空着跑通；填 Key 后启用真实 LLM）
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，按需填写 DEEPSEEK_API_KEY=sk-...
 
-# 方式 3: Node 服务器
-npx serve .
+docker compose up --build -d
+```
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| API | http://localhost:8000 | FastAPI；文档 http://localhost:8000/docs |
+| 健康检查 | http://localhost:8000/api/health | 数据源 + 模型状态 |
+| 前端 | http://localhost:8080 | Nginx 静态托管 |
+
+前端切到真实后端（浏览器控制台执行一次）：
+
+```js
+localStorage.setItem('sv_api_url', 'http://localhost:8000');
+localStorage.setItem('sv_use_mock', 'false');
+location.reload();
+```
+
+停止 / 查看日志：
+
+```bash
+docker compose logs -f api
+docker compose down
+```
+
+SQLite（持仓 / 预警 / 预测缓存）挂在 Docker volume `sqlite-data`，重启不丢。
+
+### 仅起后端镜像
+
+```bash
+cp backend/.env.example backend/.env
+docker build -t skinvision-api .
+docker run --rm -p 8000:8000 --env-file backend/.env \
+  -v skinvision-db:/app/backend/data skinvision-api
 ```
 
 ---
 
-## 👥 团队协作（Git Push 指南）
+## 本地开发（不用 Docker）
 
-### 方式一：加 Collaborator（推荐）
-
-**仓库拥有者：**
-
-1. 打开 https://github.com/caihuasheng627-ui/socProject/settings/access
-2. 点击 **Add people** → 输入队友 GitHub 用户名 → 角色选 **Write**
-3. 队友接受邮件邀请即可
-
-**队友操作：**
+### 后端
 
 ```bash
-git clone https://github.com/caihuasheng627-ui/socProject.git
-cd socProject
+cd backend
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+cp .env.example .env   # 按需填 DEEPSEEK_API_KEY
 
-# 首次配置身份
-git config user.name "你的名字"
-git config user.email "你的邮箱@xxx.com"
+python main.py
+# 或: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# 拉取最新 → 修改代码 → 提交 → 推送
+启动时会：建表 → 从 `ml/data/{train,val,test}.csv` 导入饰品与行情 → 写入 Expo 种子 → 加载 LSTM/GRU（无 TensorFlow 则趋势外推降级）→ 启动定时任务。
+
+### 前端
+
+```bash
+# 仓库根目录
+python -m http.server 8080
+# 访问 http://localhost:8080 ，按上文 localStorage 切 API
+```
+
+也可直接双击 `index.html`（部分浏览器对跨域 / 模块有限制，建议本地 server）。
+
+### 联调顺序
+
+`health` → `skins` → `kline` → `predict` → `chat` → `portfolio` → `news` → `debate`
+
+---
+
+## 主要 API（节选）
+
+契约详见 [`api-spec/openapi.yaml`](api-spec/openapi.yaml)。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/health` | 健康 / 模型状态 |
+| GET | `/api/skins` | 饰品列表 |
+| GET | `/api/skins/{id}/kline` | K 线 + MA7/MA30 |
+| POST | `/api/predict` | 多模型预测（默认 Hybrid LSTM + 树模型 CSV） |
+| POST | `/api/chat` | DeepSeek SSE |
+| POST | `/api/debate/{id}?live=0` | 预录回放；`live=1` 现场 DeepSeek |
+| GET/POST/DELETE | `/api/portfolio` | 持仓 CRUD（`holdingType`: real/sim） |
+| GET | `/api/portfolio/value_history` | 总市值曲线 |
+| POST | `/api/portfolio/diagnose` | 组合诊断 |
+| GET | `/api/models/comparison` · `/backtest` · `/shap` | 模型实验室 |
+| GET/POST/DELETE | `/api/alerts` | 价格预警 |
+
+请求体字段为 camelCase（如 `skinId`、`horizon`），与 OpenAPI / 前端一致。
+
+---
+
+## 降级口径
+
+| 条件 | 行为 |
+|------|------|
+| 无 `DEEPSEEK_API_KEY` | Chat / 辩论现场 / RAG·诊断汇总 → Mock 或预录 |
+| 无 TensorFlow / 模型文件 | Hybrid → 近 7 日趋势外推 |
+| 树模型包缺失 | 读 `ml/preds/pred_*.csv` |
+| BUFF 实时爬虫默认关 | 使用库内历史价 + 训练 CSV |
+
+---
+
+## 团队协作（Git）
+
+```bash
+git clone https://github.com/caihuasheng627-ui/socproject.git
+cd socproject
 git pull origin main
+# 修改 → 提交 → 推送（需 Collaborator Write，或 Fork + PR）
 git add .
 git commit -m "描述修改"
 git push origin main
 ```
 
-> ⚠️ push 如需登录，用**自己的 GitHub 账号 + Personal Access Token**（不是密码）
-> 生成 Token：https://github.com/settings/tokens → 勾选 `repo` → 复制保存
-
-### 方式二：Fork + Pull Request（无需授权）
-
-1. 打开仓库 → 点右上角 **Fork** 到自己账号
-2. 克隆自己 Fork 的仓库，修改后 push
-3. GitHub 网页点 **Contribute → Open Pull Request**
-4. 仓库拥有者审核后 **Merge** 即可
-
-| 常见问题 | 解决 |
-|----------|------|
-| push 报 403 | Token 过期或没勾 `repo` 权限，重新生成 |
-| push 报冲突 | `git pull origin main` 拉取最新，解决冲突后再 push |
+Push 使用 GitHub Personal Access Token（勾选 `repo`），不是账户密码。
 
 ---
 
-## 🔌 与后端对接
+## 评分对齐（摘要）
 
-当前前端使用 Mock 数据。生产环境需对接:
-
-| 前端调用 | 后端 API (FastAPI) |
-|----------|---------------------|
-| 行情数据 | `GET /api/skins?category={cat}` |
-| K线数据 | `GET /api/skins/{id}/kline?days={n}` |
-| AI 预测 | `POST /api/predict` body: `{skin_id, horizon}` |
-| RAG 解释 | `GET /api/explain/{skin_id}` |
-| AI 对话 | `POST /api/chat` (流式 SSE) |
-| 双 Agent 辩论 | `POST /api/debate/{skin_id}` |
-| 新闻 | `GET /api/news?limit={n}` |
-| 预警/持仓 | `GET/POST/DELETE /api/alerts` `/api/portfolio` |
-
-数据源(策划书 3.1):
-- **BUFF API** (主力,Session Cookie)
-- **Skinport API** (辅助,免费)
-- **Kaggle CS:GO Price Dataset** (历史训练)
+| 维度 | 实现 |
+|------|------|
+| 仪表板 | 7 大模块 + 深色 CS2 UI + 移动端适配 |
+| 金融相关 | 持仓风险、回测、组合诊断 |
+| 数据 / 特征 | 154 件面板数据 + K 线 + 特征工程 |
+| 模型可视化 | 对比表 / 雷达 / SHAP / 回测曲线 |
+| 评估 + 基准 | 多模型指标 + Buy & Hold |
+| 演示 | Docker 一键起 + Expo 预录辩论 |
 
 ---
 
-## 📊 评分对齐
+## 后续优化
 
-| Canvas 维度 | 占比 | 前端实现 |
-|-------------|:---:|----------|
-| 仪表板展示 | 10% | ✅ 7 个完整模块 + 现代化 UI |
-| 金融相关性 | 20% | ✅ 风险指标(Sharpe/Drawdown/Volatility) + 模拟回测 |
-| 数据+特征展示 | 20% | ✅ 20 饰品 + K线 + 跨平台比价字段 |
-| 模型可视化 | 20% | ✅ 对比表 + 雷达图 + SHAP + 回测曲线 |
-| 评估+基准 | 20% | ✅ 10 模型对比 + 买入持有基准 |
-| 演讲/演示 | 10% | ✅ 完整交互式 Demo |
-
----
-
-## 📝 后续优化
-
-- [ ] 接入真实 BUFF/Skinport API
-- [ ] FastAPI 后端 + WebSocket 实时推送
-- [ ] 用户系统(登录/收藏/历史记录)
-- [ ] 移动端适配(< 768px)
-- [ ] 国际化(中/英)
-- [ ] 暗色/亮色主题切换
-- [ ] 数据导出(Excel/PDF 报告)
+- [x] FastAPI 后端 + OpenAPI 联调
+- [x] Hybrid LSTM 推理 + 树模型 pred CSV
+- [x] Docker Compose 一键部署
+- [x] 移动端适配 / 中英 i18n
+- [ ] 接入真实 BUFF / Skinport 实时行情
+- [ ] 用户系统（登录 / 收藏）
+- [ ] 分类模型输出接入 `/api/predict`
+- [ ] 真·30 日预测（当前 30 日由 7 日外推）
 
 ---
 
-## 📄 许可
+## 许可
 
 仅供 SWS3022 课程项目使用 · © 2026 SkinVision AI Team
