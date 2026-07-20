@@ -1,12 +1,12 @@
 // ============================================
-// SkinVision AI - 国际化(i18n)翻译表
+// CSVest - 国际化(i18n)翻译表
 // 支持: 简体中文 (zh-CN) / English (en-US)
 // ============================================
 
 const I18N = {
   'zh-CN': {
     // ============ 应用元信息 ============
-    'app.name': 'SkinVision AI',
+    'app.name': 'CSVest',
     'app.subtitle': 'CS2 INTELLIGENCE',
     'app.tagline': 'CS2 饰品 AI 智能分析平台',
     'app.footer.course': 'SWS3022 课程项目',
@@ -114,7 +114,7 @@ const I18N = {
     'prediction.consensus.confidence': '置信度',
 
     // ============ AI 对话顾问 ============
-    'chat.welcomeTitle': '👋 你好,我是 SkinVision AI 智能顾问',
+    'chat.welcomeTitle': '👋 你好,我是 CSVest 智能顾问',
     'chat.welcomeBody': '我可以帮你:',
     'chat.welcomeItem1': '📊 分析任意 CS2 饰品的价格走势',
     'chat.welcomeItem2': '🤖 给出 AI 预测 + 入场建议',
@@ -129,7 +129,7 @@ const I18N = {
     'chat.suggested': '推荐问题',
     'chat.suggestedPrefix': '快速提问',
     'chat.meta.you': '您',
-    'chat.meta.ai': 'SkinVision AI',
+    'chat.meta.ai': 'CSVest',
     'chat.disclaimer': '仅供参考,不构成投资建议。',
     'chat.riskTitle': '风险提示',
 
@@ -229,7 +229,8 @@ const I18N = {
 
     // ============ 模型实验室 ============
     'models.title': '🤖 模型实验室',
-    'models.subtitle': '10 个模型对比 · 回测 · SHAP 解释 · 课程评分核心 60%',
+    'models.subtitle': '公平 test · 154 件 · Hybrid 路由 low→C / mid·high→D · SHAP',
+    'models.routeNote': 'Hybrid 路由（val 冻结）：low → LSTM-C · mid/high → LSTM-D',
     'models.exportReport': '导出报告',
     'models.retrain': '重新训练',
     'models.regressionTable': '📊 回归模型对比 (6 个)',
@@ -265,7 +266,7 @@ const I18N = {
     'cmd.footer.updown': '选择',
     'cmd.footer.enter': '确认',
     'cmd.footer.esc': '关闭',
-    'cmd.footer.brand': 'SkinVision AI · 智能搜索',
+    'cmd.footer.brand': 'CSVest · 智能搜索',
     'cmd.group.pages': '📄 页面',
     'cmd.group.skins': '🎯 饰品',
     'cmd.group.actions': '⚡ 操作',
@@ -293,7 +294,7 @@ const I18N = {
     'shortcut.tip': '💡 提示: 命令面板 (Ctrl+K) 可以快速跳转到任意页面或饰品,支持模糊搜索。',
 
     // ============ 欢迎/通用提示 ============
-    'welcome.toast.title': '欢迎使用 SkinVision AI',
+    'welcome.toast.title': '欢迎使用 CSVest',
     'welcome.toast.subtitle': '按 Ctrl+K 打开命令面板 · ? 查看快捷键',
     'export.success': '导出成功',
     'theme.switched': '主题已切换',
@@ -311,7 +312,7 @@ const I18N = {
 
   'en-US': {
     // ============ App meta ============
-    'app.name': 'SkinVision AI',
+    'app.name': 'CSVest',
     'app.subtitle': 'CS2 INTELLIGENCE',
     'app.tagline': 'AI-Powered CS2 Skin Market Analysis Platform',
     'app.footer.course': 'SWS3022 Course Project',
@@ -419,7 +420,7 @@ const I18N = {
     'prediction.consensus.confidence': 'Confidence',
 
     // ============ AI Chat ============
-    'chat.welcomeTitle': '👋 Hi, I\'m SkinVision AI Advisor',
+    'chat.welcomeTitle': '👋 Hi, I\'m CSVest Advisor',
     'chat.welcomeBody': 'I can help you with:',
     'chat.welcomeItem1': '📊 Analyze any CS2 skin\'s price trend',
     'chat.welcomeItem2': '🤖 Provide AI forecasts + entry advice',
@@ -434,7 +435,7 @@ const I18N = {
     'chat.suggested': 'Suggestions',
     'chat.suggestedPrefix': 'Quick ask',
     'chat.meta.you': 'You',
-    'chat.meta.ai': 'SkinVision AI',
+    'chat.meta.ai': 'CSVest',
     'chat.disclaimer': 'For reference only, not investment advice.',
     'chat.riskTitle': 'Risk Warning',
 
@@ -534,7 +535,8 @@ const I18N = {
 
     // ============ Model Lab ============
     'models.title': '🤖 Model Lab',
-    'models.subtitle': '10-model comparison · Backtest · SHAP · Core 60% grade',
+    'models.subtitle': 'Fair test · 154 items · Hybrid route low→C / mid·high→D · SHAP',
+    'models.routeNote': 'Hybrid route (val-frozen): low → LSTM-C · mid/high → LSTM-D',
     'models.exportReport': 'Export Report',
     'models.retrain': 'Retrain',
     'models.regressionTable': '📊 Regression Models (6)',
@@ -570,7 +572,7 @@ const I18N = {
     'cmd.footer.updown': 'Select',
     'cmd.footer.enter': 'Confirm',
     'cmd.footer.esc': 'Close',
-    'cmd.footer.brand': 'SkinVision AI · Smart Search',
+    'cmd.footer.brand': 'CSVest · Smart Search',
     'cmd.group.pages': '📄 Pages',
     'cmd.group.skins': '🎯 Skins',
     'cmd.group.actions': '⚡ Actions',
@@ -598,7 +600,7 @@ const I18N = {
     'shortcut.tip': '💡 Tip: Command palette (Ctrl+K) lets you jump to any page or skin with fuzzy search.',
 
     // ============ Welcome / General ============
-    'welcome.toast.title': 'Welcome to SkinVision AI',
+    'welcome.toast.title': 'Welcome to CSVest',
     'welcome.toast.subtitle': 'Press Ctrl+K for command palette · ? for shortcuts',
     'export.success': 'Export successful',
     'theme.switched': 'Theme switched',

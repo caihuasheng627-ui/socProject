@@ -1,5 +1,5 @@
 """
-SkinVision AI — 特征工程
+CSVest — 特征工程
 =========================
 共享入口：组员1 (LSTM/GRU) 和 组员2 (树模型) 都调用此函数。
 
@@ -17,6 +17,8 @@ SkinVision AI — 特征工程
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
+
+from forecast_contract import add_grouped_targets
 
 CATEGORICAL_COLS = [
     ("weapon_type", "weapon_type_enc"),
@@ -36,6 +38,7 @@ def build_features(df: pd.DataFrame, drop_na_target: bool = True) -> pd.DataFram
 
     # 1. 对数价格 (处理 $0.03~$2000 量级差异)
     df["log_price"] = np.log1p(df["price"])
+    df = add_grouped_targets(df)
 
     # 2. 按物品逐组计算滚动特征
     for _name, group in df.groupby("market_hash_name", sort=False):
@@ -73,12 +76,6 @@ def build_features(df: pd.DataFrame, drop_na_target: bool = True) -> pd.DataFram
 
         # === 成交量均线 ===
         df.loc[idx, "Volume_MA_7"] = volume.rolling(7, min_periods=1).mean()
-
-        # === Target (7天后 log 价格) ===
-        df.loc[idx, "Target"] = group["log_price"].shift(-7)
-        # 记录目标行所属 split，供下游屏蔽 train/val → test 的标签泄漏
-        if "_split" in group.columns:
-            df.loc[idx, "_target_split"] = group["_split"].shift(-7)
 
         # === 组员2 额外特征 ===
         ma30 = df.loc[idx, "MA_30"]

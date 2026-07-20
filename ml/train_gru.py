@@ -30,6 +30,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from tensorflow import keras
 from tensorflow.keras.layers import Input, GRU, Dense, Dropout
+from forecast_contract import HORIZON_STEPS, build_sequence_windows, load_feature_panel
 
 warnings.filterwarnings("ignore")
 
@@ -37,7 +38,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (与 LSTM-C/D 对齐, 保证对比公平)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = 7             # 预测 7 天后
+HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
 N_ITEMS = 10            # 高流动性代表物品数
 GRU_UNITS = 50          # GRU 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
@@ -46,9 +47,10 @@ EPOCHS = 100
 LEARNING_RATE = 0.001
 
 # 输出的模型 / 映射文件
-BASE = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE / "models"
-OUTPUT_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "models"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_PATH  = OUTPUT_DIR / "gru.keras"
 SCALER_PATH = OUTPUT_DIR / "gru_scaler.pkl"
@@ -59,15 +61,13 @@ ITEMS_PATH  = OUTPUT_DIR / "gru_items.pkl"
 # 第 1 步: 加载数据 + 选 10 件高流动性物品 + 特征工程
 # ============================================================
 def load_data():
-    """加载 train / val, 选高流动性 top10, 做特征工程"""
-    from feature_engineering import build_features
-
+    """从训练集选 top10，并返回连续特征面板。"""
     print("=" * 60)
     print("第 1 步: 加载数据 + 选高流动性物品 + 特征工程")
     print("=" * 60)
 
-    train = pd.read_csv(BASE / "data" / "train.csv")
-    val   = pd.read_csv(BASE / "data" / "val.csv")
+    train = pd.read_csv(DATA_DIR / "train.csv")
+    val   = pd.read_csv(DATA_DIR / "val.csv")
 
     print(f"  原始 train: {len(train):,} 行, {train['market_hash_name'].nunique()} 件")
     print(f"  原始 val:   {len(val):,} 行, {val['market_hash_name'].nunique()} 件")
@@ -81,16 +81,10 @@ def load_data():
     for name in items:
         print(f"    {vol[name]:>10,.0f}  {name}")
 
-    train = train[train["market_hash_name"].isin(items)]
-    val   = val[val["market_hash_name"].isin(items)]
-
-    train = build_features(train)
-    val   = build_features(val)
-
-    print(f"\n  特征化后 train: {len(train):,} 行")
-    print(f"  特征化后 val:   {len(val):,} 行")
-
-    return train, val, items
+    panel = load_feature_panel(DATA_DIR)
+    panel = panel[panel["market_hash_name"].isin(items)].copy()
+    print(f"\n  连续特征面板: {len(panel):,} 行")
+    return panel, items
 
 
 # ============================================================
@@ -115,23 +109,11 @@ FEATURE_COLS = [
     "steam_ccu",              # Steam 在线 (已 /1e6)
 ]
 
-def build_sequences(df, x_scaler=None, fit_scaler=False):
+def build_sequences(df, sample_split, x_scaler=None, fit_scaler=False):
     """逐物品构建滑动窗口 X(60,15) → y(1), 单输入版"""
-    X, y = [], []
-
-    for _, group in df.groupby("market_hash_name"):
-        group = group.sort_values("date")
-        feat = group[FEATURE_COLS].values.astype(np.float32)
-        target = group["Target"].values.astype(np.float32)
-
-        for i in range(LOOKBACK, len(group)):
-            if np.isnan(target[i]):
-                continue
-            X.append(feat[i - LOOKBACK : i])         # (60, 15)
-            y.append(target[i])                       # Target = log_price of day i+7
-
-    X = np.array(X, dtype=np.float32)
-    y = np.array(y, dtype=np.float32)
+    X, y, _ = build_sequence_windows(
+        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    )
 
     # --- 全局 StandardScaler ---
     nsamples, nsteps, nfeats = X.shape
@@ -177,14 +159,14 @@ def main():
     keras.utils.set_random_seed(42)
 
     # --- 加载 ---
-    train_df, val_df, items = load_data()
+    panel, items = load_data()
 
     # --- 构建序列 (train fit scaler, val 复用) ---
     print("\n" + "=" * 60)
     print("第 2 步: 构建滑动窗口")
     print("=" * 60)
-    X_train, y_train, x_scaler = build_sequences(train_df, fit_scaler=True)
-    X_val, y_val = build_sequences(val_df, x_scaler=x_scaler)
+    X_train, y_train, x_scaler = build_sequences(panel, "train", fit_scaler=True)
+    X_val, y_val = build_sequences(panel, "val", x_scaler=x_scaler)
 
     # --- 对 y 做标准化 ---
     y_scaler = StandardScaler()

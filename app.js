@@ -1,5 +1,5 @@
 // ============================================
-// SkinVision AI - 主应用
+// CSVest - 主应用
 // 基于策划书功能清单实现
 // ============================================
 
@@ -155,10 +155,10 @@ const app = createApp({
       let data, filename;
       if (type === 'skins') {
         data = skins.value;
-        filename = `skinvision_skins_${new Date().toISOString().slice(0,10)}`;
+        filename = `CSVest_skins_${new Date().toISOString().slice(0,10)}`;
       } else if (type === 'alerts') {
         data = alerts.value;
-        filename = `skinvision_alerts_${new Date().toISOString().slice(0,10)}`;
+        filename = `CSVest_alerts_${new Date().toISOString().slice(0,10)}`;
       } else if (type === 'portfolio') {
         data = portfolio.value.map(p => ({
           ...p,
@@ -166,10 +166,10 @@ const app = createApp({
           pnl: getItemPnl(p),
           pnlPct: getItemPnlPct(p).toFixed(2) + '%',
         }));
-        filename = `skinvision_portfolio_${new Date().toISOString().slice(0,10)}`;
+        filename = `CSVest_portfolio_${new Date().toISOString().slice(0,10)}`;
       } else if (type === 'models') {
         data = [...regressionModels.value, ...classificationModels.value.map(m => ({...m, course: '分类模型'}))];
-        filename = `skinvision_models_${new Date().toISOString().slice(0,10)}`;
+        filename = `CSVest_models_${new Date().toISOString().slice(0,10)}`;
       }
 
       if (format === 'csv') {
@@ -200,23 +200,24 @@ const app = createApp({
     };
 
     // ============ 数据 ============
-    const skins = ref(window.SkinVisionData.SKINS_POOL);
-    const topGainers = ref(window.SkinVisionData.TOP_GAINERS);
-    const topLosers = ref(window.SkinVisionData.TOP_LOSERS);
-    const hotVolume = ref(window.SkinVisionData.HOT_VOLUME);
-    const newsFeed = ref(window.SkinVisionData.NEWS_FEED);
-    const debateData = window.SkinVisionData.DEBATE_SAMPLE;
-    const modelComparison = window.SkinVisionData.MODEL_COMPARISON;
+    const skins = ref(window.CSVestData.SKINS_POOL);
+    const topGainers = ref(window.CSVestData.TOP_GAINERS);
+    const topLosers = ref(window.CSVestData.TOP_LOSERS);
+    const hotVolume = ref(window.CSVestData.HOT_VOLUME);
+    const newsFeed = ref(window.CSVestData.NEWS_FEED);
+    const debateData = window.CSVestData.DEBATE_SAMPLE;
+    const modelComparison = window.CSVestData.MODEL_COMPARISON;
     const regressionModels = ref([
-      { ...modelComparison.regression[0], course: 'Lecture4 例 13' },
-      { ...modelComparison.regression[1], course: 'Lecture4 例 1/7' },
-      { ...modelComparison.regression[2], course: 'Lecture4 例 3/4' },
-      { ...modelComparison.regression[3], course: 'Lecture4/Day4' },
-      { ...modelComparison.regression[4], course: 'Lecture4 例 8 + HW4' },
-      { ...modelComparison.regression[5], course: 'Lecture4 例 8' },
+      { ...modelComparison.regression[0], course: 'DL · panel Embedding' },
+      { ...modelComparison.regression[1], course: 'DL · price tiers' },
+      { ...modelComparison.regression[2], course: 'Route: low→C, mid/high→D' },
+      { ...modelComparison.regression[3], course: 'Best MAPE on fair test' },
+      { ...modelComparison.regression[4], course: 'Tree ensemble' },
+      { ...modelComparison.regression[5], course: 'Tree ensemble' },
     ]);
+    const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
-    const suggestedQuestions = window.SkinVisionData.SUGGESTED_QUESTIONS;
+    const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
@@ -306,14 +307,14 @@ const app = createApp({
       klineChartInstance = getOrCreateChart(klineChartInstance, klineChart.value);
 
       const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value];
-      const { kline, volumes } = window.SkinVisionData.generateKLineData(
+      const { kline, volumes } = window.CSVestData.generateKLineData(
         selectedSkin.value.price,
         days,
         selectedSkin.value.category === '箱子' ? 0.02 : 0.035
       );
 
-      const ma7 = window.SkinVisionData.calculateMA(kline, 7);
-      const ma30 = window.SkinVisionData.calculateMA(kline, 30);
+      const ma7 = window.CSVestData.calculateMA(kline, 7);
+      const ma30 = window.CSVestData.calculateMA(kline, 30);
 
       // 预测数据(虚线显示)
       const lastClose = parseFloat(kline[kline.length - 1][2]);
@@ -532,10 +533,10 @@ const app = createApp({
     const generateAIResponse = (query) => {
       const q = query.toLowerCase();
       if (q.includes('火蛇') || q.includes('ak47-fireserpent') || q.includes('ak-47') && q.includes('火')) {
-        return window.SkinVisionData.AI_PRESET_RESPONSES['ak47-fireserpent-fn'];
+        return window.CSVestData.AI_PRESET_RESPONSES['ak47-fireserpent-fn'];
       }
       if (q.includes('龙狙') || q.includes('dragonlore') || q.includes('awp')) {
-        return window.SkinVisionData.AI_PRESET_RESPONSES['awp-dragonlore-ft'];
+        return window.CSVestData.AI_PRESET_RESPONSES['awp-dragonlore-ft'];
       }
       if (q.includes('5000') || q.includes('预算') || q.includes('推荐')) {
         return `根据您的 **5000 预算 + 中等风险** 偏好,推荐以下组合:
@@ -619,7 +620,7 @@ const app = createApp({
 
 **结论:** LSTM 在回归任务中表现最优,XGBoost 在分类中胜出。建议生产环境使用 XGBoost (速度+可解释性) + LSTM (高精度预测) 的 Stacking 集成。`;
       }
-      return window.SkinVisionData.AI_PRESET_RESPONSES['default'];
+      return window.CSVestData.AI_PRESET_RESPONSES['default'];
     };
 
     // Markdown 缓存,避免重复解析
@@ -700,7 +701,7 @@ const app = createApp({
     };
 
     // ============ 持仓 ============
-    const portfolio = ref([...window.SkinVisionData.DEFAULT_PORTFOLIO]);
+    const portfolio = ref([...window.CSVestData.DEFAULT_PORTFOLIO]);
     const showPortfolioModal = ref(false);
     const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: '2026-07-15' });
 
@@ -720,7 +721,7 @@ const app = createApp({
     const portfolioMetrics = computed(() => {
       const prices = {};
       portfolio.value.forEach(p => prices[p.skinId] = getCurrentPrice(p.skinId));
-      return window.SkinVisionData.calculateRiskMetrics(portfolio.value, prices);
+      return window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
     });
 
     const addPortfolio = () => {
@@ -805,7 +806,7 @@ const app = createApp({
       if (!backtestChart.value) return;
       backtestInstance = getOrCreateChart(backtestInstance, backtestChart.value);
 
-      const backtestData = window.SkinVisionData.generateBacktestData(60);
+      const backtestData = window.CSVestData.generateBacktestData(60);
       const dates = Array.from({ length: 60 }, (_, i) => {
         const d = new Date(Date.now() - (60 - i) * 24 * 60 * 60 * 1000);
         return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -859,7 +860,7 @@ const app = createApp({
       if (!shapChart.value) return;
       shapInstance = getOrCreateChart(shapInstance, shapChart.value);
 
-      const data = window.SkinVisionData.SHAP_FEATURES.slice().reverse();
+      const data = window.CSVestData.SHAP_FEATURES.slice().reverse();
 
       const option = {
         backgroundColor: 'transparent',
@@ -1139,7 +1140,7 @@ const app = createApp({
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
       // 模型
-      regressionModels, classificationModels, modelComparison,
+      regressionModels, classificationModels, modelComparison, hybridRoute,
       radarChart, backtestChart, shapChart,
       // 工具
       formatPrice, exportData, renderIcon,

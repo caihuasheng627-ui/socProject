@@ -30,6 +30,13 @@ from tensorflow.keras.layers import (
     Input, LSTM, Dense, Dropout, Embedding,
     Concatenate, RepeatVector, Flatten
 )
+from forecast_contract import (
+    HORIZON_STEPS,
+    build_sequence_windows,
+    build_training_item_map,
+    encode_item_ids,
+    load_feature_panel,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -37,7 +44,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (方便微调)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = 7             # 预测 7 天后
+HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
 EMBEDDING_DIM = 8       # 物品 Embedding 维度
 LSTM_UNITS = 50         # LSTM 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
@@ -46,9 +53,10 @@ EPOCHS = 100            # 给足够时间消化 is_stattrak
 LEARNING_RATE = 0.001
 
 # 输出的模型 / 映射文件
-BASE = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE / "models"
-OUTPUT_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "models"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_PATH   = OUTPUT_DIR / "lstm_c.keras"
 SCALER_PATH  = OUTPUT_DIR / "lstm_c_scaler.pkl"
@@ -59,35 +67,24 @@ ITEM_MAP_PATH = OUTPUT_DIR / "lstm_c_item_map.pkl"
 # 第 1 步: 加载数据 + 特征工程
 # ============================================================
 def load_data():
-    """加载 train / val, 做特征工程, 返回带特征的 DataFrame"""
-    from feature_engineering import build_features
-
+    """一次加载连续 train/val/test 面板并计算特征。"""
     print("=" * 60)
     print("第 1 步: 加载数据 + 特征工程")
     print("=" * 60)
 
-    train = pd.read_csv(BASE / "data" / "train.csv")
-    val   = pd.read_csv(BASE / "data" / "val.csv")
-
-    print(f"  原始 train: {len(train):,} 行, {train['market_hash_name'].nunique()} 件")
-    print(f"  原始 val:   {len(val):,} 行, {val['market_hash_name'].nunique()} 件")
-
-    train = build_features(train)
-    val   = build_features(val)
-
-    print(f"  特征化后 train: {len(train):,} 行")
-    print(f"  特征化后 val:   {len(val):,} 行")
-
-    return train, val
+    panel = load_feature_panel(DATA_DIR)
+    for split in ("train", "val", "test"):
+        part = panel[panel["_split"] == split]
+        print(f"  {split}: {len(part):,} 行, {part['market_hash_name'].nunique()} 件")
+    return panel
 
 
 # ============================================================
 # 第 2 步: 构建物品 ID 映射
 # ============================================================
-def build_item_map(train_df, val_df):
-    """为所有出现过的物品分配 0-based ID"""
-    all_items = pd.concat([train_df["market_hash_name"], val_df["market_hash_name"]]).unique()
-    item_map = {name: i for i, name in enumerate(sorted(all_items))}
+def build_item_map(train_df):
+    """仅用训练物品建 ID，并保留一个未知物品 ID。"""
+    item_map = build_training_item_map(train_df)
     print(f"\n  物品 ID 映射: {len(item_map)} 件 (0 ~ {len(item_map)-1})")
     return item_map
 
@@ -115,7 +112,7 @@ FEATURE_COLS = [
     "steam_ccu",              # Steam 在线 (13~30, 已 /1e6)
 ]
 
-def build_sequences(df, item_map, x_scaler=None, fit_scaler=False):
+def build_sequences(df, item_map, sample_split, x_scaler=None, fit_scaler=False):
     """
     逐物品构建滑动窗口 X(60,17) → y(1)
     参考 Lecture4 例 8 的 for i in range(60, len):
@@ -123,32 +120,10 @@ def build_sequences(df, item_map, x_scaler=None, fit_scaler=False):
     x_scaler:   已 fit 的 StandardScaler (val 时传入)
     fit_scaler: True → fit 新 scaler 并返回
     """
-    X_price, X_item, y = [], [], []
-    skipped = 0
-
-    for name, group in df.groupby("market_hash_name"):
-        item_id = item_map.get(name)
-        if item_id is None:
-            skipped += 1
-            continue
-
-        # 取特征列 + Target, 确保按日期排序
-        group = group.sort_values("date")
-        feat = group[FEATURE_COLS].values.astype(np.float32)
-        target = group["Target"].values.astype(np.float32)
-
-        for i in range(LOOKBACK, len(group)):
-            seq_x = feat[i - LOOKBACK : i]          # (60, 17)
-            seq_y = target[i]                        # Target = log_price of day i+7
-            if np.isnan(seq_y):
-                continue
-            X_price.append(seq_x)
-            X_item.append(item_id)
-            y.append(seq_y)
-
-    X_price = np.array(X_price, dtype=np.float32)
-    X_item  = np.array(X_item,  dtype=np.int32).reshape(-1, 1)
-    y       = np.array(y,       dtype=np.float32)
+    X_price, y, meta = build_sequence_windows(
+        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    )
+    X_item = encode_item_ids(meta["market_hash_name"], item_map).reshape(-1, 1)
 
     # --- 全局 StandardScaler (解决 17 个特征量级差异) ---
     nsamples, nsteps, nfeats = X_price.shape
@@ -227,8 +202,9 @@ def main():
     keras.utils.set_random_seed(42)
 
     # --- 加载 ---
-    train_df, val_df = load_data()
-    item_map = build_item_map(train_df, val_df)
+    panel = load_data()
+    train_df = panel[panel["_split"] == "train"]
+    item_map = build_item_map(train_df)
     n_items = len(item_map)
 
     # --- 构建序列 (train fit scaler, val 复用) ---
@@ -236,10 +212,10 @@ def main():
     print("第 2 步: 构建滑动窗口")
     print("=" * 60)
     Xp_train, Xi_train, y_train, x_scaler = build_sequences(
-        train_df, item_map, fit_scaler=True
+        panel, item_map, "train", fit_scaler=True
     )
     Xp_val, Xi_val, y_val = build_sequences(
-        val_df, item_map, x_scaler=x_scaler, fit_scaler=False
+        panel, item_map, "val", x_scaler=x_scaler, fit_scaler=False
     )
 
     # --- 对 y 做标准化 (全局, log 空间量级已接近) ---

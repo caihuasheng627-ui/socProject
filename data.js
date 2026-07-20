@@ -1,6 +1,7 @@
 // ============================================
-// SkinVision AI - Mock 数据层
-// 基于 Project_Proposal_SkinVest.md 数据方案
+// CSVest - Mock 数据层
+// 回归指标对齐 ml/outputs/compare_results_test.json（公平 test）
+// Hybrid 路由对齐 ml/models/lstm_hybrid_route.json：low→C, mid/high→D
 // ============================================
 
 // CS2 饰品池（来自策划书 3.4 节：20-30 个高流动性饰品）
@@ -84,36 +85,49 @@ const NEWS_FEED = [
   { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', relatedSkins: [] },
 ];
 
-// 模型对比数据（来自策划书 5.1-5.4）
+// 模型对比：公平 test（35,229 行 · 154 件 · horizon=7）
+// 来源 ml/outputs/compare_results_test.json · 2026-07-20
+// returnPct 来自同契约回测 fee=0（10 件子集演示曲线，非 154 件主结论）
 const MODEL_COMPARISON = {
+  split: 'test',
+  horizonSteps: 7,
+  nItems: 154,
+  nRows: 35229,
+  hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
+  note: 'Fair test metrics. Hybrid route frozen on val: low→C, mid/high→D. LSTM-C best RMSE/MAE/R²; RF best MAPE. Hybrid is NOT strictly best on all metrics.',
   regression: [
-    { name: 'ARIMA', rmse: 142.35, mae: 98.23, mape: 4.23, r2: 0.72, accuracy: null, auc: null, returnPct: 8.5, speed: '快', interpretability: 3, type: '统计基线' },
-    { name: 'XGBoost', rmse: 89.12, mae: 62.45, mape: 2.87, r2: 0.89, accuracy: null, auc: null, returnPct: 18.7, speed: '快', interpretability: 2, type: 'ML 主力' },
-    { name: 'LightGBM', rmse: 92.78, mae: 64.12, mape: 2.95, r2: 0.88, accuracy: null, auc: null, returnPct: 17.3, speed: '极快', interpretability: 2, type: 'ML 对比' },
-    { name: 'Random Forest', rmse: 105.34, mae: 75.67, mape: 3.42, r2: 0.84, accuracy: null, auc: null, returnPct: 12.4, speed: '快', interpretability: 2, type: '集成基线' },
-    { name: 'LSTM', rmse: 76.45, mae: 52.34, mape: 2.31, r2: 0.92, accuracy: null, auc: null, returnPct: 23.5, speed: '慢', interpretability: 1, type: 'DL 主力' },
-    { name: 'GRU', rmse: 81.23, mae: 56.78, mape: 2.56, r2: 0.91, accuracy: null, auc: null, returnPct: 21.8, speed: '慢', interpretability: 1, type: 'DL 对比' },
+    { name: 'LSTM-C', rmse: 44.37, mae: 6.27, mape: 10.95, r2: 0.9374, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, type: 'DL · 共享面板' },
+    { name: 'LSTM-D', rmse: 52.09, mae: 7.02, mape: 7.72, r2: 0.9137, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, type: 'DL · 分组' },
+    { name: 'Hybrid', rmse: 52.09, mae: 7.02, mape: 10.69, r2: 0.9137, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, type: '部署路由' },
+    { name: 'Random Forest', rmse: 52.82, mae: 7.26, mape: 6.26, r2: 0.9113, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, type: '树 · MAPE最优' },
+    { name: 'LightGBM', rmse: 58.36, mae: 8.46, mape: 6.34, r2: 0.8917, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '树模型' },
+    { name: 'XGBoost', rmse: 61.76, mae: 9.17, mape: 7.93, r2: 0.8787, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '树模型' },
   ],
   classification: [
     { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, type: '线性基线' },
     { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.65, auc: 0.69, returnPct: 12.4, speed: '快', interpretability: 2, type: '集成基线' },
-    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.71, auc: 0.76, returnPct: 18.7, speed: '快', interpretability: 2, type: 'ML 主力' },
-    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.70, auc: 0.75, returnPct: 17.3, speed: '极快', interpretability: 2, type: 'ML 对比' },
+    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.47, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '方向分类' },
+    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.52, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '方向分类' },
   ],
-  buyAndHold: { name: '买入持有', returnPct: 9.8 }
+  buyAndHold: { name: '买入持有', returnPct: 4.16 }
 };
 
-// 回测数据
+// 回测曲线 Mock（演示用；真实曲线见 ml/outputs/backtest/backtest_curves.json）
 function generateBacktestData(days = 60) {
   const data = {};
-  const models = ['ARIMA', 'XGBoost', 'LightGBM', 'LSTM', '买入持有'];
+  const models = ['LSTM-C', 'Hybrid', 'Random Forest', 'LightGBM', 'XGBoost', '买入持有'];
+  const driftMap = {
+    '买入持有': 0.0012,
+    'LSTM-C': 0.0032,
+    'Hybrid': 0.0026,
+    'Random Forest': 0.0040,
+    'LightGBM': 0.0024,
+    'XGBoost': 0.0022,
+  };
   models.forEach(model => {
     const series = [];
     let value = 100;
-    const drift = model === '买入持有' ? 0.0015 :
-                  model === 'LSTM' ? 0.0035 :
-                  model === 'XGBoost' ? 0.0028 :
-                  model === 'LightGBM' ? 0.0025 : 0.0012;
+    const drift = driftMap[model] || 0.0015;
     const vol = model === '买入持有' ? 0.015 : 0.022;
     for (let i = 0; i < days; i++) {
       value = value * (1 + (Math.random() - 0.5) * vol + drift);
@@ -246,7 +260,7 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 // 导出到全局
-window.SkinVisionData = {
+window.CSVestData = {
   SKINS_POOL,
   generateKLineData,
   calculateMA,
@@ -262,4 +276,7 @@ window.SkinVisionData = {
   calculateRiskMetrics,
   AI_PRESET_RESPONSES,
   SUGGESTED_QUESTIONS,
+  HYBRID_ROUTE: MODEL_COMPARISON.hybridRoute,
 };
+// Legacy alias (pre-rebrand)
+window.SkinVisionData = window.CSVestData;

@@ -1,10 +1,13 @@
-# SkinVision AI — CS2 饰品 AI 智能分析平台
+# CSVest — CS2 饰品 AI 智能分析平台
 
-> **课程:** SWS3022 — AI/ML for Financial Services
-> **前端角色:** 蔡华升 (前端开发)
-> **版本:** V1.1 · 2026-07-15
+> **课程:** SWS3022 — AI/ML for Financial Services  
+> **对外品牌:** **CSVest**（历史名 SkinVision AI / SkinVest）  
+> **前端角色:** 蔡华升 (前端开发)  
+> **版本:** V1.2 · 2026-07-20（预测规范 v4 · 分支 `post-delivery/forecast-contract-v4`）
 
 融合 AI 预测模型、RAG 知识库和 AI Agent 的 CS2 饰品市场智能分析平台前端实现。
+
+ML 侧最新预测契约与公平评测见 [`ml/FORECAST_CONTRACT.md`](ml/FORECAST_CONTRACT.md) · [`ml/README.md`](ml/README.md)。
 
 ---
 
@@ -35,7 +38,7 @@
 ## 📁 项目结构
 
 ```
-skinvision-ai/
+CSVest/
 ├── index.html            # 入口 HTML (含全部页面模板)
 ├── css/
 │   └── style.css         # 深色主题 + 自定义组件样式
@@ -118,7 +121,7 @@ skinvision-ai/
 双击 index.html
 
 # 方式 2: 启动本地服务器 (推荐,避免某些资源跨域问题)
-cd skinvision-ai
+cd csvest
 python -m http.server 3000
 # 访问 http://localhost:3000
 
@@ -221,4 +224,4 @@ git push origin main
 
 ## 📄 许可
 
-仅供 SWS3022 课程项目使用 · © 2026 SkinVision AI Team
+仅供 SWS3022 课程项目使用 · © 2026 CSVest Team

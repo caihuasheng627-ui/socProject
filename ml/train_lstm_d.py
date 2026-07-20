@@ -34,6 +34,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from tensorflow import keras
 from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
+from forecast_contract import (
+    HORIZON_STEPS,
+    assign_price_groups,
+    build_sequence_windows,
+    load_feature_panel,
+    route_price_group,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -41,7 +48,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (与 LSTM-C 对齐, 保证对比公平)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = 7             # 预测 7 天后
+HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
 LSTM_UNITS = 50         # LSTM 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
 BATCH_SIZE = 32
@@ -51,9 +58,10 @@ LEARNING_RATE = 0.001
 GROUP_NAMES = ["low", "mid", "high"]
 
 # 输出的模型 / 映射文件
-BASE = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE / "models"
-OUTPUT_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "models"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_PATHS  = {g: OUTPUT_DIR / f"lstm_d_{g}.keras" for g in GROUP_NAMES}
 SCALER_PATH  = OUTPUT_DIR / "lstm_d_scalers.pkl"
@@ -64,26 +72,16 @@ GROUP_MAP_PATH = OUTPUT_DIR / "lstm_d_group_map.pkl"
 # 第 1 步: 加载数据 + 特征工程 (与 LSTM-C 完全一致)
 # ============================================================
 def load_data():
-    """加载 train / val, 做特征工程, 返回带特征的 DataFrame"""
-    from feature_engineering import build_features
-
+    """一次加载连续 train/val/test 面板并计算特征。"""
     print("=" * 60)
     print("第 1 步: 加载数据 + 特征工程")
     print("=" * 60)
 
-    train = pd.read_csv(BASE / "data" / "train.csv")
-    val   = pd.read_csv(BASE / "data" / "val.csv")
-
-    print(f"  原始 train: {len(train):,} 行, {train['market_hash_name'].nunique()} 件")
-    print(f"  原始 val:   {len(val):,} 行, {val['market_hash_name'].nunique()} 件")
-
-    train = build_features(train)
-    val   = build_features(val)
-
-    print(f"  特征化后 train: {len(train):,} 行")
-    print(f"  特征化后 val:   {len(val):,} 行")
-
-    return train, val
+    panel = load_feature_panel(DATA_DIR)
+    for split in ("train", "val", "test"):
+        part = panel[panel["_split"] == split]
+        print(f"  {split}: {len(part):,} 行, {part['market_hash_name'].nunique()} 件")
+    return panel
 
 
 # ============================================================
@@ -91,35 +89,16 @@ def load_data():
 #   - 边界只用 train 计算 (防泄漏)
 #   - val 独有物品按自身中位数落组 (模拟上线时的新物品)
 # ============================================================
-def assign_groups(train_df, val_df):
-    """返回 (boundaries, item_group 字典)"""
-    med_train = train_df.groupby("market_hash_name")["price"].median()
-    q1, q2 = med_train.quantile([0.55, 0.87])
+def assign_groups(train_df):
+    """只用训练集返回价格边界和已知物品固定分组。"""
+    boundaries, item_group = assign_price_groups(train_df)
+    q1, q2 = boundaries
     print(f"\n  分组边界 (train 逐物品中位价): 55%=${q1:.2f}, 87%=${q2:.2f}")
-
-    def to_group(m):
-        if m <= q1:
-            return "low"
-        elif m <= q2:
-            return "mid"
-        return "high"
-
-    item_group = {name: to_group(m) for name, m in med_train.items()}
-
-    # val 独有物品: 用它在 val 里的中位价落组
-    med_val = val_df.groupby("market_hash_name")["price"].median()
-    new_items = 0
-    for name, m in med_val.items():
-        if name not in item_group:
-            item_group[name] = to_group(m)
-            new_items += 1
 
     counts = pd.Series(item_group).value_counts()
     print(f"  组内物品数: low={counts.get('low', 0)}, "
           f"mid={counts.get('mid', 0)}, high={counts.get('high', 0)}")
-    print(f"  val 新物品 (train 未见过): {new_items} 件")
-
-    return (q1, q2), item_group
+    return boundaries, item_group
 
 
 # ============================================================
@@ -144,28 +123,25 @@ FEATURE_COLS = [
     "steam_ccu",              # Steam 在线 (已 /1e6)
 ]
 
-def build_sequences(df, x_scaler=None, fit_scaler=False):
+def build_sequences(
+    df, sample_split, group_name, boundaries, item_group,
+    x_scaler=None, fit_scaler=False,
+):
     """
     逐物品构建滑动窗口 X(60,15) → y(1), 单输入版 (无物品 ID)
 
     x_scaler:   已 fit 的 StandardScaler (val 时传入)
     fit_scaler: True → fit 新 scaler 并返回
     """
-    X, y = [], []
-
-    for _, group in df.groupby("market_hash_name"):
-        group = group.sort_values("date")
-        feat = group[FEATURE_COLS].values.astype(np.float32)
-        target = group["Target"].values.astype(np.float32)
-
-        for i in range(LOOKBACK, len(group)):
-            if np.isnan(target[i]):
-                continue
-            X.append(feat[i - LOOKBACK : i])         # (60, 15)
-            y.append(target[i])                       # Target = log_price of day i+7
-
-    X = np.array(X, dtype=np.float32)
-    y = np.array(y, dtype=np.float32)
+    X, y, meta = build_sequence_windows(
+        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    )
+    routes = np.array([
+        route_price_group(row.market_hash_name, row.current_price, item_group, boundaries)
+        for row in meta.itertuples(index=False)
+    ])
+    mask = routes == group_name
+    X, y = X[mask], y[mask]
 
     # --- 组内全局 StandardScaler ---
     nsamples, nsteps, nfeats = X.shape
@@ -207,16 +183,19 @@ def build_model(group_name):
 # ============================================================
 # 第 5 步: 训练单组
 # ============================================================
-def train_group(gname, train_g, val_g):
+def train_group(gname, panel, boundaries, item_group):
     """训练一组, 返回 (model, scalers, 组内评估 dict, y_true_price, y_pred_price)"""
     print("\n" + "=" * 60)
-    print(f"训练组: {gname.upper()}  "
-          f"(train {train_g['market_hash_name'].nunique()} 件 / "
-          f"val {val_g['market_hash_name'].nunique()} 件)")
+    n_known = sum(group == gname for group in item_group.values())
+    print(f"训练组: {gname.upper()} (train 已知物品 {n_known} 件)")
     print("=" * 60)
 
-    X_train, y_train, x_scaler = build_sequences(train_g, fit_scaler=True)
-    X_val, y_val = build_sequences(val_g, x_scaler=x_scaler)
+    X_train, y_train, x_scaler = build_sequences(
+        panel, "train", gname, boundaries, item_group, fit_scaler=True
+    )
+    X_val, y_val = build_sequences(
+        panel, "val", gname, boundaries, item_group, x_scaler=x_scaler
+    )
     print(f"  滑动窗口: X_train={X_train.shape}, X_val={X_val.shape}")
 
     y_scaler = StandardScaler()
@@ -279,23 +258,22 @@ def main():
     keras.utils.set_random_seed(42)
 
     # --- 加载 + 分组 ---
-    train_df, val_df = load_data()
+    panel = load_data()
+    train_df = panel[panel["_split"] == "train"]
 
     print("\n" + "=" * 60)
     print("第 2 步: 按价格中位数分 3 组")
     print("=" * 60)
-    boundaries, item_group = assign_groups(train_df, val_df)
-    train_df["group"] = train_df["market_hash_name"].map(item_group)
-    val_df["group"]   = val_df["market_hash_name"].map(item_group)
+    boundaries, item_group = assign_groups(train_df)
 
     # --- 逐组训练 ---
     scalers, group_metrics = {}, {}
     all_true, all_pred = [], []
 
     for gname in GROUP_NAMES:
-        train_g = train_df[train_df["group"] == gname]
-        val_g   = val_df[val_df["group"] == gname]
-        model, sc, metrics, y_t, y_p = train_group(gname, train_g, val_g)
+        model, sc, metrics, y_t, y_p = train_group(
+            gname, panel, boundaries, item_group
+        )
 
         model.save(MODEL_PATHS[gname])
         scalers[gname] = sc
@@ -323,7 +301,7 @@ def main():
               f"${m['rmse']:>8.4f} {m['mape']:>7.2f}% {m['r2']:>8.4f} {m['epochs']:>5}")
     print(f"  {'ALL':<6} {len(y_true):>7,} ${overall['mae']:>8.4f} "
           f"${overall['rmse']:>8.4f} {overall['mape']:>7.2f}% {overall['r2']:>8.4f}")
-    print(f"\n  对照 LSTM-C V3: MAE $2.23 | RMSE $13.25 | R² 0.9891")
+    print(f"\n  对照见 compare_results_test.json（公平 test 口径）")
 
     # --- 保存 ---
     print("\n" + "=" * 60)

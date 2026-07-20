@@ -1,5 +1,5 @@
 """
-SkinVest AI — 模型训练数据集构建脚本
+CSVest — 模型训练数据集构建脚本
 ===========================================
 根据 docs/dataset_prompt.md 规范，从 Kaggle 数据集中筛选和处理数据。
 
@@ -627,7 +627,7 @@ def save_and_report(df: pd.DataFrame, report_lines: list[str]):
     # 生成报告
     report = []
     report.append("=" * 60)
-    report.append("SkinVest AI — 训练数据集质量报告")
+    report.append("CSVest — 训练数据集质量报告")
     report.append("=" * 60)
     report.append(f"生成时间: {pd.Timestamp.now()}")
     report.append(f"数据来源: Kaggle leawind/steam-market-price-dataset-csgo")
@@ -737,7 +737,7 @@ def split_timeseries(df: pd.DataFrame):
 
 def main():
     print("\n" + "=" * 60)
-    print("SkinVest AI — Training Dataset Builder")
+    print("CSVest — Training Dataset Builder")
     print("=" * 60)
     print(f"   时间范围: {DATE_START} ~ {DATE_END}")
     print(f"   目标: ~150 件高流动性武器皮肤")

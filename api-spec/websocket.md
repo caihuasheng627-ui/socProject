@@ -1,6 +1,6 @@
 # WebSocket 实时通信协议
 
-> **基础路径**: `wss://api.skinvision.ai/ws`
+> **基础路径**: `wss://api.csvest.local/ws`
 > **协议版本**: 1.1
 > **认证**: JWT Token (query 参数 `?token=xxx`)
 
@@ -18,7 +18,7 @@
 
 ## 1. 概述
 
-SkinVision AI 使用 WebSocket 实现以下实时场景:
+CSVest 使用 WebSocket 实现以下实时场景:
 
 | 场景 | 说明 | 频率 |
 |------|------|------|
@@ -35,7 +35,7 @@ SkinVision AI 使用 WebSocket 实现以下实时场景:
 ### 2.1 连接示例
 
 ```javascript
-const ws = new WebSocket('wss://api.skinvision.ai/ws?token=' + jwtToken);
+const ws = new WebSocket('wss://api.csvest.local/ws?token=' + jwtToken);
 
 ws.onopen = () => {
   console.log('WebSocket connected');
@@ -392,7 +392,7 @@ interface ServerMessage {
 
 ```javascript
 // js/api-ws.js
-class SkinVisionWS {
+class CSVestWS {
   constructor(baseURL, token) {
     this.baseURL = baseURL;
     this.token = token;
@@ -435,7 +435,7 @@ class SkinVisionWS {
 }
 
 // 使用
-const ws = new SkinVisionWS('wss://api.skinvision.ai', token);
+const ws = new CSVestWS('wss://api.csvest.local', token);
 ws.connect();
 ws.on('price.alerts', (msg) => {
   if (msg.event === 'alert.triggered') {

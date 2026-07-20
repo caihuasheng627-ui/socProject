@@ -1,75 +1,69 @@
-# SkinVest ML — 模型训练 / 回测 / 产物说明
+# CSVest ML — 模型训练 / 回测 / 产物说明
 
-> 数据: `data/` (train 147件 / val 154件 / test 154件, 2023-08 ~ 2026-06 日频)
-> 环境: Python 3.13 + TensorFlow 2.21 + sklearn/xgboost/lightgbm, 详见 team_tasks.md 装包节
+> 品牌对外：**CSVest** · 数据: `data/` (train/val/test, 日频)
+> 环境: Python 3.11+ + TensorFlow + sklearn/xgboost/lightgbm
+> **预测规范 v4（交付后维护合入）**: 见 [`FORECAST_CONTRACT.md`](FORECAST_CONTRACT.md)
 
 ## 目录
 
-| 路径 | 内容 | 负责 |
-|---|---|---|
-| `feature_engineering.py` | 统一特征工程 (31列), 入口 `build_features(df)` | 组员1+2 共用 |
-| `train_lstm_c.py` `train_lstm_d.py` `train_gru.py` | 深度学习训练脚本 | 组员1 |
-| `backtest.py` | 回测引擎 (逐日逐笔) | 组员1 |
-| `make_predictions.py` | C/D/Hybrid/GRU 预测导出 CSV, **也是推理参考实现** | 组员1 |
-| `compare_lstm_cd.py` | C vs D 分组对垒评估 (Hybrid 路由依据) | 组员1 |
-| `01_arima_baseline.py` ~ `04_feature_importance.py`, `run_all.py`, `utils.py` | 树模型/统计基线管线 | 组员2 |
-| `models/` | 训练产物 (.keras / .pkl), 组员3 从这里加载 | 组员1 |
-| `outputs/` | 指标 JSON / SHAP 图 (树模型侧) | 组员2 |
+| 路径 | 内容 |
+|---|---|
+| `forecast_contract.py` | 七观测目标、60 步窗口、预测 CSV 契约、冷启动路由 |
+| `feature_engineering.py` | 统一特征工程，入口 `build_features(df)` |
+| `tree_features.py` | 树模型 split 加载与特征数组 |
+| `train_lstm_c.py` `train_lstm_d.py` `train_gru.py` | 深度学习训练 |
+| `backtest.py` | 公平回测（无事后 cap） |
+| `make_predictions.py` | C/D/Hybrid/GRU 规范 val/test 预测导出 |
+| `make_predictions_trees.py` | RF/LightGBM/XGBoost 规范预测导出 |
+| `compare_lstm_cd.py` | C vs D 对垒 + Hybrid 路由写入 |
+| `compare_models.py` | 六模型同样本比较 |
+| `01_arima_baseline.py` ~ `04_*.py`, `run_all.py`, `utils.py` | 课程交付保留（含 ARIMA） |
+| `models/` | `.keras` / `.pkl` + `lstm_hybrid_route.json` |
+| `preds/` | `pred_*_{val,test}.csv` |
+| `outputs/` | 比较 JSON / 回测 / SHAP |
+| `tests/` | 单元测试（22 passed） |
 
-## 深度学习模型指标 (val, 2026-07-17)
+## 预测规范 v4
 
-| 模型 | 覆盖 | MAE | RMSE | MAPE | R² |
-|---|---|---|---|---|---|
-| LSTM-C (面板Embedding) | 154件 | $2.2339 | $13.2489 | 6.65% | 0.9891 |
-| LSTM-D (分3组独立) | 154件 | $2.3571 | $13.7070 | 5.57% | 0.9883 |
-| **Hybrid (部署方案)** ⭐ | 154件 | **$2.2308** | **$13.2487** | **5.49%** | **0.9891** |
-| GRU | 10件高流动性 | $0.0463 | $0.0803 | 11.02% | 0.9584 |
-
-- **Hybrid = high 组走 LSTM-C, low/mid 组走 LSTM-D**, 四项指标严格优于任一单模型
-- 分组边界 (train 逐物品中位价 55%/87% 分位): low < $0.16 ≤ mid ≤ $72.17 < high
-- GRU 与 C/D 不同口径; 同 10 件公平对比: C 10.65% / D 10.81% / GRU 11.02% MAPE
-- 树模型指标见 `outputs/*.json` (组员2 维护)
-
-## models/ 文件清单 (组员3 加载用)
-
-```
-lstm_c.keras + lstm_c_scaler.pkl {x_scaler,y_scaler} + lstm_c_item_map.pkl {物品名→ID}
-lstm_d_low/mid/high.keras + lstm_d_scalers.pkl {组:{x_scaler,y_scaler}}
-lstm_d_group_map.pkl {boundaries:(q1,q2), item_group:{物品名→组}}   ← Hybrid 路由查表
-gru.keras + gru_scaler.pkl + gru_items.pkl [10件物品名]
-lstm_cd_group_comparison.json                                      ← C/D 对垒明细
+```text
+决策观测：t
+输入窗口：t-59 ... t（含决策日，共 60 观测）
+预测目标：同一物品后续第 7 个有效日频观测
 ```
 
-**推理流程 (照 `make_predictions.py` 抄即可):**
-1. 取该物品最近 60 天 → `build_features` → 15 特征列 (顺序见 `train_lstm_c.FEATURE_COLS`)
-2. 用对应模型的 `x_scaler.transform` 标准化 → `model.predict`
-3. `y_scaler.inverse_transform` → `np.expm1` 还原美元价 (预测的是 7 天后)
-4. Hybrid 路由: `item_group` 查组 (新物品按中位价 vs boundaries 落组), high→C, 其余→D
+CSV 列：`split,date,target_date,market_hash_name,current_price,actual_future_price,predicted_price,horizon_steps`
 
-## 回测
+## 公平 test 比较（35,229 条 · 154 件 · 2026-07-20）
+
+| 模型 | RMSE | MAE | MAPE | R² |
+|---|---:|---:|---:|---:|
+| LSTM-C | 44.3745 | 6.2668 | 10.95% | 0.9374 |
+| LSTM-D | 52.0901 | 7.0234 | 7.72% | 0.9137 |
+| Hybrid | 52.0900 | 7.0204 | 10.69% | 0.9137 |
+| RF | 52.8212 | 7.2600 | **6.26%** | 0.9113 |
+| LightGBM | 58.3566 | 8.4611 | 6.34% | 0.8917 |
+| XGBoost | 61.7568 | 9.1675 | 7.93% | 0.8787 |
+
+- **Hybrid val 路由**: low→LSTM-C，mid/high→LSTM-D（`models/lstm_hybrid_route.json`）
+- test 上 LSTM-C 的 RMSE/MAE/R² 最优；RF MAPE 最低；Hybrid **未**全面超过 LSTM-C
+- 旧版 val 口径（MAPE 5.49% 等）在 `_backup_pre_contract_20260720/`，汇报时勿混用
+
+## 推理要点
+
+1. 取物品最近 60 天（含决策日）→ `build_features`
+2. scaler.transform → model.predict → `expm1` 还原美元价
+3. Hybrid：查 `lstm_hybrid_route.json`；未知物品 LSTM-C 用 `__UNK__`，LSTM-D 按当前价 vs boundaries 分组
+
+## 测试
 
 ```bash
-python backtest.py LSTM-C=preds/pred_lstm_c.csv XGBoost=<组员2的csv> ...
-# 可选: --capital 10000 --fee 0.025 --buy-th 0.02
+pytest ml/tests -q   # 期望 22 passed
 ```
 
-- 规则: 7天预测涨幅 ≥+2% 买入 / ≤-2% 卖出 / 之间不动; 等权分仓逐物品模拟
-- 输出: `outputs/backtest/` — 每模型资金曲线 CSV + `backtest_curves.json` (前端格式, 归一化100, 自动附买入持有基准) + `backtest_results.json` (收益/回撤/胜率)
+## 文档
 
-**预测 CSV 契约 (组员2 的四个模型也按此导出):**
-
-```
-date, market_hash_name, current_price, predicted_price
-```
-
-date = 决策日, predicted_price = 该日起 7 天后的预测价 (真实美元)。样例: 跑 `make_predictions.py` 生成的 `preds/pred_lstm_c.csv`。
-
-## 红线约定
-
-- **严禁跨物品拼序列**: 滑动窗口必须 `groupby(market_hash_name)` 后逐物品构建
-- **价格 log1p 变换**: 深度模型在 log 空间训练, 推理后 `expm1` 还原
-- Scaler 只在 train 上 fit, val/test/线上一律复用 (防泄漏)
-- 树模型交叉验证用 `TimeSeriesSplit`, 严禁随机切分
+- `docs/post-delivery/` — 设计、交接、原维护包 README
+- `docs/post-delivery/INTEGRATION_GUIDE.md` — 接入说明
 
 ---
-*组员1 维护, 2026-07-17*
+*CSVest ML · forecast-contract-v4 · 2026-07-20*

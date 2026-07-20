@@ -1,186 +1,181 @@
-"""
-make_predictions: C / D / Hybrid / GRU 预测导出 CSV
-==============================================
-给 backtest.py 生产统一格式输入 (与组员 2 的四模型同格式):
-  date, market_hash_name, current_price, predicted_price
+"""Export aligned LSTM-C, LSTM-D, Hybrid, and GRU predictions."""
 
-设计:
-  - val 滑动窗口只构建一次 (逐物品, 与训练脚本同逻辑), 四套预测按行对齐
-  - LSTM-C: 全量 | LSTM-D: 按组路由 | Hybrid: high→C, low/mid→D (部署方案)
-  - GRU: 仅 top10 高流动性物品
-  - 顺带输出: C/D/GRU 在 GRU 同 10 件上的公平对比 (架构结论依据)
-
-验证: 导出后重算各模型整体指标, 应与训练时打印一致
-  C: MAE $2.23 / R² 0.9891 | D: MAE $2.36 / R² 0.9883 | GRU: MAPE 11.02%
-
-输出 (../data/preds/):
-  pred_lstm_c.csv / pred_lstm_d.csv / pred_lstm_hybrid.csv / pred_gru.csv
-"""
-import numpy as np
-import pandas as pd
+import argparse
 import pickle
 import sys
-import warnings
 from pathlib import Path
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+import numpy as np
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+from forecast_contract import (
+    PREDICTION_COLUMNS,
+    build_sequence_windows,
+    decode_log_price_predictions,
+    encode_item_ids,
+    load_feature_panel,
+    route_price_group,
+    validate_prediction_frame,
+)
+from train_lstm_c import FEATURE_COLS, LOOKBACK
+
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-warnings.filterwarnings("ignore")
-
-BASE = Path(__file__).resolve().parent
-MODEL_DIR = BASE / "models"
-PRED_DIR  = BASE / "preds"
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+MODEL_DIR = BASE_DIR / "models"
+PRED_DIR = BASE_DIR / "preds"
 GROUP_NAMES = ["low", "mid", "high"]
 
 
-# ============================================================
-# 滑动窗口 + 元信息 (date/物品/当前价), 与训练脚本同款循环
-#   窗口 = 第 i-60 ~ i-1 天特征, 预测 Target[i] = 第 i+7 天 log 价
-#   current_price = 第 i 天价格 (决策日价格, 不在输入窗口内, 无泄漏)
-# ============================================================
-def build_windows_with_meta(df, feature_cols, lookback):
-    X, y, meta = [], [], []
-    for name, group in df.groupby("market_hash_name"):
-        group = group.sort_values("date")
-        feat   = group[feature_cols].values.astype(np.float32)
-        target = group["Target"].values.astype(np.float32)
-        price  = group["price"].values
-        dates  = group["date"].values
-        for i in range(lookback, len(group)):
-            if np.isnan(target[i]):
-                continue
-            X.append(feat[i - lookback : i])
-            y.append(target[i])
-            meta.append((dates[i], name, price[i]))
-    X = np.array(X, dtype=np.float32)
-    y = np.array(y, dtype=np.float32)
-    meta = pd.DataFrame(meta, columns=["date", "market_hash_name", "current_price"])
-    return X, y, meta
+def scale_x(values, scaler):
+    n_samples, n_steps, n_features = values.shape
+    return scaler.transform(values.reshape(-1, n_features)).reshape(
+        n_samples, n_steps, n_features
+    )
 
 
-def scale_X(X, scaler):
-    n, t, f = X.shape
-    return scaler.transform(X.reshape(-1, f)).reshape(n, t, f)
+def metric_block(y_true, y_pred):
+    return {
+        "mae": float(mean_absolute_error(y_true, y_pred)),
+        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mape": float(np.mean(np.abs((y_true - y_pred) / np.maximum(y_true, 0.01))) * 100),
+        "r2": float(r2_score(y_true, y_pred)),
+    }
 
 
-def show_metrics(tag, y_true_price, y_pred_price):
-    mae  = mean_absolute_error(y_true_price, y_pred_price)
-    rmse = np.sqrt(mean_squared_error(y_true_price, y_pred_price))
-    mape = np.mean(np.abs((y_true_price - y_pred_price) / y_true_price)) * 100
-    r2   = r2_score(y_true_price, y_pred_price)
-    print(f"  [{tag:<12}] MAE ${mae:>8.4f} | RMSE ${rmse:>8.4f} | "
-          f"MAPE {mape:>6.2f}% | R² {r2:.4f}")
-    return {"mae": mae, "rmse": rmse, "mape": mape, "r2": r2}
+def print_metrics(label, truth, prediction):
+    metrics = metric_block(truth, prediction)
+    print(
+        f"  [{label:<12}] MAE ${metrics['mae']:.4f} | "
+        f"RMSE ${metrics['rmse']:.4f} | MAPE {metrics['mape']:.2f}% | "
+        f"R² {metrics['r2']:.4f}"
+    )
+    return metrics
 
 
-def export_csv(meta, pred_price, mask, path):
-    out = meta.loc[mask, ["date", "market_hash_name", "current_price"]].copy()
-    out["predicted_price"] = pred_price[mask]
-    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
-    out.to_csv(path, index=False)
-    print(f"  ✅ {path} ({len(out):,} 行, {out['market_hash_name'].nunique()} 件)")
+def export_prediction(meta, prediction, mask, path):
+    output = meta.loc[mask].copy()
+    output["predicted_price"] = prediction[mask]
+    output = validate_prediction_frame(output[PREDICTION_COLUMNS], path)
+    output.to_csv(path, index=False, date_format="%Y-%m-%d")
+    print(f"  saved {path.name}: {len(output):,} rows, {output.market_hash_name.nunique()} items")
 
 
-def main():
+def load_hybrid_route(split):
+    route_path = MODEL_DIR / "lstm_hybrid_route.json"
+    if not route_path.exists():
+        if split == "test":
+            raise FileNotFoundError(
+                "Hybrid route is not frozen. Generate val C/D predictions and run compare_lstm_cd.py first."
+            )
+        return None
+    import json
+
+    payload = json.loads(route_path.read_text(encoding="utf-8"))
+    route = payload.get("route")
+    if set(route or {}) != set(GROUP_NAMES):
+        raise ValueError(f"Invalid Hybrid route metadata in {route_path}")
+    return route
+
+
+def main(split="val"):
     from tensorflow import keras
-    from feature_engineering import build_features
-    from train_lstm_c import FEATURE_COLS, LOOKBACK
 
+    if split not in {"val", "test"}:
+        raise ValueError("split must be val or test")
     PRED_DIR.mkdir(parents=True, exist_ok=True)
 
-    # ---------- 第 1 步: 数据 + 窗口 ----------
-    print("=" * 60)
-    print("第 1 步: 加载 val + 构建滑动窗口 (一次, 四模型共用)")
-    print("=" * 60)
-    val = build_features(pd.read_csv(BASE / "data" / "val.csv"))
-    X, y_log, meta = build_windows_with_meta(val, FEATURE_COLS, LOOKBACK)
-    y_true_price = np.expm1(y_log)
-    print(f"  窗口: X={X.shape}, 共 {meta['market_hash_name'].nunique()} 件")
+    panel = load_feature_panel(DATA_DIR)
+    train_price_floor = float(panel.loc[panel["_split"] == "train", "price"].min())
+    x_values, y_log, meta = build_sequence_windows(
+        panel, FEATURE_COLS, LOOKBACK, sample_split=split
+    )
+    truth = meta["actual_future_price"].to_numpy()
+    print(f"{split}: X={x_values.shape}, {meta.market_hash_name.nunique()} items")
 
-    # ---------- 第 2 步: 加载全部模型产物 ----------
-    print("\n" + "=" * 60)
-    print("第 2 步: 加载模型")
-    print("=" * 60)
     model_c = keras.models.load_model(MODEL_DIR / "lstm_c.keras")
-    with open(MODEL_DIR / "lstm_c_scaler.pkl", "rb") as f:
-        sc_c = pickle.load(f)
-    with open(MODEL_DIR / "lstm_c_item_map.pkl", "rb") as f:
-        item_map = pickle.load(f)
+    with open(MODEL_DIR / "lstm_c_scaler.pkl", "rb") as handle:
+        scaler_c = pickle.load(handle)
+    with open(MODEL_DIR / "lstm_c_item_map.pkl", "rb") as handle:
+        item_map = pickle.load(handle)
 
-    models_d = {g: keras.models.load_model(MODEL_DIR / f"lstm_d_{g}.keras")
-                for g in GROUP_NAMES}
-    with open(MODEL_DIR / "lstm_d_scalers.pkl", "rb") as f:
-        sc_d = pickle.load(f)
-    with open(MODEL_DIR / "lstm_d_group_map.pkl", "rb") as f:
-        gmap = pickle.load(f)
+    item_ids = encode_item_ids(meta["market_hash_name"], item_map).reshape(-1, 1)
+    pred_scaled = model_c.predict(
+        [scale_x(x_values, scaler_c["x_scaler"]), item_ids], verbose=0, batch_size=512
+    ).ravel()
+    pred_c = decode_log_price_predictions(pred_scaled, scaler_c["y_scaler"], train_price_floor)
 
-    model_g = keras.models.load_model(MODEL_DIR / "gru.keras")
-    with open(MODEL_DIR / "gru_scaler.pkl", "rb") as f:
-        sc_g = pickle.load(f)
-    with open(MODEL_DIR / "gru_items.pkl", "rb") as f:
-        gru_items = pickle.load(f)
-    print(f"  ✅ C + D×3 + GRU, GRU 覆盖 {len(gru_items)} 件")
+    with open(MODEL_DIR / "lstm_d_scalers.pkl", "rb") as handle:
+        scalers_d = pickle.load(handle)
+    with open(MODEL_DIR / "lstm_d_group_map.pkl", "rb") as handle:
+        group_map = pickle.load(handle)
+    models_d = {
+        group: keras.models.load_model(MODEL_DIR / f"lstm_d_{group}.keras")
+        for group in GROUP_NAMES
+    }
+    routes = np.array([
+        route_price_group(
+            row.market_hash_name,
+            row.current_price,
+            group_map["item_group"],
+            tuple(group_map["boundaries"]),
+        )
+        for row in meta.itertuples(index=False)
+    ])
+    pred_d = np.full(len(meta), np.nan)
+    for group in GROUP_NAMES:
+        group_mask = routes == group
+        group_scaled = models_d[group].predict(
+            scale_x(x_values[group_mask], scalers_d[group]["x_scaler"]),
+            verbose=0,
+            batch_size=512,
+        ).ravel()
+        pred_d[group_mask] = decode_log_price_predictions(
+            group_scaled, scalers_d[group]["y_scaler"], train_price_floor
+        )
+    if not np.isfinite(pred_d).all():
+        raise RuntimeError("LSTM-D failed to cover all prediction rows")
 
-    meta["group"] = meta["market_hash_name"].map(gmap["item_group"])
+    hybrid_route = load_hybrid_route(split)
+    pred_hybrid = None
+    if hybrid_route is not None:
+        use_c = np.array([hybrid_route[group] == "LSTM-C" for group in routes])
+        pred_hybrid = np.where(use_c, pred_c, pred_d)
+    print_metrics("LSTM-C", truth, pred_c)
+    print_metrics("LSTM-D", truth, pred_d)
+    if pred_hybrid is not None:
+        print_metrics("Hybrid", truth, pred_hybrid)
+    else:
+        print("  Hybrid route not frozen yet; exporting C/D val predictions only")
 
-    # ---------- 第 3 步: 逐模型预测 (全部对齐 meta 行序) ----------
-    print("\n" + "=" * 60)
-    print("第 3 步: 预测 + 指标复核 (应与训练时一致)")
-    print("=" * 60)
+    with open(MODEL_DIR / "gru_items.pkl", "rb") as handle:
+        gru_items = pickle.load(handle)
+    with open(MODEL_DIR / "gru_scaler.pkl", "rb") as handle:
+        scaler_gru = pickle.load(handle)
+    model_gru = keras.models.load_model(MODEL_DIR / "gru.keras")
+    gru_mask = meta["market_hash_name"].isin(gru_items).to_numpy()
+    gru_scaled = model_gru.predict(
+        scale_x(x_values[gru_mask], scaler_gru["x_scaler"]),
+        verbose=0,
+        batch_size=512,
+    ).ravel()
+    pred_gru = np.full(len(meta), np.nan)
+    pred_gru[gru_mask] = decode_log_price_predictions(
+        gru_scaled, scaler_gru["y_scaler"], train_price_floor
+    )
+    print_metrics("GRU top10", truth[gru_mask], pred_gru[gru_mask])
 
-    # --- LSTM-C ---
-    Xi = meta["market_hash_name"].map(item_map).values.reshape(-1, 1).astype(np.int32)
-    p = model_c.predict([scale_X(X, sc_c["x_scaler"]), Xi],
-                        verbose=0, batch_size=512).ravel()
-    c_price = np.expm1(sc_c["y_scaler"].inverse_transform(p.reshape(-1, 1)).ravel())
-    show_metrics("LSTM-C", y_true_price, c_price)
-
-    # --- LSTM-D (按组路由, 写回对齐数组) ---
-    d_price = np.full(len(meta), np.nan)
-    for g in GROUP_NAMES:
-        idx = (meta["group"] == g).values
-        p = models_d[g].predict(scale_X(X[idx], sc_d[g]["x_scaler"]),
-                                verbose=0, batch_size=512).ravel()
-        d_price[idx] = np.expm1(
-            sc_d[g]["y_scaler"].inverse_transform(p.reshape(-1, 1)).ravel())
-    assert not np.isnan(d_price).any(), "有窗口没被任何组覆盖"
-    show_metrics("LSTM-D", y_true_price, d_price)
-
-    # --- Hybrid (部署方案: high→C, low/mid→D) ---
-    h_price = np.where((meta["group"] == "high").values, c_price, d_price)
-    show_metrics("Hybrid", y_true_price, h_price)
-
-    # --- GRU (仅 10 件) ---
-    gmask = meta["market_hash_name"].isin(gru_items).values
-    p = model_g.predict(scale_X(X[gmask], sc_g["x_scaler"]),
-                        verbose=0, batch_size=512).ravel()
-    g_price = np.full(len(meta), np.nan)
-    g_price[gmask] = np.expm1(
-        sc_g["y_scaler"].inverse_transform(p.reshape(-1, 1)).ravel())
-    show_metrics("GRU (10件)", y_true_price[gmask], g_price[gmask])
-
-    # ---------- 第 4 步: 同 10 件公平对比 (架构结论) ----------
-    print("\n" + "=" * 60)
-    print("第 4 步: GRU 同 10 件高流动性物品上的公平对比")
-    print("=" * 60)
-    show_metrics("LSTM-C@10", y_true_price[gmask], c_price[gmask])
-    show_metrics("LSTM-D@10", y_true_price[gmask], d_price[gmask])
-    show_metrics("GRU@10",    y_true_price[gmask], g_price[gmask])
-
-    # ---------- 第 5 步: 导出 ----------
-    print("\n" + "=" * 60)
-    print("第 5 步: 导出预测 CSV")
-    print("=" * 60)
-    all_mask = np.ones(len(meta), dtype=bool)
-    export_csv(meta, c_price, all_mask, PRED_DIR / "pred_lstm_c.csv")
-    export_csv(meta, d_price, all_mask, PRED_DIR / "pred_lstm_d.csv")
-    export_csv(meta, h_price, all_mask, PRED_DIR / "pred_lstm_hybrid.csv")
-    export_csv(meta, g_price, gmask,    PRED_DIR / "pred_gru.csv")
-
-    print("\n" + "=" * 60)
-    print("预测导出完成!")
-    print("=" * 60)
+    all_rows = np.ones(len(meta), dtype=bool)
+    export_prediction(meta, pred_c, all_rows, PRED_DIR / f"pred_lstm_c_{split}.csv")
+    export_prediction(meta, pred_d, all_rows, PRED_DIR / f"pred_lstm_d_{split}.csv")
+    if pred_hybrid is not None:
+        export_prediction(meta, pred_hybrid, all_rows, PRED_DIR / f"pred_lstm_hybrid_{split}.csv")
+    export_prediction(meta, pred_gru, gru_mask, PRED_DIR / f"pred_gru_{split}.csv")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", choices=("val", "test"), default="val")
+    args = parser.parse_args()
+    main(args.split)

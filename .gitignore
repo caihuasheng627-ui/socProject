@@ -46,6 +46,15 @@ env/
 *.bak
 *.swp
 .cache/
+_zip_extract/
+ml/_backup_pre_contract_20260720/
+
+# 本地海报 / PPT 生成脚本（非课程核心）
+build_apple_ppt.py
+restyle_ppt.py
+gen_poster*.py
+integrate_maintenance_pkg.py
+assets/
 
 # WorkBuddy 缓存目录 (项目数据,非源代码)
 .workbuddy/

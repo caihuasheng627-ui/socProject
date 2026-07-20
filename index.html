@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SkinVision AI — CS2 饰品 AI 智能分析平台</title>
+  <title>CSVest — CS2 饰品 AI 智能分析平台</title>
 
   <!-- Inter Font (Modern Dark premium typography) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -58,7 +58,7 @@
             <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
           </svg>
         </div>
-        <div class="loader-title">SkinVision AI</div>
+        <div class="loader-title">CSVest</div>
         <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
         <div class="loader-bar">
           <div class="loader-bar-fill"></div>
@@ -880,6 +880,7 @@
                 {{ t('models.title') }}
               </h2>
               <p class="text-muted text-sm mt-2">{{ t('models.subtitle') }}</p>
+              <p class="text-muted text-sm mt-1">{{ t('models.routeNote') }}</p>
             </div>
             <div class="flex gap-2">
               <div class="export-group">
@@ -915,9 +916,15 @@
                 <tr v-for="m in regressionModels" :key="m.name">
                   <td>
                     <strong>{{ m.name }}</strong>
-                    <span v-if="m.name === 'LSTM'" class="tag tag-orange" style="margin-left: 6px;">
+                    <span v-if="m.name === 'LSTM-C'" class="tag tag-orange" style="margin-left: 6px;">
                       <i class="ph-fill ph-star" style="font-size: 11px; margin-right: 2px;" aria-hidden="true"></i>
                       {{ t('models.star') }}
+                    </span>
+                    <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue" style="margin-left: 6px;">
+                      Route
+                    </span>
+                    <span v-else-if="m.name === 'Random Forest'" class="tag tag-green" style="margin-left: 6px;">
+                      MAPE
                     </span>
                   </td>
                   <td><span class="tag">{{ m.type }}</span></td>

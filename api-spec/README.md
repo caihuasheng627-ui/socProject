@@ -1,4 +1,4 @@
-# SkinVision AI - 前后端对接指南
+# CSVest - 前后端对接指南
 
 > 面向:**后端开发同学**(数据工程 + LLM 工程师)
 > 目的:让前端能在 D8 (7/20) 起顺利联调
@@ -171,9 +171,9 @@ app.add_middleware(
 **前端使用示例**:
 
 ```javascript
-import { SkinVisionAPI } from './js/api.js';
+import { CSVestAPI } from './js/api.js';
 
-const ws = new SkinVisionWS('wss://api.skinvision.ai', token);
+const ws = new CSVestWS('wss://api.csvest.local', token);
 ws.connect();
 ws.on('price.alerts', (msg) => {
   if (msg.event === 'alert.triggered') {
@@ -182,7 +182,7 @@ ws.on('price.alerts', (msg) => {
 });
 ```
 
-(完整实现见 `js/api.js` 的 `SkinVisionWS` class)
+(完整实现见 `js/api.js` 的 `CSVestWS` class)
 
 ---
 
@@ -210,7 +210,7 @@ ws.on('price.alerts', (msg) => {
 
 通过 query 参数:
 ```
-wss://api.skinvision.ai/ws?token=<jwt>
+wss://api.csvest.local/ws?token=<jwt>
 ```
 
 ---
@@ -268,8 +268,8 @@ location.reload();
 
 **方式 2:控制台运行时切换**
 ```javascript
-SkinVisionAPI.setUseMock(false);
-SkinVisionAPI.setBaseURL('http://localhost:8000');
+CSVestAPI.setUseMock(false);
+CSVestAPI.setBaseURL('http://localhost:8000');
 ```
 
 ### 7.3 混合模式(可调试)
@@ -278,11 +278,11 @@ SkinVisionAPI.setBaseURL('http://localhost:8000');
 
 ```javascript
 // 在 app.js 启动时
-SkinVisionAPI.setUseMock(true);  // 全局 mock
+CSVestAPI.setUseMock(true);  // 全局 mock
 
 // 临时切换单个调用
 const data = await fetch('http://localhost:8000/api/skins').then(r => r.json());
-// 不经过 SkinVisionAPI,直接用原生 fetch
+// 不经过 CSVestAPI,直接用原生 fetch
 ```
 
 ---

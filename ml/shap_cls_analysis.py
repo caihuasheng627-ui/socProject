@@ -3,6 +3,7 @@ SHAP 分析: XGBoost 分类模型特征重要性
 ========================================
 对 xgb_cls.pkl 三分类 (跌/平/涨) 进行 SHAP 分析
 """
+import argparse
 import json, sys
 from pathlib import Path
 
@@ -14,11 +15,16 @@ import numpy as np
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-MODEL_PATH = Path("d:/桌面/NUS SWS/socProject/ml/models/xgb_cls.pkl")
-OUT_DIR = Path("../data/backtest")
-sys.path.insert(0, str(Path("d:/桌面/NUS SWS/socProject/ml").resolve()))
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+MODEL_PATH = BASE_DIR / "models" / "xgb_cls.pkl"
+OUT_DIR = BASE_DIR / "outputs"
 
-from utils import load_train_val_test, make_classification_target  # noqa: E402
+from tree_features import (  # noqa: E402
+    assert_held_out,
+    classification_arrays,
+    load_tree_split,
+)
 
 FEATURE_NAMES = [
     "log_price", "MA_7", "MA_30", "MA_90",
@@ -33,23 +39,25 @@ FEATURE_NAMES = [
 CLASS_NAMES = {0: "跌 (die)", 1: "平 (ping)", 2: "涨 (zhang)"}
 
 
-def main():
+def main(model_path=MODEL_PATH, split="test", allow_in_sample=False):
     print("=" * 60)
     print("  SHAP 分析 — XGBoost 分类 (涨/平/跌)")
     print("=" * 60)
 
     # 加载
     print("\n[1/4] 加载模型...")
-    bundle = joblib.load(MODEL_PATH)
+    bundle = joblib.load(model_path)
     model = bundle["model"]
     print(f"  模型: XGBClassifier (max_depth={bundle['params']['max_depth']}, "
           f"n_estimators={bundle['params']['n_estimators']})")
 
     # 数据
-    print("\n[2/4] 加载 val 数据...")
-    _, val_df, _ = load_train_val_test()
-    X_val, y_val, dates, skins, _ = make_classification_target(val_df)
-    print(f"  Val: {X_val.shape}, 标签: {dict(zip(*np.unique(y_val, return_counts=True)))}")
+    fit_split = bundle.get("fit_split", "unknown")
+    assert_held_out(split, fit_split, allow_in_sample)
+    print(f"\n[2/4] 加载 {split} 数据...")
+    split_df = load_tree_split(DATA_DIR, split)
+    X_val, y_val, dates, skins, _ = classification_arrays(split_df)
+    print(f"  {split}: {X_val.shape}, 标签: {dict(zip(*np.unique(y_val, return_counts=True)))}")
 
     np.random.seed(42)
     n_sample = min(2000, X_val.shape[0])
@@ -122,6 +130,8 @@ def main():
     # JSON
     shap_export = {
         "model": "XGBoost Classifier",
+        "model_fit_split": fit_split,
+        "explanation_split": split,
         "classes": ["die", "ping", "zhang"],
         "n_features": len(FEATURE_NAMES),
         "n_samples": n_sample,
@@ -141,4 +151,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-path", type=Path, default=MODEL_PATH)
+    parser.add_argument("--split", choices=("val", "test"), default="test")
+    parser.add_argument("--allow-in-sample", action="store_true")
+    args = parser.parse_args()
+    main(args.model_path, args.split, args.allow_in_sample)

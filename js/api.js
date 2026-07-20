@@ -1,9 +1,9 @@
 // ============================================
-// SkinVision AI - 前端 API 客户端
+// CSVest - 前端 API 客户端
 // 封装 fetch + 错误处理 + Mock 回退
 // ============================================
 
-class SkinVisionAPI {
+class CSVestAPI {
   constructor() {
     // 优先使用 localStorage 配置的 baseURL,默认本地
     this.baseURL = localStorage.getItem('sv_api_url') || 'http://localhost:8000';
@@ -97,8 +97,8 @@ class SkinVisionAPI {
     return this._safeCall(
       () => this._fetch(`/api/skins?${new URLSearchParams(params)}`),
       () => Promise.resolve({
-        total: window.SkinVisionData.SKINS_POOL.length,
-        items: window.SkinVisionData.SKINS_POOL,
+        total: window.CSVestData.SKINS_POOL.length,
+        items: window.CSVestData.SKINS_POOL,
       })
     );
   }
@@ -107,7 +107,7 @@ class SkinVisionAPI {
     return this._safeCall(
       () => this._fetch(`/api/skins/${skinId}`),
       () => {
-        const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === skinId);
+        const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
         if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
         return skin;
       }
@@ -118,9 +118,9 @@ class SkinVisionAPI {
     return this._safeCall(
       () => this._fetch(`/api/skins/${skinId}/kline?days=${days}`),
       () => {
-        const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === skinId);
+        const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
         if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
-        return window.SkinVisionData.generateKLineData(skin.price, days);
+        return window.CSVestData.generateKLineData(skin.price, days);
       }
     );
   }
@@ -147,7 +147,7 @@ class SkinVisionAPI {
   }
 
   _mockPredict(skinId, horizon) {
-    const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === skinId);
+    const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
     if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
     return {
       skinId,
@@ -169,7 +169,7 @@ class SkinVisionAPI {
   }
 
   _mockEntryRange(skinId) {
-    const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === skinId);
+    const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
     if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
     return {
       entryLow: skin.price * 0.97,
@@ -187,7 +187,7 @@ class SkinVisionAPI {
       () => ({
         skinId,
         summary: '该饰品近期价格变动主要受 Valve 更新和赛事经济影响。',
-        relatedNews: window.SkinVisionData.NEWS_FEED.slice(0, 3),
+        relatedNews: window.CSVestData.NEWS_FEED.slice(0, 3),
         sources: ['Valve 官方', 'HLTV', 'BUFF 公告'],
       })
     );
@@ -234,7 +234,7 @@ class SkinVisionAPI {
   }
 
   async _mockChatStream(message, onChunk) {
-    const response = window.SkinVisionData.AI_PRESET_RESPONSES['default'];
+    const response = window.CSVestData.AI_PRESET_RESPONSES['default'];
     const chunks = response.split(/(?<=[。!?\n])/);
     for (const chunk of chunks) {
       if (onChunk) onChunk(chunk);
@@ -258,7 +258,7 @@ class SkinVisionAPI {
           return this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' });
         }
       },
-      () => window.SkinVisionData.DEBATE_SAMPLE
+      () => window.CSVestData.DEBATE_SAMPLE
     );
   }
 
@@ -266,7 +266,7 @@ class SkinVisionAPI {
   async getNews(params = {}) {
     return this._safeCall(
       () => this._fetch(`/api/news?${new URLSearchParams(params)}`),
-      () => window.SkinVisionData.NEWS_FEED
+      () => window.CSVestData.NEWS_FEED
     );
   }
 
@@ -276,9 +276,9 @@ class SkinVisionAPI {
       () => ({
         date: date || '2026-07-15',
         metrics: { monitored: 20, gainers: 14, losers: 6 },
-        hotVolume: window.SkinVisionData.HOT_VOLUME,
+        hotVolume: window.CSVestData.HOT_VOLUME,
         aiSummary: '今日 CS2 饰品市场整体偏强震荡...',
-        news: window.SkinVisionData.NEWS_FEED,
+        news: window.CSVestData.NEWS_FEED,
       })
     );
   }
@@ -298,7 +298,7 @@ class SkinVisionAPI {
         body: JSON.stringify(data),
       }),
       () => {
-        const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === data.skinId);
+        const skin = window.CSVestData.SKINS_POOL.find(s => s.id === data.skinId);
         const newAlert = {
           id: Date.now(),
           ...data,
@@ -339,7 +339,7 @@ class SkinVisionAPI {
         body: JSON.stringify(data),
       }),
       () => {
-        const skin = window.SkinVisionData.SKINS_POOL.find(s => s.id === data.skinId);
+        const skin = window.CSVestData.SKINS_POOL.find(s => s.id === data.skinId);
         const newItem = {
           id: Date.now(),
           ...data,
@@ -365,7 +365,7 @@ class SkinVisionAPI {
   async getModelComparison() {
     return this._safeCall(
       () => this._fetch('/api/models/comparison'),
-      () => window.SkinVisionData.MODEL_COMPARISON
+      () => window.CSVestData.MODEL_COMPARISON
     );
   }
 
@@ -377,7 +377,7 @@ class SkinVisionAPI {
           const d = new Date(Date.now() - (days - i) * 24 * 60 * 60 * 1000);
           return `${d.getMonth() + 1}/${d.getDate()}`;
         }),
-        series: window.SkinVisionData.generateBacktestData(days),
+        series: window.CSVestData.generateBacktestData(days),
       })
     );
   }
@@ -394,4 +394,5 @@ class APIError extends Error {
 }
 
 // ============ 全局单例 ============
-window.SkinVisionAPI = new SkinVisionAPI();
+window.CSVestAPI = new CSVestAPI();
+window.SkinVisionAPI = window.CSVestAPI; // legacy alias
