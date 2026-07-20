@@ -1,0 +1,41 @@
+# SkinVision AI — 一键起(组员 3 部署)
+# docker compose up --build
+# 前端: 直接 open index.html(或 python -m http.server 8080),localStorage 切 API:
+#   localStorage.setItem('sv_api_url','http://localhost:8000'); localStorage.setItem('sv_use_mock','false'); location.reload()
+services:
+  api:
+    build: .
+    container_name: skinvision-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    volumes:
+      # 持久化 SQLite(持仓/预警/缓存),重启不丢
+      - sqlite-data:/app/backend/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端静态托管(可选;也可直接双击 index.html)
+  web:
+    image: nginx:alpine
+    container_name: skinvision-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./app.js:/usr/share/nginx/html/app.js:ro
+      - ./style.css:/usr/share/nginx/html/style.css:ro
+      - ./data.js:/usr/share/nginx/html/data.js:ro
+      - ./i18n.js:/usr/share/nginx/html/i18n.js:ro
+      - ./js:/usr/share/nginx/html/js:ro
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  sqlite-data:

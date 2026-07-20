@@ -1,0 +1,175 @@
+"""
+SkinVision AI — 定时任务(组员 3 第 4 步)
+=========================================
+APScheduler 后台任务(均 try/except,不崩主进程):
+  1. RSS 资讯采集     → news 表增量追加(每 6 小时)
+  2. 每日 AI 市场日报 → 生成 aiSummary + 拼持仓段(每日 09:00)
+  3. 增量训练触发     → 调组员 2 的 --mode incremental 脚本(每日 02:00,默认禁用)
+
+🆕 方案 B:日报 prompt 多拼一段持仓摘要。
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+from datetime import datetime, timezone
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
+import llm
+from config import RSS_FEEDS, ML_DIR, REPO_ROOT
+from database import get_connection, _utcnow
+
+_scheduler: BackgroundScheduler | None = None
+
+
+# ============================================================
+# 任务 1:RSS 采集
+# ============================================================
+def fetch_rss_news() -> int:
+    try:
+        import feedparser
+    except Exception as e:
+        print(f"[scheduler] feedparser 不可用: {e}")
+        return 0
+    inserted = 0
+    with get_connection() as conn:
+        for url in RSS_FEEDS:
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:10]:
+                    title = entry.get("title", "").strip()
+                    if not title:
+                        continue
+                    # 去重
+                    exists = conn.execute("SELECT 1 FROM news WHERE title=? LIMIT 1", (title,)).fetchone()
+                    if exists:
+                        continue
+                    summary = (entry.get("summary", "") or "")[:300]
+                    published = entry.get("published", _utcnow().isoformat())
+                    conn.execute(
+                        """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
+                           VALUES (?,?,?,?,?,?,?,?)""",
+                        (title, summary, "rss", entry.get("link", ""), published, "neutral", "low", ""),
+                    )
+                    inserted += 1
+            except Exception as e:
+                print(f"[scheduler] RSS 采集失败 {url}: {e}")
+        conn.commit()
+    if inserted:
+        print(f"[scheduler] RSS 新增 {inserted} 条")
+    return inserted
+
+
+# ============================================================
+# 任务 2:每日日报(拼持仓段)
+# ============================================================
+def generate_daily_report() -> dict:
+    """生成日报并写一份到 docs/expo/seed_daily_report.json(Expo 兜底)。"""
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(DISTINCT skin_id) FROM price_history").fetchone()[0]
+        # 近 1 日涨跌统计(简化:取最新价 vs 7 天前)
+        gainers = conn.execute(
+            """SELECT COUNT(*) FROM (
+               SELECT skin_id, (SELECT price FROM price_history p2 WHERE p2.skin_id=p.skin_id
+                                ORDER BY date DESC LIMIT 1) AS cur,
+                               (SELECT price FROM price_history p3 WHERE p3.skin_id=p.skin_id
+                                ORDER BY date DESC LIMIT 1 OFFSET 7) AS old
+               FROM price_history p GROUP BY skin_id)
+               WHERE old IS NOT NULL AND cur > old"""
+        ).fetchone()[0]
+        losers = conn.execute(
+            """SELECT COUNT(*) FROM (
+               SELECT skin_id, (SELECT price FROM price_history p2 WHERE p2.skin_id=p.skin_id
+                                ORDER BY date DESC LIMIT 1) AS cur,
+                               (SELECT price FROM price_history p3 WHERE p3.skin_id=p.skin_id
+                                ORDER BY date DESC LIMIT 1 OFFSET 7) AS old
+               FROM price_history p GROUP BY skin_id)
+               WHERE old IS NOT NULL AND cur < old"""
+        ).fetchone()[0]
+        news = conn.execute("SELECT * FROM news ORDER BY published_at DESC LIMIT 5").fetchall()
+        # 持仓段
+        positions = conn.execute(
+            """SELECT s.market_hash_name, p.buy_price, p.quantity, p.holding_type
+               FROM portfolio p JOIN skins s ON s.id=p.skin_id"""
+        ).fetchall()
+
+    portfolio_text = "无持仓" if not positions else "; ".join(
+        f"{r['market_hash_name']} {r['quantity']}件" for r in positions
+    )
+    prompt = (
+        f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
+        f"你的持仓:{portfolio_text}。请生成一段中文市场日报(3-4 句),含持仓提示与风险。"
+    )
+    summary = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
+
+    report = {
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "metrics": {"monitored": total, "gainers": gainers, "losers": losers},
+        "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
+                       "holdingType": r["holding_type"]} for r in positions],
+        "aiSummary": summary,
+        "news": [{"title": n["title"], "summary": n["summary"], "source": n["source"],
+                  "sentiment": n["sentiment"]} for n in news],
+    }
+
+    # 写 Expo 兜底
+    try:
+        from config import SEED_DIR
+        SEED_DIR.mkdir(parents=True, exist_ok=True)
+        (SEED_DIR / "seed_daily_report.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[scheduler] 日报写入失败: {e}")
+    print(f"[scheduler] 日报已生成 (监控 {total}, 持仓 {len(positions)})")
+    return report
+
+
+# ============================================================
+# 任务 3:增量训练触发(默认禁用)
+# ============================================================
+def trigger_incremental_training() -> None:
+    """调组员 2 的树模型增量脚本(策划书 §方案 B 增量更新)。默认禁用,需设 env。"""
+    import os
+    if os.getenv("ENABLE_INCREMENTAL_TRAIN", "0") != "1":
+        return
+    scripts = ["make_predictions_trees.py", "02_xgboost_reg_cls.py"]
+    for script in scripts:
+        p = ML_DIR / script
+        if not p.exists():
+            continue
+        try:
+            print(f"[scheduler] 增量训练: {script}")
+            subprocess.run(["python", str(p), "--mode", "incremental"],
+                           cwd=str(REPO_ROOT), timeout=600, check=False)
+        except Exception as e:
+            print(f"[scheduler] 增量训练失败 {script}: {e}")
+
+
+# ============================================================
+# 启动
+# ============================================================
+def start_scheduler() -> BackgroundScheduler:
+    global _scheduler
+    if _scheduler is not None:
+        return _scheduler
+    _scheduler = BackgroundScheduler(timezone="UTC")
+
+    _scheduler.add_job(fetch_rss_news, IntervalTrigger(hours=6), id="rss",
+                       next_run_time=None, misfire_grace_time=3600)
+    _scheduler.add_job(generate_daily_report, CronTrigger(hour=1, minute=0), id="daily",
+                       misfire_grace_time=3600)   # UTC 01:00 ≈ 北京 09:00
+    _scheduler.add_job(trigger_incremental_training, CronTrigger(hour=18, minute=0), id="train",
+                       misfire_grace_time=3600)
+    _scheduler.start()
+    print("[scheduler] 已启动 (rss 6h / daily 09:00 / incremental 默认禁用)")
+    return _scheduler
+
+
+def shutdown_scheduler() -> None:
+    global _scheduler
+    if _scheduler:
+        _scheduler.shutdown(wait=False)
+        _scheduler = None

@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "skinId": "ak-47-elite-build-minimal-wear",
+    "name": "AK-47 | Elite Build (Minimal Wear)",
+    "holdingType": "real",
+    "buyPrice": 1.24,
+    "quantity": 1,
+    "buyDate": "2026-06-05",
+    "note": "主力持仓"
+  },
+  {
+    "id": 2,
+    "skinId": "awp-asiimov-field-tested",
+    "name": "AWP | Asiimov (Field-Tested)",
+    "holdingType": "real",
+    "buyPrice": 0.03,
+    "quantity": 1,
+    "buyDate": "2026-06-05",
+    "note": "长线"
+  },
+  {
+    "id": 3,
+    "skinId": "m4a1-s-briefing-factory-new",
+    "name": "M4A1-S | Briefing (Factory New)",
+    "holdingType": "sim",
+    "buyPrice": null,
+    "quantity": 2,
+    "buyDate": "2026-06-05",
+    "note": "模拟跟踪"
+  },
+  {
+    "id": 4,
+    "skinId": "usp-s-cyrex-factory-new",
+    "name": "USP-S | Cyrex (Factory New)",
+    "holdingType": "real",
+    "buyPrice": 3.0,
+    "quantity": 1,
+    "buyDate": "2026-06-05",
+    "note": "短期"
+  },
+  {
+    "id": 5,
+    "skinId": "karambit-doppler-factory-new",
+    "name": "★ Karambit | Doppler (Factory New)",
+    "holdingType": "sim",
+    "buyPrice": null,
+    "quantity": 1,
+    "buyDate": "2026-06-05",
+    "note": "高价值模拟"
+  },
+  {
+    "id": 6,
+    "skinId": "driver-gloves-overtake-field-tested",
+    "name": "★ Driver Gloves | Overtake (Field-Tested)",
+    "holdingType": "real",
+    "buyPrice": 97.2,
+    "quantity": 1,
+    "buyDate": "2026-06-05",
+    "note": "手套持仓"
+  }
+]
