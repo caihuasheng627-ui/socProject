@@ -1,7 +1,11 @@
-# SkinVision AI — 一键起(组员 3 部署)
-# docker compose up --build
-# 前端: 直接 open index.html(或 python -m http.server 8080),localStorage 切 API:
-#   localStorage.setItem('sv_api_url','http://localhost:8000'); localStorage.setItem('sv_use_mock','false'); location.reload()
+# SkinVision AI — Docker 一键部署
+# 用法:
+#   cp backend/.env.example backend/.env   # 可选填 DEEPSEEK_API_KEY
+#   docker compose up --build -d
+# API http://localhost:8000  |  Web http://localhost:8080
+# 前端切真实后端(浏览器控制台):
+#   localStorage.setItem('sv_api_url','http://localhost:8000');
+#   localStorage.setItem('sv_use_mock','false'); location.reload();
 services:
   api:
     build: .
@@ -9,7 +13,16 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - backend/.env
+      - path: backend/.env
+        required: false
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      PRED_CACHE_TTL_HOURS: ${PRED_CACHE_TTL_HOURS:-6}
+      USD_CNY_RATE: ${USD_CNY_RATE:-7.2}
+      USE_BUFF_LIVE: ${USE_BUFF_LIVE:-0}
+      ENABLE_INCREMENTAL_TRAIN: ${ENABLE_INCREMENTAL_TRAIN:-0}
     volumes:
       # 持久化 SQLite(持仓/预警/缓存),重启不丢
       - sqlite-data:/app/backend/data
@@ -20,7 +33,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # 前端静态托管(可选;也可直接双击 index.html)
+  # 前端静态托管
   web:
     image: nginx:alpine
     container_name: skinvision-web
@@ -35,7 +48,8 @@ services:
       - ./js:/usr/share/nginx/html/js:ro
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_started
 
 volumes:
   sqlite-data:

@@ -56,11 +56,18 @@ python seed_data.py            # 生成预录辩论/日报/持仓快照到 docs/
 python seed_data.py --live     # 有 DeepSeek Key 时现场生成辩论预录
 ```
 
-## Docker 一键起
+## Docker 一键起（推荐）
+
+仓库根目录：
 
 ```bash
-docker compose up --build      # API:8000  Web:8080
+cp backend/.env.example backend/.env   # 可选填 DEEPSEEK_API_KEY
+docker compose up --build -d           # API:8000  Web:8080
+# 健康检查: curl http://localhost:8000/api/health
 ```
+
+SQLite 落在 `backend/data/skinvision.db`，Compose 挂载 volume `sqlite-data` 持久化。
+详见根目录 `README.md`「部署方式」。
 
 ## 降级口径(策划书 §13.2)
 

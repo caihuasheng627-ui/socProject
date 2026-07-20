@@ -65,4 +65,6 @@ push-to-github.sh
 # SQLite 运行时数据(组员 3 后端,不入库)
 backend/skinvision.db
 backend/skinvision.db-*
+backend/data/
 backend/server.log
+
