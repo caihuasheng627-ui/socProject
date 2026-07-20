@@ -102,6 +102,33 @@ const app = createApp({
     const currentPage = ref('dashboard');
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
+    // ============ 首屏 Landing ============
+    const showLanding = ref(sessionStorage.getItem('sv_entered') !== '1');
+    const landingExiting = ref(false);
+    const enterSystem = () => {
+      if (landingExiting.value || !showLanding.value) return;
+      landingExiting.value = true;
+      sessionStorage.setItem('sv_entered', '1');
+      const done = () => {
+        showLanding.value = false;
+        landingExiting.value = false;
+        nextTick(() => {
+          renderKline();
+          setTimeout(() => {
+            klineChartInstance?.resize();
+            radarInstance?.resize();
+            backtestInstance?.resize();
+            shapInstance?.resize();
+          }, 80);
+        });
+      };
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        done();
+        return;
+      }
+      setTimeout(done, 520);
+    };
+
     // ============ 主题切换 ============
     const theme = ref(localStorage.getItem('sv_theme') || 'dark');
     const applyTheme = (t) => {
@@ -1004,6 +1031,7 @@ const app = createApp({
     // ============ 快捷键系统 ============
     const showShortcutHelp = ref(false);
     const handleGlobalKeydown = (e) => {
+      if (showLanding.value) return;
       // 忽略在输入框中的按键
       const tag = e.target.tagName;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || e.target.isContentEditable) {
@@ -1057,7 +1085,10 @@ const app = createApp({
         if (loader) loader.classList.add('hidden');
       }, 300);
 
-      renderKline();
+      // 首屏展示时图表容器尚未挂载,进入系统后再渲染
+      if (!showLanding.value) {
+        renderKline();
+      }
       window.addEventListener('keydown', handleGlobalKeydown);
       window.addEventListener('resize', () => {
         klineChartInstance?.resize();
@@ -1123,6 +1154,8 @@ const app = createApp({
       toasts, showToast,
       // 菜单
       menu, currentPage, currentMenu, renderMenuIcon,
+      // 首屏
+      showLanding, landingExiting, enterSystem,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, filteredSkins,
