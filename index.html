@@ -462,7 +462,8 @@
                 <span class="tag tag-purple">{{ t('prediction.ragModel') }}</span>
               </div>
               <div class="news-list">
-                <div v-for="news in relatedNews" :key="news.id" class="news-item">
+                <p v-if="explainSummary" class="text-sm mb-3" style="line-height: 1.7; color: var(--text-secondary);">{{ explainSummary }}</p>
+                <div v-for="news in relatedNews" :key="news.id || news.title" class="news-item">
                   <div class="news-icon">{{ newsIcon(news.sentiment) }}</div>
                   <div class="news-body">
                     <div class="news-title">{{ news.title }}</div>
@@ -470,9 +471,9 @@
                     <div class="news-meta">
                       <span>{{ news.source }}</span>
                       <span>·</span>
-                      <span>{{ news.time }}</span>
+                      <span>{{ news.time || news.createdAt || '' }}</span>
                       <span :class="news.sentiment === 'positive' ? 'tag tag-green' : news.sentiment === 'negative' ? 'tag tag-red' : 'tag tag-blue'" style="margin-left: auto;">
-                        {{ news.impact }}
+                        {{ news.impact || news.sentiment || '' }}
                       </span>
                     </div>
                   </div>
@@ -652,17 +653,17 @@
           <div class="daily-report-grid mb-6">
             <div class="metric-card">
               <div class="metric-card-label">{{ t('daily.metricMonitor') }}</div>
-              <div class="metric-card-value">20</div>
+              <div class="metric-card-value">{{ dailyReport.metrics.monitored }}</div>
               <div class="metric-card-delta text-muted">{{ t('daily.monitorRange') }}</div>
             </div>
             <div class="metric-card">
               <div class="metric-card-label">{{ t('daily.metricGainers') }}</div>
-              <div class="metric-card-value text-up">14</div>
+              <div class="metric-card-value text-up">{{ dailyReport.metrics.gainers }}</div>
               <div class="metric-card-delta text-up">{{ t('daily.metricGainersDesc') }}</div>
             </div>
             <div class="metric-card">
               <div class="metric-card-label">{{ t('daily.metricLosers') }}</div>
-              <div class="metric-card-value text-down">6</div>
+              <div class="metric-card-value text-down">{{ dailyReport.metrics.losers }}</div>
               <div class="metric-card-delta text-down">{{ t('daily.metricLosersDesc') }}</div>
             </div>
           </div>
@@ -694,6 +695,8 @@
                 <span class="tag tag-purple">{{ t('daily.aiSummaryModel') }}</span>
               </div>
               <div style="line-height: 1.8; font-size: 13px;">
+                <p v-if="dailyReport.aiSummary" style="white-space: pre-wrap;">{{ dailyReport.aiSummary }}</p>
+                <template v-else>
                 <p>{{ t('daily.summaryText1') }}<span style="color: var(--accent-red); font-weight: 600;">{{ t('daily.summaryStrong') }}</span>{{ t('daily.summaryText2') }}</p>
                 <br>
                 <p><strong style="color: var(--accent-orange);">{{ t('daily.coreDriver') }}</strong></p>
@@ -706,6 +709,8 @@
                 <p><strong style="color: var(--accent-red);">{{ t('daily.opportunity') }}</strong> {{ t('daily.opportunityText') }}</p>
                 <br>
                 <p><strong style="color: var(--accent-green);">{{ t('daily.risk') }}</strong> {{ t('daily.riskText') }}</p>
+                </template>
+              </div>
                 <br>
                 <p class="text-muted text-sm">{{ t('daily.aiDisclaimer') }}</p>
               </div>
@@ -808,8 +813,7 @@
                   <td>${{ formatPrice(alert.currentPrice) }}</td>
                   <td class="text-muted text-sm">{{ alert.createdAt }}</td>
                   <td>
-                    <button class="btn btn-ghost btn-sm">{{ alert.active ? t('common.disable') : t('common.enable') }}</button>
-                    <button class="btn btn-ghost btn-sm" style="color: var(--accent-red);">{{ t('common.delete') }}</button>
+                    <button class="btn btn-ghost btn-sm" style="color: var(--accent-red);" @click="deleteAlert(alert.id)">{{ t('common.delete') }}</button>
                   </td>
                 </tr>
               </tbody>
@@ -835,7 +839,18 @@
               <button class="btn btn-primary" @click="showPortfolioModal = true">
                 <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
+              <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline">
+                组合诊断
+              </button>
             </div>
+          </div>
+
+          <div v-if="portfolioDiagnose" class="card mb-4">
+            <div class="card-header">
+              <div class="card-title">组合诊断</div>
+              <span class="tag tag-orange" v-if="apiOnline">API</span>
+            </div>
+            <p class="text-sm" style="line-height: 1.7; white-space: pre-wrap;">{{ portfolioDiagnose.summary || portfolioDiagnose.aiSummary || JSON.stringify(portfolioDiagnose).slice(0, 400) }}</p>
           </div>
 
           <div class="portfolio-summary mb-4">
@@ -1133,6 +1148,13 @@
         <div class="form-group">
           <label class="form-label">{{ t('portfolio.modal.buyDate') }}</label>
           <input type="date" class="form-input" v-model="newPortfolio.buyDate" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">持仓类型</label>
+          <select class="form-select" v-model="newPortfolio.holdingType">
+            <option value="real">真实持仓 (real)</option>
+            <option value="sim">模拟持仓 (sim)</option>
+          </select>
         </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="showPortfolioModal = false">{{ t('common.cancel') }}</button>

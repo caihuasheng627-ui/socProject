@@ -422,17 +422,17 @@ const app = createApp({
       }
       try {
         client.setBaseURL(localStorage.getItem('sv_api_url') || 'http://localhost:8000');
-        // 探测到后端则强制走真实 API（覆盖默认 mock）
         await client.health();
         client.setUseMock(false);
         apiOnline.value = true;
         await loadSkinsFromApi();
-        try {
-          const news = await client.getNews({ limit: 10 });
-          const items = Array.isArray(news) ? news : (news?.items || []);
-          if (items.length) newsFeed.value = items;
-        } catch (_) { /* keep mock news */ }
-        showToast({ title: '已连接后端', message: 'http://localhost:8000', type: 'success' });
+        await Promise.all([
+          loadNewsFromApi(),
+          loadAlertsFromApi(),
+          loadPortfolioFromApi(),
+          loadModelsFromApi(),
+        ]);
+        showToast({ title: '已连接后端', subtitle: client.baseURL, type: 'success' });
         return true;
       } catch (err) {
         apiOnline.value = false;
@@ -440,6 +440,118 @@ const app = createApp({
         return false;
       }
     };
+
+    const loadNewsFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const news = await client.getNews({ limit: 20 });
+        const items = Array.isArray(news) ? news : (news?.items || []);
+        if (items.length) newsFeed.value = items;
+      } catch (_) { /* keep mock */ }
+    };
+
+    const loadAlertsFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const list = await client.getAlerts();
+        const items = Array.isArray(list) ? list : (list?.items || []);
+        if (items.length || apiOnline.value) alerts.value = items;
+      } catch (_) { /* keep mock */ }
+    };
+
+    const loadPortfolioFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const res = await client.getPortfolio();
+        const items = Array.isArray(res) ? res : (res?.items || []);
+        if (items.length || apiOnline.value) {
+          portfolio.value = items.map(p => ({
+            id: p.id,
+            skinId: p.skinId,
+            name: p.name,
+            buyPrice: p.buyPrice,
+            quantity: p.quantity || 1,
+            buyDate: p.buyDate,
+            holdingType: p.holdingType || 'real',
+            currentPrice: p.currentPrice,
+            pnl: p.pnl,
+            pnlPct: p.pnlPct,
+          }));
+        }
+      } catch (_) { /* keep mock */ }
+    };
+
+    const loadModelsFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const cmp = await client.getModelComparison();
+        if (cmp?.regression?.length) {
+          regressionModels.value = cmp.regression.map(r => ({
+            ...r,
+            course: r.course || r.type || '',
+          }));
+        }
+        if (cmp?.classification?.length) {
+          classificationModels.value = cmp.classification;
+        }
+      } catch (_) { /* keep mock */ }
+    };
+
+    const dailyReport = ref({
+      date: '',
+      metrics: { monitored: 20, gainers: 14, losers: 6 },
+      aiSummary: '',
+    });
+    const explainSummary = ref('');
+    const portfolioDiagnose = ref(null);
+    const portfolioValueHistory = ref({ dates: [], values: [] });
+
+    const loadDailyReport = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const rep = await client.getDailyReport();
+        if (!rep) return;
+        dailyReport.value = {
+          date: rep.date || '',
+          metrics: {
+            monitored: rep.metrics?.monitored ?? skins.value.length,
+            gainers: rep.metrics?.gainers ?? topGainers.value.length,
+            losers: rep.metrics?.losers ?? topLosers.value.length,
+          },
+          aiSummary: rep.aiSummary || rep.summary || '',
+        };
+        if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
+          hotVolume.value = rep.hotVolume;
+        } else {
+          reconnectLeaders();
+        }
+        const news = Array.isArray(rep.news) ? rep.news : [];
+        if (news.length) newsFeed.value = news;
+      } catch (e) {
+        console.warn('[CSVest] daily-report failed', e);
+      }
+    };
+
+    const loadExplanation = async (skinId) => {
+      const client = api();
+      if (!client || !skinId) return;
+      try {
+        const exp = await client.getExplanation(skinId, 7);
+        explainSummary.value = exp?.summary || '';
+        if (Array.isArray(exp?.relatedNews) && exp.relatedNews.length) {
+          // 合并到 newsFeed 供 relatedNews computed 使用；同时写临时列表
+          relatedNewsOverride.value = exp.relatedNews;
+        }
+      } catch (_) {
+        explainSummary.value = '';
+      }
+    };
+    const relatedNewsOverride = ref(null);
     const regressionModels = ref([
       { ...modelComparison.regression[0], course: 'DL · panel Embedding' },
       { ...modelComparison.regression[1], course: 'DL · price tiers' },
@@ -535,6 +647,9 @@ const app = createApp({
 
     // 相关新闻
     const relatedNews = computed(() => {
+      if (relatedNewsOverride.value?.length) {
+        return relatedNewsOverride.value.slice(0, 4);
+      }
       if (!selectedSkin.value) return [];
       return newsFeed.value.filter(n =>
         !n.relatedSkins?.length || n.relatedSkins.includes(selectedSkin.value.id)
@@ -792,7 +907,6 @@ const app = createApp({
     const chatSuggestedIndex = ref(-1);
 
     const sendMessage = async (overrideText) => {
-      // 防御:如果从 @click 调用,Vue 会传 MouseEvent,这里过滤掉
       const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
       if (!text || chatLoading.value) return;
 
@@ -805,18 +919,36 @@ const app = createApp({
       chatLoading.value = true;
       await scrollChatBottom();
 
-      // 模拟 AI 回复延迟
-      setTimeout(async () => {
-        const response = generateAIResponse(text);
-        chatMessages.value.push({
-          role: 'assistant',
-          content: response,
-          time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-          model: 'DeepSeek-V3',
-        });
-        chatLoading.value = false;
-        await scrollChatBottom();
-      }, 1200 + Math.random() * 800);
+      const assistantMsg = {
+        role: 'assistant',
+        content: '',
+        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        model: apiOnline.value ? 'DeepSeek-V3' : 'Mock',
+      };
+      chatMessages.value.push(assistantMsg);
+
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.chat(text, null, (chunk) => {
+            assistantMsg.content += chunk;
+            scrollChatBottom();
+          });
+          if (!assistantMsg.content.trim()) {
+            assistantMsg.content = generateAIResponse(text);
+          }
+        } else {
+          // 离线：模拟延迟后本地回复
+          await new Promise(r => setTimeout(r, 600));
+          assistantMsg.content = generateAIResponse(text);
+          assistantMsg.model = 'Mock';
+        }
+      } catch (e) {
+        assistantMsg.content = generateAIResponse(text);
+        assistantMsg.model = 'Mock';
+      }
+      chatLoading.value = false;
+      await scrollChatBottom();
     };
 
     // 监听聊天输入框的键盘事件
@@ -1002,65 +1134,165 @@ const app = createApp({
     const showAlertModal = ref(false);
     const newAlert = ref({ skinId: '', type: 'above', targetPrice: null, note: '' });
 
-    const addAlert = () => {
+    const addAlert = async () => {
       if (!newAlert.value.skinId || !newAlert.value.targetPrice) return;
       const skin = skins.value.find(s => s.id === newAlert.value.skinId);
-      alerts.value.push({
-        id: Date.now(),
+      const payload = {
         skinId: newAlert.value.skinId,
-        skinName: skin.name,
         type: newAlert.value.type,
-        targetPrice: newAlert.value.targetPrice,
-        currentPrice: skin.price,
-        active: true,
-        triggered: false,
-        createdAt: new Date().toLocaleString('zh-CN'),
-      });
+        targetPrice: +newAlert.value.targetPrice,
+        note: newAlert.value.note || '',
+      };
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          const created = await client.createAlert(payload);
+          await loadAlertsFromApi();
+          if (!alerts.value.find(a => a.id === created.id)) {
+            alerts.value = [{
+              id: created.id,
+              skinId: created.skinId || payload.skinId,
+              skinName: skin?.name || '',
+              type: created.type || payload.type,
+              targetPrice: created.targetPrice || payload.targetPrice,
+              currentPrice: skin?.price || 0,
+              active: true,
+              triggered: false,
+              createdAt: new Date().toLocaleString('zh-CN'),
+            }, ...alerts.value];
+          }
+        } else {
+          alerts.value.push({
+            id: Date.now(),
+            skinId: payload.skinId,
+            skinName: skin?.name || '',
+            type: payload.type,
+            targetPrice: payload.targetPrice,
+            currentPrice: skin?.price || 0,
+            active: true,
+            triggered: false,
+            createdAt: new Date().toLocaleString('zh-CN'),
+          });
+        }
+        showToast({ title: t('common.confirm'), subtitle: skin?.name || '', type: 'success' });
+      } catch (e) {
+        showToast({ title: '创建预警失败', subtitle: e.message || '', type: 'error' });
+      }
       showAlertModal.value = false;
       newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
+    };
+
+    const deleteAlert = async (id) => {
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.deleteAlert(id);
+        }
+        alerts.value = alerts.value.filter(a => a.id !== id);
+        showToast({ title: t('common.delete'), type: 'success' });
+      } catch (e) {
+        showToast({ title: '删除失败', subtitle: e.message || '', type: 'error' });
+      }
     };
 
     // ============ 持仓 ============
     const portfolio = ref([...window.CSVestData.DEFAULT_PORTFOLIO]);
     const showPortfolioModal = ref(false);
-    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: '2026-07-15' });
+    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' });
 
     const getCurrentPrice = (skinId) => {
+      const fromPortfolio = portfolio.value.find(p => p.skinId === skinId);
+      if (fromPortfolio?.currentPrice != null) return fromPortfolio.currentPrice;
       return skins.value.find(s => s.id === skinId)?.price || 0;
     };
 
     const getItemPnl = (item) => {
+      if (item.pnl != null) return item.pnl;
       const current = getCurrentPrice(item.skinId);
       return (current - item.buyPrice) * item.quantity;
     };
 
     const getItemPnlPct = (item) => {
+      if (item.pnlPct != null) return item.pnlPct;
       return ((getCurrentPrice(item.skinId) - item.buyPrice) / item.buyPrice) * 100;
     };
 
     const portfolioMetrics = computed(() => {
       const prices = {};
       portfolio.value.forEach(p => prices[p.skinId] = getCurrentPrice(p.skinId));
-      return window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+      if (window.CSVestData?.calculateRiskMetrics) {
+        return window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+      }
+      const totalCost = portfolio.value.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
+      const totalValue = portfolio.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * p.quantity, 0);
+      const pnl = totalValue - totalCost;
+      return {
+        totalCost: +totalCost.toFixed(2),
+        totalValue: +totalValue.toFixed(2),
+        pnl: +pnl.toFixed(2),
+        pnlPct: totalCost ? +((pnl / totalCost) * 100).toFixed(2) : 0,
+        sharpeRatio: '—',
+        maxDrawdown: '—',
+        volatility: '—',
+      };
     });
 
-    const addPortfolio = () => {
+    const addPortfolio = async () => {
       if (!newPortfolio.value.skinId || !newPortfolio.value.buyPrice) return;
       const skin = skins.value.find(s => s.id === newPortfolio.value.skinId);
-      portfolio.value.push({
-        id: Date.now(),
+      const payload = {
         skinId: newPortfolio.value.skinId,
-        name: skin.name,
-        buyPrice: newPortfolio.value.buyPrice,
-        quantity: newPortfolio.value.quantity,
+        buyPrice: +newPortfolio.value.buyPrice,
+        quantity: +newPortfolio.value.quantity || 1,
         buyDate: newPortfolio.value.buyDate,
-      });
+        holdingType: newPortfolio.value.holdingType || 'real',
+      };
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.addPortfolioItem(payload);
+          await loadPortfolioFromApi();
+        } else {
+          portfolio.value.push({
+            id: Date.now(),
+            ...payload,
+            name: skin?.name || '',
+          });
+        }
+        showToast({ title: t('portfolio.addHolding'), subtitle: skin?.name || '', type: 'success' });
+      } catch (e) {
+        showToast({ title: '添加持仓失败', subtitle: e.message || '', type: 'error' });
+      }
       showPortfolioModal.value = false;
-      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: '2026-07-15' };
+      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' };
     };
 
-    const removePortfolio = (id) => {
-      portfolio.value = portfolio.value.filter(p => p.id !== id);
+    const removePortfolio = async (id) => {
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.deletePortfolioItem(id);
+        }
+        portfolio.value = portfolio.value.filter(p => p.id !== id);
+        showToast({ title: t('portfolio.close'), type: 'success' });
+      } catch (e) {
+        showToast({ title: '平仓失败', subtitle: e.message || '', type: 'error' });
+      }
+    };
+
+    const loadPortfolioExtras = async () => {
+      const client = api();
+      if (!client || !apiOnline.value) return;
+      try {
+        const [hist, diag] = await Promise.all([
+          client.getPortfolioValueHistory(90),
+          client.diagnosePortfolio(),
+        ]);
+        portfolioValueHistory.value = hist || { dates: [], values: [] };
+        portfolioDiagnose.value = diag;
+      } catch (e) {
+        console.warn('[CSVest] portfolio extras failed', e);
+      }
     };
 
     // ============ 模型实验室图表 ============
@@ -1122,31 +1354,40 @@ const app = createApp({
       radarInstance.setOption(option);
     };
 
-    const renderBacktest = () => {
+    const renderBacktest = async () => {
       if (!backtestChart.value) return;
       backtestInstance = getOrCreateChart(backtestInstance, backtestChart.value);
 
-      const backtestData = window.CSVestData.generateBacktestData(60);
-      const dates = Array.from({ length: 60 }, (_, i) => {
-        const d = new Date(Date.now() - (60 - i) * 24 * 60 * 60 * 1000);
-        return `${d.getMonth() + 1}/${d.getDate()}`;
-      });
+      let dates = [];
+      let seriesMap = {};
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          const bt = await client.getBacktest(90);
+          dates = bt.dates || [];
+          seriesMap = bt.series || {};
+        }
+      } catch (_) { /* mock below */ }
+      if (!dates.length || !Object.keys(seriesMap).length) {
+        seriesMap = window.CSVestData.generateBacktestData(60);
+        dates = Array.from({ length: 60 }, (_, i) => {
+          const d = new Date(Date.now() - (60 - i) * 24 * 60 * 60 * 1000);
+          return `${d.getMonth() + 1}/${d.getDate()}`;
+        });
+      }
 
-      const colors = {
-        'LSTM': '#ff6b00',
-        'XGBoost': '#3b82f6',
-        'LightGBM': '#06b6d4',
-        'ARIMA': '#10b981',
-        '买入持有': '#6b7280',
-      };
-
-      const series = Object.entries(backtestData).map(([name, values]) => ({
+      const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#6b7280', '#ec4899'];
+      const names = Object.keys(seriesMap);
+      const series = names.map((name, i) => ({
         name,
         type: 'line',
-        data: values,
+        data: seriesMap[name],
         smooth: true,
         showSymbol: false,
-        lineStyle: { color: colors[name], width: name === 'LSTM' ? 3 : 2 },
+        lineStyle: {
+          color: palette[i % palette.length],
+          width: /hybrid|lstm/i.test(name) ? 3 : 2,
+        },
         emphasis: { focus: 'series' },
       }));
 
@@ -1154,9 +1395,10 @@ const app = createApp({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis', backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
         legend: {
-          data: Object.keys(backtestData),
+          data: names,
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
+          type: 'scroll',
         },
         grid: { left: 60, right: 30, top: 40, bottom: 30 },
         xAxis: {
@@ -1173,14 +1415,28 @@ const app = createApp({
         },
         series,
       };
-      backtestInstance.setOption(option);
+      backtestInstance.setOption(option, true);
     };
 
-    const renderShap = () => {
+    const renderShap = async () => {
       if (!shapChart.value) return;
       shapInstance = getOrCreateChart(shapInstance, shapChart.value);
 
-      const data = window.CSVestData.SHAP_FEATURES.slice().reverse();
+      let rows = [];
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          const shap = await client.getShap('xgboost');
+          rows = (Array.isArray(shap) ? shap : []).map(d => ({
+            name: d.feature || d.name,
+            value: d.importance ?? d.value ?? 0,
+          }));
+        }
+      } catch (_) { /* mock */ }
+      if (!rows.length) {
+        rows = (window.CSVestData.SHAP_FEATURES || []).map(d => ({ name: d.name, value: d.value }));
+      }
+      const data = rows.slice().sort((a, b) => a.value - b.value);
 
       const option = {
         backgroundColor: 'transparent',
@@ -1213,11 +1469,11 @@ const app = createApp({
             position: 'right',
             color: '#9ca3af',
             fontSize: 10,
-            formatter: (p) => p.value.toFixed(3),
+            formatter: (p) => Number(p.value).toFixed(3),
           },
         }],
       };
-      shapInstance.setOption(option);
+      shapInstance.setOption(option, true);
     };
 
     // ============ 工具函数 ============
@@ -1418,17 +1674,27 @@ const app = createApp({
     // 监听页面切换
     watch(currentPage, async (newPage) => {
       await nextTick();
-      // 切换页面后再次处理 (v-if 内的新图标)
       window.processPhIcons && window.processPhIcons();
       if (newPage === 'prediction') {
         renderKline();
-        if (selectedSkin.value?.id) loadDebate(selectedSkin.value.id);
+        if (selectedSkin.value?.id) {
+          loadDebate(selectedSkin.value.id);
+          loadExplanation(selectedSkin.value.id);
+        }
       } else if (newPage === 'models') {
+        await loadModelsFromApi();
         setTimeout(() => {
           renderRadar();
           renderBacktest();
           renderShap();
         }, 100);
+      } else if (newPage === 'daily') {
+        await loadDailyReport();
+      } else if (newPage === 'alerts') {
+        await loadAlertsFromApi();
+      } else if (newPage === 'portfolio') {
+        await loadPortfolioFromApi();
+        await loadPortfolioExtras();
       } else if (newPage === 'chat') {
         setTimeout(scrollChatBottom, 100);
       }
@@ -1436,9 +1702,14 @@ const app = createApp({
 
     // 监听选中饰品变化
     watch(selectedSkin, (skin) => {
+      relatedNewsOverride.value = null;
+      explainSummary.value = '';
       if (currentPage.value === 'prediction') {
         renderKline();
-        if (skin?.id) loadDebate(skin.id);
+        if (skin?.id) {
+          loadDebate(skin.id);
+          loadExplanation(skin.id);
+        }
       }
     });
 
@@ -1462,15 +1733,17 @@ const app = createApp({
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
+      explainSummary, loadExplanation,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
-      // 资讯
-      newsFeed,
+      // 资讯 / 日报
+      newsFeed, dailyReport, loadDailyReport,
       // 预警
-      alerts, showAlertModal, newAlert, addAlert,
+      alerts, showAlertModal, newAlert, addAlert, deleteAlert,
       // 持仓
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
+      portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
       // 模型
       regressionModels, classificationModels, modelComparison, hybridRoute,
       radarChart, backtestChart, shapChart,

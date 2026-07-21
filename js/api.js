@@ -5,18 +5,17 @@
 
 class CSVestAPI {
   constructor() {
-    // 优先使用 localStorage 配置的 baseURL,默认本地
     this.baseURL = localStorage.getItem('sv_api_url') || 'http://localhost:8000';
     this.token = localStorage.getItem('sv_token') || null;
-    this.timeout = 30000; // 30s
-    // 未设置时默认 mock；显式设为 'false' 才走真实后端
-    // 旧写法 `=== 'true' || true` 恒为 true，导致永远连不上后端
+    this.timeout = 30000;
+    // 未设置时默认 mock；显式 'false' 才走真实后端
     const mockFlag = localStorage.getItem('sv_use_mock');
     this.useMock = mockFlag === null ? true : mockFlag === 'true';
     this.online = false;
+    this._alerts = null;
+    this._portfolio = null;
   }
 
-  // ============ 配置 ============
   setBaseURL(url) {
     this.baseURL = url;
     localStorage.setItem('sv_api_url', url);
@@ -28,11 +27,10 @@ class CSVestAPI {
   }
 
   setUseMock(useMock) {
-    this.useMock = useMock;
-    localStorage.setItem('sv_use_mock', String(useMock));
+    this.useMock = !!useMock;
+    localStorage.setItem('sv_use_mock', String(this.useMock));
   }
 
-  // ============ 核心 fetch 封装 ============
   async _fetch(path, options = {}) {
     const url = `${this.baseURL}${path}`;
     const controller = new AbortController();
@@ -40,7 +38,7 @@ class CSVestAPI {
 
     const headers = {
       'Content-Type': 'application/json',
-      ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+      ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
       ...options.headers,
     };
 
@@ -57,7 +55,17 @@ class CSVestAPI {
         throw new APIError(error.message || res.statusText, res.status, error.code);
       }
 
-      return await res.json();
+      // 204 / 空 body：DELETE 等无内容响应
+      if (res.status === 204 || res.headers.get('content-length') === '0') {
+        return { success: true };
+      }
+      const text = await res.text();
+      if (!text) return { success: true };
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: true, raw: text };
+      }
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
@@ -68,7 +76,6 @@ class CSVestAPI {
   }
 
   async _safeCall(apiCall, mockCall) {
-    // 强制 mock 时直接使用 mock
     if (this.useMock) {
       return mockCall();
     }
@@ -77,13 +84,12 @@ class CSVestAPI {
       this.online = true;
       return result;
     } catch (err) {
-      console.warn(`[API] ${apiCall.name} failed, fallback to mock:`, err.message);
+      console.warn(`[API] ${apiCall.name || 'request'} failed, fallback to mock:`, err.message);
       this.online = false;
       return mockCall();
     }
   }
 
-  // ============ 健康检查 ============
   async health() {
     try {
       const data = await this._fetch('/api/health', { method: 'GET' });
@@ -95,7 +101,6 @@ class CSVestAPI {
     }
   }
 
-  // ============ 行情数据 ============
   async getSkins(params = {}) {
     return this._safeCall(
       () => this._fetch(`/api/skins?${new URLSearchParams(params)}`),
@@ -128,7 +133,6 @@ class CSVestAPI {
     );
   }
 
-  // ============ AI 预测 ============
   async predict(skinId, horizon = 7, models) {
     return this._safeCall(
       () => this._fetch('/api/predict', {
@@ -183,7 +187,6 @@ class CSVestAPI {
     };
   }
 
-  // ============ RAG 解释 ============
   async getExplanation(skinId, days = 7) {
     return this._safeCall(
       () => this._fetch(`/api/explain/${skinId}?days=${days}`),
@@ -196,10 +199,8 @@ class CSVestAPI {
     );
   }
 
-  // ============ AI 对话(流式) ============
   async chat(message, sessionId, onChunk) {
     if (this.useMock) {
-      // Mock 流式输出
       return this._mockChatStream(message, onChunk);
     }
     try {
@@ -207,7 +208,7 @@ class CSVestAPI {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
         body: JSON.stringify({ message, sessionId }),
       });
@@ -217,15 +218,20 @@ class CSVestAPI {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          const data = JSON.parse(line.slice(6));
-          if (data.chunk && onChunk) onChunk(data.chunk);
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n');
+        buffer = parts.pop() || '';
+        for (const line of parts) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk && onChunk) onChunk(data.chunk);
+          } catch (_) { /* ignore partial */ }
         }
       }
       this.online = true;
@@ -237,23 +243,22 @@ class CSVestAPI {
   }
 
   async _mockChatStream(message, onChunk) {
-    const response = window.CSVestData.AI_PRESET_RESPONSES['default'];
-    const chunks = response.split(/(?<=[。!?\n])/);
+    const response = window.CSVestData.AI_PRESET_RESPONSES['default']
+      || '抱歉，当前为离线演示模式。请启动后端并关闭 Mock 后重试。';
+    const chunks = response.split(/(?<=[。！？!?\n])/);
     for (const chunk of chunks) {
       if (onChunk) onChunk(chunk);
-      await new Promise(r => setTimeout(r, 30));
+      await new Promise(r => setTimeout(r, 24));
     }
   }
 
-  // ============ 双 Agent 辩论 ============
-  async debate(skinId, mode = 'bull_bear', onProgress) {
+  async debate(skinId, mode = 'bull_bear') {
     return this._safeCall(
-      async () => this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' }),
+      () => this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' }),
       () => null
     );
   }
 
-  // ============ 资讯流 ============
   async getNews(params = {}) {
     return this._safeCall(
       () => this._fetch(`/api/news?${new URLSearchParams(params)}`),
@@ -265,7 +270,7 @@ class CSVestAPI {
     return this._safeCall(
       () => this._fetch(`/api/daily-report?date=${date || ''}`),
       () => ({
-        date: date || '2026-07-15',
+        date: date || new Date().toISOString().slice(0, 10),
         metrics: { monitored: 20, gainers: 14, losers: 6 },
         hotVolume: window.CSVestData.HOT_VOLUME,
         aiSummary: '今日 CS2 饰品市场整体偏强震荡...',
@@ -274,11 +279,19 @@ class CSVestAPI {
     );
   }
 
-  // ============ 预警 ============
+  _mockAlerts() {
+    if (this._alerts) return this._alerts;
+    this._alerts = [
+      { id: 1, skinId: 'ak47-fireserpent-fn', skinName: 'AK-47 | Fire Serpent (FN)', type: 'above', targetPrice: 2291.67, currentPrice: 2201.39, active: true, triggered: false, createdAt: '2026-07-10 14:23' },
+      { id: 2, skinId: 'awp-dragonlore-ft', skinName: 'AWP | Dragon Lore (FT)', type: 'above', targetPrice: 6250.00, currentPrice: 5942.78, active: true, triggered: true, createdAt: '2026-07-08 09:15' },
+    ];
+    return this._alerts;
+  }
+
   async getAlerts() {
     return this._safeCall(
       () => this._fetch('/api/alerts'),
-      () => this._alerts
+      () => this._mockAlerts()
     );
   }
 
@@ -299,7 +312,7 @@ class CSVestAPI {
           triggered: false,
           createdAt: new Date().toISOString(),
         };
-        this._alerts = [...(this._alerts || []), newAlert];
+        this._alerts = [...this._mockAlerts(), newAlert];
         return newAlert;
       }
     );
@@ -309,34 +322,46 @@ class CSVestAPI {
     return this._safeCall(
       () => this._fetch(`/api/alerts/${id}`, { method: 'DELETE' }),
       () => {
-        this._alerts = (this._alerts || []).filter(a => a.id !== id);
+        this._alerts = this._mockAlerts().filter(a => a.id !== id);
         return { success: true };
       }
     );
   }
 
-  // ============ 持仓 ============
+  _mockPortfolio() {
+    if (this._portfolio) return this._portfolio;
+    this._portfolio = (window.CSVestData.DEFAULT_PORTFOLIO || []).map(p => ({ ...p }));
+    return this._portfolio;
+  }
+
   async getPortfolio() {
     return this._safeCall(
       () => this._fetch('/api/portfolio'),
-      () => this._portfolio
+      () => ({ total: 0, items: this._mockPortfolio() })
     );
   }
 
   async addPortfolioItem(data) {
+    const payload = {
+      skinId: data.skinId,
+      buyPrice: data.buyPrice,
+      buyDate: data.buyDate,
+      quantity: data.quantity || 1,
+      holdingType: data.holdingType || 'real',
+    };
     return this._safeCall(
       () => this._fetch('/api/portfolio', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       }),
       () => {
         const skin = window.CSVestData.SKINS_POOL.find(s => s.id === data.skinId);
         const newItem = {
           id: Date.now(),
-          ...data,
+          ...payload,
           name: skin?.name || '',
         };
-        this._portfolio = [...(this._portfolio || []), newItem];
+        this._portfolio = [...this._mockPortfolio(), newItem];
         return newItem;
       }
     );
@@ -346,13 +371,31 @@ class CSVestAPI {
     return this._safeCall(
       () => this._fetch(`/api/portfolio/${id}`, { method: 'DELETE' }),
       () => {
-        this._portfolio = (this._portfolio || []).filter(p => p.id !== id);
+        this._portfolio = this._mockPortfolio().filter(p => p.id !== id);
         return { success: true };
       }
     );
   }
 
-  // ============ 模型对比 ============
+  async getPortfolioValueHistory(days = 90) {
+    return this._safeCall(
+      () => this._fetch(`/api/portfolio/value_history?days=${days}`),
+      () => ({ dates: [], values: [], total: 0 })
+    );
+  }
+
+  async diagnosePortfolio() {
+    return this._safeCall(
+      () => this._fetch('/api/portfolio/diagnose', { method: 'POST' }),
+      () => ({
+        summary: '离线演示：请连接后端以获取组合诊断。',
+        valueForecast: null,
+        actions: [],
+        riskTop: [],
+      })
+    );
+  }
+
   async getModelComparison() {
     return this._safeCall(
       () => this._fetch('/api/models/comparison'),
@@ -360,21 +403,80 @@ class CSVestAPI {
     );
   }
 
-  async getBacktest(days = 60) {
-    return this._safeCall(
-      () => this._fetch(`/api/models/backtest?days=${days}`),
-      () => ({
+  /** 将新旧回测 JSON 统一成 { dates, series: { name: number[] } } */
+  _normalizeBacktest(raw, days = 60) {
+    if (!raw || typeof raw !== 'object') {
+      return {
         dates: Array.from({ length: days }, (_, i) => {
-          const d = new Date(Date.now() - (days - i) * 24 * 60 * 60 * 1000);
+          const d = new Date(Date.now() - (days - i) * 86400000);
           return `${d.getMonth() + 1}/${d.getDate()}`;
         }),
         series: window.CSVestData.generateBacktestData(days),
-      })
+      };
+    }
+    if (raw.dates && raw.series && !Array.isArray(Object.values(raw.series)[0]?.[0])) {
+      // 已是前端格式，或 series 值为数字数组
+      const first = Object.values(raw.series)[0];
+      if (Array.isArray(first) && (typeof first[0] === 'number' || first[0] == null)) {
+        return raw;
+      }
+    }
+    // 新格式: fee_0.0000.{model}: [{date, capital}, ...]
+    const feeKey = Object.keys(raw).find(k => k.startsWith('fee_')) || null;
+    const block = feeKey ? raw[feeKey] : null;
+    if (block && typeof block === 'object') {
+      const modelNames = Object.keys(block);
+      const anchor = block[modelNames[0]] || [];
+      const dates = anchor.map(p => {
+        const d = String(p.date || '');
+        if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+          const [, m, day] = d.split(/[-T]/);
+          return `${+m}/${+day}`;
+        }
+        return d;
+      });
+      const series = {};
+      for (const [name, pts] of Object.entries(block)) {
+        const base = pts[0]?.capital || 10000;
+        series[name] = pts.map(p => +((p.capital / base) * 100).toFixed(2));
+      }
+      if (Array.isArray(raw.buy_hold) && raw.buy_hold.length) {
+        const bh = raw.buy_hold;
+        const base = bh[0]?.capital || 10000;
+        series['买入持有'] = bh.map(p => +((p.capital / base) * 100).toFixed(2));
+      }
+      return { dates, series, fee: feeKey };
+    }
+    return {
+      dates: Array.from({ length: days }, (_, i) => {
+        const d = new Date(Date.now() - (days - i) * 86400000);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+      }),
+      series: window.CSVestData.generateBacktestData(days),
+    };
+  }
+
+  async getBacktest(days = 60) {
+    return this._safeCall(
+      async () => {
+        const raw = await this._fetch(`/api/models/backtest?days=${days}`);
+        return this._normalizeBacktest(raw, days);
+      },
+      () => this._normalizeBacktest(null, days)
+    );
+  }
+
+  async getShap(model = 'xgboost') {
+    return this._safeCall(
+      () => this._fetch(`/api/models/shap?model=${encodeURIComponent(model)}`),
+      () => (window.CSVestData.SHAP_FEATURES || []).map(d => ({
+        feature: d.name,
+        importance: d.value,
+      }))
     );
   }
 }
 
-// ============ 错误类 ============
 class APIError extends Error {
   constructor(message, status, code) {
     super(message);
@@ -384,6 +486,5 @@ class APIError extends Error {
   }
 }
 
-// ============ 全局单例 ============
 window.CSVestAPI = new CSVestAPI();
-window.SkinVisionAPI = window.CSVestAPI; // legacy alias
+window.SkinVisionAPI = window.CSVestAPI;
