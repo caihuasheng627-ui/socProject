@@ -297,8 +297,13 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     清洗:
       - price <= 0 → 删除
       - price > 100000 → 删除
-      - 重复 (date, market_hash_name) → 去重，保留首次出现
       - daily_volume 为负 → clip 到 0
+      - 重复 (date, market_hash_name) → 按天聚合(volume 求和, price 按量加权)
+
+    聚合原因: Steam 价格历史最近 ~30 天是小时粒度(同一天多行,
+    sells 只是该小时的成交量), 更早的历史是日粒度(每天一行)。
+    若按 keep="first" 去重, 小时粒度窗口内每天只留 1 个小时的量,
+    成交量会被系统性低估 ~20 倍(即 4 月下旬"断崖"假象的根源)。
     """
     print("\n" + "=" * 60)
     print("步骤 4: 数据清洗")
@@ -317,19 +322,45 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df[~mask_high_price].copy()
     print(f"  price > 100k: {n_high:,} 行删除")
 
-    # 去重
-    dup_mask = df.duplicated(subset=["date", "market_hash_name"], keep="first")
-    n_dup = dup_mask.sum()
-    df = df[~dup_mask].copy()
-    print(f"  重复 (date, name): {n_dup:,} 行删除")
-
-    # 成交量 clip
+    # 成交量 clip(须在聚合前, 避免负值污染加权/求和)
     neg_vol = (df["daily_volume"] < 0).sum()
     df["daily_volume"] = df["daily_volume"].clip(lower=0)
     print(f"  daily_volume < 0: {neg_vol} 行 clipped")
 
+    # 同日多行(小时粒度) → 按天聚合
+    n_dup = int(df.duplicated(subset=["date", "market_hash_name"]).sum())
+    if n_dup:
+        keys = ["date", "market_hash_name"]
+        meta_cols = [c for c in df.columns if c not in keys + ["price", "daily_volume"]]
+        df["_pv"] = df["price"] * df["daily_volume"]
+        agg_spec = {
+            "daily_volume": ("daily_volume", "sum"),
+            "_pv": ("_pv", "sum"),
+            "_price_mean": ("price", "mean"),
+            "_n_rows": ("price", "size"),
+        }
+        agg_spec.update({c: (c, "first") for c in meta_cols})
+        grouped = df.groupby(keys, sort=False, as_index=False).agg(**agg_spec)
+        # 有成交量 → 按量加权均价; 全天无成交 → 简单均价
+        grouped["price"] = np.where(
+            grouped["daily_volume"] > 0,
+            grouped["_pv"] / grouped["daily_volume"].replace(0, np.nan),
+            grouped["_price_mean"],
+        )
+        # 末日不完整: 抓取发生在当天中途, 小时行数 <20 (完整一天 ~24 行)
+        # → 该天成交量只覆盖部分小时, 会拉低 volume24h, 直接丢弃。
+        # 仅对存在小时粒度数据的物品判断(老数据日粒度每天 1 行, 不能误删)
+        is_last_day = grouped.groupby("market_hash_name")["date"].transform("max") == grouped["date"]
+        item_has_hourly = grouped.groupby("market_hash_name")["_n_rows"].transform("max") >= 20
+        partial_last = is_last_day & item_has_hourly & (grouped["_n_rows"] < 20)
+        n_partial = int(partial_last.sum())
+        grouped = grouped[~partial_last]
+        df = grouped[["date", "market_hash_name", "price", "daily_volume"] + meta_cols]
+        print(f"  末日小时数据不完整: {n_partial} 个物品的最后一天已丢弃")
+    print(f"  同日多行聚合: {n_dup:,} 行合并(volume 求和, price 按量加权)")
+
     after = len(df)
-    print(f"\n  清洗前: {before:,} → 清洗后: {after:,} (删除 {before-after:,} 行)")
+    print(f"\n  清洗前: {before:,} → 清洗后: {after:,} (合并/删除 {before-after:,} 行)")
 
     return df
 

@@ -128,7 +128,22 @@ class CSVestAPI {
       () => {
         const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
         if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
-        return window.CSVestData.generateKLineData(skin.price, days);
+        // Mock 结构对齐后端 GET /api/skins/{id}/kline(openapi.yaml KLineResponse)
+        const mock = window.CSVestData.generateKLineData(skin.price, days);
+        const data = mock.kline.map(([date, open, close, low, high]) => ({
+          date, open: +open, close: +close, low: +low, high: +high,
+        }));
+        const toMa = (arr) => arr.map(v => (v === '-' ? null : +v));
+        return {
+          skinId,
+          interval: '1d',
+          data,
+          ma7: toMa(window.CSVestData.calculateMA(mock.kline, 7)),
+          ma30: toMa(window.CSVestData.calculateMA(mock.kline, 30)),
+          volumes: mock.volumes.map(([, volume, direction], i) => ({
+            date: data[i].date, volume, direction,
+          })),
+        };
       }
     );
   }
