@@ -451,6 +451,58 @@ def change_pct(conn: sqlite3.Connection, skin_id: int, days: int) -> float | Non
     return round((cur - old) / old * 100, 2)
 
 
+def skin_to_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    """skins 行 → 前端 Skin 契约(openapi.yaml #/components/schemas/Skin)。
+
+    volume24h  = 最近一个交易日的成交量(数据为日粒度,取最新一天近似 24h)
+    liquidity  = 近 7 个交易日均成交量映射 0-100
+    """
+    cur, cur_date = latest_price(conn, row["id"])
+    ch24 = change_pct(conn, row["id"], 1)
+    ch7 = change_pct(conn, row["id"], 7)
+    vol_rows = conn.execute(
+        "SELECT daily_volume FROM price_history WHERE skin_id=? ORDER BY date DESC LIMIT 7",
+        (row["id"],),
+    ).fetchall()
+    vols = [int(r["daily_volume"] or 0) for r in vol_rows]
+    vol24 = vols[0] if vols else 0
+    vol7_avg = (sum(vols) / len(vols)) if vols else 0.0
+    liquidity = min(100, int(vol7_avg / 50))
+    return {
+        "id": row["slug"],
+        "name": row["market_hash_name"],
+        # 按 weapon_type 重算,避免库内旧映射漏刀/手套
+        "category": weapon_to_category(row["weapon_type"] or row["market_hash_name"] or "")
+                    or row["category"],
+        "wear": row["wear_full"] or row["wear"],
+        # 与训练数据同口径: USD
+        "price": round(cur, 2) if cur else None,
+        "priceUsd": round(cur, 2) if cur else None,
+        "change24h": ch24,
+        "change7d": ch7,
+        "volume24h": vol24,
+        "liquidity": liquidity,
+        "rarity": row["rarity_rank"],
+        "image": "🎮",
+        "source": "BUFF",
+        "weaponType": row["weapon_type"],
+    }
+
+
+def hot_volume_skins(conn: sqlite3.Connection, limit: int = 8) -> list[dict]:
+    """按最新一日成交量降序取 Top N(openapi.yaml DailyReport.hotVolume)。"""
+    rows = conn.execute(
+        """SELECT s.* FROM skins s
+           JOIN (SELECT skin_id, daily_volume FROM price_history p
+                 WHERE date = (SELECT MAX(date) FROM price_history p2
+                               WHERE p2.skin_id = p.skin_id)) v
+             ON v.skin_id = s.id
+           ORDER BY v.daily_volume DESC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    return [skin_to_dict(conn, r) for r in rows]
+
+
 # ============================================================
 # 启动入口
 # ============================================================

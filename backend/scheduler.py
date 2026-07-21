@@ -20,7 +20,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 import llm
 from config import RSS_FEEDS, ML_DIR, REPO_ROOT
-from database import get_connection, _utcnow
+from database import get_connection, _utcnow, hot_volume_skins
 
 _scheduler: BackgroundScheduler | None = None
 
@@ -95,6 +95,8 @@ def generate_daily_report() -> dict:
             """SELECT s.market_hash_name, p.buy_price, p.quantity, p.holding_type
                FROM portfolio p JOIN skins s ON s.id=p.skin_id"""
         ).fetchall()
+        # 热门成交 Top8(openapi.yaml DailyReport.hotVolume)
+        hot_volume = hot_volume_skins(conn, limit=8)
 
     portfolio_text = "无持仓" if not positions else "; ".join(
         f"{r['market_hash_name']} {r['quantity']}件" for r in positions
@@ -110,6 +112,7 @@ def generate_daily_report() -> dict:
         "metrics": {"monitored": total, "gainers": gainers, "losers": losers},
         "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
                        "holdingType": r["holding_type"]} for r in positions],
+        "hotVolume": hot_volume,
         "aiSummary": summary,
         "news": [{"title": n["title"], "summary": n["summary"], "source": n["source"],
                   "sentiment": n["sentiment"]} for n in news],

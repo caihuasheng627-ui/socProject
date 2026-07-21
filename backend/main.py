@@ -26,7 +26,7 @@ from config import (
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
-    weapon_to_category,
+    weapon_to_category, skin_to_dict, hot_volume_skins,
 )
 from model_loader import get_loader
 import rag
@@ -87,39 +87,9 @@ class AlertReq(BaseModel):
 
 
 # ============================================================
-# 辅助:skin 序列化
+# 辅助:skin 序列化(实现下沉至 database.skin_to_dict,供 scheduler 复用)
 # ============================================================
-def _skin_to_dict(conn, row) -> dict:
-    cur, cur_date = latest_price(conn, row["id"])
-    ch24 = change_pct(conn, row["id"], 1)
-    ch7 = change_pct(conn, row["id"], 7)
-    # 流动性:由近 7 日均成交量映射 0-100
-    vol_row = conn.execute(
-        "SELECT AVG(daily_volume) v FROM price_history WHERE skin_id=? "
-        "AND date >= (SELECT MAX(date) FROM price_history WHERE skin_id=?)",
-        (row["id"], row["id"]),
-    ).fetchone()
-    vol24 = int(vol_row["v"] or 0) if vol_row else 0
-    liquidity = min(100, int(vol24 / 50))
-    return {
-        "id": row["slug"],
-        "name": row["market_hash_name"],
-        # 按 weapon_type 重算,避免库内旧映射漏刀/手套
-        "category": weapon_to_category(row["weapon_type"] or row["market_hash_name"] or "")
-                    or row["category"],
-        "wear": row["wear_full"] or row["wear"],
-        # 与训练数据同口径: USD
-        "price": round(cur, 2) if cur else None,
-        "priceUsd": round(cur, 2) if cur else None,
-        "change24h": ch24,
-        "change7d": ch7,
-        "volume24h": vol24,
-        "liquidity": liquidity,
-        "rarity": row["rarity_rank"],
-        "image": "🎮",
-        "source": "BUFF",
-        "weaponType": row["weapon_type"],
-    }
+_skin_to_dict = skin_to_dict
 
 
 # ============================================================
@@ -471,7 +441,12 @@ def daily_report(date: str | None = None):
     seed = SEED_DIR / "seed_daily_report.json"
     if seed.exists():
         try:
-            return json.loads(seed.read_text(encoding="utf-8"))
+            report = json.loads(seed.read_text(encoding="utf-8"))
+            # 旧版种子无 hotVolume:按契约(DailyReport.hotVolume)现算补齐
+            if not report.get("hotVolume"):
+                with get_connection() as conn:
+                    report["hotVolume"] = hot_volume_skins(conn, limit=8)
+            return report
         except Exception:
             pass
     import scheduler

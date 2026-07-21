@@ -704,10 +704,12 @@ components:
           type: number
         volume24h:
           type: integer
+          description: 最近一个交易日成交量(数据为日粒度,以最新一天近似 24h)
         liquidity:
           type: integer
           minimum: 0
           maximum: 100
+          description: 流动性评分,由近 7 个交易日均成交量映射 0-100
         rarity:
           type: integer
           minimum: 1
