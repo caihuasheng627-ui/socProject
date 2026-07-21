@@ -274,12 +274,13 @@ class ModelLoader:
         }
 
     def predict_gru_for(self, market_hash_name: str) -> dict | None:
+        # 无 TF / 非 GRU 子集时直接跳过，避免触发面板加载与 TF import
+        if not self.tf_available or market_hash_name not in self.gru_items:
+            return None
         win = _skin_window(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
-        if not self.tf_available or market_hash_name not in self.gru_items:
-            return None
         pred = self._predict_gru(X, market_hash_name)
         if pred is None:
             return None
@@ -361,15 +362,21 @@ class ModelLoader:
                 results.append(r)
 
         have = {r["model"] for r in results}
-        # CSV 无 Hybrid 时: live Hybrid 兜底
+        # CSV 无 Hybrid 时: live Hybrid 兜底（无 TF / 面板失败则跳过）
         if "LSTM" not in have:
-            h = self.predict_hybrid(market_hash_name)
-            if h:
-                results.insert(0, {**h, "model": "LSTM", "type": "DL"})
+            try:
+                h = self.predict_hybrid(market_hash_name)
+                if h:
+                    results.insert(0, {**h, "model": "LSTM", "type": "DL"})
+            except Exception as e:
+                print(f"[model_loader] hybrid fallback skipped: {e}")
         if "GRU" not in have:
-            g = self.predict_gru_for(market_hash_name)
-            if g:
-                results.append({**g, "type": "DL"})
+            try:
+                g = self.predict_gru_for(market_hash_name)
+                if g:
+                    results.append({**g, "type": "DL"})
+            except Exception as e:
+                print(f"[model_loader] gru fallback skipped: {e}")
 
         # horizon=30 时把 7 天预测外推(标注)
         if horizon == 30:
@@ -405,6 +412,120 @@ class ModelLoader:
         return {"current_price": round(cur_price, 2), "predicted_price": round(pred, 2),
                 "model": "Mock(趋势)", "date": cur_date,
                 "change_pct": round((pred - cur_price) / cur_price * 100, 2), "confidence": 45.0}
+
+
+# ============================================================
+# 单饰品模型对比(基于 test/val 预测 CSV 的 fair metrics)
+# ============================================================
+_ITEM_COMPARE_MODELS = (
+    # (展示名, CSV stem, 类型)
+    ("LSTM", "pred_lstm_hybrid", "DL"),
+    ("GRU", "pred_gru", "DL"),
+    ("XGBoost", "pred_xgboost", "ML"),
+    ("LightGBM", "pred_lightgbm", "ML"),
+    ("RandomForest", "pred_rf", "ML"),
+    ("ARIMA", "pred_arima", "统计"),
+)
+
+
+def compare_item_models(market_hash_name: str) -> dict[str, Any]:
+    """按饰品汇总各模型在 test(优先)/val 上的回归与方向指标。
+
+    与全局 /api/models/comparison 同口径：用 predicted_price vs actual_future_price。
+    某模型无该饰品行时跳过；全部缺失时 regression=[]。
+    """
+    loader = get_loader()
+    regression: list[dict[str, Any]] = []
+
+    for model_name, stem, mtype in _ITEM_COMPARE_MODELS:
+        path = loader._resolve_pred_csv(f"{stem}.csv")
+        if path is None:
+            continue
+        cache_key = path.name
+        if cache_key not in loader._tree_cache:
+            try:
+                loader._tree_cache[cache_key] = pd.read_csv(path, parse_dates=["date"])
+            except Exception:
+                continue
+        df = loader._tree_cache[cache_key]
+        if "market_hash_name" not in df.columns:
+            continue
+        sub = df[df["market_hash_name"] == market_hash_name].copy()
+        if sub.empty:
+            continue
+        need = {"actual_future_price", "predicted_price", "current_price"}
+        if not need.issubset(sub.columns):
+            continue
+        sub = sub.dropna(subset=["actual_future_price", "predicted_price"])
+        if sub.empty:
+            continue
+
+        y_true = sub["actual_future_price"].astype(float).values
+        y_pred = sub["predicted_price"].astype(float).values
+        cur = sub["current_price"].astype(float).values
+        n = int(len(sub))
+        err = y_pred - y_true
+        mae = float(np.mean(np.abs(err)))
+        rmse = float(np.sqrt(np.mean(err ** 2)))
+        mape = float(np.mean(np.abs(err) / np.maximum(y_true, 0.01)) * 100)
+        # R²
+        ss_res = float(np.sum(err ** 2))
+        ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
+        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-12 else None
+        # 方向准确率
+        actual_up = y_true > cur
+        pred_up = y_pred > cur
+        direction_acc = float(np.mean(actual_up == pred_up)) if n else None
+
+        latest = sub.sort_values("date").iloc[-1]
+        cur_px = float(latest["current_price"])
+        pred_px = max(float(latest["predicted_price"]), 0.01)
+        change = round((pred_px - cur_px) / cur_px * 100, 2) if cur_px else 0.0
+
+        regression.append({
+            "name": model_name,
+            "type": mtype,
+            "rmse": round(rmse, 4),
+            "mae": round(mae, 4),
+            "mape": round(mape, 2),
+            "r2": round(r2, 4) if r2 is not None else None,
+            "accuracy": round(direction_acc, 4) if direction_acc is not None else None,
+            "n": n,
+            "split": str(latest.get("split", path.stem.split("_")[-1])),
+            "latest": {
+                "date": str(pd.Timestamp(latest["date"]).strftime("%Y-%m-%d")),
+                "currentPrice": round(cur_px, 2),
+                "predictedPrice": round(pred_px, 2),
+                "change": change,
+                "actualFuturePrice": round(float(latest["actual_future_price"]), 2)
+                if pd.notna(latest.get("actual_future_price")) else None,
+            },
+            "confidence": loader._confidence(model_name),
+            "course": f"item · n={n}",
+        })
+
+    best = None
+    if regression:
+        best = min(regression, key=lambda r: (r["mape"] if r.get("mape") is not None else 1e9))["name"]
+
+    return {
+        "scope": "item",
+        "skinName": market_hash_name,
+        "regression": regression,
+        "classification": [
+            {
+                "name": r["name"],
+                "type": r["type"],
+                "accuracy": r.get("accuracy"),
+                "auc": None,
+                "n": r.get("n"),
+            }
+            for r in regression if r.get("accuracy") is not None
+        ],
+        "bestModel": best,
+        "buyAndHold": None,
+        "nModels": len(regression),
+    }
 
 
 def get_loader() -> ModelLoader:

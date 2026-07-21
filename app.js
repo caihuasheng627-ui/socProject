@@ -374,29 +374,117 @@ const app = createApp({
       return s.category || '手枪';
     };
 
+    // 预测对比表状态（须在 loadPredictions 之前声明）
+    const modelPredictions = ref([]);
+    const skinModelBest = ref(null);
+    const predictionMeta = ref({
+      consensusScore: 76,
+      consensusLevel: '',
+      entryLow: 0,
+      entryHigh: 0,
+      targetPrice: 0,
+    });
+
+    const syncPredictionMetaFromSkin = (skin) => {
+      const price = skin?.price || 0;
+      predictionMeta.value = {
+        consensusScore: predictionMeta.value.consensusScore || 76,
+        consensusLevel: predictionMeta.value.consensusLevel || '',
+        entryLow: +(price * 0.97).toFixed(2),
+        entryHigh: +(price * 0.99).toFixed(2),
+        targetPrice: +(price * 1.05).toFixed(2),
+      };
+    };
+
     const loadPredictions = async (skinId) => {
       const client = api();
       if (!client || !skinId) return;
+      // 切换饰品时先清空，避免残留上一件的对比表
+      modelPredictions.value = [];
+      skinModelBest.value = null;
       try {
-        const res = await client.predict(skinId, 7);
+        const [res, cmp] = await Promise.all([
+          client.predict(skinId, 7),
+          client.getModelComparison(skinId).catch(() => null),
+        ]);
         const curUsd = res.currentPrice
           ?? res.currentPriceUsd
           ?? selectedSkin.value?.price
           ?? 0;
-        // 后端返回 USD 预测价
-        modelPredictions.value = (res.predictions || []).map(p => {
+
+        // 按饰品对比指标：name → { mape, mae, rmse, r2, accuracy, isBest }
+        const metricByName = {};
+        const bestName = cmp?.bestModel || null;
+        skinModelBest.value = bestName;
+        if (Array.isArray(cmp?.regression)) {
+          for (const row of cmp.regression) {
+            metricByName[row.name] = row;
+            // 别名对齐：Random Forest ↔ RandomForest，Hybrid ↔ LSTM
+            if (row.name === 'Random Forest') metricByName.RandomForest = row;
+            if (row.name === 'RandomForest') metricByName['Random Forest'] = row;
+            if (row.name === 'Hybrid') metricByName.LSTM = row;
+            if (row.name === 'LSTM') metricByName.Hybrid = row;
+          }
+        }
+
+        const preds = (res.predictions || []).map(p => {
           const change = +(p.change || 0);
           const price = (p.price != null && p.price > 0)
             ? +(+p.price).toFixed(2)
             : +(curUsd * (1 + change / 100)).toFixed(2);
+          const m = metricByName[p.model] || {};
           return {
             name: p.model,
             type: p.type || 'ML',
             price,
             change: +change.toFixed(2),
-            confidence: Math.round(p.confidence || 0),
+            confidence: Math.round(p.confidence || m.confidence || 0),
+            mape: m.mape ?? null,
+            mae: m.mae ?? null,
+            rmse: m.rmse ?? null,
+            r2: m.r2 ?? null,
+            directionAcc: m.accuracy != null ? +(m.accuracy * 100).toFixed(1) : null,
+            n: m.n ?? null,
+            isBest: !!(bestName && (
+              p.model === bestName
+              || (bestName === 'Random Forest' && p.model === 'RandomForest')
+              || (bestName === 'RandomForest' && p.model === 'Random Forest')
+              || (bestName === 'Hybrid' && p.model === 'LSTM')
+              || (bestName === 'LSTM' && p.model === 'Hybrid')
+            )),
           };
         });
+
+        // 若 predict 缺模型但 comparison 有 latest，补齐对比行
+        if (cmp?.regression?.length) {
+          const have = new Set(preds.map(p => p.name));
+          for (const row of cmp.regression) {
+            const alias = row.name === 'Random Forest' ? 'RandomForest'
+              : row.name === 'Hybrid' ? 'LSTM' : row.name;
+            if (have.has(row.name) || have.has(alias)) continue;
+            const latest = row.latest || {};
+            const px = latest.predictedPrice ?? null;
+            const ch = latest.change ?? 0;
+            if (px == null) continue;
+            preds.push({
+              name: alias,
+              type: row.type || 'ML',
+              price: +(+px).toFixed(2),
+              change: +(+ch).toFixed(2),
+              confidence: Math.round(row.confidence || 0),
+              mape: row.mape ?? null,
+              mae: row.mae ?? null,
+              rmse: row.rmse ?? null,
+              r2: row.r2 ?? null,
+              directionAcc: row.accuracy != null ? +(row.accuracy * 100).toFixed(1) : null,
+              n: row.n ?? null,
+              isBest: row.name === bestName || alias === bestName,
+            });
+            have.add(alias);
+          }
+        }
+
+        modelPredictions.value = preds;
         const levelMap = {
           very_high: '很高', high: '偏高', medium: '中等', low: '偏低',
         };
@@ -409,7 +497,19 @@ const app = createApp({
         };
         return res;
       } catch (err) {
-        console.warn('[CSVest] predict failed', err);
+        console.warn('[CSVest] predict/comparison failed', err);
+        // 本地兜底：按当前选中饰品价生成对比表
+        const base = selectedSkin.value?.price || 100;
+        modelPredictions.value = [
+          { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65, mape: null, isBest: false },
+          { name: 'XGBoost', type: 'ML', price: +(base * 1.018).toFixed(2), change: 1.8, confidence: 78, mape: null, isBest: false },
+          { name: 'LightGBM', type: 'ML', price: +(base * 1.016).toFixed(2), change: 1.6, confidence: 76, mape: null, isBest: false },
+          { name: 'RandomForest', type: 'ML', price: +(base * 1.014).toFixed(2), change: 1.4, confidence: 72, mape: null, isBest: false },
+          { name: 'LSTM', type: 'DL ⭐', price: +(base * 1.025).toFixed(2), change: 2.5, confidence: 82, mape: null, isBest: true },
+          { name: 'GRU', type: 'DL', price: +(base * 1.022).toFixed(2), change: 2.2, confidence: 80, mape: null, isBest: false },
+        ];
+        syncPredictionMetaFromSkin(selectedSkin.value);
+        skinModelBest.value = 'LSTM';
         return null;
       }
     };
@@ -612,25 +712,6 @@ const app = createApp({
     const timeframe = ref('90D');
     const klineLoading = ref(false);
     let klineChartInstance = null;
-    const modelPredictions = ref([]);
-    const predictionMeta = ref({
-      consensusScore: 76,
-      consensusLevel: '',
-      entryLow: 0,
-      entryHigh: 0,
-      targetPrice: 0,
-    });
-
-    const syncPredictionMetaFromSkin = (skin) => {
-      const price = skin?.price || 0;
-      predictionMeta.value = {
-        consensusScore: predictionMeta.value.consensusScore || 76,
-        consensusLevel: predictionMeta.value.consensusLevel || '',
-        entryLow: +(price * 0.97).toFixed(2),
-        entryHigh: +(price * 0.99).toFixed(2),
-        targetPrice: +(price * 1.05).toFixed(2),
-      };
-    };
 
     const viewSkin = (skinId) => {
       const skin = skins.value.find(s => s.id === skinId);
@@ -719,17 +800,9 @@ const app = createApp({
         volumes = mock.volumes;
         ma7 = window.CSVestData.calculateMA(kline, 7);
         ma30 = window.CSVestData.calculateMA(kline, 30);
-        if (!modelPredictions.value.length) {
-          const base = selectedSkin.value.price;
-          modelPredictions.value = [
-            { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65 },
-            { name: 'XGBoost', type: 'ML', price: +(base * 1.018).toFixed(2), change: 1.8, confidence: 78 },
-            { name: 'LightGBM', type: 'ML', price: +(base * 1.016).toFixed(2), change: 1.6, confidence: 76 },
-            { name: 'Random Forest', type: 'ML', price: +(base * 1.014).toFixed(2), change: 1.4, confidence: 72 },
-            { name: 'LSTM', type: 'DL ⭐', price: +(base * 1.025).toFixed(2), change: 2.5, confidence: 82 },
-            { name: 'GRU', type: 'DL', price: +(base * 1.022).toFixed(2), change: 2.2, confidence: 80 },
-          ];
-          syncPredictionMetaFromSkin(selectedSkin.value);
+        // 无后端 K 线时仍按当前饰品刷新多模型对比（勿沿用上一件）
+        if (selectedSkin.value?.id) {
+          await loadPredictions(selectedSkin.value.id);
         }
       }
 
@@ -1678,6 +1751,7 @@ const app = createApp({
       if (newPage === 'prediction') {
         renderKline();
         if (selectedSkin.value?.id) {
+          loadPredictions(selectedSkin.value.id);
           loadDebate(selectedSkin.value.id);
           loadExplanation(selectedSkin.value.id);
         }
@@ -1707,6 +1781,7 @@ const app = createApp({
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
+          loadPredictions(skin.id);
           loadDebate(skin.id);
           loadExplanation(skin.id);
         }
@@ -1732,7 +1807,7 @@ const app = createApp({
       apiOnline, connectBackend,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
+      modelPredictions, skinModelBest, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,

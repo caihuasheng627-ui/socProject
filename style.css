@@ -1169,6 +1169,10 @@ body.sidebar-open {
   background: var(--bg-hover);
 }
 
+.data-table tr.row-best td {
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+}
+
 .data-table tr:last-child td {
   border-bottom: none;
 }

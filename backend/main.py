@@ -537,7 +537,21 @@ def delete_alert(alert_id: int):
 # 模型对比 / 回测 / SHAP
 # ============================================================
 @app.get("/api/models/comparison")
-def models_comparison():
+def models_comparison(skinId: str | None = Query(None, description="饰品 slug/名称；传入则返回该饰品模型对比")):
+    """全局公平 test 对比；带 skinId 时改为该饰品在 pred CSV 上的指标。"""
+    # ---- 单饰品 ----
+    if skinId:
+        with get_connection() as conn:
+            skin = resolve_skin(conn, skinId)
+            if not skin:
+                raise HTTPException(404, "skin not found")
+            from model_loader import compare_item_models
+            result = compare_item_models(skin["market_hash_name"])
+            result["skinId"] = skin["slug"]
+            result["skinName"] = skin["market_hash_name"]
+            return result
+
+    # ---- 全局 ----
     mc_path = OUTPUT_DIR / "model_comparison.json"
     cmp_path = OUTPUT_DIR / "compare_results_test.json"
     if not cmp_path.exists():
@@ -581,7 +595,12 @@ def models_comparison():
     buy_hold = {"name": "Buy & Hold", "type": "基准",
                 "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
                 "returnPct": 0, "speed": "—", "course": "基准策略"}
-    return {"regression": regression, "classification": classification, "buyAndHold": buy_hold}
+    return {
+        "scope": "global",
+        "regression": regression,
+        "classification": classification,
+        "buyAndHold": buy_hold,
+    }
 
 
 @app.get("/api/models/backtest")
