@@ -46,7 +46,8 @@ function generateKLineData(basePrice, days = 90, volatility = 0.03, trend = 0.00
     const close = currentPrice + change;
     const high = Math.max(open, close) * (1 + Math.random() * 0.015);
     const low = Math.min(open, close) * (1 - Math.random() * 0.015);
-    const volume = Math.floor(Math.random() * 5000 + 1000) * (basePrice > 1000 ? 0.1 : 1);
+    // 与后端契约一致:volume 为整数(高价饰品成交量按 1/10 缩放)
+    const volume = Math.round((Math.random() * 5000 + 1000) * (basePrice > 1000 ? 0.1 : 1));
 
     data.push([dateStr, open, close, low, high]);
     // 索引须按时间顺序（旧→新），与 K 线类目轴对齐
