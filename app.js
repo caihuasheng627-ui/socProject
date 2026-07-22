@@ -39,10 +39,12 @@ const setLang = (lang) => {
   if (!SUPPORTED_LANGS.includes(lang)) return;
   currentLang.value = lang;
   localStorage.setItem('sv_lang', lang);
+  document.documentElement.lang = lang === 'zh-CN' ? 'zh-CN' : 'en';
 };
 const toggleLang = () => {
   setLang(currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN');
 };
+setLang(currentLang.value);
 
 const app = createApp({
   setup() {
