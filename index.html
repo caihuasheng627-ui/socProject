@@ -239,12 +239,12 @@
           v-for="item in menu"
           :key="item.id"
           class="nav-item"
-          :class="{ active: currentPage === item.id }"
+          :class="{ active: activeNavId === item.id }"
           @click="goToPage(item.id)"
           role="menuitem"
           tabindex="0"
           :aria-label="`Switch to ${item.label}`"
-          :aria-current="currentPage === item.id ? 'page' : undefined"
+          :aria-current="activeNavId === item.id ? 'page' : undefined"
           @keydown.enter="goToPage(item.id)"
           @keydown.space.prevent="goToPage(item.id)"
         >
@@ -274,8 +274,12 @@
           <span class="breadcrumb-app">{{ t('app.name') }}</span>
           <i class="ph ph-caret-right breadcrumb-sep" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
           <span class="page-title">{{ currentMenu?.label }}</span>
+          <template v-if="subPageLabel">
+            <i class="ph ph-caret-right breadcrumb-sep" style="margin: 0 4px; font-size: 12px;" aria-hidden="true"></i>
+            <span class="page-title">{{ subPageLabel }}</span>
+          </template>
         </div>
-        <div class="mobile-page-title">{{ currentMenu?.label }}</div>
+        <div class="mobile-page-title">{{ subPageLabel || currentMenu?.label }}</div>
 
         <div class="topbar-actions">
           <!-- 语言切换按钮 -->
@@ -467,6 +471,9 @@
 
         <!-- AI 预测详情 -->
         <div v-if="currentPage === 'prediction'" class="fade-in">
+          <button class="btn btn-ghost btn-sm mb-3" @click="goToPage('dashboard')">
+            <i class="ph ph-arrow-left" aria-hidden="true"></i> {{ t('prediction.back') }}
+          </button>
           <div class="prediction-hero" v-if="selectedSkin">
             <div class="prediction-target">
               <div class="prediction-emoji">{{ selectedSkin.image }}</div>
@@ -478,9 +485,14 @@
                   <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
                 </div>
               </div>
-              <button class="btn btn-secondary" @click="showAlertModal = true">
-                <span>🔔</span> {{ t('prediction.setAlert') }}
-              </button>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary" @click="showAlertModal = true">
+                  <span>🔔</span> {{ t('prediction.setAlert') }}
+                </button>
+                <button class="btn btn-ghost" @click="goToPage('alerts')">
+                  {{ t('alerts.manage') }}
+                </button>
+              </div>
             </div>
 
             <div class="flex items-end gap-6 mb-4">
@@ -867,8 +879,11 @@
           </div>
         </div>
 
-        <!-- 价格预警 -->
+        <!-- 价格预警(二级视图:物品详情 / 我的库存 入口) -->
         <div v-if="currentPage === 'alerts'" class="fade-in">
+          <button class="btn btn-ghost btn-sm mb-3" @click="goToPage('portfolio')">
+            <i class="ph ph-arrow-left" aria-hidden="true"></i> {{ t('alerts.back') }}
+          </button>
           <div class="flex justify-between items-center mb-4">
             <div>
               <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
@@ -980,6 +995,9 @@
               </button>
               <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline">
                 组合诊断
+              </button>
+              <button class="btn btn-secondary" @click="goToPage('alerts')">
+                <span>🔔</span> {{ t('portfolio.alertsEntry') }}
               </button>
             </div>
           </div>
@@ -1371,12 +1389,10 @@
           <div class="shortcut-row"><span>{{ t('shortcut.cmdPanel') }}</span><kbd>Ctrl</kbd><kbd>K</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.show') }}</span><kbd>?</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.dashboard') }}</span><kbd>1</kbd></div>
-          <div class="shortcut-row"><span>{{ t('shortcut.prediction') }}</span><kbd>2</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.portfolio') }}</span><kbd>2</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.chat') }}</span><kbd>3</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.daily') }}</span><kbd>4</kbd></div>
-          <div class="shortcut-row"><span>{{ t('shortcut.alerts') }}</span><kbd>5</kbd></div>
-          <div class="shortcut-row"><span>{{ t('shortcut.portfolio') }}</span><kbd>6</kbd></div>
-          <div class="shortcut-row"><span>{{ t('shortcut.models') }}</span><kbd>7</kbd></div>
+          <div class="shortcut-row"><span>{{ t('shortcut.models') }}</span><kbd>5</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.theme') }}</span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>L</kbd></div>
           <div class="shortcut-row"><span>{{ t('shortcut.esc') }}</span><kbd>Esc</kbd></div>
         </div>

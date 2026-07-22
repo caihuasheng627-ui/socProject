@@ -47,18 +47,19 @@ const toggleLang = () => {
 const app = createApp({
   setup() {
     // ============ 菜单 ============
-    // 7 大菜单 - Lucide Icons (专业开源图标库)
+    // 5 页信息架构(策划书 §5):行情中心 / 我的库存 / AI 对话 / AI 日报 / 模型实验室
+    // 物品详情(prediction)与价格预警(alerts)为二级视图,不入侧边栏
     const menu = computed(() => [
       {
         id: 'dashboard',
         label: t('menu.dashboard'),
+        badge: t('menu.badge.core'),
         iconName: 'chart-line',
       },
       {
-        id: 'prediction',
-        label: t('menu.prediction'),
-        badge: t('menu.badge.core'),
-        iconName: 'target',
+        id: 'portfolio',
+        label: t('menu.portfolio'),
+        iconName: 'clipboard-list',
       },
       {
         id: 'chat',
@@ -72,21 +73,14 @@ const app = createApp({
         iconName: 'newspaper',
       },
       {
-        id: 'alerts',
-        label: t('menu.alerts'),
-        iconName: 'bell',
-      },
-      {
-        id: 'portfolio',
-        label: t('menu.portfolio'),
-        iconName: 'clipboard-list',
-      },
-      {
         id: 'models',
         label: t('menu.models'),
         iconName: 'cpu',
       },
     ]);
+
+    // 二级视图 → 所属一级页面(侧边栏高亮 + 面包屑)
+    const PARENT_PAGE = { prediction: 'dashboard', alerts: 'portfolio' };
 
     // 渲染菜单图标 SVG
     const renderMenuIcon = (name) => {
@@ -109,7 +103,14 @@ const app = createApp({
     };
 
     const currentPage = ref('dashboard');
-    const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
+    const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
+    const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
+    // 二级视图在面包屑中的子标题
+    const subPageLabel = computed(() => {
+      if (currentPage.value === 'prediction') return t('menu.prediction');
+      if (currentPage.value === 'alerts') return t('menu.alerts');
+      return '';
+    });
 
     // ============ 用户认证（前端本地，后端未接入） ============
     // 启动页提供「登录进入」与「游客体验」两个入口
@@ -1805,7 +1806,7 @@ const app = createApp({
       // 数字键切换页面 (无 Toast,直接跳转)
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const num = parseInt(e.key);
-        if (num >= 1 && num <= 7) {
+        if (num >= 1 && num <= menu.value.length) {
           e.preventDefault();
           const target = menu.value[num - 1];
           goToPage(target.id);
@@ -1912,7 +1913,7 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon, goToPage,
+      menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
       showLanding, landingExiting, enterSystem,
       // 用户认证
