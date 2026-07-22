@@ -5,12 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>CSVest — CS2 饰品 AI 智能分析平台</title>
 
-  <!-- 西文: Outfit；中文优先系统字体（国内常无法加载 Google Fonts，避免 Outfit 伪粗体把汉字拉扁） -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- 字体：系统中文优先；Outfit/Noto 非阻塞加载（国内 Google 常失败也不挡首屏） -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.2.5/index.min.css" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.2.5/chinese-simplified-400.min.css" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.2.5/chinese-simplified-700.min.css" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.2.5/index.min.css" />
+  </noscript>
 
-  <!-- Tailwind CDN -->
+  <!-- Tailwind CDN（失败时样式仍可由 style.css 兜底） -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -25,8 +29,13 @@
     }
   </script>
 
-  <!-- Vue 3 CDN -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Vue 3：优先 jsDelivr（国内更稳），unpkg 兜底 -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+  <script>
+    if (!window.Vue) {
+      document.write('<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"><\/script>');
+    }
+  </script>
 
   <!-- ECharts CDN -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
