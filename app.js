@@ -112,9 +112,11 @@ const app = createApp({
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
     // ============ 用户认证（前端本地，后端未接入） ============
-    // 启动页强制登录：未登录一律停留在 Landing，不允许游客进入平台
+    // 启动页提供「登录进入」与「游客体验」两个入口
     const Auth = window.CSVestAuth;
     const currentUser = ref(Auth?.getCurrentUser?.() || null);
+    const isGuest = ref(!currentUser.value && sessionStorage.getItem('sv_guest') === '1');
+    const showAuthPanel = ref(false);
     const authMode = ref('login');
     const authForm = ref({ name: '', email: '', password: '' });
     const authError = ref('');
@@ -122,27 +124,42 @@ const app = createApp({
     const userMenuOpen = ref(false);
     const showProfileModal = ref(false);
     const profileNameDraft = ref('');
-    const userAvatarChar = computed(() => Auth.avatarChar(currentUser.value || { name: '?' }));
+    const userAvatarChar = computed(() => {
+      if (currentUser.value) return Auth.avatarChar(currentUser.value);
+      return Auth.avatarChar({ name: t('auth.guest') });
+    });
 
-    const mustLogin = () => !currentUser.value;
-    const showLanding = ref(mustLogin() || sessionStorage.getItem('sv_entered') !== '1');
+    const canEnter = () => !!(currentUser.value || isGuest.value);
+    const showLanding = ref(!canEnter() || sessionStorage.getItem('sv_entered') !== '1');
     const landingExiting = ref(false);
 
-    // 若会话失效但仍标记已进入，强制回到启动页登录
-    if (mustLogin()) {
+    // 无登录且非游客时，强制停留在启动页
+    if (!canEnter()) {
       sessionStorage.removeItem('sv_entered');
+      sessionStorage.removeItem('sv_guest');
+      isGuest.value = false;
       showLanding.value = true;
     }
 
-    const enterSystem = () => {
+    const enterSystem = (asGuest = false) => {
       if (landingExiting.value || !showLanding.value) return;
-      if (mustLogin()) {
+      if (asGuest) {
+        isGuest.value = true;
+        sessionStorage.setItem('sv_guest', '1');
+      }
+      if (!canEnter()) {
         authError.value = t('auth.err.required');
+        showAuthPanel.value = true;
         return;
+      }
+      if (currentUser.value) {
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
       }
       landingExiting.value = true;
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
+      showAuthPanel.value = false;
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
@@ -161,6 +178,17 @@ const app = createApp({
         return;
       }
       setTimeout(done, 520);
+    };
+
+    const openAuthPanel = (mode = 'login') => {
+      authMode.value = mode;
+      authError.value = '';
+      showAuthPanel.value = true;
+    };
+
+    const closeAuthPanel = () => {
+      showAuthPanel.value = false;
+      authError.value = '';
     };
 
     const authErrorMessage = (code) => {
@@ -185,6 +213,8 @@ const app = createApp({
         return;
       }
       currentUser.value = result.user;
+      isGuest.value = false;
+      sessionStorage.removeItem('sv_guest');
       authForm.value.password = '';
       showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
       enterSystem();
@@ -201,21 +231,41 @@ const app = createApp({
         return;
       }
       currentUser.value = result.user;
+      isGuest.value = false;
+      sessionStorage.removeItem('sv_guest');
       authForm.value.password = '';
       showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
       enterSystem();
     };
 
+    const enterAsGuest = () => {
+      showToast({ title: t('auth.toast.guest'), type: 'info' });
+      enterSystem(true);
+    };
+
     const logoutUser = () => {
       Auth?.logout?.();
       currentUser.value = null;
+      isGuest.value = false;
       userMenuOpen.value = false;
       showProfileModal.value = false;
+      showAuthPanel.value = false;
       authMode.value = 'login';
       authError.value = '';
       showToast({ title: t('auth.toast.logoutOk'), type: 'success' });
-      // 退出后必须回到启动页重新登录
       sessionStorage.removeItem('sv_entered');
+      sessionStorage.removeItem('sv_guest');
+      showLanding.value = true;
+      landingExiting.value = false;
+    };
+
+    const returnToLandingForLogin = () => {
+      userMenuOpen.value = false;
+      showAuthPanel.value = true;
+      authMode.value = 'login';
+      authError.value = '';
+      sessionStorage.removeItem('sv_entered');
+      // 保留游客标记，取消进入后仍可再选游客
       showLanding.value = true;
       landingExiting.value = false;
     };
@@ -1838,8 +1888,9 @@ const app = createApp({
       // 首屏
       showLanding, landingExiting, enterSystem,
       // 用户认证
-      currentUser, authMode, authForm, authError, authSubmitting,
-      submitLogin, submitRegister, logoutUser,
+      currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
+      submitLogin, submitRegister, enterAsGuest, logoutUser,
+      openAuthPanel, closeAuthPanel, returnToLandingForLogin,
       userMenuOpen, userAvatarChar,
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
