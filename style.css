@@ -1799,6 +1799,37 @@ body.sidebar-open {
   font-size: 14px;
 }
 
+.auth-required-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 28px;
+  min-height: 360px;
+  gap: 12px;
+}
+
+.auth-required-icon {
+  margin-bottom: 4px;
+  opacity: 0.95;
+}
+
+.auth-required-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.auth-required-desc {
+  margin: 0 0 12px;
+  max-width: 34em;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 /* ============ 工具类 ============ */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }

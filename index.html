@@ -240,17 +240,18 @@
           :key="item.id"
           class="nav-item"
           :class="{ active: currentPage === item.id }"
-          @click="currentPage = item.id; sidebarOpen = false"
+          @click="goToPage(item.id)"
           role="menuitem"
           tabindex="0"
           :aria-label="`Switch to ${item.label}`"
           :aria-current="currentPage === item.id ? 'page' : undefined"
-          @keydown.enter="currentPage = item.id; sidebarOpen = false"
-          @keydown.space.prevent="currentPage = item.id; sidebarOpen = false"
+          @keydown.enter="goToPage(item.id)"
+          @keydown.space.prevent="goToPage(item.id)"
         >
           <span class="nav-icon-svg" aria-hidden="true" v-html="renderMenuIcon(item.iconName)"></span>
           <span>{{ item.label }}</span>
-          <span v-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
+          <span v-if="item.id === 'portfolio' && !currentUser" class="tag tag-orange" style="margin-left: auto;">{{ t('auth.loginRequiredBadge') }}</span>
+          <span v-else-if="item.badge" class="tag tag-orange" style="margin-left: auto;">{{ item.badge }}</span>
         </div>
       </nav>
 
@@ -948,6 +949,19 @@
 
         <!-- 模拟持仓 -->
         <div v-if="currentPage === 'portfolio'" class="fade-in">
+          <!-- 游客：持仓/库存需登录 -->
+          <div v-if="!currentUser" class="auth-required-panel card">
+            <div class="auth-required-icon" aria-hidden="true">
+              <i class="ph-duotone ph-lock-key" style="font-size: 40px; color: var(--accent-orange);"></i>
+            </div>
+            <h2 class="auth-required-title">{{ t('portfolio.loginRequired.title') }}</h2>
+            <p class="auth-required-desc">{{ t('portfolio.loginRequired.desc') }}</p>
+            <button type="button" class="btn btn-primary" @click="returnToLandingForLogin">
+              {{ t('portfolio.loginRequired.cta') }}
+            </button>
+          </div>
+
+          <template v-else>
           <div class="flex justify-between items-center mb-4">
             <div>
               <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
@@ -1054,6 +1068,7 @@
               </tbody>
             </table>
           </div>
+          </template>
         </div>
 
         <!-- 模型实验室 -->
@@ -1249,7 +1264,7 @@
     </div>
 
     <!-- 添加持仓弹窗 -->
-    <div v-if="showPortfolioModal" class="modal-mask" @click.self="showPortfolioModal = false" role="dialog" aria-modal="true">
+    <div v-if="showPortfolioModal && currentUser" class="modal-mask" @click.self="showPortfolioModal = false" role="dialog" aria-modal="true">
       <div class="modal">
         <div class="modal-title">
           <span>{{ t('portfolio.modal.title') }}</span>

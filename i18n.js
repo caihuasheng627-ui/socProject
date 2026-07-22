@@ -60,6 +60,7 @@ const I18N = {
     'auth.err.exists': '该邮箱已注册',
     'auth.err.required': '请先登录，或选择游客体验',
     'auth.err.generic': '操作失败，请重试',
+    'auth.loginRequiredBadge': '需登录',
 
     // ============ 菜单 ============
     'menu.dashboard': '行情看板',
@@ -266,6 +267,10 @@ const I18N = {
     'portfolio.returnRate': '收益率',
     'portfolio.buyDate': '买入日期',
     'portfolio.close': '平仓',
+    'portfolio.loginRequired.title': '登录后使用模拟持仓',
+    'portfolio.loginRequired.desc': '持仓（库存）管理、盈亏统计与组合诊断仅对登录用户开放。游客可先体验其他分析功能。',
+    'portfolio.loginRequired.cta': '去登录',
+    'portfolio.loginRequired.toast': '请先登录后再管理持仓',
     'portfolio.modal.title': '📋 添加持仓',
     'portfolio.modal.skin': '选择饰品',
     'portfolio.modal.buyPrice': '买入价格 ($)',
@@ -413,6 +418,7 @@ const I18N = {
     'auth.err.exists': 'This email is already registered',
     'auth.err.required': 'Please sign in, or continue as guest',
     'auth.err.generic': 'Something went wrong. Please try again.',
+    'auth.loginRequiredBadge': 'Login',
 
     // ============ Menu ============
     'menu.dashboard': 'Dashboard',
@@ -619,6 +625,10 @@ const I18N = {
     'portfolio.returnRate': 'Return %',
     'portfolio.buyDate': 'Buy Date',
     'portfolio.close': 'Close',
+    'portfolio.loginRequired.title': 'Sign in to use Portfolio',
+    'portfolio.loginRequired.desc': 'Holdings management, P&L tracking, and portfolio diagnostics are available to signed-in users. Guests can still explore other analysis tools.',
+    'portfolio.loginRequired.cta': 'Sign in',
+    'portfolio.loginRequired.toast': 'Please sign in to manage holdings',
     'portfolio.modal.title': '📋 Add Holding',
     'portfolio.modal.skin': 'Select skin',
     'portfolio.modal.buyPrice': 'Buy Price ($)',

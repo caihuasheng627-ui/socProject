@@ -249,6 +249,7 @@ const app = createApp({
       isGuest.value = false;
       userMenuOpen.value = false;
       showProfileModal.value = false;
+      showPortfolioModal.value = false;
       showAuthPanel.value = false;
       authMode.value = 'login';
       authError.value = '';
@@ -268,6 +269,28 @@ const app = createApp({
       // 保留游客标记，取消进入后仍可再选游客
       showLanding.value = true;
       landingExiting.value = false;
+    };
+
+    // 模拟持仓（库存）仅登录用户可用
+    const requirePortfolioLogin = () => {
+      if (currentUser.value) return true;
+      showToast({
+        title: t('portfolio.loginRequired.title'),
+        subtitle: t('portfolio.loginRequired.toast'),
+        type: 'info',
+      });
+      return false;
+    };
+
+    const goToPage = (pageId) => {
+      if (pageId === 'portfolio' && !currentUser.value) {
+        // 仍允许进入页面，但展示登录引导（不展示持仓数据）
+        currentPage.value = 'portfolio';
+        sidebarOpen.value = false;
+        return;
+      }
+      currentPage.value = pageId;
+      sidebarOpen.value = false;
     };
 
     const openProfileEditor = () => {
@@ -349,6 +372,7 @@ const app = createApp({
 
     // ============ 数据导出 ============
     const exportData = (type, format) => {
+      if (type === 'portfolio' && !requirePortfolioLogin()) return;
       let data, filename;
       if (type === 'skins') {
         data = skins.value;
@@ -1399,6 +1423,7 @@ const app = createApp({
     });
 
     const addPortfolio = async () => {
+      if (!requirePortfolioLogin()) return;
       if (!newPortfolio.value.skinId || !newPortfolio.value.buyPrice) return;
       const skin = skins.value.find(s => s.id === newPortfolio.value.skinId);
       const payload = {
@@ -1429,6 +1454,7 @@ const app = createApp({
     };
 
     const removePortfolio = async (id) => {
+      if (!requirePortfolioLogin()) return;
       try {
         const client = api();
         if (client && apiOnline.value) {
@@ -1442,6 +1468,7 @@ const app = createApp({
     };
 
     const loadPortfolioExtras = async () => {
+      if (!requirePortfolioLogin()) return;
       const client = api();
       if (!client || !apiOnline.value) return;
       try {
@@ -1675,7 +1702,7 @@ const app = createApp({
           title: m.label,
           subtitle: t('cmd.pageDesc', { name: m.label }),
           kbd: String(i + 1),
-          action: () => { currentPage.value = m.id; },
+          action: () => { goToPage(m.id); },
         }));
       if (pageCmds.length) groups.push({ title: t('cmd.group.pages'), items: pageCmds });
 
@@ -1781,7 +1808,7 @@ const app = createApp({
         if (num >= 1 && num <= 7) {
           e.preventDefault();
           const target = menu.value[num - 1];
-          currentPage.value = target.id;
+          goToPage(target.id);
           // 不弹 Toast,避免用户困惑
         }
       }
@@ -1884,7 +1911,7 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon,
+      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
       showLanding, landingExiting, enterSystem,
       // 用户认证
