@@ -2,10 +2,9 @@
 # 用法:
 #   cp backend/.env.example backend/.env   # 可选填 DEEPSEEK_API_KEY
 #   docker compose up --build -d
-# API http://localhost:8000  |  Web http://localhost:8080
-# 前端切真实后端(浏览器控制台):
-#   localStorage.setItem('sv_api_url','http://localhost:8000');
-#   localStorage.setItem('sv_use_mock','false'); location.reload();
+# Web+API 同源: http://localhost:8080  （/api 由 nginx 反代到后端）
+# 直接 API: http://localhost:8000
+# 公网打开 :8080 即自动连后端，无需控制台设置 localStorage
 services:
   api:
     build: .
@@ -33,7 +32,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # 前端静态托管
+  # 前端静态托管 + /api 反代到后端（打开 :8080 即自动连后端）
   web:
     image: nginx:alpine
     container_name: skinvision-web
@@ -46,6 +45,7 @@ services:
       - ./data.js:/usr/share/nginx/html/data.js:ro
       - ./i18n.js:/usr/share/nginx/html/i18n.js:ro
       - ./js:/usr/share/nginx/html/js:ro
+      - ./deploy/nginx-default.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     depends_on:
       api:

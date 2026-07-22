@@ -607,13 +607,26 @@ const app = createApp({
         return false;
       }
       try {
-        const apiBase = localStorage.getItem('sv_api_url')
-          || ((location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')
-            ? `${location.protocol}//${location.hostname}:8000`
-            : 'http://localhost:8000');
+        // 与 js/api.js 一致：公网同源 /api（nginx 反代），忽略误存的 localhost
+        const remote = location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+        let apiBase = localStorage.getItem('sv_api_url') || '';
+        if (remote) {
+          try {
+            if (apiBase) {
+              const u = new URL(apiBase, location.href);
+              if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') apiBase = '';
+            }
+          } catch (_) {
+            apiBase = '';
+          }
+          // 默认同源；仍兼容显式配置的公网 :8000
+          if (!apiBase) apiBase = '';
+        } else if (!apiBase) {
+          apiBase = 'http://localhost:8000';
+        }
         client.setBaseURL(apiBase);
-        await client.health();
         client.setUseMock(false);
+        await client.health();
         apiOnline.value = true;
         await loadSkinsFromApi();
         await Promise.all([
@@ -622,7 +635,8 @@ const app = createApp({
           currentUser.value ? loadPortfolioFromApi() : Promise.resolve(),
           loadModelsFromApi(),
         ]);
-        showToast({ title: '已连接后端', subtitle: client.baseURL, type: 'success' });
+        const shown = client.baseURL || location.origin;
+        showToast({ title: '已连接后端', subtitle: shown, type: 'success' });
         return true;
       } catch (err) {
         apiOnline.value = false;

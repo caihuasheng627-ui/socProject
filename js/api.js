@@ -3,15 +3,34 @@
 // 封装 fetch + 错误处理 + Mock 回退
 // ============================================
 
+function isLocalHostname(hostname) {
+  return !hostname || hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function isRemotePage() {
+  return typeof location !== 'undefined' && !isLocalHostname(location.hostname);
+}
+
+/** 解析 API 根地址。公网页默认同源（nginx 反代 /api）；忽略误存的 localhost。 */
 function defaultApiBaseURL() {
-  // 优先 localStorage；公网部署时用当前主机:8000；本地开发仍默认 localhost
   const saved = localStorage.getItem('sv_api_url');
-  if (saved) return saved;
-  const host = typeof location !== 'undefined' ? location.hostname : '';
-  if (host && host !== 'localhost' && host !== '127.0.0.1') {
-    return `${location.protocol}//${host}:8000`;
+  if (isRemotePage()) {
+    if (saved) {
+      try {
+        const u = new URL(saved, location.href);
+        if (isLocalHostname(u.hostname)) {
+          localStorage.removeItem('sv_api_url');
+        } else {
+          return saved.replace(/\/$/, '');
+        }
+      } catch (_) {
+        localStorage.removeItem('sv_api_url');
+      }
+    }
+    // 空字符串 = 当前页面同源，走 /api → 后端
+    return '';
   }
-  return 'http://localhost:8000';
+  return (saved || 'http://localhost:8000').replace(/\/$/, '');
 }
 
 class CSVestAPI {
@@ -19,21 +38,23 @@ class CSVestAPI {
     this.baseURL = defaultApiBaseURL();
     this.token = localStorage.getItem('sv_token') || null;
     this.timeout = 30000; // 30s
-    // 本地未配置时默认 mock；公网访问默认走真实后端
+    // 公网默认真实后端；本地未配置时默认 mock
     const mockFlag = localStorage.getItem('sv_use_mock');
-    const remote = typeof location !== 'undefined'
-      && location.hostname
-      && location.hostname !== 'localhost'
-      && location.hostname !== '127.0.0.1';
-    this.useMock = mockFlag === null ? !remote : mockFlag === 'true';
+    if (isRemotePage()) {
+      if (mockFlag === 'true') localStorage.removeItem('sv_use_mock');
+      this.useMock = false;
+    } else {
+      this.useMock = mockFlag === null ? true : mockFlag === 'true';
+    }
     this.online = false;
     this._alerts = null;
     this._portfolio = null;
   }
 
   setBaseURL(url) {
-    this.baseURL = url;
-    localStorage.setItem('sv_api_url', url);
+    this.baseURL = url || '';
+    if (this.baseURL) localStorage.setItem('sv_api_url', this.baseURL);
+    else localStorage.removeItem('sv_api_url');
   }
 
   setToken(token) {
