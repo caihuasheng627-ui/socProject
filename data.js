@@ -156,8 +156,8 @@ const SHAP_FEATURES = [
 ];
 
 // 涨跌榜数据
-const TOP_GAINERS = [...SKINS_POOL].sort((a, b) => b.change7d - a.change7d).slice(0, 8);
-const TOP_LOSERS = [...SKINS_POOL].sort((a, b) => a.change7d - b.change7d).slice(0, 8);
+const TOP_GAINERS = [...SKINS_POOL].filter((a) => a.change7d > 0).sort((a, b) => b.change7d - a.change7d).slice(0, 8);
+const TOP_LOSERS = [...SKINS_POOL].filter((a) => a.change7d < 0).sort((a, b) => a.change7d - b.change7d).slice(0, 8);
 const HOT_VOLUME = [...SKINS_POOL].sort((a, b) => b.volume24h - a.volume24h).slice(0, 8);
 
 // 双 Agent 辩论示例

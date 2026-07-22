@@ -516,8 +516,14 @@ const app = createApp({
     const api = () => window.CSVestAPI || window.SkinVisionAPI;
 
     const reconnectLeaders = () => {
-      topGainers.value = [...skins.value].sort((a, b) => (b.change7d || 0) - (a.change7d || 0)).slice(0, 8);
-      topLosers.value = [...skins.value].sort((a, b) => (a.change7d || 0) - (b.change7d || 0)).slice(0, 8);
+      topGainers.value = [...skins.value]
+        .filter((s) => (s.change7d || 0) > 0)
+        .sort((a, b) => (b.change7d || 0) - (a.change7d || 0))
+        .slice(0, 8);
+      topLosers.value = [...skins.value]
+        .filter((s) => (s.change7d || 0) < 0)
+        .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
+        .slice(0, 8);
       hotVolume.value = [...skins.value].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
     };
 
