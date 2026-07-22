@@ -471,8 +471,10 @@ body::before {
 .content-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 28px;
   scroll-behavior: smooth;
+  min-width: 0;
 }
 
 /* ============ 通用组件 ============ */
@@ -496,6 +498,8 @@ body::before {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 18px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .card-title {
@@ -513,6 +517,27 @@ body::before {
   color: var(--text-muted);
   margin-top: 3px;
   font-weight: 400;
+}
+
+/* 分类筛选 / 时间周期按钮行：窄屏横向滚动，避免撑破整页 */
+.filter-chip-row,
+.kline-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.filter-chip-row .timeframe-btn,
+.kline-toolbar .timeframe-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .grid {
@@ -658,6 +683,13 @@ body::before {
   }
   .card-header {
     margin-bottom: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .card-header > .filter-chip-row,
+  .card-header > .kline-toolbar,
+  .card-header > .flex.gap-2 {
+    width: 100%;
   }
   /* 表格横向滚动 */
   .data-table {
@@ -1049,11 +1081,21 @@ body.sidebar-open {
 .skin-meta {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
   border-top: 1px solid var(--border-color);
   padding-top: 10px;
   margin-top: 10px;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.skin-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============ 标签 ============ */
@@ -1153,11 +1195,12 @@ body.sidebar-open {
 
 /* ============ K线图区域 ============ */
 .kline-toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-  align-items: center;
-  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.card-header + .kline-wrap,
+.card-header ~ .kline-wrap {
+  /* toolbar lives in card-header; keep spacing tight */
 }
 
 .timeframe-btn {

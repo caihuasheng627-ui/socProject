@@ -965,6 +965,20 @@ const app = createApp({
         predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
       }
 
+      // 成交量按类目轴对齐：历史有值，预测区间留空，避免 [index,vol,dir] 与日期类目错位
+      const forecastPad = predictedDates.map(() => '-');
+      const volumeBars = volumes.map((v) => {
+        const vol = Array.isArray(v) ? v[1] : v;
+        const dir = Array.isArray(v) ? v[2] : 0;
+        return {
+          value: vol,
+          itemStyle: {
+            color: dir > 0 ? '#ef4444' : '#10b981',
+            opacity: 0.6,
+          },
+        };
+      }).concat(forecastPad);
+
       const option = {
         backgroundColor: 'transparent',
         animation: false,
@@ -985,14 +999,15 @@ const app = createApp({
           label: { backgroundColor: '#ff6b00' },
         },
         grid: [
-          { left: 60, right: 30, top: 40, height: '60%' },
-          { left: 60, right: 30, top: '75%', height: '15%' },
+          { left: 52, right: 16, top: 40, height: '58%' },
+          { left: 52, right: 16, top: '76%', height: '14%' },
         ],
         xAxis: [
           {
             type: 'category',
             data: kline.map(d => d[0]).concat(predictedDates),
-            boundaryGap: false,
+            // 与成交量轴保持同一 boundaryGap，否则 K 线与 Volume 会左右错位
+            boundaryGap: true,
             axisLine: { lineStyle: { color: '#374151' } },
             axisLabel: { color: '#9ca3af', fontSize: 10 },
             splitLine: { show: false },
@@ -1001,6 +1016,7 @@ const app = createApp({
             type: 'category',
             gridIndex: 1,
             data: kline.map(d => d[0]).concat(predictedDates),
+            boundaryGap: true,
             axisLine: { lineStyle: { color: '#374151' } },
             axisLabel: { show: false },
             splitLine: { show: false },
@@ -1042,7 +1058,7 @@ const app = createApp({
           {
             name: 'MA7',
             type: 'line',
-            data: ma7,
+            data: ma7.concat(forecastPad),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#fbbf24', width: 1 },
@@ -1050,7 +1066,7 @@ const app = createApp({
           {
             name: 'MA30',
             type: 'line',
-            data: ma30,
+            data: ma30.concat(forecastPad),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#8b5cf6', width: 1 },
@@ -1084,11 +1100,8 @@ const app = createApp({
             type: 'bar',
             xAxisIndex: 1,
             yAxisIndex: 1,
-            data: volumes,
-            itemStyle: {
-              color: (params) => params.data[2] > 0 ? '#ef4444' : '#10b981',
-              opacity: 0.6,
-            },
+            data: volumeBars,
+            barMaxWidth: 10,
           },
         ],
       };
