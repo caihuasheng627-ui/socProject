@@ -614,7 +614,7 @@ const app = createApp({
         await Promise.all([
           loadNewsFromApi(),
           loadAlertsFromApi(),
-          loadPortfolioFromApi(),
+          currentUser.value ? loadPortfolioFromApi() : Promise.resolve(),
           loadModelsFromApi(),
         ]);
         showToast({ title: '已连接后端', subtitle: client.baseURL, type: 'success' });
@@ -1881,6 +1881,7 @@ const app = createApp({
       } else if (newPage === 'alerts') {
         await loadAlertsFromApi();
       } else if (newPage === 'portfolio') {
+        if (!currentUser.value) return;
         await loadPortfolioFromApi();
         await loadPortfolioExtras();
       } else if (newPage === 'chat') {
