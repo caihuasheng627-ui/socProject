@@ -118,6 +118,7 @@ const app = createApp({
       if (landingExiting.value || !showLanding.value) return;
       landingExiting.value = true;
       sessionStorage.setItem('sv_entered', '1');
+      userMenuOpen.value = false;
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
@@ -137,6 +138,121 @@ const app = createApp({
       }
       setTimeout(done, 520);
     };
+
+    // ============ 用户认证（前端本地，后端未接入） ============
+    const Auth = window.CSVestAuth;
+    const currentUser = ref(Auth?.getCurrentUser?.() || null);
+    const authMode = ref('login');
+    const authForm = ref({ name: '', email: '', password: '' });
+    const authError = ref('');
+    const authSubmitting = ref(false);
+    const userMenuOpen = ref(false);
+    const showProfileModal = ref(false);
+    const profileNameDraft = ref('');
+    const userAvatarChar = computed(() => {
+      if (!currentUser.value) return Auth.avatarChar({ name: t('auth.guest') });
+      return Auth.avatarChar(currentUser.value);
+    });
+
+    const authErrorMessage = (code) => {
+      const map = {
+        EMPTY: 'auth.err.empty',
+        INVALID: 'auth.err.invalid',
+        EMAIL: 'auth.err.email',
+        WEAK: 'auth.err.weak',
+        EXISTS: 'auth.err.exists',
+      };
+      return t(map[code] || 'auth.err.generic');
+    };
+
+    const submitLogin = () => {
+      if (!Auth || authSubmitting.value) return;
+      authSubmitting.value = true;
+      authError.value = '';
+      const result = Auth.login(authForm.value.email, authForm.value.password);
+      authSubmitting.value = false;
+      if (!result.ok) {
+        authError.value = authErrorMessage(result.code);
+        return;
+      }
+      currentUser.value = result.user;
+      authForm.value.password = '';
+      showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
+      enterSystem();
+    };
+
+    const submitRegister = () => {
+      if (!Auth || authSubmitting.value) return;
+      authSubmitting.value = true;
+      authError.value = '';
+      const result = Auth.register(authForm.value.name, authForm.value.email, authForm.value.password);
+      authSubmitting.value = false;
+      if (!result.ok) {
+        authError.value = authErrorMessage(result.code);
+        return;
+      }
+      currentUser.value = result.user;
+      authForm.value.password = '';
+      showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
+      enterSystem();
+    };
+
+    const enterAsGuest = () => {
+      showToast({ title: t('auth.toast.guest'), type: 'info' });
+      enterSystem();
+    };
+
+    const logoutUser = () => {
+      Auth?.logout?.();
+      currentUser.value = null;
+      userMenuOpen.value = false;
+      showProfileModal.value = false;
+      authMode.value = 'login';
+      authError.value = '';
+      showToast({ title: t('auth.toast.logoutOk'), type: 'success' });
+      // 回到启动页重新登录
+      sessionStorage.removeItem('sv_entered');
+      showLanding.value = true;
+      landingExiting.value = false;
+    };
+
+    const returnToLandingForLogin = () => {
+      userMenuOpen.value = false;
+      authMode.value = 'login';
+      authError.value = '';
+      sessionStorage.removeItem('sv_entered');
+      showLanding.value = true;
+      landingExiting.value = false;
+    };
+
+    const openProfileEditor = () => {
+      if (!currentUser.value) return;
+      profileNameDraft.value = currentUser.value.name || '';
+      showProfileModal.value = true;
+      userMenuOpen.value = false;
+    };
+
+    const saveProfile = () => {
+      const result = Auth?.updateProfile?.({ name: profileNameDraft.value });
+      if (!result?.ok) {
+        showToast({ title: authErrorMessage(result?.code), type: 'error' });
+        return;
+      }
+      currentUser.value = result.user;
+      showProfileModal.value = false;
+      showToast({ title: t('auth.toast.profileOk'), type: 'success' });
+    };
+
+    // 点击页面其他区域关闭用户菜单
+    if (typeof document !== 'undefined') {
+      document.addEventListener('click', (e) => {
+        if (!userMenuOpen.value) return;
+        const menu = document.querySelector('.user-menu');
+        if (menu && !menu.contains(e.target)) {
+          userMenuOpen.value = false;
+        }
+      });
+    }
 
     // ============ 主题切换 ============
     const theme = ref(localStorage.getItem('sv_theme') || 'dark');
@@ -1726,6 +1842,11 @@ const app = createApp({
       menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon,
       // 首屏
       showLanding, landingExiting, enterSystem,
+      // 用户认证
+      currentUser, authMode, authForm, authError, authSubmitting,
+      submitLogin, submitRegister, enterAsGuest, logoutUser,
+      returnToLandingForLogin, userMenuOpen, userAvatarChar,
+      showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, filteredSkins,
