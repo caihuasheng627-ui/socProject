@@ -38,7 +38,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260722c" />
+  <link rel="stylesheet" href="style.css?v=20260722d" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -1206,7 +1206,7 @@
               <p class="text-muted text-sm mt-2">{{ t('models.subtitle') }}</p>
               <p class="text-muted text-sm mt-1">{{ t('models.routeNote') }}</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap models-page-actions">
               <div class="export-group">
                 <button class="btn btn-sm" @click="exportData('models', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
                 <button class="btn btn-sm" @click="exportData('models', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
@@ -1222,7 +1222,8 @@
               <div class="card-title">{{ t('models.regressionTable') }}</div>
               <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
             </div>
-            <table class="data-table">
+            <div class="table-scroll">
+            <table class="data-table models-regression-table">
               <thead>
                 <tr>
                   <th>{{ t('models.col.model') }}</th>
@@ -1231,9 +1232,9 @@
                   <th>{{ t('models.col.mae') }}</th>
                   <th>{{ t('models.col.mape') }}</th>
                   <th>{{ t('models.col.r2') }}</th>
-                  <th>{{ t('models.col.speed') }}</th>
+                  <th class="col-hide-mobile">{{ t('models.col.speed') }}</th>
                   <th>{{ t('models.col.returnPct') }}</th>
-                  <th>{{ t('models.col.course') }}</th>
+                  <th class="col-hide-mobile">{{ t('models.col.course') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1256,14 +1257,15 @@
                   <td>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</td>
                   <td>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</td>
                   <td>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</td>
-                  <td>{{ m.speed || '—' }}</td>
+                  <td class="col-hide-mobile">{{ m.speed || '—' }}</td>
                   <td :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
                     {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
                   </td>
-                  <td class="text-muted text-sm">{{ m.course }}</td>
+                  <td class="text-muted text-sm col-hide-mobile">{{ m.course }}</td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           <div class="grid grid-2 mb-4">
@@ -1272,6 +1274,7 @@
                 <div class="card-title">{{ t('models.classificationTable') }}</div>
                 <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
               </div>
+              <div class="table-scroll">
               <table class="data-table">
                 <thead>
                   <tr>
@@ -1298,6 +1301,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div class="card">
@@ -1314,7 +1318,7 @@
               <div class="card-title">{{ t('models.backtest') }}</div>
               <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
             </div>
-            <div ref="backtestChart" style="height: 320px; background: var(--bg-card); border-radius: 8px; padding: 12px;"></div>
+            <div ref="backtestChart" class="lab-chart-box"></div>
           </div>
 
           <div class="grid grid-2">
@@ -1323,7 +1327,7 @@
                 <div class="card-title">{{ t('models.shap') }}</div>
                 <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
               </div>
-              <div ref="shapChart" style="height: 320px; background: var(--bg-card); border-radius: 8px; padding: 12px;"></div>
+              <div ref="shapChart" class="lab-chart-box"></div>
             </div>
 
             <div class="card">
@@ -1546,11 +1550,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260722c"></script>
-  <script src="i18n.js?v=20260722c"></script>
-  <script src="js/api.js?v=20260722c"></script>
-  <script src="js/auth.js?v=20260722c"></script>
-  <script src="js/lucide-icons.js?v=20260722c"></script>
-  <script src="app.js?v=20260722c"></script>
+  <script src="data.js?v=20260722d"></script>
+  <script src="i18n.js?v=20260722d"></script>
+  <script src="js/api.js?v=20260722d"></script>
+  <script src="js/auth.js?v=20260722d"></script>
+  <script src="js/lucide-icons.js?v=20260722d"></script>
+  <script src="app.js?v=20260722d"></script>
 </body>
 </html>

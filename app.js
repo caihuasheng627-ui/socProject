@@ -699,11 +699,16 @@ const app = createApp({
       if (!client) return;
       try {
         const cmp = await client.getModelComparison();
+        const courseByName = Object.fromEntries(
+          (modelComparison.regression || []).map((r) => [r.name, r.course || ''])
+        );
         if (cmp?.regression?.length) {
-          regressionModels.value = cmp.regression.map(r => ({
-            ...r,
-            course: r.course || r.type || '',
-          }));
+          regressionModels.value = cmp.regression.map((r) => {
+            const course = r.course && r.course !== r.type
+              ? r.course
+              : (courseByName[r.name] || r.course || '');
+            return { ...r, course };
+          });
         }
         if (cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
@@ -762,14 +767,9 @@ const app = createApp({
       }
     };
     const relatedNewsOverride = ref(null);
-    const regressionModels = ref([
-      { ...modelComparison.regression[0], course: 'DL · panel Embedding' },
-      { ...modelComparison.regression[1], course: 'DL · price tiers' },
-      { ...modelComparison.regression[2], course: 'Route: low→C, mid/high→D' },
-      { ...modelComparison.regression[3], course: 'Best MAPE on fair test' },
-      { ...modelComparison.regression[4], course: 'Tree ensemble' },
-      { ...modelComparison.regression[5], course: 'Tree ensemble' },
-    ]);
+    const regressionModels = ref(
+      (modelComparison.regression || []).map((r) => ({ ...r }))
+    );
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
     const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
@@ -1531,13 +1531,15 @@ const app = createApp({
       if (!radarChart.value) return;
       radarInstance = getOrCreateChart(radarInstance, radarChart.value);
 
+      // 与回归表主模型对齐，避免图例 4 条、曲线更多的错位观感
       const option = {
         backgroundColor: 'transparent',
         tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
         legend: {
-          data: ['LSTM', 'XGBoost', 'ARIMA', 'Random Forest'],
+          data: ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'],
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
+          type: 'scroll',
         },
         radar: {
           indicator: [
@@ -1548,8 +1550,8 @@ const app = createApp({
             { name: 'R²', max: 100 },
             { name: '泛化能力', max: 100 },
           ],
-          center: ['50%', '55%'],
-          radius: '60%',
+          center: ['50%', '58%'],
+          radius: '58%',
           axisName: { color: '#9ca3af', fontSize: 11 },
           splitLine: { lineStyle: { color: '#2a3447' } },
           splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.05)'] } },
@@ -1558,26 +1560,26 @@ const app = createApp({
         series: [{
           type: 'radar',
           data: [
-            { value: [88, 30, 35, 95, 92, 90], name: 'LSTM',
-              areaStyle: { color: 'rgba(255, 107, 0, 0.2)' },
+            { value: [92, 28, 35, 88, 94, 90], name: 'LSTM-C',
+              areaStyle: { color: 'rgba(255, 107, 0, 0.18)' },
               lineStyle: { color: '#ff6b00', width: 2 },
               itemStyle: { color: '#ff6b00' } },
-            { value: [80, 85, 70, 78, 89, 85], name: 'XGBoost',
-              areaStyle: { color: 'rgba(59, 130, 246, 0.2)' },
-              lineStyle: { color: '#3b82f6', width: 2 },
-              itemStyle: { color: '#3b82f6' } },
-            { value: [55, 95, 95, 35, 72, 60], name: 'ARIMA',
-              areaStyle: { color: 'rgba(16, 185, 129, 0.2)' },
-              lineStyle: { color: '#10b981', width: 2 },
-              itemStyle: { color: '#10b981' } },
-            { value: [70, 75, 65, 50, 84, 80], name: 'Random Forest',
-              areaStyle: { color: 'rgba(139, 92, 246, 0.2)' },
+            { value: [84, 30, 38, 72, 90, 86], name: 'Hybrid',
+              areaStyle: { color: 'rgba(6, 182, 212, 0.15)' },
+              lineStyle: { color: '#06b6d4', width: 2 },
+              itemStyle: { color: '#06b6d4' } },
+            { value: [80, 86, 72, 98, 88, 82], name: 'Random Forest',
+              areaStyle: { color: 'rgba(139, 92, 246, 0.15)' },
               lineStyle: { color: '#8b5cf6', width: 2 },
               itemStyle: { color: '#8b5cf6' } },
+            { value: [72, 82, 70, 55, 82, 78], name: 'XGBoost',
+              areaStyle: { color: 'rgba(59, 130, 246, 0.15)' },
+              lineStyle: { color: '#3b82f6', width: 2 },
+              itemStyle: { color: '#3b82f6' } },
           ],
         }],
       };
-      radarInstance.setOption(option);
+      radarInstance.setOption(option, true);
     };
 
     const renderBacktest = async () => {

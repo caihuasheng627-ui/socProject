@@ -667,6 +667,22 @@ body::before {
     width: 100%;
     flex-wrap: wrap;
   }
+  .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .btn,
+  .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .export-group {
+    flex-shrink: 0;
+  }
+  .models-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .lab-chart-box,
+  .radar-container {
+    height: 260px;
+  }
+  /* 模型表：平板也隐藏次要列，减少横向滚动 */
+  .models-regression-table .col-hide-mobile {
+    display: none;
+  }
   /* 网格:所有 grid 改为单列或 2 列 */
   .grid-2,
   .grid-3,
@@ -691,23 +707,31 @@ body::before {
   .card-header > .flex.gap-2 {
     width: 100%;
   }
-  /* 表格横向滚动 */
-  .data-table {
-    display: block;
+  /* 表格横向滚动：外层滚动，保留原生 table 布局，表头与内容列对齐 */
+  .table-scroll {
     overflow-x: auto;
-    white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    max-width: 100%;
   }
-  .data-table thead,
-  .data-table tbody,
+  .data-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  /* 切勿把 thead/tbody 设成 table-row，否则会拆成独立表导致列错位 */
+  .data-table thead {
+    display: table-header-group;
+  }
+  .data-table tbody {
+    display: table-row-group;
+  }
   .data-table tr {
-    display: table;
-    width: 100%;
-    table-layout: auto;
+    display: table-row;
   }
-  /* 表格容器 */
-  .card:has(.data-table) {
-    overflow-x: auto;
+  .data-table th,
+  .data-table td {
+    display: table-cell;
   }
   /* Topbar 隐藏页面标题 */
   .page-title {
@@ -780,7 +804,7 @@ body::before {
   }
   /* Chart canvas 自适应 */
   .radar-container,
-  [ref="backtestChart"] {
+  .lab-chart-box {
     height: 260px !important;
   }
   /* 顶部指标卡 */
@@ -1194,13 +1218,8 @@ body.sidebar-open {
 }
 
 /* ============ K线图区域 ============ */
-.kline-toolbar {
+.card-header .kline-toolbar {
   margin-bottom: 0;
-}
-
-.card-header + .kline-wrap,
-.card-header ~ .kline-wrap {
-  /* toolbar lives in card-header; keep spacing tight */
 }
 
 .timeframe-btn {
@@ -2038,13 +2057,31 @@ i.ph-duotone {
               box-shadow var(--duration-slow) var(--ease-in-out);
 }
 
-/* ============ 雷达图区域 ============ */
+/* ============ 模型实验室图表 ============ */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lab-chart-box,
 .radar-container {
-  height: 340px;
+  height: 320px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+  padding: 12px;
+}
+
+.radar-container {
+  height: 340px;
   padding: 14px;
+}
+
+.models-regression-table th,
+.models-regression-table td {
+  vertical-align: middle;
 }
 
 /* ============ 时间线 / 预警列表 ============ */

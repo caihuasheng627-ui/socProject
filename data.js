@@ -101,12 +101,12 @@ const MODEL_COMPARISON = {
   hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
   note: 'Fair test metrics. Hybrid route frozen on val: low→C, mid/high→D. LSTM-C best RMSE/MAE/R²; RF best MAPE. Hybrid is NOT strictly best on all metrics.',
   regression: [
-    { name: 'LSTM-C', rmse: 44.37, mae: 6.27, mape: 10.95, r2: 0.9374, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, type: 'DL · 共享面板' },
-    { name: 'LSTM-D', rmse: 52.09, mae: 7.02, mape: 7.72, r2: 0.9137, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, type: 'DL · 分组' },
-    { name: 'Hybrid', rmse: 52.09, mae: 7.02, mape: 10.69, r2: 0.9137, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, type: '部署路由' },
-    { name: 'Random Forest', rmse: 52.82, mae: 7.26, mape: 6.26, r2: 0.9113, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, type: '树 · MAPE最优' },
-    { name: 'LightGBM', rmse: 58.36, mae: 8.46, mape: 6.34, r2: 0.8917, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '树模型' },
-    { name: 'XGBoost', rmse: 61.76, mae: 9.17, mape: 7.93, r2: 0.8787, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '树模型' },
+    { name: 'LSTM-C', rmse: 44.37, mae: 6.27, mape: 10.95, r2: 0.9374, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, type: 'DL · 共享面板', course: 'DL · panel Embedding' },
+    { name: 'LSTM-D', rmse: 52.09, mae: 7.02, mape: 7.72, r2: 0.9137, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, type: 'DL · 分组', course: 'DL · price tiers' },
+    { name: 'Hybrid', rmse: 52.09, mae: 7.02, mape: 10.69, r2: 0.9137, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, type: '部署路由', course: 'Route: low→C, mid/high→D' },
+    { name: 'Random Forest', rmse: 52.82, mae: 7.26, mape: 6.26, r2: 0.9113, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
+    { name: 'LightGBM', rmse: 58.36, mae: 8.46, mape: 6.34, r2: 0.8917, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '树模型', course: 'Tree ensemble' },
+    { name: 'XGBoost', rmse: 61.76, mae: 9.17, mape: 7.93, r2: 0.8787, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '树模型', course: 'Tree ensemble' },
   ],
   classification: [
     { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, type: '线性基线' },
