@@ -2645,7 +2645,7 @@ i.ph-duotone {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Syne', 'Outfit', sans-serif;
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -2723,7 +2723,7 @@ i.ph-duotone {
 
 .landing-hero-eyebrow {
   margin: 0 0 12px;
-  font-family: 'Syne', 'Outfit', sans-serif;
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2734,12 +2734,12 @@ i.ph-duotone {
 
 .landing-hero-title {
   margin: 0 auto 20px;
-  max-width: 14em;
-  font-family: 'Syne', 'Outfit', sans-serif;
-  font-size: clamp(40px, 7vw, 76px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.06;
+  max-width: 15em;
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: clamp(38px, 6.4vw, 68px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   color: var(--lp-text);
   animation: landingRise 0.8s var(--ease-out-expo) 0.06s both;
 }
@@ -2951,11 +2951,11 @@ i.ph-duotone {
 .landing-title {
   margin: 0 auto 16px;
   max-width: 16em;
-  font-family: 'Syne', 'Outfit', sans-serif;
-  font-size: clamp(32px, 5vw, 56px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: clamp(30px, 4.6vw, 52px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.16;
 }
 
 .landing-title--tile {
@@ -3240,7 +3240,7 @@ i.ph-duotone {
 .landing-auth-title {
   margin: 0;
   padding-right: 36px;
-  font-family: 'Syne', 'Outfit', sans-serif;
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
