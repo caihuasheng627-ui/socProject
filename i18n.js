@@ -15,7 +15,7 @@ const I18N = {
     'app.footer.github': 'GitHub',
 
     // ============ 首屏 Landing ============
-    'landing.headline': '看清 CS2 饰品下一步怎么走',
+    'landing.headline': '看清 CS2 饰品\n下一步怎么走',
     'landing.lead': 'Hybrid 预测 · 双 Agent 辩论 · 持仓诊断，一站完成分析与决策辅助。',
     'landing.cta': '进入分析面板',
     'landing.highlightsLabel': '平台亮点',
@@ -392,7 +392,7 @@ const I18N = {
     'app.footer.github': 'GitHub',
 
     // ============ Landing ============
-    'landing.headline': 'See where CS2 skins move next',
+    'landing.headline': 'See where CS2 skins\nmove next',
     'landing.lead': 'Hybrid forecasts, bull–bear debate, and portfolio diagnostics in one workspace.',
     'landing.cta': 'Enter analysis panel',
     'landing.highlightsLabel': 'Highlights',

@@ -3417,10 +3417,11 @@ i.ph-duotone {
   }
   .landing-hero-title {
     max-width: 100%;
-    font-size: clamp(28px, 7.2vw, 34px);
+    font-size: clamp(30px, 8vw, 36px);
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.35;
+    white-space: pre-line;
   }
   :lang(zh-CN) .landing-hero-title {
     font-weight: 600;
