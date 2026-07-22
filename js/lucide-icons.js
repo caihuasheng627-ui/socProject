@@ -52,6 +52,8 @@ window.LucideIcons = {
   'keyboard': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M6 12h.01"/><path d="M10 12h.01"/><path d="M14 12h.01"/><path d="M18 12h.01"/><path d="M7 16h10"/>',
   'paper-plane': '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   'file-pdf': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  'lock': '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
 };
 
 // 渲染 Lucide 图标为 SVG
@@ -111,7 +113,11 @@ window.ph2lucide = {
   'rocket-launch': 'rocket',
   'download-simple': 'download',
   'file-csv': 'file-csv',
+  'file-pdf': 'file-pdf',
+  'brackets-curly': 'brackets',
   'paper-plane-right': 'paper-plane',
+  'arrow-left': 'arrow-left',
+  'lock-key': 'lock',
 };
 
 // 自动扫描 DOM 并替换 <i class="ph-*"> 元素为内嵌 Lucide SVG
