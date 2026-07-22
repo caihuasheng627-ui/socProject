@@ -63,8 +63,8 @@ def _adjust_action(pred_change: float, vol30: float) -> tuple[str, str]:
     return "持有", f"预测 {pred_change:+.1f}%,信号不明确,持有观望"
 
 
-def diagnose() -> dict:
-    """/api/portfolio/diagnose 主入口。"""
+def diagnose(user_id: int | None = None) -> dict:
+    """/api/portfolio/diagnose 主入口。user_id 给定时只诊断该用户持仓。"""
     loader = get_loader()
     items_out: list[dict] = []
     risk_rows: list[dict] = []
@@ -75,11 +75,19 @@ def diagnose() -> dict:
     total_pred30_high = 0.0
 
     with get_connection() as conn:
-        positions = conn.execute(
-            """SELECT p.*, s.market_hash_name, s.slug, s.category
-               FROM portfolio p JOIN skins s ON s.id=p.skin_id
-               ORDER BY p.id"""
-        ).fetchall()
+        if user_id is not None:
+            positions = conn.execute(
+                """SELECT p.*, s.market_hash_name, s.slug, s.category
+                   FROM portfolio p JOIN skins s ON s.id=p.skin_id
+                   WHERE p.user_id=? ORDER BY p.id""",
+                (user_id,),
+            ).fetchall()
+        else:
+            positions = conn.execute(
+                """SELECT p.*, s.market_hash_name, s.slug, s.category
+                   FROM portfolio p JOIN skins s ON s.id=p.skin_id
+                   ORDER BY p.id"""
+            ).fetchall()
         if not positions:
             return {"error": "portfolio 为空,请先添加持仓"}
 

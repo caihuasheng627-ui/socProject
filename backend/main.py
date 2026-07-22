@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -29,6 +29,7 @@ from database import (
     weapon_to_category,
 )
 from model_loader import get_loader
+from auth import get_current_user, get_current_user_optional, register_user, authenticate_user
 import rag
 import agent_debate
 import portfolio_diagnose
@@ -84,6 +85,11 @@ class AlertReq(BaseModel):
     type: str = "above"
     targetPrice: float
     note: str | None = None
+
+
+class AuthReq(BaseModel):
+    username: str
+    password: str
 
 
 # ============================================================
@@ -347,14 +353,29 @@ async def chat(req: ChatReq):
 
 
 # ============================================================
-# 🆕 P0:Portfolio CRUD
+# 🆕 认证:注册 / 登录
+# ============================================================
+@app.post("/api/register")
+def api_register(req: AuthReq):
+    return register_user(req.username, req.password)
+
+
+@app.post("/api/login")
+def api_login(req: AuthReq):
+    return authenticate_user(req.username, req.password)
+
+
+# ============================================================
+# 🆕 P0:Portfolio CRUD(需登录,按 user_id 隔离)
 # ============================================================
 @app.get("/api/portfolio")
-def get_portfolio():
+def get_portfolio(current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT p.*, s.market_hash_name, s.slug, s.category
-               FROM portfolio p JOIN skins s ON s.id=p.skin_id ORDER BY p.id"""
+               FROM portfolio p JOIN skins s ON s.id=p.skin_id
+               WHERE p.user_id=? ORDER BY p.id""",
+            (current_user["id"],),
         ).fetchall()
         items = []
         for r in rows:
@@ -376,17 +397,17 @@ def get_portfolio():
 
 
 @app.post("/api/portfolio")
-def add_portfolio(req: PortfolioReq):
+def add_portfolio(req: PortfolioReq, current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
         skin = resolve_skin(conn, req.skinId)
         if not skin:
             raise HTTPException(404, "skin not found")
         cur = _utcnow().isoformat()
         c = conn.execute(
-            """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at)
-               VALUES (?,?,?,?,?,?,?)""",
+            """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (skin["id"], req.holdingType, req.buyPrice, req.buyDate,
-             req.quantity, None, cur),
+             req.quantity, None, cur, current_user["id"]),
         )
         conn.commit()
         pid = c.lastrowid
@@ -395,9 +416,10 @@ def add_portfolio(req: PortfolioReq):
 
 
 @app.delete("/api/portfolio/{item_id}")
-def delete_portfolio(item_id: int):
+def delete_portfolio(item_id: int, current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
-        r = conn.execute("DELETE FROM portfolio WHERE id=?", (item_id,))
+        r = conn.execute("DELETE FROM portfolio WHERE id=? AND user_id=?",
+                         (item_id, current_user["id"]))
         conn.commit()
         if r.rowcount == 0:
             raise HTTPException(404, "not found")
@@ -405,19 +427,19 @@ def delete_portfolio(item_id: int):
 
 
 # ============================================================
-# 🆕 P1:Portfolio value_history(SQL 聚合)
+# 🆕 P1:Portfolio value_history(SQL 聚合,需登录)
 # ============================================================
 @app.get("/api/portfolio/value_history")
-def portfolio_value_history(days: int = 90):
+def portfolio_value_history(days: int = 90, current_user: dict = Depends(get_current_user_optional)):
     """portfolio JOIN price_history GROUP BY date → 总市值曲线。"""
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT p.date AS date, SUM(p.price * po.quantity) AS value
                FROM price_history p
                JOIN portfolio po ON po.skin_id = p.skin_id
-               WHERE p.date >= date((SELECT MAX(date) FROM price_history), ?)
+               WHERE po.user_id=? AND p.date >= date((SELECT MAX(date) FROM price_history), ?)
                GROUP BY p.date ORDER BY p.date""",
-            (f"-{days} days",),
+            (current_user["id"], f"-{days} days"),
         ).fetchall()
     if not rows:
         # 兜底:用各持仓最新价 × 数量 单点
@@ -428,11 +450,11 @@ def portfolio_value_history(days: int = 90):
 
 
 # ============================================================
-# 🆕 P1:组合诊断
+# 🆕 P1:组合诊断(需登录)
 # ============================================================
 @app.post("/api/portfolio/diagnose")
-def diagnose_portfolio():
-    result = portfolio_diagnose.diagnose()
+def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
+    result = portfolio_diagnose.diagnose(user_id=current_user["id"])
     if "error" in result:
         raise HTTPException(400, result["error"])
     return result
@@ -490,11 +512,11 @@ def debate(skin_id: str, mode: str = "bull_bear", live: bool = False):
 # 预警
 # ============================================================
 @app.get("/api/alerts")
-def get_alerts(active: bool | None = None):
+def get_alerts(active: bool | None = None, current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
         q = """SELECT a.*, s.market_hash_name, s.slug FROM alerts a
-               JOIN skins s ON s.id=a.skin_id WHERE 1=1"""
-        params: list[Any] = []
+               JOIN skins s ON s.id=a.skin_id WHERE a.user_id=?"""
+        params: list[Any] = [current_user["id"]]
         if active is not None:
             q += " AND a.active=?"; params.append(int(active))
         rows = conn.execute(q + " ORDER BY a.id DESC", params).fetchall()
@@ -510,14 +532,14 @@ def get_alerts(active: bool | None = None):
 
 
 @app.post("/api/alerts", status_code=201)
-def create_alert(req: AlertReq):
+def create_alert(req: AlertReq, current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
         skin = resolve_skin(conn, req.skinId)
         if not skin:
             raise HTTPException(404, "skin not found")
         c = conn.execute(
-            "INSERT INTO alerts(skin_id, type, target_price, note, active, created_at) VALUES (?,?,?,?,1,?)",
-            (skin["id"], req.type, req.targetPrice, req.note, _utcnow().isoformat()),
+            "INSERT INTO alerts(skin_id, type, target_price, note, active, created_at, user_id) VALUES (?,?,?,?,1,?,?)",
+            (skin["id"], req.type, req.targetPrice, req.note, _utcnow().isoformat(), current_user["id"]),
         )
         conn.commit()
         return {"id": c.lastrowid, "skinId": skin["slug"], "type": req.type,
@@ -525,9 +547,10 @@ def create_alert(req: AlertReq):
 
 
 @app.delete("/api/alerts/{alert_id}", status_code=204)
-def delete_alert(alert_id: int):
+def delete_alert(alert_id: int, current_user: dict = Depends(get_current_user_optional)):
     with get_connection() as conn:
-        r = conn.execute("DELETE FROM alerts WHERE id=?", (alert_id,))
+        r = conn.execute("DELETE FROM alerts WHERE id=? AND user_id=?",
+                         (alert_id, current_user["id"]))
         conn.commit()
         if r.rowcount == 0:
             raise HTTPException(404, "not found")
@@ -591,7 +614,20 @@ def models_backtest(days: int = 60, skinId: str | None = None):
         p = OUTPUT_DIR / "backtest_curves.json"
     if p.exists():
         try:
-            return json.loads(p.read_text(encoding="utf-8"))
+            raw = json.loads(p.read_text(encoding="utf-8"))
+            # 原始结构:{fee_0.0000:{lstm_c:[{date,capital}], lstm_d:[...], hybrid:[...]}, buy_hold:[{date,capital}]}
+            # 转成前端要的 {dates:[str], series:{模型名:[capital]}}
+            fee = raw.get("fee_0.0000") if isinstance(raw, dict) else None
+            buy_hold = raw.get("buy_hold") if isinstance(raw, dict) else None
+            if fee and buy_hold:
+                dates = [pt.get("date", "") for pt in buy_hold]
+                series = {}
+                for key, label in (("lstm_c", "LSTM-C"), ("lstm_d", "LSTM-D"), ("hybrid", "Hybrid")):
+                    arr = fee.get(key) or []
+                    series[label] = [round(pt.get("capital", 0), 2) for pt in arr]
+                series["Buy&Hold"] = [round(pt.get("capital", 0), 2) for pt in buy_hold]
+                return {"dates": dates, "series": series}
+            return raw
         except Exception:
             pass
     return {"dates": [], "series": {}}

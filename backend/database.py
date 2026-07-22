@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS model_registry (
 
 CREATE TABLE IF NOT EXISTS alerts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER,                -- 🆕 所属用户(NULL=旧数据,归 demo)
     skin_id      INTEGER NOT NULL,
     type         TEXT,                  -- above / below
     target_price REAL,
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 -- 🆕 portfolio 转正(P0 核心表),加 holding_type(real/sim)
 CREATE TABLE IF NOT EXISTS portfolio (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER,               -- 🆕 所属用户(NULL=旧数据,归 demo)
     skin_id       INTEGER NOT NULL,
     holding_type  TEXT DEFAULT 'real',   -- real=真实持仓 / sim=模拟持仓
     buy_price     REAL,                  -- 可空(模拟持仓可不填成本)
@@ -200,12 +202,60 @@ CREATE TABLE IF NOT EXISTS portfolio (
     created_at    TEXT,
     FOREIGN KEY (skin_id) REFERENCES skins(id)
 );
+
+-- 🆕 用户表(注册/登录)
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,         -- bcrypt(sha256(p)) base64
+    created_at    TEXT,
+    is_demo       INTEGER DEFAULT 0      -- 1=内置 demo 用户
+);
 """
+
+
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    return column in cols
+
+
+def migrate_add_user_columns() -> None:
+    """幂等:给已存在的 portfolio/alerts 表补 user_id 列 + 索引(新库由 CREATE TABLE 已带列)。"""
+    with get_connection() as conn:
+        if not _column_exists(conn, "portfolio", "user_id"):
+            conn.execute("ALTER TABLE portfolio ADD COLUMN user_id INTEGER")
+        if not _column_exists(conn, "alerts", "user_id"):
+            conn.execute("ALTER TABLE alerts ADD COLUMN user_id INTEGER")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)")
+        conn.commit()
+
+
+def ensure_demo_user() -> int:
+    """创建内置 demo 用户(若缺),并把 user_id IS NULL 的 portfolio/alerts 行归给它。"""
+    from config import DEMO_USERNAME, DEMO_PASSWORD
+    from auth import hash_password  # 延迟 import,避免循环依赖
+    with get_connection() as conn:
+        row = conn.execute("SELECT id FROM users WHERE username=?", (DEMO_USERNAME,)).fetchone()
+        if row:
+            demo_id = row["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO users(username, password_hash, created_at, is_demo) VALUES (?,?,?,1)",
+                (DEMO_USERNAME, hash_password(DEMO_PASSWORD), _utcnow().isoformat()),
+            )
+            demo_id = cur.lastrowid
+        # 把旧的无主持仓/预警归给 demo(仅对已有库生效一次)
+        conn.execute("UPDATE portfolio SET user_id=? WHERE user_id IS NULL", (demo_id,))
+        conn.execute("UPDATE alerts SET user_id=? WHERE user_id IS NULL", (demo_id,))
+        conn.commit()
+        return demo_id
 
 
 def init_schema() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+    migrate_add_user_columns()
 
 
 # ============================================================
@@ -310,10 +360,15 @@ SEED_NEWS = [
 
 
 def seed_portfolio() -> None:
-    """Expo 预置 3-5 件持仓(real/sim 混合)。"""
+    """Expo 预置 3-5 件持仓(real/sim 混合),归 demo 用户。仅在空库时执行。"""
+    from config import DEMO_USERNAME
     with get_connection() as conn:
         if conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0] > 0:
             return
+        demo_row = conn.execute("SELECT id FROM users WHERE username=?", (DEMO_USERNAME,)).fetchone()
+        if demo_row is None:
+            return  # ensure_demo_user 应已创建;兜底跳过
+        demo_id = demo_row["id"]
         today = _utcnow().strftime("%Y-%m-%d")
         for frag, htype, buy_mult, qty, note in SEED_PORTFOLIO_NAMES:
             row = conn.execute(
@@ -332,12 +387,12 @@ def seed_portfolio() -> None:
             buy_price = round(cur * buy_mult, 2) if (buy_mult and cur) else None
             buy_date = (_utcnow() - timedelta(days=45)).strftime("%Y-%m-%d")
             conn.execute(
-                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (skin_id, htype, buy_price, buy_date, qty, note, today),
+                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (skin_id, htype, buy_price, buy_date, qty, note, today, demo_id),
             )
         n = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        print(f"[db] 种子 portfolio={n} 件")
+        print(f"[db] 种子 portfolio={n} 件(归 demo 用户)")
         conn.commit()
 
 
@@ -458,6 +513,7 @@ def run_init() -> None:
     ensure_dirs()
     init_schema()
     import_skins_and_prices()
+    ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     seed_portfolio()
     seed_news()
     seed_model_registry()

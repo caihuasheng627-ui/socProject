@@ -37,6 +37,14 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 LLM_ENABLED = bool(DEEPSEEK_API_KEY)   # 无 Key → 全部走 Mock/预录回放
 
+# ---------- JWT / 认证 ----------
+JWT_SECRET = os.getenv("JWT_SECRET", "skinvision-dev-secret-change-me")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "7"))
+# 内置 demo 用户(拥有 6 件种子持仓,Expo 演示免注册)
+DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo123")
+
 # ---------- 数据源开关 ----------
 USE_BUFF_LIVE = os.getenv("USE_BUFF_LIVE", "0") == "1"   # 默认关:用已落库历史价
 RSS_FEEDS = [
