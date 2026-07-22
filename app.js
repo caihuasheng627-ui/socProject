@@ -111,11 +111,35 @@ const app = createApp({
     const currentPage = ref('dashboard');
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
-    // ============ 首屏 Landing ============
-    const showLanding = ref(sessionStorage.getItem('sv_entered') !== '1');
+    // ============ 用户认证（前端本地，后端未接入） ============
+    // 启动页强制登录：未登录一律停留在 Landing，不允许游客进入平台
+    const Auth = window.CSVestAuth;
+    const currentUser = ref(Auth?.getCurrentUser?.() || null);
+    const authMode = ref('login');
+    const authForm = ref({ name: '', email: '', password: '' });
+    const authError = ref('');
+    const authSubmitting = ref(false);
+    const userMenuOpen = ref(false);
+    const showProfileModal = ref(false);
+    const profileNameDraft = ref('');
+    const userAvatarChar = computed(() => Auth.avatarChar(currentUser.value || { name: '?' }));
+
+    const mustLogin = () => !currentUser.value;
+    const showLanding = ref(mustLogin() || sessionStorage.getItem('sv_entered') !== '1');
     const landingExiting = ref(false);
+
+    // 若会话失效但仍标记已进入，强制回到启动页登录
+    if (mustLogin()) {
+      sessionStorage.removeItem('sv_entered');
+      showLanding.value = true;
+    }
+
     const enterSystem = () => {
       if (landingExiting.value || !showLanding.value) return;
+      if (mustLogin()) {
+        authError.value = t('auth.err.required');
+        return;
+      }
       landingExiting.value = true;
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
@@ -138,21 +162,6 @@ const app = createApp({
       }
       setTimeout(done, 520);
     };
-
-    // ============ 用户认证（前端本地，后端未接入） ============
-    const Auth = window.CSVestAuth;
-    const currentUser = ref(Auth?.getCurrentUser?.() || null);
-    const authMode = ref('login');
-    const authForm = ref({ name: '', email: '', password: '' });
-    const authError = ref('');
-    const authSubmitting = ref(false);
-    const userMenuOpen = ref(false);
-    const showProfileModal = ref(false);
-    const profileNameDraft = ref('');
-    const userAvatarChar = computed(() => {
-      if (!currentUser.value) return Auth.avatarChar({ name: t('auth.guest') });
-      return Auth.avatarChar(currentUser.value);
-    });
 
     const authErrorMessage = (code) => {
       const map = {
@@ -197,11 +206,6 @@ const app = createApp({
       enterSystem();
     };
 
-    const enterAsGuest = () => {
-      showToast({ title: t('auth.toast.guest'), type: 'info' });
-      enterSystem();
-    };
-
     const logoutUser = () => {
       Auth?.logout?.();
       currentUser.value = null;
@@ -210,16 +214,7 @@ const app = createApp({
       authMode.value = 'login';
       authError.value = '';
       showToast({ title: t('auth.toast.logoutOk'), type: 'success' });
-      // 回到启动页重新登录
-      sessionStorage.removeItem('sv_entered');
-      showLanding.value = true;
-      landingExiting.value = false;
-    };
-
-    const returnToLandingForLogin = () => {
-      userMenuOpen.value = false;
-      authMode.value = 'login';
-      authError.value = '';
+      // 退出后必须回到启动页重新登录
       sessionStorage.removeItem('sv_entered');
       showLanding.value = true;
       landingExiting.value = false;
@@ -1844,8 +1839,8 @@ const app = createApp({
       showLanding, landingExiting, enterSystem,
       // 用户认证
       currentUser, authMode, authForm, authError, authSubmitting,
-      submitLogin, submitRegister, enterAsGuest, logoutUser,
-      returnToLandingForLogin, userMenuOpen, userAvatarChar,
+      submitLogin, submitRegister, logoutUser,
+      userMenuOpen, userAvatarChar,
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,

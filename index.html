@@ -180,7 +180,6 @@
             </button>
 
             <p class="landing-auth-hint">{{ t('auth.demoHint') }}</p>
-            <button type="button" class="landing-auth-link" @click="enterAsGuest">{{ t('auth.guestEnter') }}</button>
           </form>
         </div>
 
@@ -192,7 +191,7 @@
       </div>
     </section>
 
-    <template v-if="!showLanding">
+    <template v-if="!showLanding && currentUser">
     <!-- 移动端侧边栏遮罩 -->
     <div class="sidebar-overlay" :class="{ show: sidebarOpen }" @click="sidebarOpen = false"></div>
 
@@ -281,23 +280,17 @@
             <button
               type="button"
               class="user-avatar"
-              :class="{ guest: !currentUser }"
-              :aria-label="currentUser ? t('auth.userMenu', { name: currentUser.name }) : t('auth.guest')"
+              :aria-label="t('auth.userMenu', { name: currentUser?.name || '' })"
               :aria-expanded="userMenuOpen"
               @click="userMenuOpen = !userMenuOpen"
             >{{ userAvatarChar }}</button>
             <div v-if="userMenuOpen" class="user-menu-dropdown" role="menu">
               <div class="user-menu-header">
-                <div class="user-menu-name">{{ currentUser ? currentUser.name : t('auth.guest') }}</div>
-                <div class="user-menu-email">{{ currentUser ? currentUser.email : t('auth.guestHint') }}</div>
+                <div class="user-menu-name">{{ currentUser?.name }}</div>
+                <div class="user-menu-email">{{ currentUser?.email }}</div>
               </div>
-              <template v-if="currentUser">
-                <button type="button" class="user-menu-item" role="menuitem" @click="openProfileEditor">{{ t('auth.editProfile') }}</button>
-                <button type="button" class="user-menu-item danger" role="menuitem" @click="logoutUser">{{ t('auth.logout') }}</button>
-              </template>
-              <template v-else>
-                <button type="button" class="user-menu-item" role="menuitem" @click="returnToLandingForLogin">{{ t('auth.login') }}</button>
-              </template>
+              <button type="button" class="user-menu-item" role="menuitem" @click="openProfileEditor">{{ t('auth.editProfile') }}</button>
+              <button type="button" class="user-menu-item danger" role="menuitem" @click="logoutUser">{{ t('auth.logout') }}</button>
             </div>
           </div>
         </div>
