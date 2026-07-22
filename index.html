@@ -1227,7 +1227,7 @@
               <thead>
                 <tr>
                   <th>{{ t('models.col.model') }}</th>
-                  <th>{{ t('models.col.type') }}</th>
+                  <th class="col-hide-narrow">{{ t('models.col.type') }}</th>
                   <th>{{ t('models.col.rmse') }}</th>
                   <th>{{ t('models.col.mae') }}</th>
                   <th>{{ t('models.col.mape') }}</th>
@@ -1240,19 +1240,21 @@
               <tbody>
                 <tr v-for="m in regressionModels" :key="m.name">
                   <td>
-                    <strong>{{ m.name }}</strong>
-                    <span v-if="m.name === 'LSTM-C'" class="tag tag-orange" style="margin-left: 6px;">
-                      <i class="ph-fill ph-star" style="font-size: 11px; margin-right: 2px;" aria-hidden="true"></i>
-                      {{ t('models.star') }}
-                    </span>
-                    <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue" style="margin-left: 6px;">
-                      Route
-                    </span>
-                    <span v-else-if="m.name === 'Random Forest'" class="tag tag-green" style="margin-left: 6px;">
-                      MAPE
-                    </span>
+                    <div class="model-cell">
+                      <strong>{{ m.name }}</strong>
+                      <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">
+                        <i class="ph-fill ph-star" style="font-size: 11px; margin-right: 2px;" aria-hidden="true"></i>
+                        {{ t('models.star') }}
+                      </span>
+                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">
+                        Route
+                      </span>
+                      <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">
+                        MAPE
+                      </span>
+                    </div>
                   </td>
-                  <td><span class="tag">{{ m.type }}</span></td>
+                  <td class="col-hide-narrow"><span class="tag">{{ m.type }}</span></td>
                   <td>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</td>
                   <td>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</td>
                   <td>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</td>

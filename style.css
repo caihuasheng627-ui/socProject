@@ -679,8 +679,9 @@ body::before {
   .radar-container {
     height: 260px;
   }
-  /* 模型表：平板也隐藏次要列，减少横向滚动 */
-  .models-regression-table .col-hide-mobile {
+  /* 模型表：窄屏隐藏类型/速度/课程，优先露出核心指标 */
+  .models-regression-table .col-hide-mobile,
+  .models-regression-table .col-hide-narrow {
     display: none;
   }
   /* 网格:所有 grid 改为单列或 2 列 */
@@ -2082,6 +2083,18 @@ i.ph-duotone {
 .models-regression-table th,
 .models-regression-table td {
   vertical-align: middle;
+}
+
+.models-regression-table .model-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.models-regression-table .model-cell .tag {
+  margin-left: 0 !important;
 }
 
 /* ============ 时间线 / 预警列表 ============ */
