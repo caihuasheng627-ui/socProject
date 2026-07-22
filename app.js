@@ -104,7 +104,16 @@ const app = createApp({
       }
     };
 
-    const currentPage = ref('dashboard');
+    const currentPage = ref((() => {
+      try {
+        const saved = sessionStorage.getItem('sv_page');
+        if (saved && typeof saved === 'string') return saved;
+      } catch (_) { /* ignore */ }
+      return 'dashboard';
+    })());
+    watch(currentPage, (pageId) => {
+      try { sessionStorage.setItem('sv_page', pageId); } catch (_) { /* ignore */ }
+    });
     const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
     const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
     // 二级视图在面包屑中的子标题
@@ -774,6 +783,15 @@ const app = createApp({
     );
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
+    const modelTypeLabel = (m) => {
+      if (!m) return '—';
+      if (m.typeKey) {
+        const key = 'models.type.' + m.typeKey;
+        const label = t(key);
+        if (label && label !== key) return label;
+      }
+      return m.type || '—';
+    };
     const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
 
     // ============ 行情看板 ============
@@ -1532,6 +1550,7 @@ const app = createApp({
     const renderRadar = () => {
       if (!radarChart.value) return;
       radarInstance = getOrCreateChart(radarInstance, radarChart.value);
+      const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
 
       // 与回归表主模型对齐，避免图例 4 条、曲线更多的错位观感
       const option = {
@@ -1539,22 +1558,24 @@ const app = createApp({
         tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
         legend: {
           data: ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'],
-          textStyle: { color: '#9ca3af', fontSize: 11 },
-          top: 0,
+          textStyle: { color: '#9ca3af', fontSize: narrow ? 10 : 11 },
+          top: narrow ? undefined : 0,
+          bottom: narrow ? 0 : undefined,
           type: 'scroll',
+          width: narrow ? '90%' : undefined,
         },
         radar: {
           indicator: [
-            { name: 'RMSE 精度', max: 100 },
-            { name: '训练速度', max: 100 },
-            { name: '可解释性', max: 100 },
-            { name: '回测收益', max: 100 },
-            { name: 'R²', max: 100 },
-            { name: '泛化能力', max: 100 },
+            { name: t('models.radar.rmse'), max: 100 },
+            { name: t('models.radar.speed'), max: 100 },
+            { name: t('models.radar.explain'), max: 100 },
+            { name: t('models.radar.return'), max: 100 },
+            { name: t('models.radar.r2'), max: 100 },
+            { name: t('models.radar.generalize'), max: 100 },
           ],
-          center: ['50%', '58%'],
-          radius: '58%',
-          axisName: { color: '#9ca3af', fontSize: 11 },
+          center: ['50%', narrow ? '52%' : '58%'],
+          radius: narrow ? '52%' : '58%',
+          axisName: { color: '#9ca3af', fontSize: narrow ? 10 : 11 },
           splitLine: { lineStyle: { color: '#2a3447' } },
           splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.05)'] } },
           axisLine: { lineStyle: { color: '#374151' } },
@@ -1893,6 +1914,19 @@ const app = createApp({
       // (Phosphor 字体 404,这些图标原本不可见)
       window.processPhIcons && window.processPhIcons();
 
+      // 刷新后若仍停在模型页，需主动渲染图表（watch 不会在初始值触发）
+      if (!showLanding.value && currentPage.value === 'models') {
+        await loadModelsFromApi();
+        setTimeout(() => {
+          renderRadar();
+          renderBacktest();
+          renderShap();
+          radarInstance?.resize();
+          backtestInstance?.resize();
+          shapInstance?.resize();
+        }, 120);
+      }
+
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
     });
 
@@ -1917,6 +1951,9 @@ const app = createApp({
           renderRadar();
           renderBacktest();
           renderShap();
+          radarInstance?.resize();
+          backtestInstance?.resize();
+          shapInstance?.resize();
         }, 100);
       } else if (newPage === 'daily') {
         await loadDailyReport();
@@ -1982,7 +2019,7 @@ const app = createApp({
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
       portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
       // 模型
-      regressionModels, classificationModels, modelComparison, hybridRoute,
+      regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
       radarChart, backtestChart, shapChart,
       // 工具
       formatPrice, exportData, renderIcon,

@@ -679,14 +679,55 @@ body::before {
   .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .btn,
   .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .export-group {
     flex-shrink: 0;
+    flex-grow: 0;
+    height: auto;
+    align-self: flex-start;
   }
   .models-page-actions {
     width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-start;
+    gap: 8px;
+  }
+  .models-page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .models-page-intro {
+    width: 100%;
+    flex: 0 0 auto !important;
+  }
+  .models-page-actions .btn,
+  .models-page-actions .export-group,
+  .models-page-actions .btn-primary {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: auto !important;
+    align-self: auto !important;
+    white-space: nowrap;
+  }
+  .models-page-title {
+    font-size: 18px;
+  }
+  /* 窄屏改用卡片，彻底避免宽表裁切 */
+  .models-page .models-table-desktop {
+    display: none;
+  }
+  .models-page .models-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .lab-chart-box,
   .radar-container {
     height: 260px;
+  }
+  .models-page .radar-container {
+    height: 300px;
   }
   /* 模型表：窄屏隐藏类型/速度/课程，优先露出核心指标 */
   .models-regression-table .col-hide-mobile,
@@ -2129,6 +2170,130 @@ i.ph-duotone {
 
 .models-regression-table .model-cell .tag {
   margin-left: 0 !important;
+}
+
+/* 模型实验室移动端卡片（默认隐藏，窄屏启用） */
+.models-card-list {
+  display: none;
+}
+
+.models-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.models-page-intro {
+  min-width: 0;
+}
+
+.models-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.models-strategy-list {
+  line-height: 1.9;
+  padding-left: 4px;
+  font-size: 13px;
+  list-style: none;
+}
+
+.models-findings-box {
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.models-findings-text {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.model-metric-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  padding: 12px;
+}
+
+.model-metric-card--muted {
+  opacity: 0.92;
+}
+
+.model-metric-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.model-metric-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.model-metric-card__title strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.model-metric-card__type {
+  flex-shrink: 0;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-metric-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.model-metric-card__grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.model-metric-stat {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+}
+
+.model-metric-stat--wide {
+  grid-column: 1 / -1;
+}
+
+.model-metric-stat__label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-metric-stat__value {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 /* ============ 时间线 / 预警列表 ============ */
