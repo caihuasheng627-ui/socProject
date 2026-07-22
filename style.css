@@ -130,7 +130,8 @@
 html, body {
   height: 100%;
   height: 100dvh;
-  font-family: Outfit, 'Noto Sans SC', "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 中文系统字体优先；Outfit 仅兜底拉丁，避免 Google Fonts 失败时伪粗体发扁 */
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   background: var(--bg-root);
   color: var(--text-primary);
   font-size: 14px;
@@ -140,6 +141,12 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+  font-synthesis: none;
+}
+
+:lang(en) body,
+:lang(en-US) body {
+  font-family: Outfit, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
 }
 
 /* —— 环境光动画 (主背景) —— */
@@ -669,6 +676,23 @@ body::before {
     width: 100%;
     flex-wrap: wrap;
   }
+  .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .btn,
+  .content-area > .fade-in > .flex.justify-between.items-center > .flex.gap-2 .export-group {
+    flex-shrink: 0;
+  }
+  .models-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .lab-chart-box,
+  .radar-container {
+    height: 260px;
+  }
+  /* 模型表：窄屏隐藏类型/速度/课程，优先露出核心指标 */
+  .models-regression-table .col-hide-mobile,
+  .models-regression-table .col-hide-narrow {
+    display: none;
+  }
   /* 网格:所有 grid 改为单列或 2 列 */
   .grid-2,
   .grid-3,
@@ -693,23 +717,31 @@ body::before {
   .card-header > .flex.gap-2 {
     width: 100%;
   }
-  /* 表格横向滚动 */
-  .data-table {
-    display: block;
+  /* 表格横向滚动：外层滚动，保留原生 table 布局，表头与内容列对齐 */
+  .table-scroll {
     overflow-x: auto;
-    white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    max-width: 100%;
   }
-  .data-table thead,
-  .data-table tbody,
+  .data-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  /* 切勿把 thead/tbody 设成 table-row，否则会拆成独立表导致列错位 */
+  .data-table thead {
+    display: table-header-group;
+  }
+  .data-table tbody {
+    display: table-row-group;
+  }
   .data-table tr {
-    display: table;
-    width: 100%;
-    table-layout: auto;
+    display: table-row;
   }
-  /* 表格容器 */
-  .card:has(.data-table) {
-    overflow-x: auto;
+  .data-table th,
+  .data-table td {
+    display: table-cell;
   }
   /* Topbar 隐藏页面标题 */
   .page-title {
@@ -782,7 +814,7 @@ body::before {
   }
   /* Chart canvas 自适应 */
   .radar-container,
-  [ref="backtestChart"] {
+  .lab-chart-box {
     height: 260px !important;
   }
   /* 顶部指标卡 */
@@ -796,11 +828,17 @@ body::before {
     font-size: 24px;
   }
   .toast-container {
-    /* 避开顶栏，避免挡住页面标题 */
-    top: calc(52px + max(8px, env(safe-area-inset-top)));
+    /* 移动端改到底部，避免挡住顶栏标题与页头 */
+    top: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     right: 12px;
     left: 12px;
     align-items: stretch;
+  }
+  .toast {
+    max-width: none;
+    width: 100%;
+    animation: toastSlideUp 0.25s var(--ease-out-expo);
   }
   .chat-container {
     height: calc(100dvh - 52px);
@@ -1197,13 +1235,8 @@ body.sidebar-open {
 }
 
 /* ============ K线图区域 ============ */
-.kline-toolbar {
+.card-header .kline-toolbar {
   margin-bottom: 0;
-}
-
-.card-header + .kline-wrap,
-.card-header ~ .kline-wrap {
-  /* toolbar lives in card-header; keep spacing tight */
 }
 
 .timeframe-btn {
@@ -1975,7 +2008,9 @@ i.ph-duotone {
 .nav-icon-svg svg {
   width: 20px !important;
   height: 20px !important;
+  aspect-ratio: 1 / 1 !important;
   display: block !important;
+  flex-shrink: 0 !important;
 }
 
 .nav-item:hover .nav-icon-svg {
@@ -1994,6 +2029,22 @@ i.ph-duotone {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 通用：按钮/顶栏内 SVG 保持正方形，避免移动端被拉扁 */
+.btn svg,
+.menu-toggle svg,
+.theme-toggle svg,
+.lang-toggle svg,
+.toast svg,
+.export-group svg,
+.landing-btn svg,
+.landing-nav-logo svg,
+.menu-toggle-icon svg,
+.logo-icon svg {
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  max-width: none;
 }
 
 /* 顶栏图标按钮 */
@@ -2041,13 +2092,43 @@ i.ph-duotone {
               box-shadow var(--duration-slow) var(--ease-in-out);
 }
 
-/* ============ 雷达图区域 ============ */
+/* ============ 模型实验室图表 ============ */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lab-chart-box,
 .radar-container {
-  height: 340px;
+  height: 320px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+  padding: 12px;
+}
+
+.radar-container {
+  height: 340px;
   padding: 14px;
+}
+
+.models-regression-table th,
+.models-regression-table td {
+  vertical-align: middle;
+}
+
+.models-regression-table .model-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.models-regression-table .model-cell .tag {
+  margin-left: 0 !important;
 }
 
 /* ============ 时间线 / 预警列表 ============ */
@@ -2484,6 +2565,11 @@ i.ph-duotone {
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes toastSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .toast-icon { font-size: 16px; flex-shrink: 0; }
 .toast-content { flex: 1; }
 .toast-title { font-weight: 500; }
@@ -2600,7 +2686,7 @@ i.ph-duotone {
   color: var(--lp-text);
   height: 100vh;
   height: 100dvh;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   font-synthesis: none;
@@ -2649,7 +2735,7 @@ i.ph-duotone {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -2727,7 +2813,7 @@ i.ph-duotone {
 
 .landing-hero-eyebrow {
   margin: 0 0 12px;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2739,7 +2825,7 @@ i.ph-duotone {
 .landing-hero-title {
   margin: 0 auto 20px;
   max-width: 15em;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   font-size: clamp(38px, 6.4vw, 68px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -2754,9 +2840,13 @@ i.ph-duotone {
 :lang(zh-CN) .landing-title--tile,
 :lang(zh-CN) .landing-hero-eyebrow,
 :lang(zh-CN) .landing-nav-logo,
-:lang(zh-CN) .landing-auth-title {
-  /* 中文优先用 Noto/苹方，避免西文展示体字重套在汉字上显得扁宽 */
-  font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Outfit, sans-serif;
+:lang(zh-CN) .landing-auth-title,
+:lang(zh-CN) .page-title,
+:lang(zh-CN) .mobile-page-title,
+:lang(zh-CN) .card-title,
+:lang(zh-CN) .toast-title {
+  /* 系统中文字体优先；Noto 仅作可选增强，不依赖 Google Fonts */
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   letter-spacing: 0;
   font-synthesis: none;
 }
@@ -2968,7 +3058,7 @@ i.ph-duotone {
 .landing-title {
   margin: 0 auto 16px;
   max-width: 16em;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   font-size: clamp(30px, 4.6vw, 52px);
   font-weight: 700;
   letter-spacing: -0.015em;
@@ -3258,7 +3348,7 @@ i.ph-duotone {
 .landing-auth-title {
   margin: 0;
   padding-right: 36px;
-  font-family: Outfit, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Noto Sans SC', Outfit, system-ui, sans-serif;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -3425,7 +3515,13 @@ i.ph-duotone {
   }
   :lang(zh-CN) .landing-hero-title {
     font-weight: 600;
+    line-height: 1.45;
+    font-size: clamp(28px, 7.2vw, 34px);
+  }
+  :lang(zh-CN) .landing-title {
+    font-weight: 600;
     line-height: 1.4;
+    font-size: clamp(24px, 6.5vw, 30px);
   }
   .landing-hero-lead {
     font-size: 15px;
