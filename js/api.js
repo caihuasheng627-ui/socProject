@@ -3,14 +3,29 @@
 // 封装 fetch + 错误处理 + Mock 回退
 // ============================================
 
+function defaultApiBaseURL() {
+  // 优先 localStorage；公网部署时用当前主机:8000；本地开发仍默认 localhost
+  const saved = localStorage.getItem('sv_api_url');
+  if (saved) return saved;
+  const host = typeof location !== 'undefined' ? location.hostname : '';
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    return `${location.protocol}//${host}:8000`;
+  }
+  return 'http://localhost:8000';
+}
+
 class CSVestAPI {
   constructor() {
-    this.baseURL = localStorage.getItem('sv_api_url') || 'http://localhost:8000';
+    this.baseURL = defaultApiBaseURL();
     this.token = localStorage.getItem('sv_token') || null;
-    this.timeout = 30000;
-    // 未设置时默认 mock；显式 'false' 才走真实后端
+    this.timeout = 30000; // 30s
+    // 本地未配置时默认 mock；公网访问默认走真实后端
     const mockFlag = localStorage.getItem('sv_use_mock');
-    this.useMock = mockFlag === null ? true : mockFlag === 'true';
+    const remote = typeof location !== 'undefined'
+      && location.hostname
+      && location.hostname !== 'localhost'
+      && location.hostname !== '127.0.0.1';
+    this.useMock = mockFlag === null ? !remote : mockFlag === 'true';
     this.online = false;
     this._alerts = null;
     this._portfolio = null;

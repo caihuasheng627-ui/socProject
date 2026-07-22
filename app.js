@@ -607,7 +607,11 @@ const app = createApp({
         return false;
       }
       try {
-        client.setBaseURL(localStorage.getItem('sv_api_url') || 'http://localhost:8000');
+        const apiBase = localStorage.getItem('sv_api_url')
+          || ((location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')
+            ? `${location.protocol}//${location.hostname}:8000`
+            : 'http://localhost:8000');
+        client.setBaseURL(apiBase);
         await client.health();
         client.setUseMock(false);
         apiOnline.value = true;
