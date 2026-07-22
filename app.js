@@ -111,14 +111,55 @@ const app = createApp({
     const currentPage = ref('dashboard');
     const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
 
-    // ============ 首屏 Landing ============
-    const showLanding = ref(sessionStorage.getItem('sv_entered') !== '1');
+    // ============ 用户认证（前端本地，后端未接入） ============
+    // 启动页提供「登录进入」与「游客体验」两个入口
+    const Auth = window.CSVestAuth;
+    const currentUser = ref(Auth?.getCurrentUser?.() || null);
+    const isGuest = ref(!currentUser.value && sessionStorage.getItem('sv_guest') === '1');
+    const showAuthPanel = ref(false);
+    const authMode = ref('login');
+    const authForm = ref({ name: '', email: '', password: '' });
+    const authError = ref('');
+    const authSubmitting = ref(false);
+    const userMenuOpen = ref(false);
+    const showProfileModal = ref(false);
+    const profileNameDraft = ref('');
+    const userAvatarChar = computed(() => {
+      if (currentUser.value) return Auth.avatarChar(currentUser.value);
+      return Auth.avatarChar({ name: t('auth.guest') });
+    });
+
+    const canEnter = () => !!(currentUser.value || isGuest.value);
+    const showLanding = ref(!canEnter() || sessionStorage.getItem('sv_entered') !== '1');
     const landingExiting = ref(false);
-    const enterSystem = () => {
+
+    // 无登录且非游客时，强制停留在启动页
+    if (!canEnter()) {
+      sessionStorage.removeItem('sv_entered');
+      sessionStorage.removeItem('sv_guest');
+      isGuest.value = false;
+      showLanding.value = true;
+    }
+
+    const enterSystem = (asGuest = false) => {
       if (landingExiting.value || !showLanding.value) return;
+      if (asGuest) {
+        isGuest.value = true;
+        sessionStorage.setItem('sv_guest', '1');
+      }
+      if (!canEnter()) {
+        authError.value = t('auth.err.required');
+        showAuthPanel.value = true;
+        return;
+      }
+      if (currentUser.value) {
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
+      }
       landingExiting.value = true;
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
+      showAuthPanel.value = false;
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
@@ -139,20 +180,16 @@ const app = createApp({
       setTimeout(done, 520);
     };
 
-    // ============ 用户认证（前端本地，后端未接入） ============
-    const Auth = window.CSVestAuth;
-    const currentUser = ref(Auth?.getCurrentUser?.() || null);
-    const authMode = ref('login');
-    const authForm = ref({ name: '', email: '', password: '' });
-    const authError = ref('');
-    const authSubmitting = ref(false);
-    const userMenuOpen = ref(false);
-    const showProfileModal = ref(false);
-    const profileNameDraft = ref('');
-    const userAvatarChar = computed(() => {
-      if (!currentUser.value) return Auth.avatarChar({ name: t('auth.guest') });
-      return Auth.avatarChar(currentUser.value);
-    });
+    const openAuthPanel = (mode = 'login') => {
+      authMode.value = mode;
+      authError.value = '';
+      showAuthPanel.value = true;
+    };
+
+    const closeAuthPanel = () => {
+      showAuthPanel.value = false;
+      authError.value = '';
+    };
 
     const authErrorMessage = (code) => {
       const map = {
@@ -176,6 +213,8 @@ const app = createApp({
         return;
       }
       currentUser.value = result.user;
+      isGuest.value = false;
+      sessionStorage.removeItem('sv_guest');
       authForm.value.password = '';
       showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
       enterSystem();
@@ -192,6 +231,8 @@ const app = createApp({
         return;
       }
       currentUser.value = result.user;
+      isGuest.value = false;
+      sessionStorage.removeItem('sv_guest');
       authForm.value.password = '';
       showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
       enterSystem();
@@ -199,30 +240,57 @@ const app = createApp({
 
     const enterAsGuest = () => {
       showToast({ title: t('auth.toast.guest'), type: 'info' });
-      enterSystem();
+      enterSystem(true);
     };
 
     const logoutUser = () => {
       Auth?.logout?.();
       currentUser.value = null;
+      isGuest.value = false;
       userMenuOpen.value = false;
       showProfileModal.value = false;
+      showPortfolioModal.value = false;
+      showAuthPanel.value = false;
       authMode.value = 'login';
       authError.value = '';
       showToast({ title: t('auth.toast.logoutOk'), type: 'success' });
-      // 回到启动页重新登录
       sessionStorage.removeItem('sv_entered');
+      sessionStorage.removeItem('sv_guest');
       showLanding.value = true;
       landingExiting.value = false;
     };
 
     const returnToLandingForLogin = () => {
       userMenuOpen.value = false;
+      showAuthPanel.value = true;
       authMode.value = 'login';
       authError.value = '';
       sessionStorage.removeItem('sv_entered');
+      // 保留游客标记，取消进入后仍可再选游客
       showLanding.value = true;
       landingExiting.value = false;
+    };
+
+    // 模拟持仓（库存）仅登录用户可用
+    const requirePortfolioLogin = () => {
+      if (currentUser.value) return true;
+      showToast({
+        title: t('portfolio.loginRequired.title'),
+        subtitle: t('portfolio.loginRequired.toast'),
+        type: 'info',
+      });
+      return false;
+    };
+
+    const goToPage = (pageId) => {
+      if (pageId === 'portfolio' && !currentUser.value) {
+        // 仍允许进入页面，但展示登录引导（不展示持仓数据）
+        currentPage.value = 'portfolio';
+        sidebarOpen.value = false;
+        return;
+      }
+      currentPage.value = pageId;
+      sidebarOpen.value = false;
     };
 
     const openProfileEditor = () => {
@@ -304,6 +372,7 @@ const app = createApp({
 
     // ============ 数据导出 ============
     const exportData = (type, format) => {
+      if (type === 'portfolio' && !requirePortfolioLogin()) return;
       let data, filename;
       if (type === 'skins') {
         data = skins.value;
@@ -545,7 +614,7 @@ const app = createApp({
         await Promise.all([
           loadNewsFromApi(),
           loadAlertsFromApi(),
-          loadPortfolioFromApi(),
+          currentUser.value ? loadPortfolioFromApi() : Promise.resolve(),
           loadModelsFromApi(),
         ]);
         showToast({ title: '已连接后端', subtitle: client.baseURL, type: 'success' });
@@ -1354,6 +1423,7 @@ const app = createApp({
     });
 
     const addPortfolio = async () => {
+      if (!requirePortfolioLogin()) return;
       if (!newPortfolio.value.skinId || !newPortfolio.value.buyPrice) return;
       const skin = skins.value.find(s => s.id === newPortfolio.value.skinId);
       const payload = {
@@ -1384,6 +1454,7 @@ const app = createApp({
     };
 
     const removePortfolio = async (id) => {
+      if (!requirePortfolioLogin()) return;
       try {
         const client = api();
         if (client && apiOnline.value) {
@@ -1397,6 +1468,7 @@ const app = createApp({
     };
 
     const loadPortfolioExtras = async () => {
+      if (!requirePortfolioLogin()) return;
       const client = api();
       if (!client || !apiOnline.value) return;
       try {
@@ -1630,7 +1702,7 @@ const app = createApp({
           title: m.label,
           subtitle: t('cmd.pageDesc', { name: m.label }),
           kbd: String(i + 1),
-          action: () => { currentPage.value = m.id; },
+          action: () => { goToPage(m.id); },
         }));
       if (pageCmds.length) groups.push({ title: t('cmd.group.pages'), items: pageCmds });
 
@@ -1736,7 +1808,7 @@ const app = createApp({
         if (num >= 1 && num <= 7) {
           e.preventDefault();
           const target = menu.value[num - 1];
-          currentPage.value = target.id;
+          goToPage(target.id);
           // 不弹 Toast,避免用户困惑
         }
       }
@@ -1809,6 +1881,7 @@ const app = createApp({
       } else if (newPage === 'alerts') {
         await loadAlertsFromApi();
       } else if (newPage === 'portfolio') {
+        if (!currentUser.value) return;
         await loadPortfolioFromApi();
         await loadPortfolioExtras();
       } else if (newPage === 'chat') {
@@ -1839,13 +1912,14 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon,
+      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
       showLanding, landingExiting, enterSystem,
       // 用户认证
-      currentUser, authMode, authForm, authError, authSubmitting,
+      currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,
-      returnToLandingForLogin, userMenuOpen, userAvatarChar,
+      openAuthPanel, closeAuthPanel, returnToLandingForLogin,
+      userMenuOpen, userAvatarChar,
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,

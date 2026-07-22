@@ -1799,6 +1799,37 @@ body.sidebar-open {
   font-size: 14px;
 }
 
+.auth-required-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 28px;
+  min-height: 360px;
+  gap: 12px;
+}
+
+.auth-required-icon {
+  margin-bottom: 4px;
+  opacity: 0.95;
+}
+
+.auth-required-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.auth-required-desc {
+  margin: 0 0 12px;
+  max-width: 34em;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 /* ============ 工具类 ============ */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
@@ -2665,6 +2696,33 @@ i.ph-duotone {
   text-align: left;
 }
 
+.landing-auth--actions {
+  width: min(100%, 420px);
+  align-items: center;
+}
+
+.landing-cta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.landing-cta-row--compact {
+  margin-top: 2px;
+}
+
+.landing-enter--ghost {
+  background: transparent;
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(255, 140, 64, 0.45);
+}
+
+.landing-enter--ghost:hover {
+  background: rgba(255, 107, 0, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 140, 64, 0.7), 0 0 28px rgba(255, 107, 0, 0.18);
+}
+
 .landing-auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2909,6 +2967,9 @@ i.ph-duotone {
   }
   .landing-auth {
     width: 100%;
+  }
+  .landing-cta-row {
+    gap: 10px;
   }
   .landing-highlights {
     flex-direction: column;
