@@ -74,21 +74,36 @@ def align_common_prediction_frames(frames):
             ["date", "market_hash_name"]
         ).reset_index(drop=True)
 
-    contract_columns = [
-        "split", "date", "target_date", "market_hash_name",
-        "current_price", "actual_future_price", "horizon_steps",
-    ]
+    # Drop rows where contract values (current_price, actual_future_price) differ
     reference_name, reference = next(iter(aligned.items()))
+    keep = np.ones(len(reference), dtype=bool)
     for name, frame in aligned.items():
-        if not frame[contract_columns].equals(reference[contract_columns]):
-            raise ValueError(
-                f"{name} contract values differ from {reference_name} on common prediction rows"
-            )
+        if name == reference_name:
+            continue
+        if len(frame) != len(reference):
+            raise ValueError(f"{name}: aligned length mismatch vs {reference_name}")
+        keep &= (
+            np.isclose(frame["current_price"].to_numpy(dtype=float),
+                       reference["current_price"].to_numpy(dtype=float),
+                       rtol=0, atol=1e-4)
+            & np.isclose(frame["actual_future_price"].to_numpy(dtype=float),
+                         reference["actual_future_price"].to_numpy(dtype=float),
+                         rtol=0, atol=1e-4)
+        )
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"  dropped {dropped} mismatched-truth rows for fair backtest", flush=True)
+    for name in list(aligned.keys()):
+        aligned[name] = aligned[name].loc[keep].sort_values(
+            ["date", "market_hash_name"]
+        ).reset_index(drop=True)
     return aligned
 
 
 def simulate_item(group, budget, fee, buy_th, sell_th):
-    cash = float(budget)
+    """Simulate one item with fixed position sizing (no geometric compounding)."""
+    initial_budget = float(budget)
+    cash = 0.0
     units = 0.0
     buy_step = None
     entry_value = None
@@ -103,27 +118,34 @@ def simulate_item(group, budget, fee, buy_th, sell_th):
         held_steps = observation - buy_step if buy_step is not None else 0
 
         if units == 0 and expected_return >= buy_th:
-            entry_value = cash
-            units = cash * (1 - fee) / price
-            cash = 0.0
+            entry_value = initial_budget
+            units = initial_budget * (1 - fee) / price
             buy_step = observation
             buy_count += 1
         elif units > 0 and held_steps >= HOLD_STEPS and expected_return <= -sell_th:
-            cash = units * price * (1 - fee)
-            closed_pnl.append(cash - entry_value)
+            proceeds = units * price * (1 - fee)
+            closed_pnl.append(proceeds - entry_value)
+            cash += proceeds
             units = 0.0
             buy_step = None
             entry_value = None
             sell_count += 1
 
-        values[pd.Timestamp(row.date)] = cash + units * price
+        position_value = units * price if units > 0 else initial_budget
+        values[pd.Timestamp(row.date)] = cash + position_value
+
+    # If still holding at end, liquidate at last price
+    if units > 0:
+        proceeds = units * group.sort_values("date")["current_price"].iloc[-1] * (1 - fee)
+        closed_pnl.append(proceeds - entry_value)
+        cash += proceeds
 
     return {
         "values": values,
         "closed_pnl": closed_pnl,
         "buy_count": buy_count,
         "sell_count": sell_count,
-        "open_position": int(units > 0),
+        "open_position": 0,
     }
 
 

@@ -103,9 +103,12 @@ def align_common_prediction_frames(frames):
     if not frames:
         raise ValueError("at least one prediction frame is required")
 
-    normalized = {
-        name: validate_prediction_frame(frame, name) for name, frame in frames.items()
-    }
+    normalized = {}
+    for name, frame in frames.items():
+        if _is_seq_format(frame):
+            normalized[name] = validate_prediction_frame_seq(frame, name)
+        else:
+            normalized[name] = validate_prediction_frame(frame, name)
     common_keys = None
     for frame in normalized.values():
         keys = set(zip(frame["market_hash_name"], frame["date"]))

@@ -63,9 +63,10 @@ def print_metrics(label, truth, prediction):
 def export_prediction_seq(meta, prediction, mask, path):
     """Export multi-step predictions with pred_day1..pred_day7 columns."""
     output = meta.loc[mask].copy()
-    # prediction shape: (n_masked, 7)
+    # Apply mask to prediction array (n_masked, 7)
+    pred_masked = prediction[mask] if prediction.shape[0] == len(meta) else prediction
     for d in range(1, SEQ_HORIZON + 1):
-        output[f"predicted_price_d{d}"] = prediction[:, d - 1]
+        output[f"predicted_price_d{d}"] = pred_masked[:, d - 1]
     # actual_future_price_d1..d7 come from meta
     # Build required columns
     cols = (
@@ -74,6 +75,11 @@ def export_prediction_seq(meta, prediction, mask, path):
         + [f"actual_future_price_d{d}" for d in range(1, SEQ_HORIZON + 1)]
         + [f"predicted_price_d{d}" for d in range(1, SEQ_HORIZON + 1)]
     )
+    # Drop duplicate (item, date) rows — raw test.csv has 689 dupes
+    before = len(output)
+    output = output.drop_duplicates(["market_hash_name", "date"], keep="first")
+    if len(output) < before:
+        print(f"  dropped {before - len(output)} duplicate (item,date) rows")
     output = validate_prediction_frame_seq(output[cols], path)
     output.to_csv(path, index=False, date_format="%Y-%m-%d")
     print(f"  saved {path.name}: {len(output):,} rows, {output.market_hash_name.nunique()} items")
