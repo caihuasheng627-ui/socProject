@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723c" />
+  <link rel="stylesheet" href="style.css?v=20260723d" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -444,143 +444,209 @@
         </div>
       </header>
 
-      <div class="content-area" :class="{ 'content-area--models': currentPage === 'models' }">
+      <div
+        class="content-area"
+        :class="{
+          'content-area--models': currentPage === 'models',
+          'content-area--market': currentPage === 'dashboard',
+        }"
+      >
         <!-- 行情看板 -->
-        <div v-if="currentPage === 'dashboard'" class="fade-in">
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <div v-if="currentPage === 'dashboard'" class="market-board">
+          <header class="market-board__bar">
+            <div class="market-board__heading">
+              <h2 class="market-board__title">
                 <i class="ph-duotone ph-chart-line-up icon-primary" aria-hidden="true"></i>
                 {{ t('dashboard.title') }}
               </h2>
-              <p class="text-muted text-sm mt-2">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
+              <p class="market-board__sub">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
             </div>
-            <div class="flex gap-2">
-              <button class="btn btn-secondary btn-sm" @click="refreshData">
+            <div class="market-board__actions">
+              <button class="btn btn-secondary btn-sm" type="button" @click="refreshData">
                 <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{ t('common.refresh') }}
               </button>
-              <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('skins', 'csv')" :title="t('common.export')">
-                  <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
-                </button>
-                <button class="btn btn-sm" @click="exportData('skins', 'json')" title="JSON">
-                  <i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON
-                </button>
-              </div>
-              <button class="btn btn-primary btn-sm">
-                <i class="ph ph-star" aria-hidden="true"></i> {{ t('dashboard.addWatchlist') }}
+              <button class="btn btn-sm" type="button" @click="exportData('skins', 'csv')" :title="t('common.export')">
+                <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
+              </button>
+              <button class="btn btn-sm" type="button" @click="exportData('skins', 'json')" title="JSON">
+                <i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON
               </button>
             </div>
-          </div>
+          </header>
 
-          <!-- 涨跌幅榜 -->
-          <div class="grid grid-2 mb-6">
-            <div class="card">
-              <div class="card-header">
+          <div class="market-board__scroll">
+            <!-- 市场脉搏 -->
+            <section class="market-pulse" :aria-label="t('dashboard.pulse')">
+              <div class="market-pulse__item">
+                <span class="market-pulse__label">{{ t('dashboard.pulse.monitored') }}</span>
+                <strong class="market-pulse__value">{{ marketPulse.total }}</strong>
+              </div>
+              <div class="market-pulse__item market-pulse__item--up">
+                <span class="market-pulse__label">{{ t('dashboard.pulse.up') }}</span>
+                <strong class="market-pulse__value">{{ marketPulse.up }}</strong>
+              </div>
+              <div class="market-pulse__item market-pulse__item--down">
+                <span class="market-pulse__label">{{ t('dashboard.pulse.down') }}</span>
+                <strong class="market-pulse__value">{{ marketPulse.down }}</strong>
+              </div>
+              <div class="market-pulse__item">
+                <span class="market-pulse__label">{{ t('dashboard.pulse.avg7d') }}</span>
+                <strong
+                  class="market-pulse__value"
+                  :class="marketPulse.avg >= 0 ? 'text-up' : 'text-down'"
+                >{{ formatChange(marketPulse.avg) }}</strong>
+              </div>
+            </section>
+
+            <!-- 涨跌幅榜 -->
+            <section class="market-leaders">
+              <div class="mb-leader mb-leader--bull">
+                <div class="mb-leader__head">
+                  <div>
+                    <h3 class="mb-leader__title">
+                      <i class="ph-duotone ph-trend-up" aria-hidden="true"></i>
+                      {{ t('dashboard.gainers') }}
+                    </h3>
+                    <p class="mb-leader__desc">{{ t('dashboard.gainersDesc') }}</p>
+                  </div>
+                  <span class="tag tag-red">Bull</span>
+                </div>
+                <ol class="mb-leader__list" v-if="topGainers.length">
+                  <li
+                    v-for="(skin, idx) in topGainers.slice(0, 5)"
+                    :key="'g-' + skin.id"
+                    class="mb-row"
+                    @click="viewSkin(skin.id)"
+                  >
+                    <span class="mb-row__rank">{{ idx + 1 }}</span>
+                    <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
+                    <div class="mb-row__main">
+                      <div class="mb-row__name">{{ skin.name }}</div>
+                      <div class="mb-row__meta">{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</div>
+                    </div>
+                    <div class="mb-row__quote">
+                      <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
+                      <div class="skin-change change-up">{{ formatChange(skin.change7d) }}</div>
+                    </div>
+                  </li>
+                </ol>
+                <div v-else class="mb-empty">{{ t('common.empty') }}</div>
+              </div>
+
+              <div class="mb-leader mb-leader--bear">
+                <div class="mb-leader__head">
+                  <div>
+                    <h3 class="mb-leader__title">
+                      <i class="ph-duotone ph-trend-down" aria-hidden="true"></i>
+                      {{ t('dashboard.losers') }}
+                    </h3>
+                    <p class="mb-leader__desc">{{ t('dashboard.losersDesc') }}</p>
+                  </div>
+                  <span class="tag tag-green">Bear</span>
+                </div>
+                <ol class="mb-leader__list" v-if="topLosers.length">
+                  <li
+                    v-for="(skin, idx) in topLosers.slice(0, 5)"
+                    :key="'l-' + skin.id"
+                    class="mb-row"
+                    @click="viewSkin(skin.id)"
+                  >
+                    <span class="mb-row__rank">{{ idx + 1 }}</span>
+                    <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
+                    <div class="mb-row__main">
+                      <div class="mb-row__name">{{ skin.name }}</div>
+                      <div class="mb-row__meta">{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</div>
+                    </div>
+                    <div class="mb-row__quote">
+                      <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
+                      <div class="skin-change change-down">{{ formatChange(skin.change7d) }}</div>
+                    </div>
+                  </li>
+                </ol>
+                <div v-else class="mb-empty">{{ t('common.empty') }}</div>
+              </div>
+            </section>
+
+            <!-- 全部饰品 -->
+            <section class="market-catalog">
+              <div class="market-catalog__head">
                 <div>
-                  <div class="card-title">
-                    <i class="ph-duotone ph-trend-up icon-success" aria-hidden="true"></i>
-                    {{ t('dashboard.gainers') }}
-                  </div>
-                  <div class="card-subtitle">{{ t('dashboard.gainersDesc') }}</div>
+                  <h3 class="market-catalog__title">
+                    <i class="ph-duotone ph-squares-four icon-primary" aria-hidden="true"></i>
+                    {{ t('dashboard.allSkins') }}
+                  </h3>
+                  <p class="market-catalog__desc">{{ t('dashboard.allSkinsDesc') }}</p>
                 </div>
-                <span class="tag tag-red">Bull</span>
+                <span class="market-catalog__count">{{ filteredSkins.length }}</span>
               </div>
-              <div v-for="(skin, idx) in topGainers.slice(0, 5)" :key="skin.id"
-                class="skin-card mb-3" @click="viewSkin(skin.id)" style="padding: 12px;">
-                <div class="flex items-center gap-3">
-                  <div style="font-size: 18px; color: var(--accent-orange); font-weight: 700; width: 24px;">{{ idx + 1 }}</div>
-                  <div class="skin-emoji" style="width: 32px; height: 32px; font-size: 18px;">{{ skin.image }}</div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div class="skin-name" style="font-size: 12px;">{{ skin.name }}</div>
-                    <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
-                  </div>
-                  <div style="text-align: right;">
-                    <div class="skin-price" style="font-size: 14px;">${{ formatPrice(skin.price) }}</div>
-                    <div class="change-up" style="display: inline-block;">+{{ skin.change7d.toFixed(2) }}%</div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <div class="card-title">
-                    <i class="ph-duotone ph-trend-down icon-danger" aria-hidden="true"></i>
-                    {{ t('dashboard.losers') }}
-                  </div>
-                  <div class="card-subtitle">{{ t('dashboard.losersDesc') }}</div>
-                </div>
-                <span class="tag tag-red">Bear</span>
+              <div class="market-catalog__toolbar">
+                <label class="market-search">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <input
+                    v-model.trim="skinSearch"
+                    type="search"
+                    class="market-search__input"
+                    :placeholder="t('dashboard.searchPlaceholder')"
+                    autocomplete="off"
+                  />
+                </label>
+                <select v-model="skinSort" class="market-sort" :aria-label="t('dashboard.sort')">
+                  <option value="change7d">{{ t('dashboard.sort.change7d') }}</option>
+                  <option value="volume">{{ t('dashboard.sort.volume') }}</option>
+                  <option value="price">{{ t('dashboard.sort.price') }}</option>
+                  <option value="liquidity">{{ t('dashboard.sort.liquidity') }}</option>
+                  <option value="name">{{ t('dashboard.sort.name') }}</option>
+                </select>
               </div>
-              <div v-for="(skin, idx) in topLosers.slice(0, 5)" :key="skin.id"
-                class="skin-card mb-3" @click="viewSkin(skin.id)" style="padding: 12px;">
-                <div class="flex items-center gap-3">
-                  <div style="font-size: 18px; color: var(--accent-orange); font-weight: 700; width: 24px;">{{ idx + 1 }}</div>
-                  <div class="skin-emoji" style="width: 32px; height: 32px; font-size: 18px;">{{ skin.image }}</div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div class="skin-name" style="font-size: 12px;">{{ skin.name }}</div>
-                    <div class="text-muted text-sm">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
-                  </div>
-                  <div style="text-align: right;">
-                    <div class="skin-price" style="font-size: 14px;">${{ formatPrice(skin.price) }}</div>
-                    <div class="change-down" style="display: inline-block;">{{ skin.change7d.toFixed(2) }}%</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- 全部饰品 -->
-          <div class="card mb-6">
-            <div class="card-header">
-              <div>
-                <div class="card-title">
-                  <i class="ph-duotone ph-squares-four icon-primary" aria-hidden="true"></i>
-                  {{ t('dashboard.allSkins') }}
-                </div>
-                <div class="card-subtitle">{{ t('dashboard.allSkinsDesc') }}</div>
-              </div>
-              <div class="filter-chip-row" role="toolbar" :aria-label="t('dashboard.allSkins')">
+              <div class="filter-chip-row market-catalog__chips" role="toolbar" :aria-label="t('dashboard.allSkins')">
                 <button
                   v-for="cat in categoryKeys"
                   :key="cat"
+                  type="button"
                   class="timeframe-btn"
                   :class="{ active: filterCategory === cat }"
                   @click="filterCategory = cat"
                 >{{ t('dashboard.category.' + cat) }}</button>
               </div>
-            </div>
-            <div class="grid grid-4">
-              <div
-                v-for="skin in filteredSkins"
-                :key="skin.id"
-                class="skin-card"
-                @click="viewSkin(skin.id)"
-              >
-                <div class="skin-card-header">
-                  <div class="skin-emoji">{{ skin.image }}</div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div class="skin-name">{{ skin.name }}</div>
-                    <div class="skin-wear">{{ skin.wear }} · {{ t('dashboard.category.' + categoryMap[skin.category] || skin.category) }}</div>
+
+              <div v-if="filteredSkins.length" class="mb-skin-list" role="list">
+                <button
+                  v-for="(skin, idx) in filteredSkins"
+                  :key="skin.id"
+                  type="button"
+                  class="mb-skin"
+                  role="listitem"
+                  :style="{ '--mb-delay': Math.min(idx, 12) * 28 + 'ms' }"
+                  @click="viewSkin(skin.id)"
+                >
+                  <span class="mb-skin__mark" aria-hidden="true">{{ skin.image }}</span>
+                  <div class="mb-skin__info">
+                    <div class="mb-skin__name">{{ skin.name }}</div>
+                    <div class="mb-skin__sub">
+                      <template v-if="skin.wear && skin.wear !== 'N/A' && skin.wear !== 'nan'">
+                        <span>{{ skin.wear }}</span>
+                        <span class="mb-skin__dot" aria-hidden="true">·</span>
+                      </template>
+                      <span>{{ categoryLabel(skin.category) }}</span>
+                    </div>
                   </div>
-                </div>
-                <div class="skin-price-row">
-                  <div>
-                    <span class="skin-currency">$</span>
-                    <span class="skin-price">{{ formatPrice(skin.price) }}</span>
+                  <div class="mb-skin__stats">
+                    <div class="mb-skin__price">${{ formatPrice(skin.price) }}</div>
+                    <div
+                      class="skin-change mb-skin__change"
+                      :class="(skin.change7d || 0) >= 0 ? 'change-up' : 'change-down'"
+                    >{{ formatChange(skin.change7d) }}</div>
                   </div>
-                  <div :class="skin.change7d >= 0 ? 'change-up' : 'change-down'" class="skin-change">
-                    {{ skin.change7d >= 0 ? '+' : '' }}{{ skin.change7d.toFixed(2) }}%
+                  <div class="mb-skin__side">
+                    <span>{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</span>
+                    <span>{{ t('dashboard.liquidity') }} {{ skin.liquidity ?? '—' }}</span>
                   </div>
-                </div>
-                <div class="skin-meta">
-                  <span>{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</span>
-                  <span>{{ t('dashboard.liquidity') }} {{ skin.liquidity }}</span>
-                </div>
+                </button>
               </div>
-            </div>
+              <div v-else class="mb-empty mb-empty--panel">{{ t('dashboard.noResults') }}</div>
+            </section>
           </div>
         </div>
 
@@ -595,7 +661,7 @@
               <div style="flex: 1;">
                 <div class="prediction-title">{{ selectedSkin.name }}</div>
                 <div class="text-muted text-sm mt-2">
-                  <span class="tag tag-orange">{{ t('dashboard.category.' + categoryMap[selectedSkin.category] || selectedSkin.category) }}</span>
+                  <span class="tag tag-orange">{{ categoryLabel(selectedSkin.category) }}</span>
                   <span class="tag" style="margin-left: 6px;">{{ selectedSkin.wear }}</span>
                   <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
                 </div>
@@ -933,7 +999,7 @@
                 <div style="font-size: 22px;">{{ skin.image }}</div>
                 <div style="flex: 1;">
                   <div class="text-sm font-bold">{{ skin.name }}</div>
-                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.category.' + categoryMap[skin.category] || skin.category) }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ categoryLabel(skin.category) }}</div>
                 </div>
                 <div style="text-align: right;">
                   <div class="font-bold">${{ formatPrice(skin.price) }}</div>
@@ -1531,11 +1597,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723c"></script>
-  <script src="i18n.js?v=20260723c"></script>
-  <script src="js/api.js?v=20260723c"></script>
-  <script src="js/auth.js?v=20260723c"></script>
-  <script src="js/lucide-icons.js?v=20260723c"></script>
-  <script src="app.js?v=20260723c"></script>
+  <script src="data.js?v=20260723d"></script>
+  <script src="i18n.js?v=20260723d"></script>
+  <script src="js/api.js?v=20260723d"></script>
+  <script src="js/auth.js?v=20260723d"></script>
+  <script src="js/lucide-icons.js?v=20260723d"></script>
+  <script src="app.js?v=20260723d"></script>
 </body>
 </html>

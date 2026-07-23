@@ -808,6 +808,8 @@ const app = createApp({
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
+    const skinSearch = ref('');
+    const skinSort = ref('change7d');
     const categoryKeys = ['all', 'rifle', 'sniper', 'pistol', 'knife', 'gloves', 'case'];
     // 中文类别 → i18n key 映射
     const categoryMap = {
@@ -818,13 +820,74 @@ const app = createApp({
       '手套': 'gloves',
       '箱子': 'case',
     };
+
+    const categoryLabel = (cat) => {
+      if (!cat) return '';
+      const key = categoryMap[cat] || (categoryKeys.includes(cat) ? cat : null);
+      if (!key) return cat;
+      return t('dashboard.category.' + key);
+    };
+
+    const formatChange = (num) => {
+      const v = Number(num);
+      if (!Number.isFinite(v)) return '0.00%';
+      const sign = v > 0 ? '+' : '';
+      return `${sign}${v.toFixed(2)}%`;
+    };
+
+    const formatVolume = (num) => {
+      const v = Number(num);
+      if (!Number.isFinite(v) || v <= 0) return '0';
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+      if (v >= 10000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+      return Math.round(v).toLocaleString('en-US');
+    };
+
+    const marketPulse = computed(() => {
+      const list = skins.value || [];
+      let up = 0;
+      let down = 0;
+      let sum = 0;
+      for (const s of list) {
+        const ch = Number(s.change7d) || 0;
+        if (ch > 0) up += 1;
+        else if (ch < 0) down += 1;
+        sum += ch;
+      }
+      return {
+        total: list.length,
+        up,
+        down,
+        avg: list.length ? sum / list.length : 0,
+      };
+    });
+
     const filteredSkins = computed(() => {
-      if (filterCategory.value === 'all') return skins.value;
-      const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
-      return skins.value.filter(s => {
-        const cat = s.category || inferCategory(s);
-        return cat === zhLabel || categoryMap[cat] === filterCategory.value;
+      let list = skins.value || [];
+      if (filterCategory.value !== 'all') {
+        const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
+        list = list.filter(s => {
+          const cat = s.category || inferCategory(s);
+          return cat === zhLabel || categoryMap[cat] === filterCategory.value;
+        });
+      }
+      const q = skinSearch.value.trim().toLowerCase();
+      if (q) {
+        list = list.filter(s => {
+          const hay = `${s.name || ''} ${s.wear || ''} ${s.category || ''} ${categoryLabel(s.category)}`.toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      const sorted = [...list];
+      const sort = skinSort.value;
+      sorted.sort((a, b) => {
+        if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'en');
+        if (sort === 'price') return (Number(b.price) || 0) - (Number(a.price) || 0);
+        if (sort === 'volume') return (Number(b.volume24h) || 0) - (Number(a.volume24h) || 0);
+        if (sort === 'liquidity') return (Number(b.liquidity) || 0) - (Number(a.liquidity) || 0);
+        return (Number(b.change7d) || 0) - (Number(a.change7d) || 0);
       });
+      return sorted;
     });
 
     const refreshData = async () => {
@@ -2030,7 +2093,8 @@ const app = createApp({
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
-      filterCategory, categoryKeys, categoryMap, filteredSkins,
+      filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      skinSearch, skinSort, marketPulse, formatChange, formatVolume,
       apiOnline, connectBackend,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
