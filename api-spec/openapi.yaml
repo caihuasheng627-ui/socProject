@@ -867,7 +867,10 @@ components:
           type: string
         price:
           type: number
-          description: 当前价格 (CNY)
+          description: 当前价格 (USD)
+        priceUsd:
+          type: number
+          description: 当前价格 (USD)，与 price 同口径
         change24h:
           type: number
           description: 24h 涨跌幅(%)
@@ -887,7 +890,15 @@ components:
           type: string
         source:
           type: string
-          enum: [BUFF, Skinport]
+          enum: [BUFF, CSV]
+        priceDate:
+          type: string
+          format: date
+          nullable: true
+          description: 当前价格对应的数据日期
+        isLive:
+          type: boolean
+          description: 是否为近 7 天内更新的 BUFF 实时数据
 
     SkinDetail:
       allOf:
@@ -1017,12 +1028,21 @@ components:
                 enum: [统计, ML, DL]
               price:
                 type: number
+                description: 预测周期末价格；7 天模型为第 7 天价格
               change:
                 type: number
               confidence:
                 type: number
                 minimum: 0
                 maximum: 100
+              dailyPrices:
+                type: array
+                nullable: true
+                description: v5 多步契约；LSTM/GRU 返回未来 1–7 天逐日 USD 预测价
+                minItems: 7
+                maxItems: 7
+                items:
+                  type: number
         consensus:
           type: object
           properties:

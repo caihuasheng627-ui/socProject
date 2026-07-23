@@ -169,9 +169,9 @@ python -m http.server 8080
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/health` | 健康 / 模型状态 |
-| GET | `/api/skins` | 饰品列表 |
+| GET | `/api/skins` | 868 件饰品列表（含 `source` / `priceDate` / `isLive`） |
 | GET | `/api/skins/{id}/kline` | K 线 + MA7/MA30 |
-| POST | `/api/predict` | 多模型预测（默认 Hybrid LSTM + 树模型 CSV） |
+| POST | `/api/predict` | 多模型预测（LSTM/GRU 返回 `dailyPrices` 未来 7 天逐日路径） |
 | POST | `/api/chat` | DeepSeek SSE |
 | POST | `/api/debate/{id}?live=0` | 预录回放；`live=1` 现场 DeepSeek |
 | GET/POST/DELETE | `/api/portfolio` | 持仓 CRUD（`holdingType`: real/sim） |
