@@ -44,6 +44,8 @@ tags:
     description: 价格预警
   - name: Portfolio
     description: 模拟持仓
+  - name: Inventory
+    description: 我的库存（真实库存）
   - name: Models
     description: 模型对比
 
@@ -587,6 +589,139 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  # ============ 我的库存（真实库存；前端先行，后端待对接）============
+  /api/inventory:
+    get:
+      tags: [Inventory]
+      summary: 获取我的库存列表
+      description: |
+        真实库存（手动添加 + Steam 导入）。需登录。
+        Steam 导入来源的行 `source=steam`，手动添加为 `manual`。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Inventory]
+      summary: 手动添加库存饰品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId, quantity]
+              properties:
+                skinId:
+                  type: string
+                acquirePrice:
+                  type: number
+                  description: 入手成本（可选）
+                quantity:
+                  type: integer
+                acquireDate:
+                  type: string
+                  format: date
+                source:
+                  type: string
+                  enum: [manual, steam]
+                  default: manual
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/inventory/{itemId}:
+    delete:
+      tags: [Inventory]
+      summary: 移除库存饰品
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/inventory/value_history:
+    get:
+      tags: [Inventory]
+      summary: 库存总价值历史曲线
+      description: |
+        聚合库存饰品历史价 → 总市值曲线。用于「我的库存」页总值走势。
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dates:
+                    type: array
+                    items:
+                      type: string
+                  values:
+                    type: array
+                    items:
+                      type: number
+                  total:
+                    type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/inventory/steam/import:
+    post:
+      tags: [Inventory]
+      summary: Steam 库存导入（待开发）
+      description: |
+        预留接口。对接 Steam Web API / 库存页面解析后，将饰品写入 inventory（source=steam）。
+        当前前端仅展示入口，后端返回 501。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                steamId:
+                  type: string
+                  description: SteamID64（可选，默认取已绑定账号）
+      responses:
+        '501':
+          description: 功能开发中
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ============ 模型对比 ============
   /api/models/comparison:
     get:
@@ -1044,6 +1179,34 @@ components:
         pnlPct:
           type: number
 
+    InventoryItem:
+      type: object
+      description: 我的库存条目（真实库存）
+      properties:
+        id:
+          type: integer
+        skinId:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+          enum: [manual, steam]
+          description: manual=手动添加 / steam=Steam 导入
+        acquirePrice:
+          type: number
+          nullable: true
+          description: 入手成本（可选）
+        quantity:
+          type: integer
+        acquireDate:
+          type: string
+          format: date
+        currentPrice:
+          type: number
+        marketValue:
+          type: number
+
     PortfolioDiagnosis:
       type: object
       description: 🆕 组合诊断三块输出
@@ -1189,6 +1352,12 @@ components:
   responses:
     BadRequest:
       description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未登录或登录已失效
       content:
         application/json:
           schema:

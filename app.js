@@ -194,6 +194,7 @@ const app = createApp({
             radarInstance?.resize();
             backtestInstance?.resize();
             shapInstance?.resize();
+            inventoryValueChartInstance?.resize();
           }, 80);
         });
       };
@@ -295,7 +296,7 @@ const app = createApp({
       landingExiting.value = false;
     };
 
-    // 模拟持仓（库存）仅登录用户可用
+    // 我的库存仅登录用户可用；模拟持仓保持原有体验
     const requirePortfolioLogin = () => {
       if (currentUser.value) return true;
       showToast({
@@ -306,13 +307,17 @@ const app = createApp({
       return false;
     };
 
+    const requireInventoryLogin = () => {
+      if (currentUser.value) return true;
+      showToast({
+        title: t('inventory.loginRequired.title'),
+        subtitle: t('inventory.loginRequired.toast'),
+        type: 'info',
+      });
+      return false;
+    };
+
     const goToPage = (pageId) => {
-      if (pageId === 'portfolio' && !currentUser.value) {
-        // 仍允许进入页面，但展示登录引导（不展示持仓数据）
-        currentPage.value = 'portfolio';
-        sidebarOpen.value = false;
-        return;
-      }
       currentPage.value = pageId;
       sidebarOpen.value = false;
     };
@@ -363,6 +368,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        inventoryValueChartInstance?.resize();
       }, 250);
     };
 
@@ -376,6 +382,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        inventoryValueChartInstance?.resize();
       }, 300);
     });
     watch(currentPage, () => {
@@ -396,7 +403,6 @@ const app = createApp({
 
     // ============ 数据导出 ============
     const exportData = (type, format) => {
-      if (type === 'portfolio' && !requirePortfolioLogin()) return;
       let data, filename;
       if (type === 'skins') {
         data = skins.value;
@@ -412,6 +418,14 @@ const app = createApp({
           pnlPct: getItemPnlPct(p).toFixed(2) + '%',
         }));
         filename = `CSVest_portfolio_${new Date().toISOString().slice(0,10)}`;
+      } else if (type === 'inventory') {
+        if (!requireInventoryLogin()) return;
+        data = myInventory.value.map(p => ({
+          ...p,
+          currentPrice: getCurrentPrice(p.skinId),
+          marketValue: getCurrentPrice(p.skinId) * (p.quantity || 1),
+        }));
+        filename = `CSVest_inventory_${new Date().toISOString().slice(0,10)}`;
       } else if (type === 'models') {
         data = [...regressionModels.value, ...classificationModels.value.map(m => ({...m, course: '分类模型'}))];
         filename = `CSVest_models_${new Date().toISOString().slice(0,10)}`;
@@ -714,17 +728,41 @@ const app = createApp({
         const res = await client.getPortfolio();
         const items = Array.isArray(res) ? res : (res?.items || []);
         if (items.length || apiOnline.value) {
-          portfolio.value = items.map(p => ({
+          // 模拟持仓页：优先展示 holdingType=sim；无标记时兼容旧数据
+          const mapped = items.map(p => ({
             id: p.id,
             skinId: p.skinId,
             name: p.name,
             buyPrice: p.buyPrice,
             quantity: p.quantity || 1,
             buyDate: p.buyDate,
-            holdingType: p.holdingType || 'real',
+            holdingType: p.holdingType || 'sim',
             currentPrice: p.currentPrice,
             pnl: p.pnl,
             pnlPct: p.pnlPct,
+          }));
+          const simOnly = mapped.filter(p => p.holdingType === 'sim');
+          portfolio.value = simOnly.length ? simOnly : mapped;
+        }
+      } catch (_) { /* keep mock */ }
+    };
+
+    const loadInventoryFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const res = await client.getInventory();
+        const items = Array.isArray(res) ? res : (res?.items || []);
+        if (items.length || apiOnline.value) {
+          myInventory.value = items.map(p => ({
+            id: p.id,
+            skinId: p.skinId,
+            name: p.name,
+            acquirePrice: p.acquirePrice ?? p.buyPrice ?? null,
+            quantity: p.quantity || 1,
+            acquireDate: p.acquireDate || p.buyDate || '',
+            source: p.source || 'manual',
+            currentPrice: p.currentPrice,
           }));
         }
       } catch (_) { /* keep mock */ }
@@ -1718,14 +1756,43 @@ const app = createApp({
       }
     };
 
-    // ============ 持仓 ============
+    // ============ 持仓 / 库存 ============
+    const portfolioTab = ref('inventory'); // inventory | sim
     const portfolio = ref([...window.CSVestData.DEFAULT_PORTFOLIO]);
     const showPortfolioModal = ref(false);
-    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' });
+    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' });
+
+    const myInventory = ref([...(window.CSVestData.DEFAULT_INVENTORY || [])]);
+    const showInventoryModal = ref(false);
+    const newInventory = ref({
+      skinId: '',
+      acquirePrice: 0,
+      quantity: 1,
+      acquireDate: new Date().toISOString().slice(0, 10),
+      source: 'manual',
+    });
+    const selectedInventoryItem = ref(null);
+    const inventoryMenuId = ref(null);
+    const showInventoryEditModal = ref(false);
+    const editingInventory = ref({ id: null, name: '', acquirePrice: 0 });
+    const inventoryValueHistory = ref({ dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 });
+    const inventoryValueChart = ref(null);
+    let inventoryValueChartInstance = null;
+
+    const getSkinMeta = (skinId) => skins.value.find(s => s.id === skinId) || null;
+
+    const getSkinImage = (skinId) => getSkinMeta(skinId)?.image || '🎯';
+
+    const getSkinChange24h = (skinId) => {
+      const ch = Number(getSkinMeta(skinId)?.change24h);
+      return Number.isFinite(ch) ? ch : 0;
+    };
 
     const getCurrentPrice = (skinId) => {
       const fromPortfolio = portfolio.value.find(p => p.skinId === skinId);
       if (fromPortfolio?.currentPrice != null) return fromPortfolio.currentPrice;
+      const fromInv = myInventory.value.find(p => p.skinId === skinId);
+      if (fromInv?.currentPrice != null) return fromInv.currentPrice;
       return skins.value.find(s => s.id === skinId)?.price || 0;
     };
 
@@ -1760,8 +1827,172 @@ const app = createApp({
       };
     });
 
+    const inventoryItemCount = computed(() =>
+      myInventory.value.reduce((s, p) => s + (p.quantity || 1), 0)
+    );
+
+    const inventoryTotalValue = computed(() =>
+      myInventory.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0)
+    );
+
+    const inventorySourceLabel = (source, short = false) => {
+      if (source === 'steam') return short ? 'Steam' : t('inventory.source.steam');
+      return short ? t('inventory.source.manual.short') : t('inventory.source.manual');
+    };
+
+    const renderInventoryValueChart = () => {
+      if (!inventoryValueChart.value) return;
+      inventoryValueChartInstance = getOrCreateChart(inventoryValueChartInstance, inventoryValueChart.value);
+      const hist = inventoryValueHistory.value || {};
+      const dates = hist.dates || [];
+      const values = hist.values || [];
+      const predictedDates = hist.predictedDates || [];
+      const predictedValues = hist.predictedValues || [];
+      const lastValue = values.length ? values[values.length - 1] : null;
+      const forecastSeries = lastValue == null
+        ? []
+        : new Array(Math.max(dates.length - 1, 0)).fill('-').concat([lastValue], predictedValues);
+
+      inventoryValueChartInstance.setOption({
+        backgroundColor: 'transparent',
+        animation: true,
+        legend: {
+          data: [t('inventory.valueTrend'), 'AI 预测'],
+          textStyle: { color: '#9ca3af', fontSize: 11 },
+          top: 0,
+        },
+        grid: { left: 52, right: 16, top: 36, bottom: 32 },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: '#1f2937',
+          borderColor: '#374151',
+          textStyle: { color: '#f3f4f6' },
+          valueFormatter: (v) => (v == null || v === '-' ? '-' : `$${Number(v).toFixed(2)}`),
+        },
+        xAxis: {
+          type: 'category',
+          data: dates.concat(predictedDates),
+          boundaryGap: false,
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          axisLine: { lineStyle: { color: '#374151' } },
+        },
+        yAxis: {
+          type: 'value',
+          scale: true,
+          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => `$${v}` },
+          splitLine: { lineStyle: { color: '#2a3447' } },
+        },
+        series: [
+          {
+            name: t('inventory.valueTrend'),
+            type: 'line',
+            data: values.concat(predictedDates.map(() => '-')),
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#ff6b00' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255,107,0,0.28)' },
+                { offset: 1, color: 'rgba(255,107,0,0.02)' },
+              ]),
+            },
+          },
+          {
+            name: 'AI 预测',
+            type: 'line',
+            data: forecastSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#22c792', type: 'dashed' },
+            markLine: predictedDates.length ? {
+              symbol: 'none',
+              label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
+              lineStyle: { color: '#6b7280', type: 'dashed' },
+              data: [{ xAxis: dates[dates.length - 1] }],
+            } : undefined,
+          },
+        ],
+      }, true);
+      allowPageScrollOverChart(inventoryValueChartInstance);
+    };
+
+    const refreshInventoryCharts = async () => {
+      if (!currentUser.value) return;
+      const client = api();
+      try {
+        if (client) {
+          const hist = await client.getInventoryValueHistory(90);
+          inventoryValueHistory.value = hist || { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+        } else if (window.CSVestData.generateInventoryValueHistory) {
+          inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        }
+      } catch (_) {
+        if (window.CSVestData.generateInventoryValueHistory) {
+          inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        }
+      }
+      nextTick(() => {
+        renderInventoryValueChart();
+        inventoryValueChartInstance?.resize();
+      });
+    };
+
+    const setPortfolioTab = (tab) => {
+      portfolioTab.value = tab;
+      inventoryMenuId.value = null;
+      if (tab === 'inventory' && currentUser.value) {
+        loadInventoryFromApi().then(() => refreshInventoryCharts());
+      } else if (tab === 'sim') {
+        loadPortfolioFromApi();
+        loadPortfolioExtras();
+      }
+    };
+
+    const openInventoryItem = (item) => {
+      inventoryMenuId.value = null;
+      if (item?.skinId) viewSkin(item.skinId);
+    };
+
+    const toggleInventoryMenu = (id) => {
+      inventoryMenuId.value = inventoryMenuId.value === id ? null : id;
+    };
+
+    const closeInventoryMenu = () => {
+      inventoryMenuId.value = null;
+    };
+
+    const openEditInventoryPrice = (item) => {
+      if (!item) return;
+      inventoryMenuId.value = null;
+      editingInventory.value = {
+        id: item.id,
+        name: item.name,
+        acquirePrice: item.acquirePrice != null ? +item.acquirePrice : 0,
+      };
+      showInventoryEditModal.value = true;
+    };
+
+    const saveInventoryPrice = async () => {
+      if (!requireInventoryLogin()) return;
+      const id = editingInventory.value.id;
+      if (id == null) return;
+      const price = Number(editingInventory.value.acquirePrice);
+      const nextPrice = Number.isFinite(price) ? price : 0;
+      const idx = myInventory.value.findIndex(p => p.id === id);
+      if (idx >= 0) {
+        myInventory.value[idx] = {
+          ...myInventory.value[idx],
+          acquirePrice: nextPrice,
+        };
+        // 预留：后端对接后在此调用 PATCH /api/inventory/{id}
+        showToast({ title: t('inventory.updated'), subtitle: editingInventory.value.name || '', type: 'success' });
+        await refreshInventoryCharts();
+      }
+      showInventoryEditModal.value = false;
+      editingInventory.value = { id: null, name: '', acquirePrice: 0 };
+    };
+
     const addPortfolio = async () => {
-      if (!requirePortfolioLogin()) return;
       if (!newPortfolio.value.skinId || !newPortfolio.value.buyPrice) return;
       const skin = skins.value.find(s => s.id === newPortfolio.value.skinId);
       const payload = {
@@ -1769,7 +2000,7 @@ const app = createApp({
         buyPrice: +newPortfolio.value.buyPrice,
         quantity: +newPortfolio.value.quantity || 1,
         buyDate: newPortfolio.value.buyDate,
-        holdingType: newPortfolio.value.holdingType || 'real',
+        holdingType: 'sim',
       };
       try {
         const client = api();
@@ -1788,11 +2019,10 @@ const app = createApp({
         showToast({ title: '添加持仓失败', subtitle: e.message || '', type: 'error' });
       }
       showPortfolioModal.value = false;
-      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' };
+      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' };
     };
 
     const removePortfolio = async (id) => {
-      if (!requirePortfolioLogin()) return;
       try {
         const client = api();
         if (client && apiOnline.value) {
@@ -1805,8 +2035,82 @@ const app = createApp({
       }
     };
 
+    const addInventoryItem = async () => {
+      if (!requireInventoryLogin()) return;
+      if (!newInventory.value.skinId) return;
+      const skin = skins.value.find(s => s.id === newInventory.value.skinId);
+      const rawPrice = newInventory.value.acquirePrice;
+      const payload = {
+        skinId: newInventory.value.skinId,
+        acquirePrice: rawPrice != null && rawPrice !== '' && Number.isFinite(+rawPrice) ? +rawPrice : 0,
+        quantity: +newInventory.value.quantity || 1,
+        acquireDate: newInventory.value.acquireDate,
+        source: 'manual',
+      };
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.addInventoryItem(payload);
+          await loadInventoryFromApi();
+        } else {
+          myInventory.value.push({
+            id: Date.now(),
+            ...payload,
+            name: skin?.name || '',
+          });
+        }
+        showToast({ title: t('inventory.added'), subtitle: skin?.name || '', type: 'success' });
+        await refreshInventoryCharts();
+      } catch (e) {
+        showToast({ title: t('common.error'), subtitle: e.message || '', type: 'error' });
+      }
+      showInventoryModal.value = false;
+      newInventory.value = {
+        skinId: '',
+        acquirePrice: 0,
+        quantity: 1,
+        acquireDate: new Date().toISOString().slice(0, 10),
+        source: 'manual',
+      };
+    };
+
+    const removeInventoryItem = async (id) => {
+      if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.deleteInventoryItem(id);
+        }
+        myInventory.value = myInventory.value.filter(p => p.id !== id);
+        if (selectedInventoryItem.value?.id === id) selectedInventoryItem.value = null;
+        showToast({ title: t('inventory.removed'), type: 'success' });
+        await refreshInventoryCharts();
+      } catch (e) {
+        showToast({ title: t('common.error'), subtitle: e.message || '', type: 'error' });
+      }
+    };
+
+    const importSteamInventory = async () => {
+      if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
+      showToast({
+        title: t('inventory.steamPending'),
+        subtitle: t('inventory.steamPending.desc'),
+        type: 'info',
+      });
+      // 预留对接：await api().importSteamInventory({ steamId })
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.importSteamInventory({});
+        }
+      } catch (_) {
+        /* pending stub */
+      }
+    };
+
     const loadPortfolioExtras = async () => {
-      if (!requirePortfolioLogin()) return;
       const client = api();
       if (!client || !apiOnline.value) return;
       try {
@@ -2182,6 +2486,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        inventoryValueChartInstance?.resize();
       });
 
       // 网络状态监听
@@ -2256,11 +2561,25 @@ const app = createApp({
       } else if (newPage === 'alerts') {
         await loadAlertsFromApi();
       } else if (newPage === 'portfolio') {
-        if (!currentUser.value) return;
-        await loadPortfolioFromApi();
-        await loadPortfolioExtras();
+        if (portfolioTab.value === 'inventory') {
+          if (currentUser.value) {
+            await loadInventoryFromApi();
+            await refreshInventoryCharts();
+          }
+        } else {
+          await loadPortfolioFromApi();
+          await loadPortfolioExtras();
+        }
       } else if (newPage === 'chat') {
         setTimeout(scrollChatBottom, 100);
+      }
+    });
+
+    // 登录后若正停留在「我的库存」，自动加载数据与图表
+    watch(currentUser, async (user) => {
+      if (user && currentPage.value === 'portfolio' && portfolioTab.value === 'inventory') {
+        await loadInventoryFromApi();
+        await refreshInventoryCharts();
       }
     });
 
@@ -2315,10 +2634,19 @@ const app = createApp({
       newsFeed, dailyReport, loadDailyReport,
       // 预警
       alerts, showAlertModal, newAlert, addAlert, deleteAlert,
-      // 持仓
+      // 持仓 / 库存
+      portfolioTab, setPortfolioTab,
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
       portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
+      myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
+      importSteamInventory, openInventoryItem,
+      inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
+      showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
+      inventoryItemCount, inventoryTotalValue, inventorySourceLabel,
+      getSkinImage, getSkinChange24h, getSkinMeta,
+      inventoryValueChart, inventoryValueHistory,
+      refreshInventoryCharts,
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
       radarChart, backtestChart, shapChart,

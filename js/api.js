@@ -71,6 +71,7 @@ class CSVestAPI {
     }
     this.online = false;
     this._alerts = null;
+    this._inventory = null;
     this._portfolio = null;
   }
 
@@ -539,6 +540,90 @@ class CSVestAPI {
         actions: [],
         riskTop: [],
       })
+    );
+  }
+
+  // ============ 我的库存（真实库存；后端待对接，先留接口 + mock）============
+  _mockInventory() {
+    if (this._inventory) return this._inventory;
+    this._inventory = (window.CSVestData.DEFAULT_INVENTORY || []).map(p => ({ ...p }));
+    return this._inventory;
+  }
+
+  /** GET /api/inventory — 获取真实库存列表 */
+  async getInventory() {
+    return this._safeCall(
+      () => this._fetch('/api/inventory'),
+      () => ({ total: this._mockInventory().length, items: this._mockInventory() })
+    );
+  }
+
+  /** POST /api/inventory — 手动添加库存饰品 */
+  async addInventoryItem(data) {
+    const payload = {
+      skinId: data.skinId,
+      acquirePrice: data.acquirePrice,
+      acquireDate: data.acquireDate,
+      quantity: data.quantity || 1,
+      source: data.source || 'manual',
+    };
+    return this._safeCall(
+      () => this._fetch('/api/inventory', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+      () => {
+        const skin = window.CSVestData.SKINS_POOL.find(s => s.id === data.skinId);
+        const newItem = {
+          id: Date.now(),
+          ...payload,
+          name: skin?.name || '',
+        };
+        this._inventory = [...this._mockInventory(), newItem];
+        return newItem;
+      }
+    );
+  }
+
+  /** DELETE /api/inventory/{id} — 移除库存饰品 */
+  async deleteInventoryItem(id) {
+    return this._safeCall(
+      () => this._fetch(`/api/inventory/${id}`, { method: 'DELETE' }),
+      () => {
+        this._inventory = this._mockInventory().filter(p => p.id !== id);
+        return { success: true };
+      }
+    );
+  }
+
+  /** GET /api/inventory/value_history — 库存总价值走势 */
+  async getInventoryValueHistory(days = 90) {
+    return this._safeCall(
+      () => this._fetch(`/api/inventory/value_history?days=${days}`),
+      () => {
+        const gen = window.CSVestData.generateInventoryValueHistory;
+        return gen
+          ? gen(this._mockInventory(), days)
+          : { dates: [], values: [], total: 0 };
+      }
+    );
+  }
+
+  /**
+   * POST /api/inventory/steam/import — Steam 库存导入（待开发）
+   * 后端对接后：拉取 Steam inventory → 映射 market_hash_name → 写入 inventory
+   */
+  async importSteamInventory(_payload = {}) {
+    return this._safeCall(
+      () => this._fetch('/api/inventory/steam/import', {
+        method: 'POST',
+        body: JSON.stringify(_payload),
+      }),
+      () => {
+        const err = new Error('Steam 导入功能开发中');
+        err.code = 'STEAM_IMPORT_PENDING';
+        throw err;
+      }
     );
   }
 
