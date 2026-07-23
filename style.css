@@ -1847,9 +1847,14 @@ body.sidebar-open {
 
 .inv-item {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--bg-card);
+  cursor: pointer;
   overflow: visible;
   transition: border-color var(--duration-fast) var(--ease-out-expo),
               transform var(--duration-fast) var(--ease-out-expo),
@@ -1858,38 +1863,17 @@ body.sidebar-open {
   animation-delay: var(--inv-delay, 0ms);
 }
 
-.inv-item:hover {
+.inv-item:hover,
+.inv-item:focus-visible {
   border-color: var(--border-accent, rgba(255, 107, 0, 0.35));
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  outline: none;
 }
 
 @keyframes invItemIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.inv-item__main {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  padding: 12px;
-  border-radius: var(--radius-lg);
-}
-
-.inv-item__main:focus-visible {
-  outline: 2px solid rgba(255, 107, 0, 0.45);
-  outline-offset: -2px;
 }
 
 .inv-item__mark {
