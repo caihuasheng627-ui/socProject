@@ -251,12 +251,16 @@ class ModelLoader:
         return scaler.transform(X.reshape(-1, f)).reshape(n, t, f)
 
     @staticmethod
-    def _to_price(pred_log_2d: np.ndarray, y_scaler) -> float:
-        inv = y_scaler.inverse_transform(pred_log_2d.reshape(-1, 1)).ravel()
-        return float(np.expm1(inv[0]))
+    def _to_prices(pred_log_2d: np.ndarray, y_scaler) -> list[float]:
+        """把模型输出(log_price, 旧 Dense(1) 或新 Dense(7))还原成每日 USD 价列表。
+        v5 契约的 y_scaler 按 7 维拟合(每天独立 mean/scale),需按 (n, 7) 形状还原;
+        旧单维 scaler 仍按 (n, 1) 还原。"""
+        n_feat = int(getattr(y_scaler, "n_features_in_", 1) or 1)
+        inv = y_scaler.inverse_transform(pred_log_2d.reshape(-1, n_feat)).ravel()
+        return [float(v) for v in np.expm1(inv)]
 
-    # ---------- 单模型推理 ----------
-    def _predict_lstm_c(self, X: np.ndarray, name: str) -> float | None:
+    # ---------- 单模型推理(v5 契约: 返回 7 天每日价格列表) ----------
+    def _predict_lstm_c(self, X: np.ndarray, name: str) -> list[float] | None:
         if "lstm_c" not in self.models:
             return None
         item_id = self.item_map.get(name)
@@ -269,9 +273,9 @@ class ModelLoader:
         p = self.models["lstm_c"].predict(
             [self._scale_X(X, sc["x_scaler"]), Xi], verbose=0, batch_size=1
         ).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
 
-    def _predict_lstm_d(self, X: np.ndarray, name: str) -> float | None:
+    def _predict_lstm_d(self, X: np.ndarray, name: str) -> list[float] | None:
         grp = self.group_map.get(name)
         key = f"lstm_d_{grp}"
         if key not in self.models or grp is None:
@@ -280,19 +284,32 @@ class ModelLoader:
         if sc is None:
             return None
         p = self.models[key].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
 
-    def _predict_gru(self, X: np.ndarray, name: str) -> float | None:
+    def _predict_gru(self, X: np.ndarray, name: str) -> list[float] | None:
         if "gru" not in self.models or name not in self.gru_items:
             return None
         sc = self.scalers["gru"]
         p = self.models["gru"].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
+
+    @staticmethod
+    def _daily_payload(daily: list[float], cur_price: float) -> dict:
+        """由 7 天每日价格列表构造统一输出字段。
+        predicted_price 取第 7 天(与 v4 单点口径兼容),daily_prices 提供完整路径。"""
+        daily = [round(max(float(v), 0.01), 4) for v in daily]
+        pred = daily[-1]
+        change = round((pred - cur_price) / cur_price * 100, 2) if cur_price else 0.0
+        return {
+            "predicted_price": round(pred, 2),
+            "daily_prices": daily,
+            "change_pct": change,
+        }
 
     # ---------- Hybrid 主入口 ----------
     def predict_hybrid(self, market_hash_name: str) -> dict | None:
         """
-        返回 {current_price, predicted_price(7天), model, date, change_pct} 或 None。
+        返回 {current_price, predicted_price(第7天), daily_prices(7天路径), model, date, change_pct} 或 None。
         Hybrid 路由默认: low→C, mid/high→D(可被 lstm_hybrid_route.json 覆盖)。
         新物品(不在 item_map / CSV 面板)→ 强制走 LSTM-C(__UNK__ embedding),
         窗口从 price_history 表(BUFF 爬取)构建。
@@ -317,26 +334,23 @@ class ModelLoader:
             prefer = self.hybrid_route.get(grp, "LSTM-D")
 
         if prefer == "LSTM-C":
-            pred = self._predict_lstm_c(X, market_hash_name)
+            daily = self._predict_lstm_c(X, market_hash_name)
             model_tag = "LSTM-C(__UNK__)" if is_new_item else "LSTM-C"
         else:
-            pred = self._predict_lstm_d(X, market_hash_name)
+            daily = self._predict_lstm_d(X, market_hash_name)
             model_tag = "LSTM-D"
         # 兜底:C/D 任一失败换另一个
-        if pred is None:
-            pred = self._predict_lstm_c(X, market_hash_name) or self._predict_lstm_d(X, market_hash_name)
+        if daily is None:
+            daily = self._predict_lstm_c(X, market_hash_name) or self._predict_lstm_d(X, market_hash_name)
             model_tag = "LSTM-Hybrid(fallback)"
-        if pred is None:
+        if daily is None:
             return self._mock_trend(market_hash_name, cur_price, cur_date)
 
-        pred = max(pred, 0.01)
-        change = round((pred - cur_price) / cur_price * 100, 2)
         return {
             "current_price": round(cur_price, 2),
-            "predicted_price": round(pred, 2),
+            **self._daily_payload(daily, cur_price),
             "model": model_tag,
             "date": cur_date,
-            "change_pct": change,
             "confidence": self._confidence(model_tag),
             "price_tier": grp,
             "route": prefer,
@@ -349,16 +363,14 @@ class ModelLoader:
         X, cur_price, cur_date = win
         if not self.tf_available or market_hash_name not in self.gru_items:
             return None
-        pred = self._predict_gru(X, market_hash_name)
-        if pred is None:
+        daily = self._predict_gru(X, market_hash_name)
+        if daily is None:
             return None
-        pred = max(pred, 0.01)
         return {
             "current_price": round(cur_price, 2),
-            "predicted_price": round(pred, 2),
+            **self._daily_payload(daily, cur_price),
             "model": "GRU",
             "date": cur_date,
-            "change_pct": round((pred - cur_price) / cur_price * 100, 2),
             "confidence": self._confidence("GRU"),
         }
 
@@ -394,8 +406,24 @@ class ModelLoader:
             return None
         row = sub.sort_values("date").iloc[-1]
         cur = float(row["current_price"])
-        pred = max(float(row["predicted_price"]), 0.01)
-        return {
+
+        # v5 契约: LSTM/GRU 系列多列格式 predicted_price_d1..d7(逐日精确预测)
+        day_cols = [c for c in df.columns if c.startswith("predicted_price_d")]
+        daily: list[float] | None = None
+        if day_cols:
+            day_cols = sorted(day_cols, key=lambda c: int(c.rsplit("d", 1)[-1]))
+            vals = [row[c] for c in day_cols]
+            if all(pd.notna(v) for v in vals):
+                daily = [max(float(v), 0.01) for v in vals]
+        if daily:
+            pred = daily[-1]
+        elif "predicted_price" in df.columns and pd.notna(row["predicted_price"]):
+            # 旧单列格式(树模型 / ARIMA)
+            pred = max(float(row["predicted_price"]), 0.01)
+        else:
+            return None
+
+        out = {
             "current_price": round(cur, 2),
             "predicted_price": round(pred, 2),
             "model": model_name,
@@ -404,6 +432,11 @@ class ModelLoader:
             "change_pct": round((pred - cur) / cur * 100, 2) if cur else 0.0,
             "confidence": self._confidence(model_name),
         }
+        if daily:
+            out["daily_prices"] = [round(v, 4) for v in daily]
+        if "target_date" in df.columns and pd.notna(row.get("target_date")):
+            out["target_date"] = str(pd.Timestamp(row["target_date"]).date())
+        return out
 
     def predict_all_models(self, market_hash_name: str, horizon: int = 7) -> list[dict]:
         """返回多模型预测列表(供 /api/predict)。
@@ -430,17 +463,25 @@ class ModelLoader:
                 results.append(r)
 
         have = {r["model"] for r in results}
-        # CSV 无 Hybrid 时: live Hybrid 兜底
+        # CSV 无 Hybrid 时: live Hybrid 兜底(推理失败不拖垮整个端点)
         if "LSTM" not in have:
-            h = self.predict_hybrid(market_hash_name)
+            try:
+                h = self.predict_hybrid(market_hash_name)
+            except Exception as e:
+                print(f"[model_loader] live hybrid 兜底失败: {e}")
+                h = None
             if h:
                 results.insert(0, {**h, "model": "LSTM", "type": "DL"})
         if "GRU" not in have:
-            g = self.predict_gru_for(market_hash_name)
+            try:
+                g = self.predict_gru_for(market_hash_name)
+            except Exception as e:
+                print(f"[model_loader] live GRU 兜底失败: {e}")
+                g = None
             if g:
                 results.append({**g, "type": "DL"})
 
-        # horizon=30 时把 7 天预测外推(标注)
+        # horizon=30 时把 7 天预测外推(标注);daily_prices 仍为 7 天精确路径
         if horizon == 30:
             for r in results:
                 cur = r["current_price"]
@@ -463,15 +504,20 @@ class ModelLoader:
         return round(max(35.0, min(95.0, 100.0 - mape * 2.2)), 1)
 
     def _mock_trend(self, market_hash_name: str, cur_price: float, cur_date: str) -> dict:
-        """TF 不可用时的趋势外推(近 7 日收益率 ×7)。"""
+        """TF 不可用时的趋势外推(近 7 日收益率 ×7);同样给出 7 天线性路径保持契约一致。"""
         panel, _ = _load_panel()
         g = panel[panel["market_hash_name"] == market_hash_name].sort_values("date")
         if len(g) < 8:
+            daily = [round(max(cur_price, 0.01), 4)] * 7
             return {"current_price": round(cur_price, 2), "predicted_price": round(cur_price, 2),
+                    "daily_prices": daily,
                     "model": "Mock(趋势)", "date": cur_date, "change_pct": 0.0, "confidence": 40.0}
         ret7 = (g["price"].iloc[-1] - g["price"].iloc[-8]) / g["price"].iloc[-8]
         pred = max(cur_price * (1 + ret7), 0.01)
+        daily = [round(max(cur_price + (pred - cur_price) * (i / 7.0), 0.01), 4)
+                 for i in range(1, 8)]
         return {"current_price": round(cur_price, 2), "predicted_price": round(pred, 2),
+                "daily_prices": daily,
                 "model": "Mock(趋势)", "date": cur_date,
                 "change_pct": round((pred - cur_price) / cur_price * 100, 2), "confidence": 45.0}
 

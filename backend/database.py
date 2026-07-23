@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS predictions (
     confidence      REAL,
     generated_at    TEXT,
     expires_at      TEXT,
+    daily_json      TEXT,               -- v5: 7 天逐日预测路径(JSON 数组)
     FOREIGN KEY (skin_id) REFERENCES skins(id)
 );
 CREATE INDEX IF NOT EXISTS idx_pred_skin ON predictions(skin_id, horizon, model);
@@ -238,6 +239,9 @@ def migrate_add_user_columns() -> None:
         # 管理员标记
         if not _column_exists(conn, "users", "is_admin"):
             conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+        # v5 预测契约: 缓存 7 天逐日预测路径(JSON 数组)
+        if not _column_exists(conn, "predictions", "daily_json"):
+            conn.execute("ALTER TABLE predictions ADD COLUMN daily_json TEXT")
         conn.commit()
 
 
