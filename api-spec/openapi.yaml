@@ -556,7 +556,17 @@ paths:
     get:
       tags: [Models]
       summary: 获取模型对比数据
-      description: 6 回归 + 4 分类模型,所有指标
+      description: |
+        默认返回全局公平 test 对比（6 回归 + 分类）。
+        传入 `skinId` 时改为该饰品在 pred CSV 上的单品指标（MAPE/MAE/RMSE/方向准确率）+ latest 预测。
+      parameters:
+        - name: skinId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 饰品 slug / market_hash_name / 数字 id
+          example: 'ak-47-elite-build-minimal-wear'
       responses:
         '200':
           description: 成功
@@ -565,6 +575,16 @@ paths:
               schema:
                 type: object
                 properties:
+                  scope:
+                    type: string
+                    enum: [global, item]
+                  skinId:
+                    type: string
+                  skinName:
+                    type: string
+                  bestModel:
+                    type: string
+                    nullable: true
                   regression:
                     type: array
                     items:
@@ -575,6 +595,8 @@ paths:
                       $ref: '#/components/schemas/ModelResult'
                   buyAndHold:
                     $ref: '#/components/schemas/ModelResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/models/backtest:
     get:

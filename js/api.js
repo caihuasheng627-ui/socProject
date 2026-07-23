@@ -205,8 +205,12 @@ class CSVestAPI {
   }
 
   _mockPredict(skinId, horizon) {
-    const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
-    if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
+    const pool = window.CSVestData?.SKINS_POOL || [];
+    let skin = pool.find(s => s.id === skinId);
+    // 后端 154 件不在 SKINS_POOL 时，用传入 id 合成占位价，避免整表空白
+    if (!skin) {
+      skin = { id: skinId, name: skinId, price: 100 };
+    }
     return {
       skinId,
       horizon,
@@ -447,11 +451,48 @@ class CSVestAPI {
     );
   }
 
-  async getModelComparison() {
+  async getModelComparison(skinId) {
+    const q = skinId ? `?skinId=${encodeURIComponent(skinId)}` : '';
     return this._safeCall(
-      () => this._fetch('/api/models/comparison'),
-      () => window.CSVestData.MODEL_COMPARISON
+      () => this._fetch(`/api/models/comparison${q}`),
+      () => this._mockModelComparison(skinId)
     );
+  }
+
+  _mockModelComparison(skinId) {
+    const base = window.CSVestData?.MODEL_COMPARISON || { regression: [], classification: [] };
+    if (!skinId) {
+      return { scope: 'global', ...base };
+    }
+    // 离线：用全局指标作该饰品占位，并按皮肤价生成 latest 预测
+    const skin = (window.CSVestData?.SKINS_POOL || []).find(s => s.id === skinId);
+    const price = skin?.price || 100;
+    const regression = (base.regression || []).map((r, i) => {
+      const drift = 1 + (0.008 + i * 0.002);
+      return {
+        ...r,
+        course: 'mock · offline',
+        latest: {
+          currentPrice: price,
+          predictedPrice: +(price * drift).toFixed(2),
+          change: +((drift - 1) * 100).toFixed(2),
+        },
+        confidence: Math.round(Math.max(40, 95 - (r.mape || 10) * 2)),
+      };
+    });
+    const best = regression.length
+      ? regression.reduce((a, b) => ((a.mape ?? 99) <= (b.mape ?? 99) ? a : b)).name
+      : null;
+    return {
+      scope: 'item',
+      skinId,
+      skinName: skin?.name || skinId,
+      regression,
+      classification: base.classification || [],
+      bestModel: best,
+      nModels: regression.length,
+      buyAndHold: base.buyAndHold || null,
+    };
   }
 
   /** 将新旧回测 JSON 统一成 { dates, series: { name: number[] } } */

@@ -175,7 +175,7 @@ python -m http.server 8080
 | GET/POST/DELETE | `/api/portfolio` | 持仓 CRUD（`holdingType`: real/sim） |
 | GET | `/api/portfolio/value_history` | 总市值曲线 |
 | POST | `/api/portfolio/diagnose` | 组合诊断 |
-| GET | `/api/models/comparison` · `/backtest` · `/shap` | 模型实验室 |
+| GET | `/api/models/comparison` · `/backtest` · `/shap` | 模型实验室；`comparison?skinId=` 返回该饰品指标 |
 | GET/POST/DELETE | `/api/alerts` | 价格预警 |
 
 请求体字段为 camelCase（如 `skinId`、`horizon`），与 OpenAPI / 前端一致。

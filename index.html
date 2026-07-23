@@ -662,7 +662,12 @@
           <div class="grid grid-2 mb-4">
             <div class="card">
               <div class="card-header">
-                <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
+                <div>
+                  <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
+                  <div v-if="skinModelBest" class="card-subtitle text-muted text-sm mt-1">
+                    {{ t('prediction.bestForSkin') }} · <strong style="color: var(--accent-orange);">{{ skinModelBest }}</strong>
+                  </div>
+                </div>
               </div>
               <table class="data-table">
                 <thead>
@@ -670,24 +675,35 @@
                     <th>{{ t('models.col.model') }}</th>
                     <th>预测价</th>
                     <th>变化</th>
+                    <th>MAPE</th>
                     <th>置信度</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="pred in modelPredictions" :key="pred.name">
+                  <tr v-for="pred in modelPredictions" :key="pred.name" :class="{ 'row-best': pred.isBest }">
                     <td>
                       <strong>{{ pred.name }}</strong>
                       <span class="tag" style="margin-left: 6px; font-size: 10px;">{{ pred.type }}</span>
+                      <span v-if="pred.isBest" class="tag tag-orange" style="margin-left: 4px; font-size: 10px;">{{ t('models.star') }}</span>
                     </td>
                     <td>${{ formatPrice(pred.price) }}</td>
                     <td :class="pred.change >= 0 ? 'text-up' : 'text-down'">
                       {{ pred.change >= 0 ? '+' : '' }}{{ pred.change.toFixed(2) }}%
                     </td>
                     <td>
+                      <span v-if="pred.mape != null">{{ pred.mape.toFixed(2) }}%</span>
+                      <span v-else class="text-muted">—</span>
+                    </td>
+                    <td>
                       <div class="consensus-meter" style="width: 60px; height: 4px; display: inline-block; vertical-align: middle;">
                         <div class="consensus-bar" :style="{ width: pred.confidence + '%' }"></div>
                       </div>
                       <span class="text-muted text-sm" style="margin-left: 6px;">{{ pred.confidence }}%</span>
+                    </td>
+                  </tr>
+                  <tr v-if="!modelPredictions.length">
+                    <td colspan="5" class="text-muted text-sm" style="text-align: center; padding: 18px;">
+                      {{ t('prediction.modelsLoading') }}
                     </td>
                   </tr>
                 </tbody>
