@@ -194,10 +194,43 @@ const DEBATE_SAMPLE = {
 
 // 模拟持仓（默认数据）
 const DEFAULT_PORTFOLIO = [
-  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 52.78, quantity: 5, buyDate: '2026-06-15' },
-  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 118.06, quantity: 2, buyDate: '2026-06-28' },
-  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 166.67, quantity: 1, buyDate: '2026-07-05' },
+  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 52.78, quantity: 5, buyDate: '2026-06-15', holdingType: 'sim' },
+  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 118.06, quantity: 2, buyDate: '2026-06-28', holdingType: 'sim' },
+  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 166.67, quantity: 1, buyDate: '2026-07-05', holdingType: 'sim' },
 ];
+
+// 我的库存（真实库存：手动添加 / Steam 导入；Steam 待对接）
+const DEFAULT_INVENTORY = [
+  { id: 101, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', acquirePrice: 48.50, quantity: 3, acquireDate: '2026-05-20', source: 'manual' },
+  { id: 102, skinId: 'deagle-printstream-ft', name: 'Desert Eagle | Printstream (FT)', acquirePrice: 41.20, quantity: 4, acquireDate: '2026-06-02', source: 'manual' },
+  { id: 103, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', acquirePrice: 170.00, quantity: 1, acquireDate: '2026-06-18', source: 'manual' },
+  { id: 104, skinId: 'usps-killconfirmed-ft', name: 'USP-S | Kill Confirmed (FT)', acquirePrice: 18.90, quantity: 6, acquireDate: '2026-07-01', source: 'manual' },
+];
+
+/** 根据库存与饰品现价，生成库存总价值历史曲线（前端 mock，后端对接后走 API） */
+function generateInventoryValueHistory(inventory, days = 90) {
+  const dates = [];
+  const values = [];
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const baseTotal = (inventory || []).reduce((sum, item) => {
+    const skin = SKINS_POOL.find(s => s.id === item.skinId);
+    const price = skin?.price ?? item.acquirePrice ?? 0;
+    return sum + price * (item.quantity || 1);
+  }, 0) || 1000;
+
+  let cursor = baseTotal * 0.88;
+  for (let i = days; i >= 0; i--) {
+    const d = new Date(now - i * dayMs);
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    const drift = (Math.random() - 0.48) * 0.012 * cursor;
+    cursor = Math.max(cursor + drift, baseTotal * 0.6);
+    values.push(+cursor.toFixed(2));
+  }
+  // 末日对齐当前总市值
+  if (values.length) values[values.length - 1] = +baseTotal.toFixed(2);
+  return { dates, values, total: +baseTotal.toFixed(2) };
+}
 
 // 风险指标生成
 function calculateRiskMetrics(portfolio, currentPrices) {
@@ -285,6 +318,8 @@ window.CSVestData = {
   HOT_VOLUME,
   DEBATE_SAMPLE,
   DEFAULT_PORTFOLIO,
+  DEFAULT_INVENTORY,
+  generateInventoryValueHistory,
   calculateRiskMetrics,
   AI_PRESET_RESPONSES,
   SUGGESTED_QUESTIONS,

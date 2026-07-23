@@ -1253,21 +1253,168 @@
           </div>
         </div>
 
-        <!-- 模拟持仓 -->
+        <!-- 我的库存 / 模拟持仓 -->
         <div v-if="currentPage === 'portfolio'" class="fade-in">
-          <!-- 游客：持仓/库存需登录 -->
-          <div v-if="!currentUser" class="auth-required-panel card">
-            <div class="auth-required-icon" aria-hidden="true">
-              <i class="ph-duotone ph-lock-key" style="font-size: 40px; color: var(--accent-orange);"></i>
-            </div>
-            <h2 class="auth-required-title">{{ t('portfolio.loginRequired.title') }}</h2>
-            <p class="auth-required-desc">{{ t('portfolio.loginRequired.desc') }}</p>
-            <button type="button" class="btn btn-primary" @click="returnToLandingForLogin">
-              {{ t('portfolio.loginRequired.cta') }}
+          <div class="portfolio-tabs" role="tablist" :aria-label="t('menu.portfolio')">
+            <button
+              type="button"
+              role="tab"
+              class="portfolio-tab"
+              :class="{ active: portfolioTab === 'inventory' }"
+              :aria-selected="portfolioTab === 'inventory'"
+              @click="setPortfolioTab('inventory')"
+            >
+              <i class="ph-duotone ph-package" aria-hidden="true"></i>
+              {{ t('portfolio.tab.inventory') }}
+              <span v-if="!currentUser" class="tag tag-orange portfolio-tab-badge">{{ t('auth.loginRequiredBadge') }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="portfolio-tab"
+              :class="{ active: portfolioTab === 'sim' }"
+              :aria-selected="portfolioTab === 'sim'"
+              @click="setPortfolioTab('sim')"
+            >
+              <i class="ph-duotone ph-clipboard-text" aria-hidden="true"></i>
+              {{ t('portfolio.tab.sim') }}
             </button>
           </div>
 
-          <template v-else>
+          <!-- ===== 我的库存 ===== -->
+          <div v-if="portfolioTab === 'inventory'" class="inventory-panel">
+            <div v-if="!currentUser" class="auth-required-panel card">
+              <div class="auth-required-icon" aria-hidden="true">
+                <i class="ph-duotone ph-lock-key" style="font-size: 40px; color: var(--accent-orange);"></i>
+              </div>
+              <h2 class="auth-required-title">{{ t('inventory.loginRequired.title') }}</h2>
+              <p class="auth-required-desc">{{ t('inventory.loginRequired.desc') }}</p>
+              <button type="button" class="btn btn-primary" @click="returnToLandingForLogin">
+                {{ t('inventory.loginRequired.cta') }}
+              </button>
+            </div>
+
+            <template v-else>
+              <div class="flex justify-between items-center mb-4 inventory-header">
+                <div>
+                  <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <i class="ph-duotone ph-package icon-primary" aria-hidden="true"></i>
+                    {{ t('inventory.title') }}
+                  </h2>
+                  <p class="text-muted text-sm mt-2">{{ t('inventory.subtitle') }}</p>
+                </div>
+                <div class="flex gap-2 inventory-actions">
+                  <div class="export-group">
+                    <button class="btn btn-sm" @click="exportData('inventory', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
+                    <button class="btn btn-sm" @click="exportData('inventory', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
+                  </div>
+                  <button class="btn btn-primary" @click="showInventoryModal = true">
+                    <i class="ph ph-plus" aria-hidden="true"></i> {{ t('inventory.addManual') }}
+                  </button>
+                  <button class="btn btn-secondary" @click="importSteamInventory" :title="t('inventory.steamPending.desc')">
+                    <i class="ph ph-cloud-arrow-down" aria-hidden="true"></i> {{ t('inventory.steamImport') }}
+                    <span class="tag tag-orange" style="margin-left: 6px;">Soon</span>
+                  </button>
+                  <button class="btn btn-secondary" @click="goToPage('alerts')">
+                    <span>🔔</span> {{ t('portfolio.alertsEntry') }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="portfolio-summary mb-4">
+                <div class="summary-card">
+                  <div class="summary-label">{{ t('inventory.count') }}</div>
+                  <div class="summary-value">{{ inventoryItemCount }}</div>
+                  <div class="summary-delta text-muted">{{ myInventory.length }} SKU</div>
+                </div>
+                <div class="summary-card">
+                  <div class="summary-label">{{ t('inventory.totalValue') }}</div>
+                  <div class="summary-value">${{ formatPrice(inventoryTotalValue) }}</div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">{{ t('inventory.valueTrend') }}</div>
+                    <div class="card-subtitle">{{ t('inventory.valueTrendDesc') }}</div>
+                  </div>
+                </div>
+                <div ref="inventoryValueChart" class="inventory-chart"></div>
+              </div>
+
+              <div class="inventory-grid">
+                <div class="card">
+                  <div class="card-header">
+                    <div class="card-title">{{ t('inventory.list') }}</div>
+                    <span class="tag">{{ t('inventory.countUnit', { count: myInventory.length }) }}</span>
+                  </div>
+                  <div v-if="!myInventory.length" class="inventory-empty text-muted text-sm">
+                    {{ t('inventory.empty') }}
+                  </div>
+                  <div v-else class="table-scroll">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>{{ t('alerts.skin') }}</th>
+                          <th>{{ t('inventory.source') }}</th>
+                          <th>{{ t('inventory.acquirePrice') }}</th>
+                          <th>{{ t('portfolio.quantity') }}</th>
+                          <th>{{ t('portfolio.currentPrice') }}</th>
+                          <th>{{ t('portfolio.marketValue') }}</th>
+                          <th>{{ t('inventory.acquireDate') }}</th>
+                          <th>{{ t('alerts.actions') }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="item in myInventory"
+                          :key="item.id"
+                          class="inventory-row"
+                          :class="{ active: selectedInventoryItem && selectedInventoryItem.id === item.id }"
+                          @click="selectInventoryItem(item)"
+                        >
+                          <td><strong>{{ item.name }}</strong></td>
+                          <td>
+                            <span class="tag" :class="item.source === 'steam' ? 'tag-blue' : 'tag-orange'">
+                              {{ inventorySourceLabel(item.source) }}
+                            </span>
+                          </td>
+                          <td>${{ formatPrice(item.acquirePrice) }}</td>
+                          <td>{{ item.quantity }}</td>
+                          <td>${{ formatPrice(getCurrentPrice(item.skinId)) }}</td>
+                          <td>${{ formatPrice(getCurrentPrice(item.skinId) * item.quantity) }}</td>
+                          <td class="text-muted text-sm">{{ item.acquireDate }}</td>
+                          <td @click.stop>
+                            <button class="btn btn-ghost btn-sm" @click="selectInventoryItem(item)">{{ t('inventory.viewTrend') }}</button>
+                            <button class="btn btn-ghost btn-sm" @click="removeInventoryItem(item.id)">{{ t('inventory.remove') }}</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <div class="card-title">{{ t('inventory.itemTrend') }}</div>
+                      <div class="card-subtitle">
+                        {{ selectedInventoryItem ? selectedInventoryItem.name : t('inventory.itemTrendHint') }}
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="!selectedInventoryItem" class="inventory-empty text-muted text-sm">
+                    {{ t('inventory.itemTrendHint') }}
+                  </div>
+                  <div v-show="selectedInventoryItem" ref="inventoryItemChart" class="inventory-chart"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- ===== 模拟持仓（保持原有能力）===== -->
+          <div v-else class="sim-portfolio-panel">
           <div class="flex justify-between items-center mb-4">
             <div>
               <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
@@ -1377,7 +1524,7 @@
               </tbody>
             </table>
           </div>
-          </template>
+          </div>
         </div>
 
         <!-- 模型实验室：独立滚动壳，避免被外层/图表抢走触摸 -->
@@ -1549,8 +1696,8 @@
       </div>
     </div>
 
-    <!-- 添加持仓弹窗 -->
-    <div v-if="showPortfolioModal && currentUser" class="modal-mask" @click.self="showPortfolioModal = false" role="dialog" aria-modal="true">
+    <!-- 添加持仓弹窗（模拟持仓） -->
+    <div v-if="showPortfolioModal" class="modal-mask" @click.self="showPortfolioModal = false" role="dialog" aria-modal="true">
       <div class="modal">
         <div class="modal-title">
           <span>{{ t('portfolio.modal.title') }}</span>
@@ -1575,16 +1722,42 @@
           <label class="form-label">{{ t('portfolio.modal.buyDate') }}</label>
           <input type="date" class="form-input" v-model="newPortfolio.buyDate" />
         </div>
-        <div class="form-group">
-          <label class="form-label">持仓类型</label>
-          <select class="form-select" v-model="newPortfolio.holdingType">
-            <option value="real">真实持仓 (real)</option>
-            <option value="sim">模拟持仓 (sim)</option>
-          </select>
-        </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="showPortfolioModal = false">{{ t('common.cancel') }}</button>
           <button class="btn btn-primary" @click="addPortfolio">{{ t('common.add') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手动添加库存弹窗 -->
+    <div v-if="showInventoryModal && currentUser" class="modal-mask" @click.self="showInventoryModal = false" role="dialog" aria-modal="true">
+      <div class="modal">
+        <div class="modal-title">
+          <span>{{ t('inventory.modal.title') }}</span>
+          <button class="modal-close" @click="showInventoryModal = false" :aria-label="t('common.close')">×</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('inventory.modal.skin') }}</label>
+          <select class="form-select" v-model="newInventory.skinId">
+            <option value="">{{ t('common.please') }}...</option>
+            <option v-for="s in skins" :key="'inv-' + s.id" :value="s.id">{{ s.name }} (${{ formatPrice(s.price) }})</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('inventory.modal.acquirePrice') }}</label>
+          <input type="number" class="form-input" v-model.number="newInventory.acquirePrice" :placeholder="t('inventory.modal.acquirePrice.placeholder')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('inventory.modal.quantity') }}</label>
+          <input type="number" class="form-input" v-model.number="newInventory.quantity" :placeholder="t('inventory.modal.quantity.placeholder')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('inventory.modal.acquireDate') }}</label>
+          <input type="date" class="form-input" v-model="newInventory.acquireDate" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showInventoryModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" @click="addInventoryItem">{{ t('common.add') }}</button>
         </div>
       </div>
     </div>
