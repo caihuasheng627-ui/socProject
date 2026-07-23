@@ -1822,9 +1822,9 @@ const app = createApp({
       myInventory.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0)
     );
 
-    const inventorySourceLabel = (source) => {
-      if (source === 'steam') return t('inventory.source.steam');
-      return t('inventory.source.manual');
+    const inventorySourceLabel = (source, short = false) => {
+      if (source === 'steam') return short ? 'Steam' : t('inventory.source.steam');
+      return short ? t('inventory.source.manual.short') : t('inventory.source.manual');
     };
 
     const renderInventoryValueChart = () => {
@@ -2631,7 +2631,7 @@ const app = createApp({
       inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
       showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
       inventoryItemCount, inventoryTotalValue, inventorySourceLabel,
-      getSkinImage, getSkinChange24h,
+      getSkinImage, getSkinChange24h, getSkinMeta,
       inventoryValueChart, inventoryValueHistory,
       refreshInventoryCharts,
       // 模型

@@ -1365,16 +1365,19 @@
                       @click="openInventoryItem(item)"
                     >
                       <span class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</span>
-                      <div class="inv-item__info">
-                        <div class="inv-item__name">{{ item.name }}</div>
-                        <div class="inv-item__sub">
-                          <span class="tag" :class="item.source === 'steam' ? 'tag-blue' : 'tag-orange'">
-                            {{ inventorySourceLabel(item.source) }}
-                          </span>
+                      <div class="inv-item__body">
+                        <div class="inv-item__name" :title="item.name">{{ item.name }}</div>
+                        <div class="inv-item__meta">
+                          <span>{{ inventorySourceLabel(item.source, true) }}</span>
+                          <span class="inv-item__dot" aria-hidden="true">·</span>
                           <span>×{{ item.quantity }}</span>
+                          <template v-if="getSkinMeta(item.skinId)?.wear && getSkinMeta(item.skinId).wear !== 'N/A'">
+                            <span class="inv-item__dot" aria-hidden="true">·</span>
+                            <span>{{ getSkinMeta(item.skinId).wear }}</span>
+                          </template>
                         </div>
                       </div>
-                      <div class="inv-item__quote">
+                      <div class="inv-item__footer">
                         <div class="inv-item__price">${{ formatPrice(getCurrentPrice(item.skinId)) }}</div>
                         <div
                           class="inv-item__change"
