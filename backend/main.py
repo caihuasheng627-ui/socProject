@@ -766,12 +766,16 @@ def models_comparison():
         except Exception:
             mc = {}
 
-    # backtest returnPct: lstm_c → LSTM-C 等
+    # backtest returnPct: 兼容 lstm_c / LSTM-C 两种键名
     ret_map: dict[str, float] = {}
     key_alias = {
-        "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid", "gru": "GRU",
-        "rf": "Random Forest", "RF": "Random Forest",
-        "lightgbm": "LightGBM", "xgboost": "XGBoost",
+        "lstm_c": "LSTM-C", "LSTM-C": "LSTM-C",
+        "lstm_d": "LSTM-D", "LSTM-D": "LSTM-D",
+        "hybrid": "Hybrid", "Hybrid": "Hybrid",
+        "gru": "GRU", "GRU": "GRU",
+        "rf": "Random Forest", "RF": "Random Forest", "Random Forest": "Random Forest",
+        "lightgbm": "LightGBM", "LightGBM": "LightGBM",
+        "xgboost": "XGBoost", "XGBoost": "XGBoost",
     }
     if bt_path.exists():
         try:
@@ -782,8 +786,9 @@ def models_comparison():
                     if not isinstance(blk, dict) or blk.get("returnPct") is None:
                         continue
                     rp = float(blk["returnPct"])
+                    display = key_alias.get(k, k)
                     ret_map[k] = rp
-                    ret_map[key_alias.get(k, k)] = rp
+                    ret_map[display] = rp
         except Exception:
             pass
 
@@ -879,16 +884,29 @@ def models_backtest(days: int = 60, skinId: str | None = None):
             fee = raw.get("fee_0.0000") if isinstance(raw, dict) else None
             buy_hold = raw.get("buy_hold") if isinstance(raw, dict) else None
             if fee and isinstance(fee, dict):
-                # 取最长序列作日期轴
-                label_map = {
-                    "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid",
-                    "gru": "GRU", "rf": "Random Forest", "lightgbm": "LightGBM",
-                    "xgboost": "XGBoost",
+                # 兼容 snake_case(lstm_c) 与展示名(LSTM-C)；ml/backtest.py 写出后者
+                label_aliases: dict[str, tuple[str, ...]] = {
+                    "LSTM-C": ("lstm_c", "LSTM-C", "LSTM"),
+                    "LSTM-D": ("lstm_d", "LSTM-D"),
+                    "Hybrid": ("hybrid", "Hybrid"),
+                    "GRU": ("gru", "GRU"),
+                    "Random Forest": ("rf", "RF", "Random Forest"),
+                    "LightGBM": ("lightgbm", "LightGBM"),
+                    "XGBoost": ("xgboost", "XGBoost"),
                 }
                 # 图表主系列：策略模型 + Buy&Hold（避免一次塞太多线）
-                prefer = ("lstm_c", "lstm_d", "hybrid", "rf", "xgboost")
-                anchor_key = next((k for k in prefer if fee.get(k)), next(iter(fee), None))
-                anchor = fee.get(anchor_key) or buy_hold or []
+                prefer_labels = ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "XGBoost")
+
+                def _fee_series(label: str) -> list:
+                    for alias in label_aliases.get(label, (label,)):
+                        arr = fee.get(alias)
+                        if arr:
+                            return arr
+                    return []
+
+                anchor = next((_fee_series(lb) for lb in prefer_labels if _fee_series(lb)), None)
+                if not anchor:
+                    anchor = buy_hold or []
                 dates = [pt.get("date", "") for pt in anchor]
 
                 def _capitals(arr: list) -> list[float]:
@@ -902,11 +920,11 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     return [round(v / base * 100.0, 2) for v in vals]
 
                 series_raw: dict[str, list[float]] = {}
-                for key in prefer:
-                    arr = fee.get(key) or []
+                for label in prefer_labels:
+                    arr = _fee_series(label)
                     if not arr:
                         continue
-                    series_raw[label_map.get(key, key)] = _capitals(arr)
+                    series_raw[label] = _capitals(arr)
                 if buy_hold:
                     series_raw["Buy&Hold"] = _capitals(buy_hold)
 
