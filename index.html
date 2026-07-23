@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723n" />
+  <link rel="stylesheet" href="style.css?v=20260723q" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -1433,6 +1433,16 @@
                 <div class="summary-card">
                   <div class="summary-label">{{ t('inventory.totalValue') }}</div>
                   <div class="summary-value">${{ formatPrice(inventoryTotalValue) }}</div>
+                  <div
+                    class="summary-delta inv-total-change"
+                    :class="inventoryTotalChange24h >= 0 ? 'change-up' : 'change-down'"
+                  >
+                    <i
+                      :class="inventoryTotalChange24h >= 0 ? 'ph-bold ph-caret-up' : 'ph-bold ph-caret-down'"
+                      aria-hidden="true"
+                    ></i>
+                    <span>{{ formatChange(inventoryTotalChange24h) }}</span>
+                  </div>
                 </div>
               </div>
 
@@ -1461,15 +1471,15 @@
                     class="inv-item"
                     role="listitem"
                     :style="{ '--inv-delay': Math.min(idx, 12) * 28 + 'ms' }"
+                    tabindex="0"
+                    @click="openInventoryItem(item)"
+                    @keydown.enter.prevent="openInventoryItem(item)"
+                    @keydown.space.prevent="openInventoryItem(item)"
                   >
-                    <button
-                      type="button"
-                      class="inv-item__main"
-                      @click="openInventoryItem(item)"
-                    >
-                      <span class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</span>
-                      <div class="inv-item__body">
-                        <div class="inv-item__name" :title="item.name">{{ item.name }}</div>
+                    <div class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</div>
+                    <div class="inv-item__body">
+                      <div class="inv-item__name" :title="item.name">{{ item.name }}</div>
+                      <div class="inv-item__meta-row">
                         <div class="inv-item__meta">
                           <span>{{ inventorySourceLabel(item.source, true) }}</span>
                           <span class="inv-item__dot" aria-hidden="true">·</span>
@@ -1479,45 +1489,45 @@
                             <span>{{ getSkinMeta(item.skinId).wear }}</span>
                           </template>
                         </div>
-                      </div>
-                      <div class="inv-item__footer">
-                        <div class="inv-item__price">${{ formatPrice(getCurrentPrice(item.skinId)) }}</div>
-                        <div
-                          class="inv-item__change"
-                          :class="getSkinChange24h(item.skinId) >= 0 ? 'change-up' : 'change-down'"
-                        >
-                          <i
-                            :class="getSkinChange24h(item.skinId) >= 0 ? 'ph-bold ph-caret-up' : 'ph-bold ph-caret-down'"
-                            aria-hidden="true"
-                          ></i>
-                          <span>{{ formatChange(getSkinChange24h(item.skinId)) }}</span>
+                        <div class="inv-item__more" @click.stop>
+                          <button
+                            type="button"
+                            class="inv-item__more-btn"
+                            :aria-label="t('inventory.moreActions')"
+                            :aria-expanded="inventoryMenuId === item.id"
+                            @click="toggleInventoryMenu(item.id)"
+                          >
+                            <i class="ph-bold ph-dots-three" aria-hidden="true"></i>
+                          </button>
+                          <div
+                            v-if="inventoryMenuId === item.id"
+                            class="inv-item__menu"
+                            role="menu"
+                          >
+                            <button type="button" class="inv-item__menu-item" role="menuitem" @click="openInventoryItem(item)">
+                              {{ t('inventory.viewDetail') }}
+                            </button>
+                            <button type="button" class="inv-item__menu-item" role="menuitem" @click="openEditInventoryPrice(item)">
+                              {{ t('inventory.editPrice') }}
+                            </button>
+                            <button type="button" class="inv-item__menu-item danger" role="menuitem" @click="removeInventoryItem(item.id)">
+                              {{ t('inventory.remove') }}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </button>
-                    <div class="inv-item__more" @click.stop>
-                      <button
-                        type="button"
-                        class="inv-item__more-btn"
-                        :aria-label="t('inventory.moreActions')"
-                        :aria-expanded="inventoryMenuId === item.id"
-                        @click="toggleInventoryMenu(item.id)"
-                      >
-                        <i class="ph-bold ph-dots-three" aria-hidden="true"></i>
-                      </button>
+                    </div>
+                    <div class="inv-item__footer">
+                      <div class="inv-item__price">${{ formatPrice(getCurrentPrice(item.skinId)) }}</div>
                       <div
-                        v-if="inventoryMenuId === item.id"
-                        class="inv-item__menu"
-                        role="menu"
+                        class="inv-item__change"
+                        :class="getSkinChange24h(item.skinId) >= 0 ? 'change-up' : 'change-down'"
                       >
-                        <button type="button" class="inv-item__menu-item" role="menuitem" @click="openInventoryItem(item)">
-                          {{ t('inventory.viewDetail') }}
-                        </button>
-                        <button type="button" class="inv-item__menu-item" role="menuitem" @click="openEditInventoryPrice(item)">
-                          {{ t('inventory.editPrice') }}
-                        </button>
-                        <button type="button" class="inv-item__menu-item danger" role="menuitem" @click="removeInventoryItem(item.id)">
-                          {{ t('inventory.remove') }}
-                        </button>
+                        <i
+                          :class="getSkinChange24h(item.skinId) >= 0 ? 'ph-bold ph-caret-up' : 'ph-bold ph-caret-down'"
+                          aria-hidden="true"
+                        ></i>
+                        <span>{{ formatChange(getSkinChange24h(item.skinId)) }}</span>
                       </div>
                     </div>
                   </article>
@@ -2013,11 +2023,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723o"></script>
-  <script src="i18n.js?v=20260723o"></script>
-  <script src="js/api.js?v=20260723o"></script>
-  <script src="js/auth.js?v=20260723e"></script>
-  <script src="js/lucide-icons.js?v=20260723e"></script>
-  <script src="app.js?v=20260723o"></script>
+  <script src="data.js?v=20260723q"></script>
+  <script src="i18n.js?v=20260723q"></script>
+  <script src="js/api.js?v=20260723q"></script>
+  <script src="js/auth.js?v=20260723q"></script>
+  <script src="js/lucide-icons.js?v=20260723q"></script>
+  <script src="app.js?v=20260723q"></script>
 </body>
 </html>
