@@ -2011,6 +2011,20 @@ const app = createApp({
       myInventory.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0)
     );
 
+    /** 库存总价值较昨日涨跌（按市值加权） */
+    const inventoryTotalChange24h = computed(() => {
+      let weight = 0;
+      let weighted = 0;
+      myInventory.value.forEach((item) => {
+        const value = getCurrentPrice(item.skinId) * (item.quantity || 1);
+        if (!value) return;
+        weight += value;
+        weighted += value * getSkinChange24h(item.skinId);
+      });
+      if (!weight) return 0;
+      return +(weighted / weight).toFixed(2);
+    });
+
     const inventorySourceLabel = (source, short = false) => {
       if (source === 'steam') return short ? 'Steam' : t('inventory.source.steam');
       return short ? t('inventory.source.manual.short') : t('inventory.source.manual');
@@ -2826,7 +2840,7 @@ const app = createApp({
       importSteamInventory, openInventoryItem,
       inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
       showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
-      inventoryItemCount, inventoryTotalValue, inventorySourceLabel,
+      inventoryItemCount, inventoryTotalValue, inventoryTotalChange24h, inventorySourceLabel,
       getSkinImage, getSkinChange24h, getSkinMeta,
       inventoryValueChart, inventoryValueHistory,
       refreshInventoryCharts,
