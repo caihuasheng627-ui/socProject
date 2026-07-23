@@ -8,14 +8,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5456.53,
-      "maxDrawdownPct": -71.42,
-      "buy_count": 1427,
-      "sell_count": 1328,
-      "trades": 2755,
-      "closed_positions": 1427,
+      "returnPct": 479.03,
+      "maxDrawdownPct": -6.98,
+      "buy_count": 1704,
+      "sell_count": 1603,
+      "trades": 3307,
+      "closed_positions": 1704,
       "open_positions": 0,
-      "winRate": 88.0
+      "winRate": 81.8
     },
     "LSTM-D": {
       "split": "test",
@@ -25,14 +25,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5402.58,
-      "maxDrawdownPct": -71.41,
-      "buy_count": 1551,
-      "sell_count": 1432,
-      "trades": 2983,
-      "closed_positions": 1551,
+      "returnPct": 496.01,
+      "maxDrawdownPct": -7.92,
+      "buy_count": 1819,
+      "sell_count": 1701,
+      "trades": 3520,
+      "closed_positions": 1819,
       "open_positions": 0,
-      "winRate": 84.3
+      "winRate": 78.6
     },
     "Hybrid": {
       "split": "test",
@@ -42,14 +42,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5443.31,
-      "maxDrawdownPct": -71.45,
-      "buy_count": 1403,
-      "sell_count": 1293,
-      "trades": 2696,
-      "closed_positions": 1403,
+      "returnPct": 492.54,
+      "maxDrawdownPct": -7.13,
+      "buy_count": 1686,
+      "sell_count": 1575,
+      "trades": 3261,
+      "closed_positions": 1686,
       "open_positions": 0,
-      "winRate": 87.1
+      "winRate": 81.1
     },
     "RF": {
       "split": "test",
@@ -59,14 +59,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5532.62,
-      "maxDrawdownPct": -71.35,
-      "buy_count": 1408,
-      "sell_count": 1307,
-      "trades": 2715,
-      "closed_positions": 1408,
+      "returnPct": 518.78,
+      "maxDrawdownPct": -8.13,
+      "buy_count": 1492,
+      "sell_count": 1395,
+      "trades": 2887,
+      "closed_positions": 1492,
       "open_positions": 0,
-      "winRate": 86.2
+      "winRate": 83.0
     }
   },
   "fee_0.0250": {
@@ -78,14 +78,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5186.15,
-      "maxDrawdownPct": -71.25,
-      "buy_count": 1427,
-      "sell_count": 1328,
-      "trades": 2755,
-      "closed_positions": 1427,
+      "returnPct": 402.51,
+      "maxDrawdownPct": -8.08,
+      "buy_count": 1704,
+      "sell_count": 1603,
+      "trades": 3307,
+      "closed_positions": 1704,
       "open_positions": 0,
-      "winRate": 79.4
+      "winRate": 69.5
     },
     "LSTM-D": {
       "split": "test",
@@ -95,14 +95,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5134.55,
-      "maxDrawdownPct": -71.28,
-      "buy_count": 1551,
-      "sell_count": 1432,
-      "trades": 2983,
-      "closed_positions": 1551,
+      "returnPct": 415.01,
+      "maxDrawdownPct": -8.97,
+      "buy_count": 1819,
+      "sell_count": 1701,
+      "trades": 3520,
+      "closed_positions": 1819,
       "open_positions": 0,
-      "winRate": 76.1
+      "winRate": 68.1
     },
     "Hybrid": {
       "split": "test",
@@ -112,14 +112,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5173.39,
-      "maxDrawdownPct": -71.28,
-      "buy_count": 1403,
-      "sell_count": 1293,
-      "trades": 2696,
-      "closed_positions": 1403,
+      "returnPct": 416.07,
+      "maxDrawdownPct": -8.19,
+      "buy_count": 1686,
+      "sell_count": 1575,
+      "trades": 3261,
+      "closed_positions": 1686,
       "open_positions": 0,
-      "winRate": 79.3
+      "winRate": 69.0
     },
     "RF": {
       "split": "test",
@@ -129,14 +129,14 @@
       "n_dates": 234,
       "start_date": "2022-09-28",
       "end_date": "2023-05-19",
-      "returnPct": 5257.98,
-      "maxDrawdownPct": -71.16,
-      "buy_count": 1408,
-      "sell_count": 1307,
-      "trades": 2715,
-      "closed_positions": 1408,
+      "returnPct": 447.03,
+      "maxDrawdownPct": -8.76,
+      "buy_count": 1492,
+      "sell_count": 1395,
+      "trades": 2887,
+      "closed_positions": 1492,
       "open_positions": 0,
-      "winRate": 80.6
+      "winRate": 76.1
     }
   }
 }
