@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723a" />
+  <link rel="stylesheet" href="style.css?v=20260723c" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -444,7 +444,7 @@
         </div>
       </header>
 
-      <div class="content-area">
+      <div class="content-area" :class="{ 'content-area--models': currentPage === 'models' }">
         <!-- 行情看板 -->
         <div v-if="currentPage === 'dashboard'" class="fade-in">
           <div class="flex justify-between items-center mb-4">
@@ -1203,250 +1203,134 @@
           </template>
         </div>
 
-        <!-- 模型实验室 -->
-        <div v-if="currentPage === 'models'" class="fade-in models-page">
-          <div class="flex justify-between items-center mb-4 models-page-header">
-            <div class="models-page-intro">
-              <h2 class="models-page-title">
+        <!-- 模型实验室：独立滚动壳，避免被外层/图表抢走触摸 -->
+        <div v-if="currentPage === 'models'" class="models-lab">
+          <header class="models-lab__bar">
+            <div class="models-lab__heading">
+              <h2 class="models-lab__title">
                 <i class="ph-duotone ph-cpu icon-primary" aria-hidden="true"></i>
                 {{ t('models.title') }}
               </h2>
-              <p class="text-muted text-sm mt-2">{{ t('models.subtitle') }}</p>
-              <p class="text-muted text-sm mt-1">{{ t('models.routeNote') }}</p>
+              <p class="models-lab__sub">{{ t('models.subtitleShort') }}</p>
             </div>
-            <div class="flex gap-2 flex-wrap models-page-actions">
-              <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('models', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
-                <button class="btn btn-sm" @click="exportData('models', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
-              </div>
-              <button class="btn btn-primary btn-sm">
+            <div class="models-lab__actions">
+              <button class="btn btn-primary btn-sm" type="button">
                 <i class="ph ph-rocket-launch" aria-hidden="true"></i> {{ t('models.retrain') }}
               </button>
+              <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
+                <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
+              </button>
+              <button class="btn btn-sm" type="button" @click="exportData('models', 'json')">
+                <i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON
+              </button>
             </div>
-          </div>
+          </header>
 
-          <div class="card mb-4">
-            <div class="card-header">
-              <div class="card-title">{{ t('models.regressionTable') }}</div>
-              <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
-            </div>
-            <div class="table-scroll models-table-desktop">
-            <table class="data-table models-regression-table">
-              <thead>
-                <tr>
-                  <th>{{ t('models.col.model') }}</th>
-                  <th class="col-hide-narrow">{{ t('models.col.type') }}</th>
-                  <th>{{ t('models.col.rmse') }}</th>
-                  <th>{{ t('models.col.mae') }}</th>
-                  <th>{{ t('models.col.mape') }}</th>
-                  <th>{{ t('models.col.r2') }}</th>
-                  <th class="col-hide-mobile">{{ t('models.col.speed') }}</th>
-                  <th>{{ t('models.col.returnPct') }}</th>
-                  <th class="col-hide-mobile">{{ t('models.col.course') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="m in regressionModels" :key="m.name">
-                  <td>
-                    <div class="model-cell">
+          <div class="models-lab__scroll" ref="modelsLabScroll">
+            <section class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.regressionTable') }}</h3>
+                <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
+              </div>
+              <div class="models-lab__hint">{{ t('models.routeNote') }}</div>
+              <div class="models-lab__list" role="list">
+                <article v-for="m in regressionModels" :key="'r-' + m.name" class="ml-card" role="listitem">
+                  <div class="ml-card__top">
+                    <div class="ml-card__name">
                       <strong>{{ m.name }}</strong>
-                      <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">
-                        <i class="ph-fill ph-star" style="font-size: 11px; margin-right: 2px;" aria-hidden="true"></i>
-                        {{ t('models.star') }}
-                      </span>
-                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">
-                        Route
-                      </span>
-                      <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">
-                        MAPE
-                      </span>
+                      <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
+                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">Route</span>
+                      <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
                     </div>
-                  </td>
-                  <td class="col-hide-narrow"><span class="tag">{{ modelTypeLabel(m) }}</span></td>
-                  <td>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</td>
-                  <td>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</td>
-                  <td>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</td>
-                  <td>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</td>
-                  <td class="col-hide-mobile">{{ m.speed || '—' }}</td>
-                  <td :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                    {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                  </td>
-                  <td class="text-muted text-sm col-hide-mobile">{{ m.course }}</td>
-                </tr>
-              </tbody>
-            </table>
-            </div>
+                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+                  </div>
+                  <div class="ml-card__metrics">
+                    <div><span>RMSE</span><b>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAE</span><b>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
+                    <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
+                  </div>
+                  <div class="ml-card__return" :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
+                    <span>{{ t('models.col.returnPct') }}</span>
+                    <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
+                  </div>
+                </article>
+              </div>
+            </section>
 
-            <!-- 移动端：卡片列表，避免宽表被裁切 -->
-            <div class="models-card-list" role="list">
-              <article v-for="m in regressionModels" :key="'r-' + m.name" class="model-metric-card" role="listitem">
-                <div class="model-metric-card__head">
-                  <div class="model-metric-card__title">
-                    <strong>{{ m.name }}</strong>
-                    <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
-                    <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">Route</span>
-                    <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
-                  </div>
-                  <span class="tag model-metric-card__type">{{ modelTypeLabel(m) }}</span>
-                </div>
-                <div class="model-metric-card__grid">
-                  <div class="model-metric-stat">
-                    <span class="model-metric-stat__label">{{ t('models.col.rmse') }}</span>
-                    <span class="model-metric-stat__value">{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</span>
-                  </div>
-                  <div class="model-metric-stat">
-                    <span class="model-metric-stat__label">{{ t('models.col.mae') }}</span>
-                    <span class="model-metric-stat__value">{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</span>
-                  </div>
-                  <div class="model-metric-stat">
-                    <span class="model-metric-stat__label">{{ t('models.col.mape') }}</span>
-                    <span class="model-metric-stat__value">{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</span>
-                  </div>
-                  <div class="model-metric-stat">
-                    <span class="model-metric-stat__label">{{ t('models.col.r2') }}</span>
-                    <span class="model-metric-stat__value">{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</span>
-                  </div>
-                  <div class="model-metric-stat model-metric-stat--wide">
-                    <span class="model-metric-stat__label">{{ t('models.col.returnPct') }}</span>
-                    <span class="model-metric-stat__value" :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                      {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                    </span>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="grid grid-2 mb-4">
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('models.classificationTable') }}</div>
+            <section class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.classificationTable') }}</h3>
                 <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
               </div>
-              <div class="table-scroll models-table-desktop">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>{{ t('models.col.model') }}</th>
-                    <th>{{ t('models.col.accuracy') }}</th>
-                    <th>{{ t('models.col.auc') }}</th>
-                    <th>{{ t('models.col.returnPct') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="m in classificationModels" :key="m.name">
-                    <td><strong>{{ m.name }}</strong></td>
-                    <td>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</td>
-                    <td>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</td>
-                    <td :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                      {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><strong>{{ t('models.buyHold') }}</strong></td>
-                    <td>—</td>
-                    <td>—</td>
-                    <td class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</td>
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-
-              <div class="models-card-list" role="list">
-                <article v-for="m in classificationModels" :key="'c-' + m.name" class="model-metric-card" role="listitem">
-                  <div class="model-metric-card__head">
-                    <div class="model-metric-card__title">
-                      <strong>{{ m.name }}</strong>
-                    </div>
-                    <span class="tag model-metric-card__type">{{ modelTypeLabel(m) }}</span>
+              <div class="models-lab__list" role="list">
+                <article v-for="m in classificationModels" :key="'c-' + m.name" class="ml-card" role="listitem">
+                  <div class="ml-card__top">
+                    <div class="ml-card__name"><strong>{{ m.name }}</strong></div>
+                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
                   </div>
-                  <div class="model-metric-card__grid model-metric-card__grid--3">
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.accuracy') }}</span>
-                      <span class="model-metric-stat__value">{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</span>
-                    </div>
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.auc') }}</span>
-                      <span class="model-metric-stat__value">{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</span>
-                    </div>
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.returnPct') }}</span>
-                      <span class="model-metric-stat__value" :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
+                  <div class="ml-card__metrics ml-card__metrics--3">
+                    <div><span>ACC</span><b>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</b></div>
+                    <div><span>AUC</span><b>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</b></div>
+                    <div>
+                      <span>{{ t('models.col.returnPct') }}</span>
+                      <b :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
                         {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                      </span>
+                      </b>
                     </div>
                   </div>
                 </article>
-                <article class="model-metric-card model-metric-card--muted" role="listitem">
-                  <div class="model-metric-card__head">
-                    <div class="model-metric-card__title">
-                      <strong>{{ t('models.buyHold') }}</strong>
-                    </div>
+                <article class="ml-card ml-card--muted" role="listitem">
+                  <div class="ml-card__top">
+                    <div class="ml-card__name"><strong>{{ t('models.buyHold') }}</strong></div>
                   </div>
-                  <div class="model-metric-card__grid model-metric-card__grid--3">
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.accuracy') }}</span>
-                      <span class="model-metric-stat__value">—</span>
-                    </div>
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.auc') }}</span>
-                      <span class="model-metric-stat__value">—</span>
-                    </div>
-                    <div class="model-metric-stat">
-                      <span class="model-metric-stat__label">{{ t('models.col.returnPct') }}</span>
-                      <span class="model-metric-stat__value text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</span>
-                    </div>
+                  <div class="ml-card__return">
+                    <span>{{ t('models.col.returnPct') }}</span>
+                    <strong class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</strong>
                   </div>
                 </article>
               </div>
-            </div>
+            </section>
 
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('models.radar') }}</div>
+            <section class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.radar') }}</h3>
                 <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
               </div>
-              <div ref="radarChart" class="radar-container"></div>
-            </div>
-          </div>
+              <div ref="radarChart" class="models-lab__chart"></div>
+            </section>
 
-          <div class="card mb-4">
-            <div class="card-header">
-              <div class="card-title">{{ t('models.backtest') }}</div>
-              <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
-            </div>
-            <div ref="backtestChart" class="lab-chart-box"></div>
-          </div>
+            <section class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.backtest') }}</h3>
+                <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
+              </div>
+              <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
+            </section>
 
-          <div class="grid grid-2">
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('models.shap') }}</div>
+            <section class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.shap') }}</h3>
                 <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
               </div>
-              <div ref="shapChart" class="lab-chart-box"></div>
-            </div>
+              <div ref="shapChart" class="models-lab__chart"></div>
+            </section>
 
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('models.trainStrategy') }}</div>
+            <section class="models-lab__section models-lab__section--last">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.trainStrategy') }}</h3>
               </div>
-              <ul class="models-strategy-list">
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>TimeSeriesSplit</strong>: 70/15/15 (no shuffle)</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Walk-Forward</strong> rolling validation</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>SMOTE</strong> for class imbalance</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>StandardScaler</strong> feature scaling</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>GridSearch</strong> hyperparam tuning (Pipeline)</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Backtest</strong>: daily simulate vs Buy&Hold</li>
-                <li><i class="ph-fill ph-check-circle icon-success" style="font-size: 14px; margin-right: 6px;" aria-hidden="true"></i><strong>Risk Metrics</strong>: Sharpe / Drawdown / Volatility</li>
+              <ul class="models-lab__bullets">
+                <li><strong>TimeSeriesSplit</strong> 70/15/15</li>
+                <li><strong>Walk-Forward</strong> rolling validation</li>
+                <li><strong>SMOTE</strong> · <strong>StandardScaler</strong> · <strong>GridSearch</strong></li>
+                <li><strong>Backtest</strong> vs Buy&Hold · Sharpe / Drawdown</li>
               </ul>
-              <div class="mt-4 models-findings-box">
-                <div class="text-muted text-sm mb-2">{{ t('models.findings') }}</div>
-                <div class="models-findings-text">
-                  {{ t('models.findingsText', { pct: '14.3%' }) }}
-                </div>
+              <div class="models-lab__findings">
+                <div class="models-lab__findings-label">{{ t('models.findings') }}</div>
+                <p>{{ t('models.findingsText', { pct: '14.3%' }) }}</p>
               </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>
@@ -1647,11 +1531,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723a"></script>
-  <script src="i18n.js?v=20260723a"></script>
-  <script src="js/api.js?v=20260723a"></script>
-  <script src="js/auth.js?v=20260723a"></script>
-  <script src="js/lucide-icons.js?v=20260723a"></script>
-  <script src="app.js?v=20260723a"></script>
+  <script src="data.js?v=20260723c"></script>
+  <script src="i18n.js?v=20260723c"></script>
+  <script src="js/api.js?v=20260723c"></script>
+  <script src="js/auth.js?v=20260723c"></script>
+  <script src="js/lucide-icons.js?v=20260723c"></script>
+  <script src="app.js?v=20260723c"></script>
 </body>
 </html>

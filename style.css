@@ -690,56 +690,9 @@ body::before {
     height: auto;
     align-self: flex-start;
   }
-  .models-page-actions {
-    width: 100%;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-  }
-  .models-page-header {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 12px !important;
-  }
-  .models-page-intro {
-    width: 100%;
-    flex: 0 0 auto !important;
-  }
-  .models-page-actions .btn,
-  .models-page-actions .export-group,
-  .models-page-actions .btn-primary {
-    flex: 0 0 auto !important;
-    width: auto !important;
-    height: auto !important;
-    align-self: auto !important;
-    white-space: nowrap;
-  }
-  .models-page-title {
-    font-size: 18px;
-  }
-  /* 窄屏改用卡片，彻底避免宽表裁切 */
-  .models-page .models-table-desktop {
-    display: none;
-  }
-  .models-page .models-card-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
   .lab-chart-box,
   .radar-container {
     height: 260px;
-  }
-  .models-page .radar-container {
-    height: 300px;
-  }
-  /* 模型表：窄屏隐藏类型/速度/课程，优先露出核心指标 */
-  .models-regression-table .col-hide-mobile,
-  .models-regression-table .col-hide-narrow {
-    display: none;
   }
   /* 网格:所有 grid 改为单列或 2 列 */
   .grid-2,
@@ -2140,101 +2093,137 @@ i.ph-duotone {
               box-shadow var(--duration-slow) var(--ease-in-out);
 }
 
-/* ============ 模型实验室图表 ============ */
-.table-scroll {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.lab-chart-box,
-.radar-container {
-  height: 320px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 12px;
-}
-
-.radar-container {
-  height: 340px;
-  padding: 14px;
-}
-
-.models-regression-table th,
-.models-regression-table td {
-  vertical-align: middle;
-}
-
-.models-regression-table .model-cell {
+/* ============ 模型实验室（独立滚动壳） ============ */
+.content-area:has(> .models-lab),
+.content-area--models {
   display: flex;
   flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.models-lab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.models-lab__bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  z-index: 2;
+}
+
+.models-lab__heading {
   min-width: 0;
+  flex: 1 1 180px;
 }
 
-.models-regression-table .model-cell .tag {
-  margin-left: 0 !important;
-}
-
-/* 模型实验室移动端卡片（默认隐藏，窄屏启用） */
-.models-card-list {
-  display: none;
-}
-
-.models-page-title {
-  font-size: 20px;
+.models-lab__title {
+  margin: 0;
+  font-size: 18px;
   font-weight: 700;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0;
   line-height: 1.3;
+  color: var(--text-primary);
 }
 
-.models-page-intro {
-  min-width: 0;
+.models-lab__sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
-.models-page-actions {
+.models-lab__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-.models-strategy-list {
-  line-height: 1.9;
-  padding-left: 4px;
-  font-size: 13px;
-  list-style: none;
+.models-lab__actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
-.models-findings-box {
-  padding: 12px;
-  background: var(--bg-tertiary);
-  border-radius: 6px;
+.models-lab__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 14px 14px calc(28px + env(safe-area-inset-bottom));
 }
 
-.models-findings-text {
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.model-metric-card {
+.models-lab__section {
+  margin-bottom: 18px;
+  padding: 14px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+
+.models-lab__section--last {
+  margin-bottom: 8px;
+}
+
+.models-lab__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.models-lab__section-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.models-lab__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.models-lab__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ml-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   background: var(--bg-elevated);
   padding: 12px;
 }
 
-.model-metric-card--muted {
-  opacity: 0.92;
+.ml-card--muted {
+  opacity: 0.9;
 }
 
-.model-metric-card__head {
+.ml-card__top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -2242,7 +2231,7 @@ i.ph-duotone {
   margin-bottom: 10px;
 }
 
-.model-metric-card__title {
+.ml-card__name {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2250,71 +2239,141 @@ i.ph-duotone {
   min-width: 0;
 }
 
-.model-metric-card__title strong {
+.ml-card__name strong {
   font-size: 14px;
   font-weight: 650;
+  color: var(--text-primary);
 }
 
-.model-metric-card__type {
+.ml-card__type {
   flex-shrink: 0;
   max-width: 42%;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  padding: 3px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.model-metric-card__grid {
+.ml-card__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.model-metric-card__grid--3 {
+.ml-card__metrics--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.model-metric-stat {
+.ml-card__metrics > div {
   min-width: 0;
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--bg-tertiary);
 }
 
-.model-metric-stat--wide {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-}
-
-.model-metric-stat--wide .model-metric-stat__label {
-  margin-bottom: 0;
-}
-
-.model-metric-stat--wide .model-metric-stat__value {
-  font-size: 15px;
-}
-
-.model-metric-stat__label {
+.ml-card__metrics span {
   display: block;
   font-size: 10px;
-  letter-spacing: 0.02em;
   color: var(--text-muted);
   margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.model-metric-stat__value {
+.ml-card__metrics b {
   display: block;
   font-size: 14px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+}
+
+.ml-card__return {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ml-card__return strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.models-lab__chart,
+.lab-chart-box,
+.radar-container {
+  width: 100%;
+  height: 280px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  touch-action: pan-y !important;
+}
+
+.models-lab__chart--tall {
+  height: 300px;
+}
+
+.models-lab__chart canvas,
+.lab-chart-box canvas,
+.radar-container canvas,
+.kline-container canvas {
+  touch-action: pan-y !important;
+}
+
+.models-lab__bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.models-lab__findings {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+}
+
+.models-lab__findings-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.models-lab__findings p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+@media (min-width: 900px) {
+  .models-lab__bar {
+    padding: 18px 24px 14px;
+  }
+  .models-lab__scroll {
+    padding: 20px 24px 32px;
+  }
+  .models-lab__title {
+    font-size: 20px;
+  }
+  .ml-card__metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .ml-card__metrics--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* ============ 时间线 / 预警列表 ============ */

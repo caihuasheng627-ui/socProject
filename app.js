@@ -18,6 +18,18 @@ function getOrCreateChart(existingInstance, dom) {
   return echarts.init(dom);
 }
 
+/** 让图表不抢走手机纵向滑动 */
+function allowPageScrollOverChart(chart) {
+  try {
+    const dom = chart?.getDom?.();
+    if (!dom) return;
+    dom.style.touchAction = 'pan-y';
+    dom.querySelectorAll('canvas').forEach((c) => {
+      c.style.touchAction = 'pan-y';
+    });
+  } catch (_) { /* ignore */ }
+}
+
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
 const detectBrowserLang = () => {
@@ -1603,6 +1615,7 @@ const app = createApp({
         }],
       };
       radarInstance.setOption(option, true);
+      allowPageScrollOverChart(radarInstance);
     };
 
     const renderBacktest = async () => {
@@ -1667,6 +1680,7 @@ const app = createApp({
         series,
       };
       backtestInstance.setOption(option, true);
+      allowPageScrollOverChart(backtestInstance);
     };
 
     const renderShap = async () => {
@@ -1725,6 +1739,7 @@ const app = createApp({
         }],
       };
       shapInstance.setOption(option, true);
+      allowPageScrollOverChart(shapInstance);
     };
 
     // ============ 工具函数 ============
@@ -1936,9 +1951,22 @@ const app = createApp({
     });
 
     // 监听页面切换
-    watch(currentPage, async (newPage) => {
+    watch(currentPage, async (newPage, oldPage) => {
       await nextTick();
       window.processPhIcons && window.processPhIcons();
+
+      // 离开模型页时释放图表，避免触摸事件残留
+      if (oldPage === 'models' && newPage !== 'models') {
+        try {
+          radarInstance?.dispose();
+          backtestInstance?.dispose();
+          shapInstance?.dispose();
+        } catch (_) { /* ignore */ }
+        radarInstance = null;
+        backtestInstance = null;
+        shapInstance = null;
+      }
+
       if (newPage === 'prediction') {
         renderKline();
         if (selectedSkin.value?.id) {
