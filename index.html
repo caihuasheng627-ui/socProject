@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723f" />
+  <link rel="stylesheet" href="style.css?v=20260723n" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -408,10 +408,24 @@
           <button class="theme-toggle cmd-toggle" @click="showCommandPalette = true" :title="t('topbar.cmdPanel') + ' (Ctrl+K)'" :aria-label="t('topbar.cmdPanel')">
             <i class="ph-duotone ph-magnifying-glass" aria-hidden="true"></i>
           </button>
-          <div class="market-status" role="status" :aria-label="t('topbar.dataSource')">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span>{{ t('topbar.dataSource') }}</span>
-          </div>
+          <button
+            type="button"
+            class="market-status market-status--btn"
+            role="status"
+            :aria-label="dataSourceLabel"
+            :title="t('topbar.dataSource.hint')"
+            @click="reconnectBackend"
+          >
+            <span
+              class="status-dot"
+              :class="{
+                'status-dot--online': apiOnline,
+                'status-dot--mock': !apiOnline,
+              }"
+              aria-hidden="true"
+            ></span>
+            <span>{{ dataSourceLabel }}</span>
+          </button>
           <div class="market-status" :aria-label="t('topbar.sentiment')">
             <i class="ph-duotone ph-trend-up" style="color: var(--accent-green);" aria-hidden="true"></i>
             <span>{{ t('topbar.sentiment') }}</span>
@@ -473,8 +487,17 @@
               <p class="market-board__sub">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
             </div>
             <div class="market-board__actions">
-              <button class="btn btn-secondary btn-sm" type="button" @click="refreshData">
-                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{ t('common.refresh') }}
+              <button
+                v-if="!apiOnline"
+                class="btn btn-primary btn-sm"
+                type="button"
+                @click="reconnectBackend"
+              >
+                <i class="ph ph-plugs-connected" aria-hidden="true"></i> {{ t('dashboard.connectBackend') }}
+              </button>
+              <button class="btn btn-secondary btn-sm" type="button" @click="refreshData" :disabled="marketLiveLoading">
+                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+                {{ marketLiveLoading ? t('dashboard.liveLoading') : t('common.refresh') }}
               </button>
               <button class="btn btn-sm" type="button" @click="exportData('skins', 'csv')" :title="t('common.export')">
                 <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
@@ -484,6 +507,11 @@
               </button>
             </div>
           </header>
+
+          <div v-if="!apiOnline" class="market-board__banner" role="status">
+            <i class="ph ph-warning-circle" aria-hidden="true"></i>
+            <span>{{ t('dashboard.backendHint') }}</span>
+          </div>
 
           <div class="market-board__scroll">
             <!-- 市场脉搏 -->
@@ -649,6 +677,14 @@
                       class="skin-change mb-skin__change"
                       :class="(skin.change7d || 0) >= 0 ? 'change-up' : 'change-down'"
                     >{{ formatChange(skin.change7d) }}</div>
+                    <div
+                      v-if="marketLiveQuotes[skin.id]"
+                      class="mb-skin__live"
+                      :title="t('dashboard.livePriceHint')"
+                    >
+                      <i class="ph ph-broadcast" aria-hidden="true"></i>
+                      {{ t('dashboard.livePrice') }} ${{ formatPrice(marketLiveQuotes[skin.id].price) }}
+                    </div>
                   </div>
                   <div class="mb-skin__side">
                     <span>{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</span>
@@ -689,8 +725,21 @@
 
             <div class="flex items-end gap-6 mb-4">
               <div>
-                <div class="text-muted text-sm">{{ t('prediction.currentPrice') }}</div>
-                <div class="prediction-current-price">${{ formatPrice(selectedSkin.price) }}</div>
+                <div class="text-muted text-sm">
+                  {{ livePriceAvg != null ? t('prediction.currentPriceLive') : t('prediction.currentPrice') }}
+                  <span v-if="livePriceAvg != null" class="tag tag-green" style="margin-left: 6px; font-size: 10px;">
+                    <i class="ph ph-broadcast" aria-hidden="true"></i> {{ t('prediction.platformsLive') }}
+                  </span>
+                  <span v-else-if="platformQuotesLoading" class="text-muted" style="font-size: 11px; margin-left: 6px;">
+                    {{ t('prediction.platformsLoading') }}
+                  </span>
+                </div>
+                <div class="prediction-current-price">
+                  ${{ formatPrice(livePriceAvg != null ? livePriceAvg : selectedSkin.price) }}
+                </div>
+                <div v-if="livePriceAvg != null" class="text-muted" style="font-size: 11px;">
+                  {{ t('prediction.modelPrice') }} ${{ formatPrice(selectedSkin.price) }}
+                </div>
                 <div :class="selectedSkin.change24h >= 0 ? 'change-up' : 'change-down'" class="skin-change" style="display: inline-block;">
                   24h {{ selectedSkin.change24h >= 0 ? '+' : '' }}{{ selectedSkin.change24h.toFixed(2) }}% ·
                   7d {{ selectedSkin.change7d >= 0 ? '+' : '' }}{{ selectedSkin.change7d.toFixed(2) }}%
@@ -719,15 +768,15 @@
                   {{ t('prediction.platformsTitle') }}
                 </div>
                 <div class="card-subtitle">
-                  {{ t('prediction.platformsDesc') }}
-                  <span v-if="platformQuotesMeta.mode" class="tag" style="margin-left: 8px; font-size: 10px;">
-                    {{ platformQuotesMeta.mode === 'live' ? t('prediction.platformsLive') : t('prediction.platformsDemo') }}
+                  {{ platformQuotesLive ? t('prediction.platformsRealNote') : t('prediction.platformsDesc') }}
+                  <span v-if="platformQuotesMeta.mode" class="tag" :class="platformQuotesLive ? 'tag-green' : ''" style="margin-left: 8px; font-size: 10px;">
+                    {{ platformQuotesLive ? t('prediction.platformsLive') : t('prediction.platformsDemo') }}
                   </span>
                 </div>
               </div>
-              <button class="btn btn-ghost btn-sm" @click="loadPlatformQuotes(selectedSkin.id)" :disabled="platformQuotesLoading">
+              <button class="btn btn-secondary btn-sm" @click="refreshPlatformQuotes" :disabled="platformQuotesLoading">
                 <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
-                {{ t('prediction.platformsRefresh') }}
+                {{ platformQuotesLoading ? t('prediction.platformsLoading') : t('prediction.platformsFetchLive') }}
               </button>
             </div>
             <div v-if="platformQuotesLoading && !platformQuotes.length" class="platform-quotes-loading">
@@ -767,9 +816,9 @@
                       <span v-else class="text-muted">—</span>
                     </td>
                     <td class="col-hide-mobile">
-                      <span v-if="q.ok && q.price != null && selectedSkin.price"
-                            :class="(q.price - selectedSkin.price) >= 0 ? 'change-up' : 'change-down'">
-                        {{ ((q.price - selectedSkin.price) / selectedSkin.price * 100) >= 0 ? '+' : '' }}{{ (((q.price - selectedSkin.price) / selectedSkin.price) * 100).toFixed(2) }}%
+                      <span v-if="q.ok && q.price != null && platformQuotesRef"
+                            :class="(q.price - platformQuotesRef) >= 0 ? 'change-up' : 'change-down'">
+                        {{ ((q.price - platformQuotesRef) / platformQuotesRef * 100) >= 0 ? '+' : '' }}{{ (((q.price - platformQuotesRef) / platformQuotesRef) * 100).toFixed(2) }}%
                       </span>
                       <span v-else class="text-muted">—</span>
                     </td>
@@ -813,8 +862,8 @@
             </div>
           </div>
 
-          <!-- 预测对比 + RAG -->
-          <div class="grid grid-2 mb-4">
+          <!-- 多模型预测对比 -->
+          <div class="mb-4">
             <div class="card">
               <div class="card-header">
                 <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
@@ -855,36 +904,6 @@
                     ${{ formatPrice(predictionMeta.entryLow) }} - {{ formatPrice(predictionMeta.entryHigh) }}
                   </div>
                   <span class="tag tag-orange">{{ t('prediction.target7d') }} ${{ formatPrice(predictionMeta.targetPrice) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <div class="card-title">
-                    <i class="ph-duotone ph-book-open-text" aria-hidden="true"></i>
-                    {{ t('prediction.ragTitle') }}
-                  </div>
-                </div>
-                <span class="tag tag-purple">{{ t('prediction.ragModel') }}</span>
-              </div>
-              <div class="news-list">
-                <p v-if="explainSummary" class="text-sm mb-3" style="line-height: 1.7; color: var(--text-secondary);">{{ explainSummary }}</p>
-                <div v-for="news in relatedNews" :key="news.id || news.title" class="news-item">
-                  <div class="news-icon">{{ newsIcon(news.sentiment) }}</div>
-                  <div class="news-body">
-                    <div class="news-title">{{ news.title }}</div>
-                    <div class="news-summary">{{ news.summary }}</div>
-                    <div class="news-meta">
-                      <span>{{ news.source }}</span>
-                      <span>·</span>
-                      <span>{{ news.time || news.createdAt || '' }}</span>
-                      <span :class="news.sentiment === 'positive' ? 'tag tag-green' : news.sentiment === 'negative' ? 'tag tag-red' : 'tag tag-blue'" style="margin-left: auto;">
-                        {{ news.impact || news.sentiment || '' }}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1125,7 +1144,7 @@
                 <span class="tag tag-purple">{{ t('daily.aiSummaryModel') }}</span>
               </div>
               <div style="line-height: 1.8; font-size: 13px;">
-                <p v-if="dailyReport.aiSummary" style="white-space: pre-wrap;">{{ dailyReport.aiSummary }}</p>
+                <p v-if="dailyReport.aiSummary" style="white-space: pre-wrap;" v-html="renderCitations(dailyReport.aiSummary)"></p>
                 <template v-else>
                 <p>{{ t('daily.summaryText1') }}<span style="color: var(--accent-red); font-weight: 600;">{{ t('daily.summaryStrong') }}</span>{{ t('daily.summaryText2') }}</p>
                 <br>
@@ -1142,6 +1161,90 @@
                 </template>
                 <br>
                 <p class="text-muted text-sm">{{ t('daily.aiDisclaimer') }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- RAG 智能问答 -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="ph-duotone ph-chat-circle-dots" aria-hidden="true"></i>
+                {{ t('daily.rag.qaTitle') }}
+              </div>
+              <span class="tag tag-purple">
+                {{ ragRetrieval.mode === 'vector' ? t('daily.rag.qaBadgeVector') : t('daily.rag.qaBadge') }}
+              </span>
+            </div>
+            <p class="text-muted text-sm mb-3">{{ t('daily.rag.qaDesc') }}</p>
+            <div class="rag-ask">
+              <input v-model.trim="ragQuery" type="text" class="rag-ask__input"
+                     :placeholder="t('daily.rag.placeholder')"
+                     @keyup.enter="askRag()" :disabled="ragLoading" />
+              <button class="btn btn-primary" @click="askRag()" :disabled="ragLoading || !ragQuery">
+                <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                {{ ragLoading ? t('daily.rag.asking') : t('daily.rag.ask') }}
+              </button>
+            </div>
+            <div class="rag-suggestions">
+              <button v-for="(sug, i) in ragSuggestions" :key="i" type="button"
+                      class="rag-chip" @click="askRag(sug)" :disabled="ragLoading">{{ sug }}</button>
+            </div>
+
+            <div v-if="ragAsked" class="rag-result">
+              <div v-if="ragLoading" class="rag-loading">
+                <div class="skeleton skeleton-line medium"></div>
+                <div class="skeleton skeleton-line medium" style="margin-top: 8px;"></div>
+              </div>
+              <template v-else>
+                <div class="rag-answer" v-html="renderCitations(ragAnswer)"></div>
+                <div v-if="ragAnswerSources.length" class="rag-answer-sources">
+                  <div class="rag-answer-sources__label">{{ t('daily.rag.citedSources') }}</div>
+                  <div v-for="s in ragAnswerSources" :key="'qs'+s.id" class="rag-source rag-source--sm">
+                    <span class="rag-source__id">[{{ s.id }}]</span>
+                    <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
+                      {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
+                    </span>
+                    <div class="rag-source__body">
+                      <div class="rag-source__title">{{ s.title }}</div>
+                      <div class="rag-source__snippet">{{ s.snippet }}</div>
+                      <div class="rag-source__meta">{{ s.source }}<template v-if="s.date"> · {{ s.date }}</template></div>
+                    </div>
+                    <div class="rag-source__rel">
+                      <div class="rag-rel-bar"><div class="rag-rel-bar__fill" :style="{ width: Math.round((s.relevance||0)*100) + '%' }"></div></div>
+                      <span>{{ Math.round((s.relevance||0)*100) }}%</span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- RAG 检索来源: 本日报引用的知识库/资讯 -->
+          <div class="card mb-4" v-if="dailyReport.sources && dailyReport.sources.length">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="ph-duotone ph-database" aria-hidden="true"></i>
+                {{ t('daily.rag.sourcesTitle') }}
+              </div>
+              <span class="tag tag-purple">{{ t('daily.rag.sourcesBadge') }}</span>
+            </div>
+            <p class="text-muted text-sm mb-3">{{ t('daily.rag.sourcesDesc') }}</p>
+            <div class="rag-sources">
+              <div v-for="s in dailyReport.sources" :key="'ds'+s.id" class="rag-source">
+                <span class="rag-source__id">[{{ s.id }}]</span>
+                <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
+                  {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
+                </span>
+                <div class="rag-source__body">
+                  <div class="rag-source__title">{{ s.title }}</div>
+                  <div class="rag-source__snippet">{{ s.snippet }}</div>
+                  <div class="rag-source__meta">{{ s.source }}<template v-if="s.date"> · {{ s.date }}</template></div>
+                </div>
+                <div class="rag-source__rel" :title="t('daily.rag.relevance')">
+                  <div class="rag-rel-bar"><div class="rag-rel-bar__fill" :style="{ width: Math.round((s.relevance||0)*100) + '%' }"></div></div>
+                  <span>{{ Math.round((s.relevance||0)*100) }}%</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1910,11 +2013,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723f"></script>
-  <script src="i18n.js?v=20260723f"></script>
-  <script src="js/api.js?v=20260723g"></script>
+  <script src="data.js?v=20260723o"></script>
+  <script src="i18n.js?v=20260723o"></script>
+  <script src="js/api.js?v=20260723o"></script>
   <script src="js/auth.js?v=20260723e"></script>
   <script src="js/lucide-icons.js?v=20260723e"></script>
-  <script src="app.js?v=20260723g"></script>
+  <script src="app.js?v=20260723o"></script>
 </body>
 </html>

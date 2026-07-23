@@ -1,25 +1,33 @@
 """
-SkinVision AI — RAG 检索 + 解释(组员 3 第 5 步)
-===============================================
-轻量 RAG:无外部向量库依赖(Qdrant/pgvector 课程环境难装),用 SQLite news 表 +
-内置知识库做关键词检索,再由 DeepSeek 生成可读解释。
+SkinVision AI — RAG 向量检索 + 解释
+==================================
+检索: sentence-transformers embedding → 余弦相似度 Top-K
+生成: DeepSeek 根据检索片段生成带 [编号] 引用的答案
 
 检索源:
-  1. news 表(Valve/HLTV/Reddit/internal,RSS 增量补充)
-  2. 内置 CS2 饰品市场知识片段(Major 赛程、磨损、StatTrak、流动性等)
-  3. 该饰品近 30 日价量行为(从 price_history 聚合)
+  1. news 表(Valve/HLTV/Reddit/internal, RSS 增量补充)
+  2. 内置 CS2 饰品市场知识片段
+  3. (explain) 该饰品近 30 日价量行为
 
-降级:LLM 不可用时返回规则拼接的解释。
+降级:
+  - 无 sentence-transformers / 模型加载失败 → 关键词检索
+  - LLM 不可用 → Mock 回答
 """
 from __future__ import annotations
 
+import hashlib
+import re
 import sqlite3
+import threading
 from typing import Any
 
+import numpy as np
+
 import llm
+from config import RAG_EMBED_MODEL, RAG_INDEX_PATH, RAG_USE_VECTOR
 from database import get_connection, resolve_skin, latest_price, change_pct
 
-# 内置知识库(可被关键词命中)
+# 内置知识库
 KB: list[dict[str, str]] = [
     {"k": "major 赛事 sticker 涨价 流动性", "v": "Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。"},
     {"k": "磨损 wear factory new fn", "v": "同款饰品中 Factory New(FN)磨损最稀有,价格显著高于 Field-Tested(FT);磨损越低流动性往往越弱。"},
@@ -29,34 +37,335 @@ KB: list[dict[str, str]] = [
     {"k": "valve 更新 沉浸 贴图 重做", "v": "Valve 武器贴图/磨损重做会改变供给预期,相关饰品短期价格波动加大。"},
 ]
 
-
-def _kb_retrieve(query: str, top_k: int = 3) -> list[str]:
-    q = (query or "").lower()
-    scored = []
-    for item in KB:
-        score = sum(1 for kw in item["k"].split() if kw in q)
-        if score > 0:
-            scored.append((score, item["v"]))
-    scored.sort(key=lambda x: -x[0])
-    return [v for _, v in scored[:top_k]]
+# ============================================================
+# 关键词降级(向量模型不可用时)
+# ============================================================
+_SPLIT_RE = re.compile(r"[\s,，。;；:：!！?？、()（）\[\]【】\"'`/\\|-]+")
+_HAN_RE = re.compile(r"[\u4e00-\u9fff]")
 
 
-def _news_retrieve(conn: sqlite3.Connection, query: str, top_k: int = 3) -> list[sqlite3.Row]:
-    q = (query or "").lower()
-    rows = conn.execute(
-        "SELECT * FROM news ORDER BY published_at DESC LIMIT 50"
-    ).fetchall()
-    scored = []
+def _tokens(text: str) -> set[str]:
+    t = (text or "").lower()
+    toks = {w for w in _SPLIT_RE.split(t) if len(w) > 1}
+    han = _HAN_RE.findall(t)
+    for i in range(len(han) - 1):
+        toks.add(han[i] + han[i + 1])
+    return toks
+
+
+def _kw_score(query_tokens: set[str], doc_text: str) -> int:
+    if not query_tokens:
+        return 0
+    return len(query_tokens & _tokens(doc_text))
+
+
+# ============================================================
+# Embedding 模型(懒加载单例)
+# ============================================================
+_embedder = None
+_embedder_lock = threading.Lock()
+_embedder_failed = False
+_index_lock = threading.Lock()
+# 内存索引: fingerprint -> {"docs": [...], "vectors": np.ndarray}
+_index_cache: dict[str, Any] | None = None
+_index_fp: str | None = None
+
+
+def _load_embedder():
+    """懒加载 sentence-transformers; 失败则标记降级。"""
+    global _embedder, _embedder_failed
+    if not RAG_USE_VECTOR or _embedder_failed:
+        return None
+    if _embedder is not None:
+        return _embedder
+    with _embedder_lock:
+        if _embedder is not None:
+            return _embedder
+        if _embedder_failed:
+            return None
+        try:
+            from sentence_transformers import SentenceTransformer
+            print(f"[rag] 加载向量模型: {RAG_EMBED_MODEL}")
+            _embedder = SentenceTransformer(RAG_EMBED_MODEL)
+            print("[rag] 向量模型就绪")
+            return _embedder
+        except Exception as e:
+            _embedder_failed = True
+            print(f"[rag] 向量模型不可用,降级关键词检索: {type(e).__name__}: {e}")
+            return None
+
+
+def vector_status() -> dict[str, Any]:
+    """供 /api/health 或调试: 当前检索后端状态。"""
+    model = _load_embedder()
+    return {
+        "mode": "vector" if model is not None else "keyword",
+        "model": RAG_EMBED_MODEL if model is not None else None,
+        "enabled": RAG_USE_VECTOR,
+    }
+
+
+def _embed_texts(texts: list[str]) -> np.ndarray:
+    model = _load_embedder()
+    if model is None:
+        raise RuntimeError("embedder unavailable")
+    vecs = model.encode(
+        texts,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+        convert_to_numpy=True,
+    )
+    return np.asarray(vecs, dtype=np.float32)
+
+
+def _cosine_top(query_vec: np.ndarray, doc_vecs: np.ndarray, top_k: int) -> list[tuple[int, float]]:
+    """已 L2 归一化向量 → 点积即余弦相似度。"""
+    if doc_vecs.size == 0:
+        return []
+    sims = doc_vecs @ query_vec.reshape(-1)
+    k = min(top_k, len(sims))
+    idx = np.argpartition(-sims, k - 1)[:k]
+    idx = idx[np.argsort(-sims[idx])]
+    return [(int(i), float(sims[i])) for i in idx]
+
+
+# ============================================================
+# 文档语料 + 向量索引
+# ============================================================
+def _collect_docs() -> list[dict[str, Any]]:
+    """统一语料: 知识库 + news 表。"""
+    docs: list[dict[str, Any]] = []
+    for i, item in enumerate(KB):
+        text = f"{item['k']} {item['v']}"
+        docs.append({
+            "uid": f"kb:{i}",
+            "type": "kb",
+            "title": "CS2 市场知识库",
+            "snippet": item["v"],
+            "source": "内置知识库",
+            "date": None,
+            "sentiment": None,
+            "text": text,
+            "kb_item": item,
+        })
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM news ORDER BY published_at DESC LIMIT 80"
+        ).fetchall()
     for r in rows:
-        text = (r["title"] + " " + r["summary"]).lower()
-        score = sum(1 for tok in q.split() if len(tok) > 1 and tok in text)
-        scored.append((score, r))
-    scored.sort(key=lambda x: -x[0])
-    # 取相关度>0 的,不足则取最新 top_k
-    hit = [r for s, r in scored if s > 0]
-    if len(hit) < top_k:
-        hit = [r for _, r in scored[:top_k]]
-    return hit[:top_k]
+        text = f"{r['title']} {r['summary'] or ''}"
+        docs.append({
+            "uid": f"news:{r['id']}",
+            "type": "news",
+            "title": r["title"],
+            "snippet": r["summary"],
+            "source": r["source"],
+            "date": r["published_at"],
+            "sentiment": r["sentiment"],
+            "text": text,
+            "news_row": r,
+        })
+    return docs
+
+
+def _fingerprint(docs: list[dict[str, Any]]) -> str:
+    h = hashlib.sha1()
+    h.update(RAG_EMBED_MODEL.encode("utf-8"))
+    for d in docs:
+        h.update(d["uid"].encode("utf-8"))
+        h.update((d.get("text") or "").encode("utf-8"))
+    return h.hexdigest()[:16]
+
+
+def _build_or_load_index() -> tuple[list[dict[str, Any]], np.ndarray]:
+    """构建/加载向量索引(进程内缓存 + 磁盘 npz)。"""
+    global _index_cache, _index_fp
+    docs = _collect_docs()
+    fp = _fingerprint(docs)
+
+    with _index_lock:
+        if _index_cache is not None and _index_fp == fp:
+            return _index_cache["docs"], _index_cache["vectors"]
+
+        # 尝试磁盘缓存
+        if RAG_INDEX_PATH.exists():
+            try:
+                data = np.load(RAG_INDEX_PATH, allow_pickle=True)
+                if str(data["fp"]) == fp:
+                    vectors = np.asarray(data["vectors"], dtype=np.float32)
+                    _index_cache = {"docs": docs, "vectors": vectors}
+                    _index_fp = fp
+                    print(f"[rag] 向量索引命中磁盘缓存 ({len(docs)} docs)")
+                    return docs, vectors
+            except Exception as e:
+                print(f"[rag] 读向量缓存失败: {e}")
+
+        # 重新编码
+        texts = [d["text"] for d in docs]
+        vectors = _embed_texts(texts)
+        try:
+            RAG_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                RAG_INDEX_PATH,
+                fp=np.asarray(fp),
+                vectors=vectors,
+                uids=np.asarray([d["uid"] for d in docs], dtype=object),
+            )
+        except Exception as e:
+            print(f"[rag] 写向量缓存失败: {e}")
+
+        _index_cache = {"docs": docs, "vectors": vectors}
+        _index_fp = fp
+        print(f"[rag] 向量索引已重建 ({len(docs)} docs, dim={vectors.shape[1]})")
+        return docs, vectors
+
+
+def invalidate_index() -> None:
+    """RSS 增量后可调用,强制下次重建。"""
+    global _index_cache, _index_fp
+    with _index_lock:
+        _index_cache = None
+        _index_fp = None
+        try:
+            if RAG_INDEX_PATH.exists():
+                RAG_INDEX_PATH.unlink()
+        except Exception:
+            pass
+
+
+# ============================================================
+# 检索
+# ============================================================
+def _retrieve_vector(query: str, kb_k: int, news_k: int) -> list[dict[str, Any]]:
+    docs, vectors = _build_or_load_index()
+    qv = _embed_texts([query])[0]
+    # 多取一些再按类型切分
+    ranked = _cosine_top(qv, vectors, top_k=max(kb_k + news_k, 12))
+
+    kb_hits: list[tuple[float, dict]] = []
+    news_hits: list[tuple[float, dict]] = []
+    for i, sim in ranked:
+        d = docs[i]
+        if d["type"] == "kb" and len(kb_hits) < kb_k:
+            kb_hits.append((sim, d))
+        elif d["type"] == "news" and len(news_hits) < news_k:
+            news_hits.append((sim, d))
+        if len(kb_hits) >= kb_k and len(news_hits) >= news_k:
+            break
+
+    # 资讯不足时按相似度补齐(含低分)
+    if len(news_hits) < news_k:
+        seen = {d["uid"] for _, d in news_hits}
+        for i, sim in ranked:
+            if len(news_hits) >= news_k:
+                break
+            d = docs[i]
+            if d["type"] == "news" and d["uid"] not in seen:
+                news_hits.append((sim, d))
+
+    sources: list[dict[str, Any]] = []
+    for sim, d in kb_hits + news_hits:
+        sources.append({
+            "type": d["type"],
+            "title": d["title"],
+            "snippet": d["snippet"],
+            "source": d["source"],
+            "date": d["date"],
+            "sentiment": d.get("sentiment"),
+            "score": round(float(sim), 4),
+            "method": "vector",
+        })
+
+    # 余弦相似度通常在 [-1,1], 映射到 0-1 展示
+    for i, x in enumerate(sources):
+        x["id"] = i + 1
+        x["relevance"] = round(max(0.0, min(1.0, (x["score"] + 1) / 2)), 2)
+    # 再按原始相似度排序编号
+    sources.sort(key=lambda s: -s["score"])
+    for i, x in enumerate(sources):
+        x["id"] = i + 1
+    return sources
+
+
+def _retrieve_keyword(query: str, kb_k: int, news_k: int) -> list[dict[str, Any]]:
+    qt = _tokens(query)
+    kb_scored: list[tuple[int, dict[str, str]]] = []
+    for item in KB:
+        s = _kw_score(qt, item["k"] + " " + item["v"])
+        if s > 0:
+            kb_scored.append((s, item))
+    kb_scored.sort(key=lambda x: -x[0])
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM news ORDER BY published_at DESC LIMIT 60"
+        ).fetchall()
+    news_scored = [(_kw_score(qt, r["title"] + " " + (r["summary"] or "")), r) for r in rows]
+    news_scored.sort(key=lambda x: -x[0])
+    hit = [(s, r) for s, r in news_scored if s > 0]
+    if len(hit) < news_k:
+        seen = {r["id"] for _, r in hit}
+        for s, r in news_scored:
+            if len(hit) >= news_k:
+                break
+            if r["id"] not in seen:
+                hit.append((0, r))
+    news_top = hit[:news_k]
+
+    sources: list[dict[str, Any]] = []
+    for s, item in kb_scored[:kb_k]:
+        sources.append({
+            "type": "kb", "title": "CS2 市场知识库", "snippet": item["v"],
+            "source": "内置知识库", "date": None, "score": float(s),
+            "method": "keyword",
+        })
+    for s, r in news_top:
+        sources.append({
+            "type": "news", "title": r["title"], "snippet": r["summary"],
+            "source": r["source"], "date": r["published_at"],
+            "sentiment": r["sentiment"], "score": float(s),
+            "method": "keyword",
+        })
+
+    max_s = max((x["score"] for x in sources), default=0) or 1
+    for i, x in enumerate(sources):
+        x["id"] = i + 1
+        x["relevance"] = round(min(1.0, x["score"] / max_s), 2)
+    return sources
+
+
+def _retrieve_sources(query: str, kb_k: int = 3, news_k: int = 5) -> list[dict[str, Any]]:
+    """优先向量检索,失败自动降级关键词。"""
+    if _load_embedder() is not None:
+        try:
+            return _retrieve_vector(query, kb_k=kb_k, news_k=news_k)
+        except Exception as e:
+            print(f"[rag] 向量检索失败,降级关键词: {e}")
+    return _retrieve_keyword(query, kb_k=kb_k, news_k=news_k)
+
+
+# ============================================================
+# 旧接口兼容(explain / debate / diagnose)
+# ============================================================
+def _kb_retrieve(query: str, top_k: int = 3) -> list[str]:
+    src = _retrieve_sources(query, kb_k=top_k, news_k=0)
+    return [s["snippet"] for s in src if s["type"] == "kb"][:top_k]
+
+
+def _news_retrieve(conn: sqlite3.Connection, query: str, top_k: int = 3) -> list[Any]:
+    # 保留签名供旧调用; 实际走统一检索
+    src = _retrieve_sources(query, kb_k=0, news_k=top_k)
+    out = []
+    for s in src:
+        if s["type"] != "news":
+            continue
+        # 从 DB 再取完整 row(若索引里带着)
+        out.append(type("N", (), {
+            "title": s["title"], "summary": s["snippet"], "source": s["source"],
+            "published_at": s["date"], "sentiment": s.get("sentiment"),
+            "impact": None, "id": s["id"],
+        })())
+    return out[:top_k]
 
 
 def retrieve_context(skin_row: sqlite3.Row, query: str | None = None) -> dict[str, Any]:
@@ -64,11 +373,16 @@ def retrieve_context(skin_row: sqlite3.Row, query: str | None = None) -> dict[st
     name = skin_row["market_hash_name"]
     q = query or name
     with get_connection() as conn:
-        news = _news_retrieve(conn, q)
         cur, cur_date = latest_price(conn, skin_row["id"])
         ch7 = change_pct(conn, skin_row["id"], 7)
         ch30 = change_pct(conn, skin_row["id"], 30)
-    kb_hits = _kb_retrieve(q)
+    sources = _retrieve_sources(q, kb_k=3, news_k=3)
+    kb_hits = [s["snippet"] for s in sources if s["type"] == "kb"]
+    news = [{
+        "title": s["title"], "summary": s["snippet"], "source": s["source"],
+        "published_at": s["date"], "sentiment": s.get("sentiment"),
+        "impact": None,
+    } for s in sources if s["type"] == "news"]
     return {
         "name": name,
         "current_price": cur,
@@ -76,9 +390,8 @@ def retrieve_context(skin_row: sqlite3.Row, query: str | None = None) -> dict[st
         "change7d": ch7,
         "change30d": ch30,
         "kb": kb_hits,
-        "news": [{"title": n["title"], "summary": n["summary"],
-                  "source": n["source"], "published_at": n["published_at"],
-                  "sentiment": n["sentiment"], "impact": n["impact"]} for n in news],
+        "news": news,
+        "retrieval": vector_status(),
     }
 
 
@@ -108,4 +421,39 @@ def explain(skin_id: str, days: int = 7) -> dict[str, Any]:
         "relatedNews": ctx["news"],
         "sources": ["知识库"] + [n["source"] for n in ctx["news"]],
         "context": ctx,
+        "retrieval": ctx.get("retrieval"),
+    }
+
+
+def retrieve_daily_sources(query: str | None = None, limit: int = 6) -> list[dict[str, Any]]:
+    """日报用的市场级检索来源。"""
+    q = query or "CS2 饰品 市场 行情 Major 赛事 Valve 更新 流动性 磨损 StatTrak"
+    return _retrieve_sources(q, kb_k=3, news_k=limit)
+
+
+def ask(query: str, top_k: int = 5) -> dict[str, Any]:
+    """RAG 问答: 向量检索 → LLM 生成带 [编号] 引用的答案。"""
+    q = (query or "").strip()
+    if not q:
+        return {"query": "", "answer": "请输入你的问题。", "sources": [], "retrieval": vector_status()}
+
+    sources = _retrieve_sources(q, kb_k=3, news_k=top_k)
+    context_text = "\n".join(
+        f"[{s['id']}] ({s['source']}) {s['snippet']}" for s in sources
+    ) or "(无检索结果)"
+    status = vector_status()
+
+    prompt = (
+        "你是 CS2 饰品市场 RAG 助手。请【仅依据】下面向量检索到的资料回答用户问题,"
+        "在相关句子末尾用 [编号] 标注引用的资料(可多个);不要编造资料之外的事实,"
+        "若资料不足请直接说明。用中文,3-6 句,并在结尾附一句风险提示。\n\n"
+        f"检索方式:{status['mode']}\n"
+        f"检索资料:\n{context_text}\n\n用户问题:{q}"
+    )
+    answer = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.4)
+    return {
+        "query": q,
+        "answer": answer,
+        "sources": sources,
+        "retrieval": status,
     }

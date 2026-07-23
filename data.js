@@ -101,20 +101,20 @@ const MODEL_COMPARISON = {
   hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
   note: 'Fair test metrics. Hybrid route frozen on val: low→C, mid/high→D. LSTM-C best RMSE/MAE/R²; RF best MAPE. Hybrid is NOT strictly best on all metrics.',
   regression: [
-    { name: 'LSTM-C', rmse: 44.37, mae: 6.27, mape: 10.95, r2: 0.9374, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, typeKey: 'dl_panel', type: 'DL · 共享面板', course: 'DL · panel Embedding' },
-    { name: 'LSTM-D', rmse: 52.09, mae: 7.02, mape: 7.72, r2: 0.9137, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, typeKey: 'dl_tier', type: 'DL · 分组', course: 'DL · price tiers' },
-    { name: 'Hybrid', rmse: 52.09, mae: 7.02, mape: 10.69, r2: 0.9137, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, typeKey: 'route', type: '部署路由', course: 'Route: low→C, mid/high→D' },
-    { name: 'Random Forest', rmse: 52.82, mae: 7.26, mape: 6.26, r2: 0.9113, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, typeKey: 'tree_mape', type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
-    { name: 'LightGBM', rmse: 58.36, mae: 8.46, mape: 6.34, r2: 0.8917, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
-    { name: 'XGBoost', rmse: 61.76, mae: 9.17, mape: 7.93, r2: 0.8787, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
+    { name: 'LSTM-C', rmse: 39.74, mae: 5.77, mape: 8.83, r2: 0.9501, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, typeKey: 'dl_panel', type: 'DL · 共享面板', course: 'DL · panel Embedding' },
+    { name: 'LSTM-D', rmse: 52.17, mae: 7.02, mape: 7.47, r2: 0.914, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, typeKey: 'dl_tier', type: 'DL · 分组', course: 'DL · price tiers' },
+    { name: 'Hybrid', rmse: 52.17, mae: 7.02, mape: 8.81, r2: 0.914, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, typeKey: 'route', type: '部署路由', course: 'Route: low→C, mid/high→D' },
+    { name: 'Random Forest', rmse: 51.75, mae: 7.03, mape: 6.03, r2: 0.9154, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, typeKey: 'tree_mape', type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
+    { name: 'LightGBM', rmse: 57.61, mae: 8.25, mape: 6.11, r2: 0.8952, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
+    { name: 'XGBoost', rmse: 62.00, mae: 9.21, mape: 6.50, r2: 0.8786, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
   ],
   classification: [
     { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, typeKey: 'linear', type: '线性基线' },
     { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.65, auc: 0.69, returnPct: 12.4, speed: '快', interpretability: 2, typeKey: 'ensemble', type: '集成基线' },
-    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.47, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
-    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.52, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
+    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.7688, auc: 0.9041, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
+    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.7661, auc: 0.8992, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
   ],
-  buyAndHold: { name: '买入持有', returnPct: 4.16 }
+  buyAndHold: { name: '买入持有', returnPct: 194.65 }
 };
 
 // 回测曲线 Mock（演示用；真实曲线见 ml/outputs/backtest/backtest_curves.json）

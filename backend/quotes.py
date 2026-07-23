@@ -21,16 +21,14 @@ _SCRAPER = REPO_ROOT / "ml" / "data" / "scraper"
 if str(_SCRAPER) not in sys.path:
     sys.path.insert(0, str(_SCRAPER))
 
-# 默认给前端展示的平台(免 Cookie、可批量缓存; Steam/CSFloat/BUFF 限流或需登录,按需)
+# 默认给前端展示的平台: 仅保留有免费实时源、可批量缓存的 5 个。
+# Steam/BUFF/CSFloat 需登录 Cookie / API Key 或限流极严, 无免费实时源, 已移除。
 DEFAULT_PLATFORMS = [
     "skinport",
     "waxpeer",
     "marketcsgo",
     "lootfarm",
     "csgotrader",
-    "steam",
-    "buff",
-    "csfloat",
 ]
 
 # 演示降级:相对库内基准价的价差系数(贴近各平台常见溢价)
@@ -64,6 +62,33 @@ _CACHE_TTL_MOCK = 30.0
 
 # 仅对这些平台做真拉取(批量价表); 其余走 mock / 需要 Cookie
 _LIVE_SAFE = {"skinport", "waxpeer", "marketcsgo", "lootfarm", "csgotrader"}
+
+# 进程内复用的实时客户端(Skinport 等一次拉全表, 靠客户端实例级缓存跨请求生效,
+# 避免每个饰品都新建客户端 -> 重复拉全表 -> 429 限流)
+_live_clients: dict[str, Any] = {}
+_live_clients_lock = threading.Lock()
+
+
+def _get_live_clients(live_platforms: list[str]) -> list[Any]:
+    from platforms import build_clients  # type: ignore
+
+    with _live_clients_lock:
+        missing = [p for p in live_platforms if p not in _live_clients]
+        if missing:
+            for c in build_clients(
+                missing,
+                usd_cny_rate=USD_CNY_RATE,
+                buff_interval=0,
+                steam_interval=0,
+            ):
+                # 全表接口(如 Skinport)延长目录缓存, 进一步降低限流概率
+                if hasattr(c, "cache_ttl"):
+                    try:
+                        c.cache_ttl = max(float(getattr(c, "cache_ttl", 0) or 0), 300.0)
+                    except Exception:
+                        pass
+                _live_clients[c.name] = c
+        return [_live_clients[p] for p in live_platforms if p in _live_clients]
 
 
 def _utcnow_iso() -> str:
@@ -114,55 +139,59 @@ def _live_quotes(
 
     results: dict[str, dict[str, Any]] = {}
     if live_platforms:
-        clients = build_clients(
-            live_platforms,
-            usd_cny_rate=USD_CNY_RATE,
-            buff_interval=0,
-            steam_interval=0,
-        )
-        try:
-            for client in clients:
-                try:
-                    qs = client.fetch_quotes([market_hash_name])
-                    q = qs[0] if qs else None
-                    if q is None:
-                        raise RuntimeError("empty")
-                    results[client.name] = {
-                        "platform": client.name,
-                        "label": platform_label(client.name),
-                        "currency": q.currency,
-                        "price": round(q.price, 4) if q.price is not None else None,
-                        "priceNative": q.price_native,
-                        "buyPrice": q.buy_price,
-                        "sellPrice": q.sell_price,
-                        "volume": q.volume,
-                        "ok": bool(q.ok and q.price is not None),
-                        "error": q.error,
-                        "live": True,
-                    }
-                except Exception as e:
-                    results[client.name] = {
-                        "platform": client.name,
-                        "label": platform_label(client.name),
-                        "currency": "USD",
-                        "price": None,
-                        "priceNative": None,
-                        "buyPrice": None,
-                        "sellPrice": None,
-                        "volume": None,
-                        "ok": False,
-                        "error": str(e),
-                        "live": True,
-                    }
-        finally:
-            for c in clients:
-                try:
-                    c.close()
-                except Exception:
-                    pass
+        # 复用进程内客户端(不再 close), 让 Skinport 等全表缓存跨请求生效
+        clients = _get_live_clients(live_platforms)
+        for client in clients:
+            try:
+                qs = client.fetch_quotes([market_hash_name])
+                q = qs[0] if qs else None
+                if q is None:
+                    raise RuntimeError("empty")
+                results[client.name] = {
+                    "platform": client.name,
+                    "label": platform_label(client.name),
+                    "currency": q.currency,
+                    "price": round(q.price, 4) if q.price is not None else None,
+                    "priceNative": q.price_native,
+                    "buyPrice": q.buy_price,
+                    "sellPrice": q.sell_price,
+                    "volume": q.volume,
+                    "ok": bool(q.ok and q.price is not None),
+                    "error": q.error,
+                    "live": True,
+                }
+            except Exception as e:
+                results[client.name] = {
+                    "platform": client.name,
+                    "label": platform_label(client.name),
+                    "currency": "USD",
+                    "price": None,
+                    "priceNative": None,
+                    "buyPrice": None,
+                    "sellPrice": None,
+                    "volume": None,
+                    "ok": False,
+                    "error": str(e),
+                    "live": True,
+                }
 
-    # 限流/需登录平台:用基准价合成演示价,避免表格大片空白
-    for mq in _mock_quotes(market_hash_name, base_price, deferred):
+    # 限流/需登录平台(Steam/BUFF/CSFloat):合成演示价避免表格空白。
+    # 优先用真实抓取到的价格中位数为基准,再退回库内基准价——
+    # 库内基准价对部分饰品明显失真,直接用会得到离谱的价差。
+    live_prices = sorted(
+        float(r["price"]) for r in results.values()
+        if r.get("ok") and r.get("live") and r.get("price")
+    )
+    if live_prices:
+        mid = len(live_prices) // 2
+        ref_price = (
+            live_prices[mid]
+            if len(live_prices) % 2
+            else (live_prices[mid - 1] + live_prices[mid]) / 2
+        )
+    else:
+        ref_price = base_price
+    for mq in _mock_quotes(market_hash_name, ref_price, deferred):
         mq["error"] = "SYNTHETIC_DEMO"
         results[mq["platform"]] = mq
 
@@ -170,7 +199,13 @@ def _live_quotes(
 
 
 def _spread(quotes: list[dict[str, Any]]) -> dict[str, Any] | None:
-    ok = [q for q in quotes if q.get("ok") and q.get("price") is not None]
+    # 仅用真实报价算价差; 合成演示价(SYNTHETIC_DEMO)会严重扭曲极值
+    ok = [
+        q for q in quotes
+        if q.get("ok")
+        and q.get("price") is not None
+        and q.get("error") != "SYNTHETIC_DEMO"
+    ]
     if len(ok) < 2:
         return None
     prices = [float(q["price"]) for q in ok]

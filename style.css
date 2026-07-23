@@ -376,6 +376,18 @@ body::before {
   font-weight: 500;
 }
 
+.market-status--btn {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.market-status--btn:hover {
+  border-color: var(--accent-orange);
+  background: var(--bg-hover, var(--bg-elevated));
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
@@ -383,6 +395,17 @@ body::before {
   border-radius: 50%;
   box-shadow: 0 0 8px var(--accent-green);
   animation: pulse 3s ease-in-out infinite;
+}
+
+.status-dot--online {
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+
+.status-dot--mock {
+  background: #9ca3af;
+  box-shadow: 0 0 6px rgba(156, 163, 175, 0.5);
+  animation: none;
 }
 
 @keyframes pulse {
@@ -2627,6 +2650,27 @@ i.ph-duotone {
   white-space: nowrap;
 }
 
+.market-board__banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 45%, var(--border-color));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-orange) 12%, var(--bg-elevated));
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.market-board__banner i {
+  color: var(--accent-orange);
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
 .market-board__scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -2827,6 +2871,22 @@ i.ph-duotone {
 .mb-skin__change {
   margin-top: 4px;
   display: inline-flex;
+}
+
+.mb-skin__live {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-green, #22c55e);
+  white-space: nowrap;
+}
+
+.mb-skin__live i {
+  font-size: 12px;
 }
 
 .market-catalog {
@@ -5010,4 +5070,161 @@ select:focus-visible {
   background: var(--accent-red);
   border-radius: 50%;
   animation: pulse 1.5s infinite;
+}
+
+/* ============ RAG 智能问答 / 检索来源(市场日报) ============ */
+.rag-ask {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.rag-ask__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.rag-ask__input:focus {
+  border-color: var(--accent-purple, #8b5cf6);
+}
+
+.rag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rag-chip {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rag-chip:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--accent-purple, #8b5cf6);
+}
+
+.rag-chip:disabled { opacity: 0.5; cursor: default; }
+
+.rag-result {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.rag-answer {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.rag-cite {
+  color: var(--accent-purple, #8b5cf6);
+  font-weight: 700;
+  font-size: 10px;
+  padding: 0 1px;
+}
+
+.rag-answer-sources { margin-top: 14px; }
+
+.rag-answer-sources__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.rag-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rag-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.rag-source--sm { padding: 8px 10px; }
+
+.rag-source__id {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent-purple, #8b5cf6);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rag-source__body { flex: 1; min-width: 0; }
+
+.rag-source__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.rag-source__snippet {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.rag-source__meta {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  margin-top: 4px;
+}
+
+.rag-source__rel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  width: 64px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rag-rel-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rag-rel-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue, #3b82f6), var(--accent-purple, #8b5cf6));
+  border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  .rag-ask { flex-direction: column; }
+  .rag-source__rel { width: 52px; }
 }

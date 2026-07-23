@@ -7,6 +7,8 @@ uvicorn[standard]>=0.29
 
 # LLM / HTTP
 httpx>=0.27
+# Skinport 多平台报价强制 Brotli 压缩; 供 httpx 解码响应
+brotli>=1.1
 
 # 定时任务 / RSS
 APScheduler>=3.10
@@ -24,6 +26,9 @@ pandas>=2.0
 numpy>=1.26
 scikit-learn>=1.4
 joblib>=1.3
+
+# RAG 向量检索(本地 embedding; 无模型时自动降级关键词)
+sentence-transformers>=2.7
 
 # 深度学习(LSTM-C/D/GRU 推理;组员 1 训练用)
 tensorflow>=2.15

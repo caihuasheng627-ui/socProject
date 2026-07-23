@@ -93,6 +93,11 @@ class AuthReq(BaseModel):
     password: str
 
 
+class RagAskReq(BaseModel):
+    query: str
+    topK: int = 5
+
+
 # ============================================================
 # 辅助:skin 序列化
 # ============================================================
@@ -144,6 +149,7 @@ def health():
         "gru": "ok" if _loader.tf_available else "mock",
         "trees": "ok",
         "deepseek": "ok" if LLM_ENABLED else "mock",
+        "rag": rag.vector_status().get("mode", "keyword"),
     }
     status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"
     return {
@@ -152,6 +158,7 @@ def health():
                         "portfolio": n_portfolio, "news": n_news,
                         "buff_live": USE_BUFF_LIVE},
         "models": models_status,
+        "rag": rag.vector_status(),
         "timestamp": _utcnow().isoformat(),
     }
 
@@ -204,7 +211,7 @@ def get_skin_quotes(
     skin_id: str,
     platforms: str | None = Query(
         None,
-        description="逗号分隔平台: skinport,waxpeer,marketcsgo,lootfarm,csgotrader,steam,buff,csfloat",
+        description="逗号分隔平台(默认 skinport,waxpeer,marketcsgo,lootfarm,csgotrader)",
     ),
     live: bool | None = Query(
         None,
@@ -525,11 +532,24 @@ def daily_report(date: str | None = None):
     seed = SEED_DIR / "seed_daily_report.json"
     if seed.exists():
         try:
-            return json.loads(seed.read_text(encoding="utf-8"))
+            rep = json.loads(seed.read_text(encoding="utf-8"))
+            # 兜底日报可能缺少 RAG 检索来源(旧种子): 现补一份(仅检索, 不调 LLM)
+            if not rep.get("sources"):
+                try:
+                    rep["sources"] = rag.retrieve_daily_sources(limit=6)
+                except Exception:
+                    rep["sources"] = []
+            return rep
         except Exception:
             pass
     import scheduler
     return scheduler.generate_daily_report()
+
+
+@app.post("/api/rag/ask")
+def rag_ask(req: RagAskReq):
+    """RAG 问答: 检索知识库/资讯 → 生成带引用的答案。"""
+    return rag.ask(req.query, top_k=req.topK)
 
 
 # ============================================================
@@ -593,49 +613,123 @@ def delete_alert(alert_id: int, current_user: dict = Depends(get_current_user_op
 # ============================================================
 @app.get("/api/models/comparison")
 def models_comparison():
+    """模型实验室对比表。
+    优先 fair-test（compare_results_test）+ backtest returnPct；
+    分类优先用 model_comparison.json（含 AUC），避免被 direction 无 AUC 结果覆盖。
+    """
     mc_path = OUTPUT_DIR / "model_comparison.json"
     cmp_path = OUTPUT_DIR / "compare_results_test.json"
     if not cmp_path.exists():
         cmp_path = OUTPUT_DIR / "compare_results.json"
-    regression, classification = [], []
+    bt_path = OUTPUT_DIR / "backtest" / "backtest_results.json"
+    if not bt_path.exists():
+        bt_path = OUTPUT_DIR / "backtest_results.json"
+
+    mc: dict[str, Any] = {}
     if mc_path.exists():
-        mc = json.loads(mc_path.read_text(encoding="utf-8"))
-        regression = mc.get("regression", [])
-    # 无独立 model_comparison.json 时,从 compare_results_* 组装回归表
-    if not regression and cmp_path.exists():
-        cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
-        models_blk = cmp.get("models") if isinstance(cmp, dict) else None
-        if isinstance(models_blk, dict):
-            for name, blk in models_blk.items():
-                if not isinstance(blk, dict):
-                    continue
-                regression.append({
-                    "name": name,
-                    "type": ("DL" if any(x in name.upper() for x in ("LSTM", "GRU"))
-                             else "Route" if "Hybrid" in name else "ML"),
-                    "rmse": blk.get("rmse"), "mae": blk.get("mae"),
-                    "mape": blk.get("mape"), "r2": blk.get("r2"),
-                    "returnPct": None, "speed": "—", "course": "fair test",
-                })
+        try:
+            mc = json.loads(mc_path.read_text(encoding="utf-8"))
+        except Exception:
+            mc = {}
+
+    # backtest returnPct: lstm_c → LSTM-C 等
+    ret_map: dict[str, float] = {}
+    key_alias = {
+        "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid", "gru": "GRU",
+        "rf": "Random Forest", "RF": "Random Forest",
+        "lightgbm": "LightGBM", "xgboost": "XGBoost",
+    }
+    if bt_path.exists():
+        try:
+            bt = json.loads(bt_path.read_text(encoding="utf-8"))
+            fee = bt.get("fee_0.0000") if isinstance(bt, dict) else None
+            if isinstance(fee, dict):
+                for k, blk in fee.items():
+                    if not isinstance(blk, dict) or blk.get("returnPct") is None:
+                        continue
+                    rp = float(blk["returnPct"])
+                    ret_map[k] = rp
+                    ret_map[key_alias.get(k, k)] = rp
+        except Exception:
+            pass
+
+    meta_by_name = {
+        r.get("name"): r for r in (mc.get("regression") or []) if isinstance(r, dict)
+    }
+
+    regression: list[dict[str, Any]] = []
+    # 1) fair-test compare_results_* 优先
     if cmp_path.exists():
-        cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
-        models_blk = cmp.get("models") if isinstance(cmp, dict) else cmp
-        if isinstance(models_blk, dict):
-            for name, blk in models_blk.items():
-                if not isinstance(blk, dict):
-                    continue
-                d = blk.get("direction") or {}
-                if d:
-                    classification.append({
-                        "name": name,
-                        "type": "DL" if any(x in name.upper() for x in ("LSTM", "GRU")) else "ML",
-                        "accuracy": d.get("accuracy"), "auc": d.get("auc"),
-                        "precision": d.get("precision"), "recall": d.get("recall"),
-                        "f1": d.get("f1"),
+        try:
+            cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
+            models_blk = cmp.get("models") if isinstance(cmp, dict) else None
+            if isinstance(models_blk, dict):
+                for name, blk in models_blk.items():
+                    if not isinstance(blk, dict):
+                        continue
+                    display = "Random Forest" if name == "RF" else name
+                    meta = meta_by_name.get(display) or meta_by_name.get(name) or {}
+                    is_dl = any(x in display.upper() for x in ("LSTM", "GRU"))
+                    regression.append({
+                        "name": display,
+                        "type": meta.get("type") or (
+                            "DL" if is_dl else "Route" if "Hybrid" in display else "ML"
+                        ),
+                        "typeKey": meta.get("typeKey"),
+                        "course": meta.get("course") or "fair test",
+                        "rmse": blk.get("rmse"),
+                        "mae": blk.get("mae"),
+                        "mape": blk.get("mape"),
+                        "r2": blk.get("r2"),
+                        "returnPct": (
+                            ret_map.get(display)
+                            or ret_map.get(name)
+                            or meta.get("returnPct")
+                        ),
+                        "speed": meta.get("speed") or ("慢" if is_dl else "快"),
+                        "interpretability": meta.get("interpretability"),
                     })
-    buy_hold = {"name": "Buy & Hold", "type": "基准",
-                "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
-                "returnPct": 0, "speed": "—", "course": "基准策略"}
+        except Exception:
+            regression = []
+
+    # 2) 回退 model_comparison.json
+    if not regression and mc.get("regression"):
+        regression = list(mc["regression"])
+
+    # 分类：优先带 AUC 的 curated 表，勿被 direction（auc=null）覆盖
+    classification: list[dict[str, Any]] = []
+    if isinstance(mc.get("classification"), list) and mc["classification"]:
+        classification = list(mc["classification"])
+    elif cmp_path.exists():
+        try:
+            cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
+            models_blk = cmp.get("models") if isinstance(cmp, dict) else None
+            if isinstance(models_blk, dict):
+                for name, blk in models_blk.items():
+                    if not isinstance(blk, dict):
+                        continue
+                    d = blk.get("direction") or {}
+                    if not d:
+                        continue
+                    display = "Random Forest" if name == "RF" else name
+                    classification.append({
+                        "name": display,
+                        "type": "DL" if any(x in display.upper() for x in ("LSTM", "GRU")) else "ML",
+                        "accuracy": d.get("accuracy"),
+                        "auc": d.get("auc"),
+                        "precision": d.get("precision"),
+                        "recall": d.get("recall"),
+                        "f1": d.get("f1"),
+                        "returnPct": ret_map.get(display) or ret_map.get(name),
+                    })
+        except Exception:
+            classification = []
+
+    buy_hold = mc.get("buyAndHold") or {
+        "name": "Buy & Hold", "type": "基准",
+        "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
+        "returnPct": 0, "speed": "—", "course": "基准策略",
+    }
     return {"regression": regression, "classification": classification, "buyAndHold": buy_hold}
 
 
@@ -647,18 +741,47 @@ def models_backtest(days: int = 60, skinId: str | None = None):
     if p.exists():
         try:
             raw = json.loads(p.read_text(encoding="utf-8"))
-            # 原始结构:{fee_0.0000:{lstm_c:[{date,capital}], lstm_d:[...], hybrid:[...]}, buy_hold:[{date,capital}]}
-            # 转成前端要的 {dates:[str], series:{模型名:[capital]}}
+            # 原始结构:{fee_0.0000:{lstm_c:[{date,capital}], ...}, buy_hold:[{date,capital}]}
             fee = raw.get("fee_0.0000") if isinstance(raw, dict) else None
             buy_hold = raw.get("buy_hold") if isinstance(raw, dict) else None
-            if fee and buy_hold:
-                dates = [pt.get("date", "") for pt in buy_hold]
-                series = {}
-                for key, label in (("lstm_c", "LSTM-C"), ("lstm_d", "LSTM-D"), ("hybrid", "Hybrid")):
+            if fee and isinstance(fee, dict):
+                # 取最长序列作日期轴
+                label_map = {
+                    "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid",
+                    "gru": "GRU", "rf": "Random Forest", "lightgbm": "LightGBM",
+                    "xgboost": "XGBoost",
+                }
+                # 图表主系列：策略模型 + Buy&Hold（避免一次塞太多线）
+                prefer = ("lstm_c", "lstm_d", "hybrid", "rf", "xgboost")
+                anchor_key = next((k for k in prefer if fee.get(k)), next(iter(fee), None))
+                anchor = fee.get(anchor_key) or buy_hold or []
+                dates = [pt.get("date", "") for pt in anchor]
+
+                def _capitals(arr: list) -> list[float]:
+                    return [round(float(pt.get("capital", 0) or 0), 2) for pt in arr]
+
+                def _reindex(vals: list[float]) -> list[float]:
+                    """统一成起始=100 的净值指数，避免 Buy&Hold 绝对资金撑破 Y 轴。"""
+                    if not vals:
+                        return vals
+                    base = next((v for v in vals if v), 0.0) or 1.0
+                    return [round(v / base * 100.0, 2) for v in vals]
+
+                series_raw: dict[str, list[float]] = {}
+                for key in prefer:
                     arr = fee.get(key) or []
-                    series[label] = [round(pt.get("capital", 0), 2) for pt in arr]
-                series["Buy&Hold"] = [round(pt.get("capital", 0), 2) for pt in buy_hold]
-                return {"dates": dates, "series": series}
+                    if not arr:
+                        continue
+                    series_raw[label_map.get(key, key)] = _capitals(arr)
+                if buy_hold:
+                    series_raw["Buy&Hold"] = _capitals(buy_hold)
+
+                if days and days > 0 and len(dates) > days:
+                    dates = dates[-days:]
+                    series_raw = {k: v[-days:] for k, v in series_raw.items()}
+
+                series = {k: _reindex(v) for k, v in series_raw.items()}
+                return {"dates": dates, "series": series, "indexed": True}
             return raw
         except Exception:
             pass

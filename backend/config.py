@@ -61,6 +61,15 @@ PORTFLOTTO_BATCH = 20               # 库存 >20 件时分批诊断
 # 历史兼容:训练/展示统一为 USD,不再做 CNY 换算
 USD_CNY_RATE = float(os.getenv("USD_CNY_RATE", "1.0"))
 
+# ---------- RAG 向量检索 ----------
+# 默认多语言 MiniLM(中英均可); 无 sentence-transformers / 模型下载失败时自动降级关键词
+RAG_EMBED_MODEL = os.getenv(
+    "RAG_EMBED_MODEL",
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+)
+RAG_USE_VECTOR = os.getenv("RAG_USE_VECTOR", "1") == "1"
+RAG_INDEX_PATH = DATA_RUNTIME_DIR / "rag_vectors.npz"
+
 
 def ensure_dirs() -> None:
     for d in (DATA_DIR, MODEL_DIR, PRED_DIR, OUTPUT_DIR, SEED_DIR, DATA_RUNTIME_DIR):

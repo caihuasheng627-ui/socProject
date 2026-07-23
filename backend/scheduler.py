@@ -60,6 +60,11 @@ def fetch_rss_news() -> int:
         conn.commit()
     if inserted:
         print(f"[scheduler] RSS 新增 {inserted} 条")
+        try:
+            import rag
+            rag.invalidate_index()
+        except Exception:
+            pass
     return inserted
 
 
@@ -99,18 +104,35 @@ def generate_daily_report() -> dict:
     portfolio_text = "无持仓" if not positions else "; ".join(
         f"{r['market_hash_name']} {r['quantity']}件" for r in positions
     )
+
+    # RAG 检索: 拉取市场级知识库/资讯来源, 供日报引用(展示检索→生成)
+    try:
+        import rag
+        sources = rag.retrieve_daily_sources(limit=6)
+    except Exception as e:
+        print(f"[scheduler] RAG 检索失败: {e}")
+        sources = []
+    context_text = "\n".join(
+        f"[{s['id']}] ({s['source']}) {s['snippet']}" for s in sources
+    ) or "(无检索结果)"
+
     prompt = (
         f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
-        f"你的持仓:{portfolio_text}。请生成一段中文市场日报(3-4 句),含持仓提示与风险。"
+        f"你的持仓:{portfolio_text}。\n"
+        f"以下是检索到的市场知识库/资讯:\n{context_text}\n\n"
+        f"请据此生成一段中文市场日报(3-4 句),在相关处用 [编号] 标注引用来源,"
+        f"含持仓提示与风险。"
     )
     summary = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
 
     report = {
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "metrics": {"monitored": total, "gainers": gainers, "losers": losers},
         "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
                        "holdingType": r["holding_type"]} for r in positions],
         "aiSummary": summary,
+        "sources": sources,
         "news": [{"title": n["title"], "summary": n["summary"], "source": n["source"],
                   "sentiment": n["sentiment"]} for n in news],
     }

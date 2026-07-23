@@ -394,7 +394,7 @@ const app = createApp({
     const toasts = ref([]);
     const showToast = ({ title, subtitle = '', type = 'info', icon = null, duration = 3000 }) => {
       const id = Date.now() + Math.random();
-      const typeIcon = { success: '✅', error: '❌', info: 'ℹ️' }[type] || 'ℹ️';
+      const typeIcon = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' }[type] || 'ℹ️';
       toasts.value.push({ id, title, subtitle, type, icon: icon || typeIcon });
       setTimeout(() => {
         toasts.value = toasts.value.filter(t => t.id !== id);
@@ -568,7 +568,11 @@ const app = createApp({
       const client = api();
       if (!client) return false;
       // 后端全集约 154 件; 旧 limit=100 + 按成交量排序会把刀/手套挤掉
-      const res = await client.getSkins({ limit: 500, sort: 'volume_desc' });
+      // 连真实后端时禁止静默退回 Mock，避免行情中心“看起来在线实则演示”
+      const res = await client.getSkins(
+        { limit: 500, sort: 'volume_desc' },
+        { fallback: false }
+      );
       const items = res?.items || [];
       if (!items.length) return false;
       skins.value = items.map(s => ({
@@ -682,8 +686,9 @@ const app = createApp({
         client.setBaseURL(apiBase);
         client.setUseMock(false);
         await client.health();
+        const skinsOk = await loadSkinsFromApi();
+        if (!skinsOk) throw new Error('skins empty');
         apiOnline.value = true;
-        await loadSkinsFromApi();
         await Promise.all([
           loadNewsFromApi(),
           loadAlertsFromApi(),
@@ -691,7 +696,7 @@ const app = createApp({
           loadModelsFromApi(),
         ]);
         const shown = client.baseURL || location.origin;
-        showToast({ title: '已连接后端', subtitle: shown, type: 'success' });
+        showToast({ title: t('dashboard.connected'), subtitle: `${shown} · ${skins.value.length}`, type: 'success' });
         return true;
       } catch (err) {
         apiOnline.value = false;
@@ -700,6 +705,25 @@ const app = createApp({
         return false;
       }
     };
+
+    const reconnectBackend = async () => {
+      const ok = await connectBackend();
+      if (!ok) {
+        showToast({
+          title: t('topbar.dataSource.offline'),
+          subtitle: t('dashboard.backendHint'),
+          type: 'warning',
+        });
+      }
+      return ok;
+    };
+
+    const dataSourceLabel = computed(() => {
+      if (apiOnline.value) {
+        return t('topbar.dataSource.online', { count: skins.value.length || 0 });
+      }
+      return t('topbar.dataSource.mock');
+    });
 
     const loadNewsFromApi = async () => {
       const client = api();
@@ -787,13 +811,21 @@ const app = createApp({
         if (cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
         }
+        if (cmp?.buyAndHold && typeof cmp.buyAndHold === 'object') {
+          modelComparison.buyAndHold = {
+            ...modelComparison.buyAndHold,
+            ...cmp.buyAndHold,
+          };
+        }
       } catch (_) { /* keep mock */ }
     };
 
     const dailyReport = ref({
       date: '',
+      generatedAt: '',
       metrics: { monitored: 20, gainers: 14, losers: 6 },
       aiSummary: '',
+      sources: [],
     });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
@@ -807,12 +839,14 @@ const app = createApp({
         if (!rep) return;
         dailyReport.value = {
           date: rep.date || '',
+          generatedAt: rep.generatedAt || '',
           metrics: {
             monitored: rep.metrics?.monitored ?? skins.value.length,
             gainers: rep.metrics?.gainers ?? topGainers.value.length,
             losers: rep.metrics?.losers ?? topLosers.value.length,
           },
           aiSummary: rep.aiSummary || rep.summary || '',
+          sources: Array.isArray(rep.sources) ? rep.sources : [],
         };
         if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
           hotVolume.value = rep.hotVolume;
@@ -841,6 +875,50 @@ const app = createApp({
       }
     };
     const relatedNewsOverride = ref(null);
+
+    // ============ RAG 智能问答(市场日报内) ============
+    const ragQuery = ref('');
+    const ragAnswer = ref('');
+    const ragAnswerSources = ref([]);
+    const ragLoading = ref(false);
+    const ragAsked = ref(false);
+    const ragRetrieval = ref({ mode: '', model: null });
+    const ragSuggestions = [
+      'Major 赛事对饰品价格有什么影响?',
+      'StatTrak 版本为什么更贵?',
+      '磨损等级怎么影响价格和流动性?',
+      '最近有哪些利好/利空消息?',
+    ];
+
+    const askRag = async (q) => {
+      const query = (q ?? ragQuery.value ?? '').trim();
+      if (!query || ragLoading.value) return;
+      ragQuery.value = query;
+      ragLoading.value = true;
+      ragAsked.value = true;
+      ragAnswer.value = '';
+      ragAnswerSources.value = [];
+      try {
+        const client = api();
+        if (!client) throw new Error('api client missing');
+        const res = await client.ragAsk(query, 5);
+        ragAnswer.value = res?.answer || '';
+        ragAnswerSources.value = Array.isArray(res?.sources) ? res.sources : [];
+        ragRetrieval.value = res?.retrieval || { mode: '', model: null };
+      } catch (err) {
+        console.warn('[rag]', err);
+        ragAnswer.value = t('daily.rag.error');
+      } finally {
+        ragLoading.value = false;
+      }
+    };
+
+    // 把答案里的 [n] 引用高亮为角标(返回可 v-html 的安全片段)
+    const renderCitations = (text) => {
+      const esc = String(text || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return esc.replace(/\[(\d+)\]/g, '<sup class="rag-cite">[$1]</sup>');
+    };
     const regressionModels = ref(
       (modelComparison.regression || []).map((r) => ({ ...r }))
     );
@@ -948,14 +1026,27 @@ const app = createApp({
     });
 
     const refreshData = async () => {
+      if (!apiOnline.value) {
+        const ok = await reconnectBackend();
+        if (ok) return;
+      }
       if (apiOnline.value) {
         try {
           await loadSkinsFromApi();
           if (selectedSkin.value?.id) await loadPredictions(selectedSkin.value.id);
-          showToast({ title: t('network.online') || '已刷新', type: 'success' });
+          // 看板刷新顺带对前 N 个饰品抓真实市场价(行内“实时”标签展示)
+          refreshMarketLive();
+          showToast({ title: t('dashboard.connected'), type: 'success' });
           return;
         } catch (err) {
           console.warn('[CSVest] refresh failed', err);
+          apiOnline.value = false;
+          try { api()?.setUseMock(true); } catch (_) { /* ignore */ }
+          showToast({
+            title: t('topbar.dataSource.offline'),
+            subtitle: err?.message || '',
+            type: 'warning',
+          });
         }
       }
       // Mock 波动兜底
@@ -1007,12 +1098,38 @@ const app = createApp({
       });
     });
 
-    const loadPlatformQuotes = async (skinId) => {
+    // 报价基准 = 当前展示报价的中位数(自洽), 避免用合成量纲的库内价导致离谱百分比
+    const platformQuotesRef = computed(() => {
+      const prices = platformQuotes.value
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price))
+        .sort((a, b) => a - b);
+      if (!prices.length) return null;
+      const mid = Math.floor(prices.length / 2);
+      return prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+    });
+
+    // 是否已切到真实市场价(点“刷新”后)
+    const platformQuotesLive = computed(() => platformQuotesMeta.value.mode === 'live');
+
+    // 实时均价 = 各平台真实报价的算术平均(仅 live 模式有效)
+    const livePriceAvg = computed(() => {
+      if (platformQuotesMeta.value.mode !== 'live') return null;
+      const prices = platformQuotes.value
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price));
+      if (!prices.length) return null;
+      return prices.reduce((a, b) => a + b, 0) / prices.length;
+    });
+
+    const loadPlatformQuotes = async (skinId, { live = false } = {}) => {
       if (!skinId) return;
       platformQuotesLoading.value = true;
       try {
-        const client = window.CSVestAPI;
-        const data = await client.getPlatformQuotes(skinId);
+        const client = api();
+        if (!client) throw new Error('api client missing');
+        // 默认演示价(与 App 价同量纲, 秒开); 点“刷新”才抓真实市场价(免登录平台)
+        const data = await client.getPlatformQuotes(skinId, { live });
         platformQuotes.value = Array.isArray(data?.quotes) ? data.quotes : [];
         platformQuotesMeta.value = {
           mode: data?.mode || '',
@@ -1025,6 +1142,65 @@ const app = createApp({
         platformQuotesMeta.value = { mode: '', spread: null, fetchedAt: '' };
       } finally {
         platformQuotesLoading.value = false;
+      }
+    };
+
+    const refreshPlatformQuotes = () => {
+      if (selectedSkin.value?.id) loadPlatformQuotes(selectedSkin.value.id, { live: true });
+    };
+
+    // 看板行内“实时价”缓存: { [skinId]: { price, at } }
+    const marketLiveQuotes = ref({});
+    const marketLiveLoading = ref(false);
+
+    const _quotesMedian = (quotes) => {
+      const prices = (quotes || [])
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price))
+        .sort((a, b) => a - b);
+      if (!prices.length) return null;
+      const mid = Math.floor(prices.length / 2);
+      return prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+    };
+
+    // 行情中心刷新: 对看板靠前的前 N 个饰品抓真实市场价(并发有限, 90s 缓存兜底)
+    const refreshMarketLive = async (limit = 12) => {
+      const client = api();
+      if (!client || !apiOnline.value) return;
+      const targets = (filteredSkins.value || []).slice(0, limit).filter(s => s?.id);
+      if (!targets.length) return;
+      marketLiveLoading.value = true;
+      try {
+        // 有限并发(4), 避免同时打爆各平台全表接口(Skinport 限流很严)
+        const map = { ...marketLiveQuotes.value };
+        const now = Date.now();
+        let hits = 0;
+        const pool = 4;
+        const queue = [...targets];
+        const worker = async () => {
+          while (queue.length) {
+            const s = queue.shift();
+            if (!s) break;
+            try {
+              const d = await client.getPlatformQuotes(s.id, { live: true });
+              const median = _quotesMedian(d?.quotes);
+              if (median != null) {
+                map[s.id] = { price: median, at: now };
+                hits += 1;
+              }
+            } catch (_) { /* 单个失败不影响其余 */ }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(pool, targets.length) }, worker));
+        marketLiveQuotes.value = { ...map };
+        showToast({
+          title: t('dashboard.liveDone', { count: hits }),
+          type: hits ? 'success' : 'warning',
+        });
+      } catch (err) {
+        console.warn('[market-live]', err);
+      } finally {
+        marketLiveLoading.value = false;
       }
     };
 
@@ -1044,7 +1220,7 @@ const app = createApp({
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
-        loadPlatformQuotes(skinId);
+        loadPlatformQuotes(skinId, { live: true });
       }
     };
 
@@ -2212,20 +2388,25 @@ const app = createApp({
         });
       }
 
-      const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#6b7280', '#ec4899'];
+      const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899', '#10b981'];
       const names = Object.keys(seriesMap);
-      const series = names.map((name, i) => ({
-        name,
-        type: 'line',
-        data: seriesMap[name],
-        smooth: true,
-        showSymbol: false,
-        lineStyle: {
-          color: palette[i % palette.length],
-          width: /hybrid|lstm/i.test(name) ? 3 : 2,
-        },
-        emphasis: { focus: 'series' },
-      }));
+      const series = names.map((name, i) => {
+        const isBench = /buy|hold|持有/i.test(name);
+        return {
+          name,
+          type: 'line',
+          data: seriesMap[name],
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            color: isBench ? '#9ca3af' : palette[i % palette.length],
+            width: isBench ? 2 : (/hybrid|lstm/i.test(name) ? 3 : 2),
+            type: isBench ? 'dashed' : 'solid',
+          },
+          itemStyle: { color: isBench ? '#9ca3af' : palette[i % palette.length] },
+          emphasis: { focus: 'series' },
+        };
+      });
 
       const option = {
         backgroundColor: 'transparent',
@@ -2245,6 +2426,8 @@ const app = createApp({
         },
         yAxis: {
           type: 'value',
+          name: '净值',
+          nameTextStyle: { color: '#6b7280', fontSize: 10 },
           axisLine: { lineStyle: { color: '#374151' } },
           axisLabel: { color: '#9ca3af', fontSize: 10, formatter: '{value}' },
           splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
@@ -2543,8 +2726,7 @@ const app = createApp({
       if (newPage === 'prediction') {
         renderKline();
         if (selectedSkin.value?.id) {
-          loadExplanation(selectedSkin.value.id);
-          loadPlatformQuotes(selectedSkin.value.id);
+          loadPlatformQuotes(selectedSkin.value.id, { live: true });
         }
       } else if (newPage === 'models') {
         await loadModelsFromApi();
@@ -2590,8 +2772,7 @@ const app = createApp({
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
-          loadExplanation(skin.id);
-          loadPlatformQuotes(skin.id);
+          loadPlatformQuotes(skin.id, { live: true });
         }
       }
     });
@@ -2618,20 +2799,22 @@ const app = createApp({
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      marketLiveQuotes, marketLiveLoading, refreshMarketLive,
       skinSearch, skinSort, marketPulse, formatChange, formatVolume,
-      apiOnline, connectBackend,
+      apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
-      loadPlatformQuotes, platformLabel,
+      loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
       chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport,
+      ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       // 预警
       alerts, showAlertModal, newAlert, addAlert, deleteAlert,
       // 持仓 / 库存

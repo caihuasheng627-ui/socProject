@@ -135,7 +135,8 @@ class CSVestAPI {
     }
   }
 
-  async _safeCall(apiCall, mockCall) {
+  async _safeCall(apiCall, mockCall, opts = {}) {
+    const fallback = opts.fallback !== false;
     if (this.useMock) {
       return mockCall();
     }
@@ -144,8 +145,9 @@ class CSVestAPI {
       this.online = true;
       return result;
     } catch (err) {
-      console.warn(`[API] ${apiCall.name || 'request'} failed, fallback to mock:`, err.message);
+      console.warn(`[API] ${apiCall.name || 'request'} failed${fallback ? ', fallback to mock' : ''}:`, err.message);
       this.online = false;
+      if (!fallback) throw err;
       return mockCall();
     }
   }
@@ -161,13 +163,14 @@ class CSVestAPI {
     }
   }
 
-  async getSkins(params = {}) {
+  async getSkins(params = {}, opts = {}) {
     return this._safeCall(
       () => this._fetch(`/api/skins?${new URLSearchParams(params)}`),
       () => Promise.resolve({
         total: window.CSVestData.SKINS_POOL.length,
         items: window.CSVestData.SKINS_POOL,
-      })
+      }),
+      opts
     );
   }
 
@@ -208,9 +211,11 @@ class CSVestAPI {
     );
   }
 
-  async getPlatformQuotes(skinId, platforms) {
+  async getPlatformQuotes(skinId, opts = {}) {
+    const { platforms = null, live = false } = opts;
     const qs = new URLSearchParams();
     if (platforms) qs.set('platforms', platforms);
+    if (live) qs.set('live', '1');
     const suffix = qs.toString() ? `?${qs}` : '';
     return this._safeCall(
       () => this._fetch(`/api/skins/${skinId}/quotes${suffix}`),
@@ -223,22 +228,16 @@ class CSVestAPI {
       || { id: skinId, name: skinId, price: 0 };
     const base = Number(skin.price) || 0;
     const factors = {
-      buff: 0.93,
       skinport: 0.97,
-      csfloat: 0.96,
       waxpeer: 0.99,
       marketcsgo: 0.98,
-      steam: 1.06,
       csgotrader: 1.02,
       lootfarm: 1.18,
     };
     const labels = {
-      buff: 'BUFF',
       skinport: 'Skinport',
-      csfloat: 'CSFloat',
       waxpeer: 'Waxpeer',
       marketcsgo: 'Market.CSGO',
-      steam: 'Steam',
       csgotrader: 'CSGOTrader',
       lootfarm: 'Loot.farm',
     };
@@ -418,11 +417,50 @@ class CSVestAPI {
       () => this._fetch(`/api/daily-report?date=${date || ''}`),
       () => ({
         date: date || new Date().toISOString().slice(0, 10),
+        generatedAt: new Date().toISOString(),
         metrics: { monitored: 20, gainers: 14, losers: 6 },
         hotVolume: window.CSVestData.HOT_VOLUME,
-        aiSummary: '今日 CS2 饰品市场整体偏强震荡...',
+        aiSummary: '今日 CS2 饰品市场整体偏强震荡,大盘上涨面占优 [1];临近 Major 赛程,热门贴纸与皮肤成交活跃 [2]。建议关注成交量放大标的,注意赛事结束后的回调风险。',
+        sources: this._mockRagSources(),
         news: window.CSVestData.NEWS_FEED,
       })
+    );
+  }
+
+  _mockRagSources() {
+    const news = (window.CSVestData.NEWS_FEED || []).slice(0, 4);
+    const kb = [
+      { type: 'kb', title: 'CS2 市场知识库', source: '内置知识库', snippet: 'Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。', score: 3, relevance: 1 },
+      { type: 'kb', title: 'CS2 市场知识库', source: '内置知识库', snippet: '高价值低流动性饰品(刀/手套)日内波动大,买卖价差宽,不适合大额短线。', score: 2, relevance: 0.67 },
+    ];
+    const newsSrc = news.map((n, i) => ({
+      type: 'news',
+      title: n.title,
+      snippet: n.summary || n.title,
+      source: n.source || 'RAG 知识库',
+      date: n.time || n.published_at || null,
+      sentiment: n.sentiment,
+      score: Math.max(1, 2 - i * 0.5),
+      relevance: Math.max(0.2, 0.9 - i * 0.2),
+    }));
+    return [...kb, ...newsSrc].map((s, i) => ({ ...s, id: i + 1 }));
+  }
+
+  async ragAsk(query, topK = 5) {
+    return this._safeCall(
+      () => this._fetch('/api/rag/ask', {
+        method: 'POST',
+        body: JSON.stringify({ query, topK }),
+      }),
+      () => {
+        const sources = this._mockRagSources().slice(0, topK);
+        return {
+          query,
+          answer: `(演示模式) 根据向量检索到的知识库与资讯,针对「${query}」的分析:相关饰品近期受 Major 赛程与 Valve 更新预期影响,成交量与价格波动加大 [1][2];建议结合成交量与磨损等级判断入场时机。⚠ 饰品市场高波动,以上不构成投资建议。`,
+          sources,
+          retrieval: { mode: 'vector', model: 'mock-minilm' },
+        };
+      }
     );
   }
 
@@ -634,6 +672,21 @@ class CSVestAPI {
     );
   }
 
+  /** 将资金曲线统一为起始=100 的净值指数 */
+  _reindexSeries(series) {
+    const out = {};
+    for (const [name, arr] of Object.entries(series || {})) {
+      if (!Array.isArray(arr) || !arr.length) {
+        out[name] = arr;
+        continue;
+      }
+      const base = arr.find((v) => v != null && Number(v) !== 0);
+      const b = (base == null || Number(base) === 0) ? 1 : Number(base);
+      out[name] = arr.map((v) => (v == null ? null : +((Number(v) / b) * 100).toFixed(2)));
+    }
+    return out;
+  }
+
   /** 将新旧回测 JSON 统一成 { dates, series: { name: number[] } } */
   _normalizeBacktest(raw, days = 60) {
     if (!raw || typeof raw !== 'object') {
@@ -645,11 +698,20 @@ class CSVestAPI {
         series: window.CSVestData.generateBacktestData(days),
       };
     }
-    if (raw.dates && raw.series && !Array.isArray(Object.values(raw.series)[0]?.[0])) {
-      // 已是前端格式，或 series 值为数字数组
+    if (raw.dates && raw.series) {
       const first = Object.values(raw.series)[0];
       if (Array.isArray(first) && (typeof first[0] === 'number' || first[0] == null)) {
-        return raw;
+        // 后端若已 indexed 则不再二次缩放；否则把绝对资金拉回 100 起点
+        const series = raw.indexed ? raw.series : this._reindexSeries(raw.series);
+        let dates = raw.dates;
+        let seriesOut = series;
+        if (days > 0 && dates.length > days) {
+          dates = dates.slice(-days);
+          seriesOut = Object.fromEntries(
+            Object.entries(series).map(([k, v]) => [k, Array.isArray(v) ? v.slice(-days) : v])
+          );
+        }
+        return { dates, series: seriesOut, indexed: true };
       }
     }
     // 新格式: fee_0.0000.{model}: [{date, capital}, ...]
@@ -668,15 +730,24 @@ class CSVestAPI {
       });
       const series = {};
       for (const [name, pts] of Object.entries(block)) {
-        const base = pts[0]?.capital || 10000;
-        series[name] = pts.map(p => +((p.capital / base) * 100).toFixed(2));
+        const caps = pts.map(p => Number(p.capital) || 0);
+        const base = caps.find((v) => v) || 1;
+        series[name] = caps.map(v => +((v / base) * 100).toFixed(2));
       }
       if (Array.isArray(raw.buy_hold) && raw.buy_hold.length) {
-        const bh = raw.buy_hold;
-        const base = bh[0]?.capital || 10000;
-        series['买入持有'] = bh.map(p => +((p.capital / base) * 100).toFixed(2));
+        const caps = raw.buy_hold.map(p => Number(p.capital) || 0);
+        const base = caps.find((v) => v) || 1;
+        series['Buy&Hold'] = caps.map(v => +((v / base) * 100).toFixed(2));
       }
-      return { dates, series, fee: feeKey };
+      let datesOut = dates;
+      let seriesOut = series;
+      if (days > 0 && datesOut.length > days) {
+        datesOut = datesOut.slice(-days);
+        seriesOut = Object.fromEntries(
+          Object.entries(series).map(([k, v]) => [k, v.slice(-days)])
+        );
+      }
+      return { dates: datesOut, series: seriesOut, fee: feeKey, indexed: true };
     }
     return {
       dates: Array.from({ length: days }, (_, i) => {

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
@@ -108,6 +109,9 @@ class SkinportClient(PlatformClient):
         self._cache: dict[str, dict] | None = None
         self._cache_at: float = 0.0
         self.cache_ttl = 60.0  # 秒; Skinport 建议勿频繁刷全量
+        self._catalog_lock = threading.Lock()  # 防并发批量请求击穿缓存 -> 429
+        self._error_until: float = 0.0          # 限流退避截止时间
+        self._last_error: str | None = None
 
     def _load_catalog(self, force: bool = False) -> dict[str, dict]:
         now = time.time()
@@ -117,10 +121,40 @@ class SkinportClient(PlatformClient):
             and (now - self._cache_at) < self.cache_ttl
         ):
             return self._cache
+        # 序列化并发加载; 抢到锁后二次检查, 避免多个并发请求同时拉全表
+        with self._catalog_lock:
+            now = time.time()
+            if (
+                not force
+                and self._cache is not None
+                and (now - self._cache_at) < self.cache_ttl
+            ):
+                return self._cache
+            # 限流退避: 最近失败(尤其 429)则不再打接口, 避免加重封禁并延长冷却
+            if now < self._error_until:
+                if self._cache is not None:
+                    return self._cache  # 用旧目录兜底
+                raise RuntimeError(self._last_error or "skinport rate-limited, backing off")
+            try:
+                cat = self._load_catalog_locked()
+                self._error_until = 0.0
+                self._last_error = None
+                return cat
+            except Exception as e:
+                msg = str(e)
+                backoff = 300.0 if "429" in msg else 60.0
+                self._error_until = time.time() + backoff
+                self._last_error = msg
+                if self._cache is not None:
+                    return self._cache  # 有旧目录则降级返回, 不抛错
+                raise
+
+    def _load_catalog_locked(self) -> dict[str, dict]:
+        now = time.time()
         headers = {
             "User-Agent": DEFAULT_UA,
             "Accept": "application/json",
-            # Skinport 强制要求 Brotli
+            # Skinport 仅接受 Brotli(否则 406); 需安装 brotli 依赖供 httpx 解码
             "Accept-Encoding": "br",
         }
         r = self.client.get(
@@ -444,6 +478,9 @@ class CatalogClient(PlatformClient):
         super().__init__(client, timeout=90.0)
         self._cache: dict[str, dict] | None = None
         self._cache_at: float = 0.0
+        self._catalog_lock = threading.Lock()  # 防并发批量请求击穿缓存
+        self._error_until: float = 0.0          # 限流退避截止时间
+        self._last_error: str | None = None
 
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": DEFAULT_UA, "Accept": "application/json"}
@@ -456,9 +493,32 @@ class CatalogClient(PlatformClient):
             and (now - self._cache_at) < self.cache_ttl
         ):
             return self._cache
-        self._cache = self._fetch_catalog()
-        self._cache_at = now
-        return self._cache
+        with self._catalog_lock:
+            now = time.time()
+            if (
+                not force
+                and self._cache is not None
+                and (now - self._cache_at) < self.cache_ttl
+            ):
+                return self._cache
+            if now < self._error_until:
+                if self._cache is not None:
+                    return self._cache
+                raise RuntimeError(self._last_error or "rate-limited, backing off")
+            try:
+                self._cache = self._fetch_catalog()
+                self._cache_at = time.time()
+                self._error_until = 0.0
+                self._last_error = None
+                return self._cache
+            except Exception as e:
+                msg = str(e)
+                backoff = 300.0 if "429" in msg else 60.0
+                self._error_until = time.time() + backoff
+                self._last_error = msg
+                if self._cache is not None:
+                    return self._cache
+                raise
 
     def _fetch_catalog(self) -> dict[str, dict]:
         raise NotImplementedError
