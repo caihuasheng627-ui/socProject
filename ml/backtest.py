@@ -15,6 +15,8 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 BASE_DIR = Path(__file__).resolve().parent
 OUT_DIR = BASE_DIR / "outputs" / "backtest"
 HOLD_STEPS = 7
+MAX_HOLD_STEPS = 28       # 强制平仓天数 (模型一直看涨也不无限持仓)
+MIN_ITEM_PRICE = 0.50     # 物品在测试期最低价格须 ≥ 此值 (排除无流动性垃圾皮)
 
 
 def _resolve_pred_col(frame):
@@ -101,12 +103,12 @@ def align_common_prediction_frames(frames):
 
 
 def simulate_item(group, budget, fee, buy_th, sell_th):
-    """Simulate one item with fixed position sizing (no geometric compounding)."""
-    initial_budget = float(budget)
-    cash = 0.0
+    """Per-item simulation — fixed trade sizing, profits go to reserve (no compounding)."""
+    trade_capital = float(budget)  # Always use this amount per trade
+    reserve = 0.0                  # Accumulated profits (NEVER re-invested)
     units = 0.0
     buy_step = None
-    entry_value = None
+    entry_cost = None
     values = {}
     closed_pnl = []
     buy_count = 0
@@ -114,31 +116,39 @@ def simulate_item(group, budget, fee, buy_th, sell_th):
 
     for observation, row in enumerate(group.sort_values("date").itertuples(index=False)):
         price = float(row.current_price)
-        expected_return = (float(row.predicted_price) - price) / price
+        trade_allowed = price >= MIN_ITEM_PRICE
+        if trade_allowed:
+            expected_return = (float(row.predicted_price) - price) / price
         held_steps = observation - buy_step if buy_step is not None else 0
 
-        if units == 0 and expected_return >= buy_th:
-            entry_value = initial_budget
-            units = initial_budget * (1 - fee) / price
+        if trade_allowed and units == 0 and expected_return >= buy_th:
+            entry_cost = trade_capital
+            units = trade_capital * (1 - fee) / price
             buy_step = observation
             buy_count += 1
-        elif units > 0 and held_steps >= HOLD_STEPS and expected_return <= -sell_th:
+        elif units > 0 and (
+            (trade_allowed and held_steps >= HOLD_STEPS and expected_return <= -sell_th)
+            or held_steps >= MAX_HOLD_STEPS
+        ):
             proceeds = units * price * (1 - fee)
-            closed_pnl.append(proceeds - entry_value)
-            cash += proceeds
+            pnl = proceeds - entry_cost
+            closed_pnl.append(pnl)
+            reserve += pnl
             units = 0.0
             buy_step = None
-            entry_value = None
+            entry_cost = None
             sell_count += 1
 
-        position_value = units * price if units > 0 else initial_budget
-        values[pd.Timestamp(row.date)] = cash + position_value
+        position_value = units * price
+        total = position_value + (trade_capital if units == 0 else 0) + reserve
+        values[pd.Timestamp(row.date)] = total
 
     # If still holding at end, liquidate at last price
     if units > 0:
         proceeds = units * group.sort_values("date")["current_price"].iloc[-1] * (1 - fee)
-        closed_pnl.append(proceeds - entry_value)
-        cash += proceeds
+        pnl = proceeds - entry_cost
+        closed_pnl.append(pnl)
+        reserve += pnl
 
     return {
         "values": values,
@@ -154,8 +164,13 @@ def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
     # Ensure predicted_price column exists
     if "predicted_price" not in frame.columns:
         frame["predicted_price"] = frame[_resolve_pred_col(frame)]
-    items = sorted(frame["market_hash_name"].unique())
-    budget = capital / len(items)
+    # Exclude ultra-cheap items by their minimum price in this period
+    item_mins = frame.groupby("market_hash_name")["current_price"].min()
+    eligible = item_mins[item_mins >= MIN_ITEM_PRICE].index
+    frame = frame[frame["market_hash_name"].isin(eligible)]
+    items = sorted(eligible)
+    budget = capital / len(items) if len(items) > 0 else capital
+    print(f"  {len(items)} items (min price >= ${MIN_ITEM_PRICE})", flush=True)
 
     curves = {}
     closed_pnl = []
@@ -168,6 +183,7 @@ def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
         sell_count += result["sell_count"]
         open_positions += result["open_position"]
 
+    # Unstarted items hold initial budget as cash; gaps carry last value forward
     value_frame = pd.DataFrame(curves).sort_index().ffill().fillna(budget)
     equity = value_frame.sum(axis=1)
     peak = equity.cummax()
@@ -204,6 +220,7 @@ def buy_hold(frame, capital):
         curves[item] = {
             row.date: units * row.current_price for row in group.itertuples(index=False)
         }
+    # fillna(budget): items not yet started hold initial budget as cash
     equity = pd.DataFrame(curves).sort_index().ffill().fillna(budget).sum(axis=1)
     return pd.DataFrame({"date": equity.index, "capital": equity.to_numpy()})
 
@@ -222,6 +239,10 @@ def run_models(frames, capital=10_000.0, fees=(0.0,)):
             curves[scenario][model] = curve
     first_frame = next(iter(aligned.values()))
     curves["buy_hold"] = buy_hold(first_frame, capital)
+    # Print baseline
+    bh_equity = curves["buy_hold"]["capital"].iloc[-1]
+    bh_return = round(float((bh_equity / capital - 1) * 100), 2)
+    print(f"  buy-hold baseline: {bh_return}%", flush=True)
     return curves, results
 
 
