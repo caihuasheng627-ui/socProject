@@ -171,6 +171,23 @@ def trigger_incremental_training() -> None:
 
 
 # ============================================================
+# 任务 4:BUFF 实时刷新(滚动 180 天)
+# ============================================================
+def refresh_buff_prices() -> None:
+    """定时重采 BUFF 价格(force=True,upsert 最新 + 删 >180d 旧数据)。
+    较重(~每件 4s × 769 ≈ 50min),跑在调度线程池里不阻塞主服务。"""
+    import os
+    if os.getenv("USE_BUFF_LIVE", "0") != "1":
+        return
+    try:
+        from scraper_buff import scrape_buff
+        print("[scheduler] BUFF 刷新开始...")
+        scrape_buff(force=True)
+    except Exception as e:
+        print(f"[scheduler] BUFF 刷新失败(不影响主服务): {e}")
+
+
+# ============================================================
 # 启动
 # ============================================================
 def start_scheduler() -> BackgroundScheduler:
@@ -185,8 +202,13 @@ def start_scheduler() -> BackgroundScheduler:
                        misfire_grace_time=3600)   # UTC 01:00 ≈ 北京 09:00
     _scheduler.add_job(trigger_incremental_training, CronTrigger(hour=18, minute=0), id="train",
                        misfire_grace_time=3600)
+    # BUFF 实时刷新(默认每 6h;需 USE_BUFF_LIVE=1 才真正执行)
+    from config import BUFF_REFRESH_HOURS
+    _scheduler.add_job(refresh_buff_prices, IntervalTrigger(hours=BUFF_REFRESH_HOURS),
+                       id="buff_refresh", next_run_time=None, misfire_grace_time=7200)
     _scheduler.start()
-    print("[scheduler] 已启动 (rss 6h / daily 09:00 / incremental 默认禁用)")
+    live = "开(USE_BUFF_LIVE=1)" if __import__("os").getenv("USE_BUFF_LIVE", "0") == "1" else "关(USE_BUFF_LIVE=0)"
+    print(f"[scheduler] 已启动 (rss 6h / daily 09:00 / buff刷新{BUFF_REFRESH_HOURS}h·{live} / incremental 默认禁用)")
     return _scheduler
 
 

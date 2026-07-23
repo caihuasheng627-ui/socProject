@@ -32,6 +32,7 @@ from config import (
     OUTPUT_DIR,
     PRED_CACHE_TTL_HOURS,
     SEED_DIR,
+    CATALOG_800_CSV,
     ensure_dirs,
 )
 
@@ -122,7 +123,9 @@ CREATE TABLE IF NOT EXISTS skins (
     wear_full        TEXT,
     is_stattrak      INTEGER DEFAULT 0,
     is_floor_price   INTEGER DEFAULT 0,
-    category         TEXT
+    category         TEXT,
+    price_tier       TEXT,             -- 🆕 高价/中价/低价(800 目录;LSTM-D 路由用)
+    source           TEXT DEFAULT 'csv'  -- 🆕 csv=训练数据 / buff=BUFF 目录
 );
 
 CREATE TABLE IF NOT EXISTS price_history (
@@ -226,6 +229,10 @@ def migrate_add_user_columns() -> None:
             conn.execute("ALTER TABLE portfolio ADD COLUMN user_id INTEGER")
         if not _column_exists(conn, "alerts", "user_id"):
             conn.execute("ALTER TABLE alerts ADD COLUMN user_id INTEGER")
+        if not _column_exists(conn, "skins", "price_tier"):
+            conn.execute("ALTER TABLE skins ADD COLUMN price_tier TEXT")
+        if not _column_exists(conn, "skins", "source"):
+            conn.execute("ALTER TABLE skins ADD COLUMN source TEXT DEFAULT 'csv'")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)")
         # 管理员标记
@@ -378,6 +385,54 @@ def import_skins_and_prices(force: bool = False) -> None:
             print(f"[db] 导入 skins={len(skin_rows)} price_history={len(rows)}")
 
         conn.commit()
+
+
+# ============================================================
+# 导入 800 件 BUFF 目标目录
+# ============================================================
+# 目录 price_tier(中文)→ LSTM-D 分组
+TIER_TO_GROUP = {"高价": "high", "中高": "high", "主流": "mid", "入门": "low"}
+
+
+def import_catalog_800() -> int:
+    """从 docs/catalog_800_buff_target.csv 导入 800 件目标饰品到 skins 表。
+    已存在的(market_hash_name 唯一)跳过。返回新增件数。"""
+    if not CATALOG_800_CSV.exists():
+        print(f"[db] ⚠ 找不到 800 目录: {CATALOG_800_CSV}")
+        return 0
+    df = pd.read_csv(CATALOG_800_CSV)
+    rows = []
+    for _, r in df.iterrows():
+        name = str(r["market_hash_name"])
+        wear = str(r.get("wear") or "")
+        rows.append((
+            name,
+            slugify(name),
+            str(r.get("weapon") or ""),
+            str(r.get("rarity") or ""),
+            rarity_to_rank(str(r.get("rarity") or "")),
+            wear,
+            WEAR_FULL.get(wear.upper(), wear),
+            int(bool(r.get("is_stattrak"))),
+            0,   # is_floor_price 未知
+            weapon_to_category(str(r.get("weapon") or "")),
+            str(r.get("price_tier") or ""),
+            "buff",
+        ))
+    with get_connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+        conn.executemany(
+            """INSERT OR IGNORE INTO skins
+               (market_hash_name, slug, weapon_type, rarity, rarity_rank, wear, wear_full,
+                is_stattrak, is_floor_price, category, price_tier, source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            rows,
+        )
+        after = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+        conn.commit()
+    added = after - before
+    print(f"[db] 800 目录导入: 新增 {added} 件(总 {after})")
+    return after
 
 
 # ============================================================
@@ -555,6 +610,7 @@ def run_init() -> None:
     ensure_dirs()
     init_schema()
     import_skins_and_prices()
+    import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
     seed_portfolio()

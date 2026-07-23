@@ -96,6 +96,64 @@ def _skin_window(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
     return X, cur_price, cur_date
 
 
+def _skin_window_from_db(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
+    """新物品(不在 CSV 面板)从 price_history 表构建 60 天特征窗口。
+    BUFF 爬取数据只有 price/volume,缺的 exogenous 特征(major/steam_ccu)用默认值。
+    供 LSTM-C 的 __UNK__ embedding 路径使用。"""
+    try:
+        from feature_engineering import build_features
+        from train_lstm_c import FEATURE_COLS
+        from database import get_connection
+    except Exception as e:
+        print(f"[model_loader] DB 窗口构建依赖缺失: {e}")
+        return None
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT date, price, daily_volume FROM price_history WHERE skin_id IN "
+            "(SELECT id FROM skins WHERE market_hash_name=?) ORDER BY date",
+            (market_hash_name,),
+        ).fetchall()
+        if len(rows) < LOOKBACK + 1:
+            return None
+        skin = conn.execute(
+            "SELECT weapon_type, rarity, wear, is_stattrak FROM skins WHERE market_hash_name=?",
+            (market_hash_name,),
+        ).fetchone()
+    if skin is None:
+        return None
+
+    import pandas as _pd
+    df = _pd.DataFrame([dict(date=r["date"], price=r["price"],
+                             daily_volume=r["daily_volume"] or 0) for r in rows])
+    df["market_hash_name"] = market_hash_name
+    df["date"] = _pd.to_datetime(df["date"])
+    # 元数据(从 skins 表,由 800 目录导入)
+    df["weapon_type"] = skin["weapon_type"] or ""
+    df["rarity"] = skin["rarity"] or ""
+    df["wear"] = skin["wear"] or ""
+    df["is_stattrak"] = int(skin["is_stattrak"] or 0)
+    # exogenous 默认值(BUFF 不提供;中性填充)
+    df["is_floor_price"] = 0
+    df["days_to_next_major"] = 0
+    df["days_since_last_major"] = 0
+    df["is_major_active"] = 0
+    df["days_since_cs2_announce"] = 0
+    df["steam_ccu"] = 0.0
+
+    feat_df = build_features(df, drop_na_target=False)
+    g = feat_df.sort_values("date")
+    if len(g) < LOOKBACK + 1:
+        return None
+    feat = g[FEATURE_COLS].values.astype(np.float32)
+    price = g["price"].values
+    dates = g["date"].values
+    i = len(g) - 1
+    X = np.nan_to_num(feat[i - LOOKBACK + 1:i + 1][None, ...], nan=0.0)
+    return X, float(price[i]), str(_pd.Timestamp(dates[i]).strftime("%Y-%m-%d"))
+
+
+
 # ============================================================
 # 模型加载(懒加载,失败降级)
 # ============================================================
@@ -236,8 +294,13 @@ class ModelLoader:
         """
         返回 {current_price, predicted_price(7天), model, date, change_pct} 或 None。
         Hybrid 路由默认: low→C, mid/high→D(可被 lstm_hybrid_route.json 覆盖)。
+        新物品(不在 item_map / CSV 面板)→ 强制走 LSTM-C(__UNK__ embedding),
+        窗口从 price_history 表(BUFF 爬取)构建。
         """
         win = _skin_window(market_hash_name)
+        is_new_item = win is None
+        if is_new_item:
+            win = _skin_window_from_db(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
@@ -245,11 +308,17 @@ class ModelLoader:
         if not self.tf_available:
             return self._mock_trend(market_hash_name, cur_price, cur_date)
 
-        grp = self.group_map.get(market_hash_name, "mid")
-        prefer = self.hybrid_route.get(grp, "LSTM-D")
+        # 新物品强制 LSTM-C(__UNK__);原 154 件按 group 路由
+        if is_new_item:
+            prefer = "LSTM-C"
+            grp = "new"
+        else:
+            grp = self.group_map.get(market_hash_name, "mid")
+            prefer = self.hybrid_route.get(grp, "LSTM-D")
+
         if prefer == "LSTM-C":
             pred = self._predict_lstm_c(X, market_hash_name)
-            model_tag = "LSTM-C"
+            model_tag = "LSTM-C(__UNK__)" if is_new_item else "LSTM-C"
         else:
             pred = self._predict_lstm_d(X, market_hash_name)
             model_tag = "LSTM-D"
@@ -387,7 +456,7 @@ class ModelLoader:
     def _confidence(self, model_name: str) -> float:
         """按各模型历史 MAPE 反推置信度(MAPE 越低置信越高)。"""
         mape = {
-            "LSTM-C": 5.56, "LSTM-D": 4.39, "LSTM": 4.5, "LSTM-Hybrid(fallback)": 4.5,
+            "LSTM-C": 5.56, "LSTM-C(__UNK__)": 12.0, "LSTM-D": 4.39, "LSTM": 4.5, "LSTM-Hybrid(fallback)": 4.5,
             "GRU": 11.02, "XGBoost": 7.5, "LightGBM": 12.67,
             "RandomForest": 9.0, "ARIMA": 18.17,
         }.get(model_name, 10.0)

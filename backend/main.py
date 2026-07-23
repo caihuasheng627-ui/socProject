@@ -163,7 +163,7 @@ def health():
 # ============================================================
 @app.get("/api/skins")
 def list_skins(category: str | None = None, sort: str = "volume_desc",
-               limit: int = Query(200, le=500)):
+               limit: int = Query(200, le=1000)):
     with get_connection() as conn:
         q = """SELECT s.* FROM skins s
                WHERE EXISTS (SELECT 1 FROM price_history p WHERE p.skin_id=s.id)"""

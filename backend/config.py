@@ -52,6 +52,14 @@ ADMIN_PROMOTE_DEMO = os.getenv("ADMIN_PROMOTE_DEMO", "1") == "1"
 
 # ---------- 数据源开关 ----------
 USE_BUFF_LIVE = os.getenv("USE_BUFF_LIVE", "0") == "1"   # 默认关:用已落库历史价
+# BUFF 实时爬虫登录态(课程演示用,不进仓库;登录 buff.163.com → F12 → Cookies → session)
+BUFF_COOKIE = os.getenv("BUFF_COOKIE", "").strip()
+BUFF_BASE_URL = "https://buff.163.com"
+BUFF_HISTORY_DAYS = int(os.getenv("BUFF_HISTORY_DAYS", "180"))   # 滚动窗口天数
+BUFF_REFRESH_HOURS = int(os.getenv("BUFF_REFRESH_HOURS", "6"))   # 定时刷新间隔(小时)
+BUFF_REQUEST_DELAY = float(os.getenv("BUFF_REQUEST_DELAY", "1.5"))  # 礼貌限速(秒)
+BUFF_BATCH_SIZE = int(os.getenv("BUFF_BATCH_SIZE", "50"))        # 分批每批件数
+CATALOG_800_CSV = REPO_ROOT / "docs" / "catalog_800_buff_target.csv"
 RSS_FEEDS = [
     # 课程演示用 RSS 源;失败不崩主进程
     "https://blog.counter-strike.net/index.php/feed/",
