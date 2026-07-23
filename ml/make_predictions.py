@@ -202,8 +202,80 @@ def main(split="val"):
     export_prediction_seq(meta, pred_gru, gru_mask, PRED_DIR / f"pred_gru_{split}.csv")
 
 
+# ============================================================
+# 30 天趋势模型预测导出
+# ============================================================
+
+TREND_HORIZON = 30
+TREND_QUANTILE_COLS = ["p10", "p50", "p90"]
+
+
+def export_trend_30d(split="val"):
+    """Load seq2seq_30d model and export P10/P50/P90 per-day predictions."""
+    from tensorflow import keras
+
+    PRED_DIR.mkdir(parents=True, exist_ok=True)
+
+    panel = load_feature_panel(DATA_DIR)
+    panel = add_grouped_targets_multi(panel, horizon_steps=TREND_HORIZON)
+    train_price_floor = float(panel.loc[panel["_split"] == "train", "price"].min())
+
+    x_values, y_log, meta = build_sequence_windows_multi(
+        panel, FEATURE_COLS, LOOKBACK, TREND_HORIZON, sample_split=split
+    )
+    print(f"30d {split}: X={x_values.shape}, {meta.market_hash_name.nunique()} items")
+
+    # Load model
+    model_path = MODEL_DIR / "seq2seq_30d.keras"
+    scaler_path = MODEL_DIR / "seq2seq_30d_scaler.pkl"
+    if not model_path.exists():
+        print(f"  SKIP: {model_path} not found (train seq2seq_30d first)")
+        return
+
+    model = keras.models.load_model(model_path, compile=False)
+    with open(scaler_path, "rb") as f:
+        scalers = pickle.load(f)
+
+    y_scaler = scalers["y_scaler"]
+
+    # Predict
+    y_pred_scaled = model.predict(
+        scale_x(x_values, scalers["x_scaler"]), verbose=0, batch_size=512
+    )  # (n, 30, 3)
+
+    # Inverse transform: per-quantile
+    y_pred_log = np.zeros_like(y_pred_scaled)
+    for q in range(3):
+        y_pred_log[:, :, q] = y_scaler.inverse_transform(y_pred_scaled[:, :, q])
+    y_pred_price = np.expm1(y_pred_log)  # (n, 30, 3) USD
+
+    # Build output DataFrame
+    output = meta[["split", "date", "target_date", "market_hash_name",
+                   "current_price", "actual_future_price", "horizon_steps"]].copy()
+    for d in range(1, TREND_HORIZON + 1):
+        for qi, qname in enumerate(TREND_QUANTILE_COLS):
+            output[f"trend_{qname}_d{d}"] = y_pred_price[:, d - 1, qi]
+
+    out_path = PRED_DIR / f"pred_seq2seq_30d_{split}.csv"
+    output.to_csv(out_path, index=False, date_format="%Y-%m-%d")
+    print(f"  saved {out_path.name}: {len(output):,} rows, {output.market_hash_name.nunique()} items")
+
+    # Quick stats
+    pred_p50_d30 = y_pred_price[:, -1, 1]
+    pred_p10_d30 = y_pred_price[:, -1, 0]
+    pred_p90_d30 = y_pred_price[:, -1, 2]
+    spread_pct = float(((pred_p90_d30 - pred_p10_d30) / np.maximum(pred_p50_d30, 0.01)).mean() * 100)
+    print(f"  Day 30 P50 mean: ${float(pred_p50_d30.mean()):.2f}")
+    print(f"  Day 30 avg spread (P10-P90): {spread_pct:.1f}%")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", choices=("val", "test"), default="val")
+    parser.add_argument("--model", choices=("7d", "30d", "all"), default="7d",
+                        help="Which model to export: 7d (LSTM-C/D/GRU), 30d (seq2seq), all (both)")
     args = parser.parse_args()
-    main(args.split)
+    if args.model in ("7d", "all"):
+        main(args.split)
+    if args.model in ("30d", "all"):
+        export_trend_30d(args.split)

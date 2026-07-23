@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from forecast_contract import validate_prediction_frame
+from forecast_contract import validate_prediction_frame, validate_prediction_frame_seq
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -17,17 +17,42 @@ OUT_DIR = BASE_DIR / "outputs" / "backtest"
 HOLD_STEPS = 7
 
 
+def _resolve_pred_col(frame):
+    """Resolve the day-7 prediction column name."""
+    if "predicted_price_d7" in frame.columns:
+        return "predicted_price_d7"
+    if "predicted_price" in frame.columns:
+        return "predicted_price"
+    raise KeyError("frame has neither 'predicted_price' nor 'predicted_price_d7'")
+
+
 def load_prediction(path):
-    return validate_prediction_frame(pd.read_csv(path), path)
+    df = pd.read_csv(path)
+    if "predicted_price_d1" in df.columns:
+        frame = validate_prediction_frame_seq(df, path)
+    else:
+        frame = validate_prediction_frame(df, path)
+    # Ensure canonical "predicted_price" column exists for backtest logic
+    if "predicted_price" not in frame.columns:
+        frame["predicted_price"] = frame[_resolve_pred_col(frame)]
+    return frame
 
 
 def align_common_prediction_frames(frames):
     """Restrict every model to the same item/decision-date observations."""
     if not frames:
         raise ValueError("at least one prediction frame is required")
-    normalized = {
-        name: validate_prediction_frame(frame, name) for name, frame in frames.items()
-    }
+    normalized = {}
+    for name, frame in frames.items():
+        # Re-validate with correct validator
+        if "predicted_price_d1" in frame.columns:
+            normalized[name] = validate_prediction_frame_seq(frame, name)
+        else:
+            normalized[name] = validate_prediction_frame(frame, name)
+        # Ensure predicted_price column
+        if "predicted_price" not in normalized[name].columns:
+            normalized[name]["predicted_price"] = normalized[name][_resolve_pred_col(normalized[name])]
+
     splits = {frame["split"].iloc[0] for frame in normalized.values()}
     if len(splits) != 1:
         raise ValueError(f"all backtest inputs must share one split, got {sorted(splits)}")
@@ -50,13 +75,8 @@ def align_common_prediction_frames(frames):
         ).reset_index(drop=True)
 
     contract_columns = [
-        "split",
-        "date",
-        "target_date",
-        "market_hash_name",
-        "current_price",
-        "actual_future_price",
-        "horizon_steps",
+        "split", "date", "target_date", "market_hash_name",
+        "current_price", "actual_future_price", "horizon_steps",
     ]
     reference_name, reference = next(iter(aligned.items()))
     for name, frame in aligned.items():
@@ -108,7 +128,10 @@ def simulate_item(group, budget, fee, buy_th, sell_th):
 
 
 def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
-    frame = validate_prediction_frame(pred_df)
+    frame = pred_df if isinstance(pred_df, pd.DataFrame) else pd.DataFrame()
+    # Ensure predicted_price column exists
+    if "predicted_price" not in frame.columns:
+        frame["predicted_price"] = frame[_resolve_pred_col(frame)]
     items = sorted(frame["market_hash_name"].unique())
     budget = capital / len(items)
 

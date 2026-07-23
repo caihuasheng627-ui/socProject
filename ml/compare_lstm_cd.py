@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from forecast_contract import route_price_group, validate_prediction_frame
+from forecast_contract import route_price_group, validate_prediction_frame_seq
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -17,6 +17,15 @@ DATA_DIR = BASE_DIR / "data"
 MODEL_DIR = BASE_DIR / "models"
 PRED_DIR = BASE_DIR / "preds"
 GROUP_NAMES = ["low", "mid", "high"]
+
+
+def _resolve_pred_col(frame, suffix):
+    """Resolve predicted_price column — works with old and new formats."""
+    if f"predicted_price_d7{suffix}" in frame.columns:
+        return f"predicted_price_d7{suffix}"
+    if f"predicted_price{suffix}" in frame.columns:
+        return f"predicted_price{suffix}"
+    raise KeyError(f"frame has no predicted_price column (suffix={suffix})")
 
 
 def metrics(truth, prediction):
@@ -34,10 +43,19 @@ def metrics(truth, prediction):
 def load_aligned_val_predictions():
     c_path = PRED_DIR / "pred_lstm_c_val.csv"
     d_path = PRED_DIR / "pred_lstm_d_val.csv"
-    c_frame = validate_prediction_frame(pd.read_csv(c_path), c_path)
-    d_frame = validate_prediction_frame(pd.read_csv(d_path), d_path)
+    c_raw = pd.read_csv(c_path)
+    d_raw = pd.read_csv(d_path)
+    c_frame = validate_prediction_frame_seq(c_raw, c_path)
+    d_frame = validate_prediction_frame_seq(d_raw, d_path)
     if c_frame["split"].iloc[0] != "val" or d_frame["split"].iloc[0] != "val":
         raise ValueError("Hybrid route selection may only use split=val predictions")
+
+    # Resolve column names
+    c_pred_col = _resolve_pred_col(c_frame, "")
+    d_pred_col = _resolve_pred_col(d_frame, "")
+    # Rename to canonical names for merge
+    c_frame = c_frame.rename(columns={c_pred_col: "predicted_price"})
+    d_frame = d_frame.rename(columns={d_pred_col: "predicted_price"})
 
     keys = [
         "split", "date", "target_date", "market_hash_name",
@@ -79,7 +97,6 @@ def main():
         c_metrics = metrics(subset["actual_future_price"], subset["predicted_price_c"])
         d_metrics = metrics(subset["actual_future_price"], subset["predicted_price_d"])
         results[group] = {"LSTM-C": c_metrics, "LSTM-D": d_metrics}
-        # MAE is the primary business metric; RMSE is the deterministic tiebreaker.
         c_score = (c_metrics["mae"], c_metrics["rmse"])
         d_score = (d_metrics["mae"], d_metrics["rmse"])
         route[group] = "LSTM-C" if c_score <= d_score else "LSTM-D"

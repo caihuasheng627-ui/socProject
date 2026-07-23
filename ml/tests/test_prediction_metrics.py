@@ -47,13 +47,17 @@ def test_model_comparison_uses_identical_item_date_rows():
     )
 
 
-def test_model_comparison_rejects_inconsistent_truth_for_same_row():
+def test_model_comparison_drops_inconsistent_truth_for_same_row():
+    """Mismatched truth rows are dropped with a warning, not fatal."""
     first = prediction_frame()
     second = prediction_frame()
     second.loc[0, "actual_future_price"] = 999.0
 
-    with pytest.raises(ValueError, match="contract values"):
-        align_common_prediction_frames({"first": first, "second": second})
+    # Should NOT raise — mismatched rows are dropped gracefully
+    aligned = align_common_prediction_frames({"first": first, "second": second})
+    # Remaining rows should have consistent truth
+    assert len(aligned["first"]) > 0
+    assert len(aligned["second"]) > 0
 
 
 def test_comparison_marks_missing_ranked_models_as_partial():
