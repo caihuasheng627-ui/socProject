@@ -11,23 +11,41 @@ function isRemotePage() {
   return typeof location !== 'undefined' && !isLocalHostname(location.hostname);
 }
 
-/** 解析 API 根地址。公网页默认同源（nginx 反代 /api）；忽略误存的 localhost。 */
+/** GitHub/GitLab Pages 等纯静态托管：没有 nginx /api 反代。 */
+function isStaticPagesHost(hostname) {
+  const h = (hostname || (typeof location !== 'undefined' ? location.hostname : '') || '').toLowerCase();
+  return h.endsWith('github.io') || h.endsWith('gitlab.io') || h.endsWith('pages.dev');
+}
+
+/** 已保存的公网 API（非 localhost）。HTTPS Pages 只能连 HTTPS 后端。 */
+function savedPublicApiBase() {
+  const saved = localStorage.getItem('sv_api_url');
+  if (!saved) return '';
+  try {
+    const u = new URL(saved, typeof location !== 'undefined' ? location.href : undefined);
+    if (isLocalHostname(u.hostname)) {
+      localStorage.removeItem('sv_api_url');
+      return '';
+    }
+    return saved.replace(/\/$/, '');
+  } catch (_) {
+    localStorage.removeItem('sv_api_url');
+    return '';
+  }
+}
+
+/** 解析 API 根地址。
+ * - 本地：默认 http://localhost:8000
+ * - 静态 Pages：仅用显式配置的公网 API；否则空（走 Mock，勿打同源 /api）
+ * - 其它公网页（Docker/nginx）：默认同源空串，走 /api 反代
+ */
 function defaultApiBaseURL() {
   const saved = localStorage.getItem('sv_api_url');
   if (isRemotePage()) {
-    if (saved) {
-      try {
-        const u = new URL(saved, location.href);
-        if (isLocalHostname(u.hostname)) {
-          localStorage.removeItem('sv_api_url');
-        } else {
-          return saved.replace(/\/$/, '');
-        }
-      } catch (_) {
-        localStorage.removeItem('sv_api_url');
-      }
-    }
-    // 空字符串 = 当前页面同源，走 /api → 后端
+    const publicApi = savedPublicApiBase();
+    if (publicApi) return publicApi;
+    if (isStaticPagesHost()) return '';
+    // 空字符串 = 当前页面同源，走 /api → 后端（nginx 反代）
     return '';
   }
   return (saved || 'http://localhost:8000').replace(/\/$/, '');
@@ -38,11 +56,16 @@ class CSVestAPI {
     this.baseURL = defaultApiBaseURL();
     this.token = localStorage.getItem('sv_token') || null;
     this.timeout = 30000; // 30s
-    // 公网默认真实后端；本地未配置时默认 mock
+    // 本地 / 静态 Pages 默认 Mock；有公网 API 或 nginx 同源部署时走真实后端
     const mockFlag = localStorage.getItem('sv_use_mock');
     if (isRemotePage()) {
-      if (mockFlag === 'true') localStorage.removeItem('sv_use_mock');
-      this.useMock = false;
+      const hasPublicApi = !!savedPublicApiBase();
+      if (isStaticPagesHost() && !hasPublicApi) {
+        this.useMock = mockFlag === null ? true : mockFlag === 'true';
+      } else {
+        if (mockFlag === 'true') localStorage.removeItem('sv_use_mock');
+        this.useMock = false;
+      }
     } else {
       this.useMock = mockFlag === null ? true : mockFlag === 'true';
     }
