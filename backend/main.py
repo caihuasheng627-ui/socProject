@@ -800,12 +800,16 @@ def models_comparison():
         except Exception:
             mc = {}
 
-    # backtest returnPct: lstm_c → LSTM-C 等
+    # backtest returnPct: 兼容 lstm_c / LSTM-C 两种键名
     ret_map: dict[str, float] = {}
     key_alias = {
-        "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid", "gru": "GRU",
-        "rf": "Random Forest", "RF": "Random Forest",
-        "lightgbm": "LightGBM", "xgboost": "XGBoost",
+        "lstm_c": "LSTM-C", "LSTM-C": "LSTM-C",
+        "lstm_d": "LSTM-D", "LSTM-D": "LSTM-D",
+        "hybrid": "Hybrid", "Hybrid": "Hybrid",
+        "gru": "GRU", "GRU": "GRU",
+        "rf": "Random Forest", "RF": "Random Forest", "Random Forest": "Random Forest",
+        "lightgbm": "LightGBM", "LightGBM": "LightGBM",
+        "xgboost": "XGBoost", "XGBoost": "XGBoost",
     }
     if bt_path.exists():
         try:
@@ -816,8 +820,9 @@ def models_comparison():
                     if not isinstance(blk, dict) or blk.get("returnPct") is None:
                         continue
                     rp = float(blk["returnPct"])
+                    display = key_alias.get(k, k)
                     ret_map[k] = rp
-                    ret_map[key_alias.get(k, k)] = rp
+                    ret_map[display] = rp
         except Exception:
             pass
 
@@ -926,24 +931,30 @@ def models_backtest(days: int = 60, skinId: str | None = None):
             fee = raw.get("fee_0.0000") if isinstance(raw, dict) else None
             buy_hold = raw.get("buy_hold") if isinstance(raw, dict) else None
             if fee and isinstance(fee, dict):
-                # 兼容新旧两种模型键: 旧=lstm_c/hybrid/rf…, 新(backtest.py 重构后)=LSTM-C/Hybrid/RF…
-                label_map = {
-                    "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid",
-                    "gru": "GRU", "rf": "Random Forest", "lightgbm": "LightGBM",
-                    "xgboost": "XGBoost", "RF": "Random Forest",
+                # 兼容 snake_case(lstm_c) 与展示名(LSTM-C)；ml/backtest.py 写出后者
+                label_aliases: dict[str, tuple[str, ...]] = {
+                    "LSTM-C": ("lstm_c", "LSTM-C", "LSTM"),
+                    "LSTM-D": ("lstm_d", "LSTM-D"),
+                    "Hybrid": ("hybrid", "Hybrid"),
+                    "GRU": ("gru", "GRU"),
+                    "Random Forest": ("rf", "RF", "Random Forest"),
+                    "LightGBM": ("lightgbm", "LightGBM"),
+                    "XGBoost": ("xgboost", "XGBoost"),
                 }
                 # 图表主系列：策略模型 + Buy&Hold（避免一次塞太多线）
                 prefer_labels = ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "XGBoost")
-                # 键 → 展示名 归一化(未知键按原名透传,ML 侧新增模型也能显示)
-                by_label: dict[str, list] = {}
-                for key, arr in fee.items():
-                    if not isinstance(arr, list) or not arr:
-                        continue
-                    by_label[label_map.get(key, key)] = arr
-                ordered = [l for l in prefer_labels if l in by_label] \
-                    + [l for l in by_label if l not in prefer_labels]
-                anchor = by_label.get(ordered[0]) if ordered else (buy_hold or [])
-                dates = [pt.get("date", "") for pt in (anchor or [])]
+
+                def _fee_series(label: str) -> list:
+                    for alias in label_aliases.get(label, (label,)):
+                        arr = fee.get(alias)
+                        if arr:
+                            return arr
+                    return []
+
+                anchor = next((_fee_series(lb) for lb in prefer_labels if _fee_series(lb)), None)
+                if not anchor:
+                    anchor = buy_hold or []
+                dates = [pt.get("date", "") for pt in anchor]
 
                 def _capitals(arr: list) -> list[float]:
                     return [round(float(pt.get("capital", 0) or 0), 2) for pt in arr]
@@ -956,8 +967,11 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     return [round(v / base * 100.0, 2) for v in vals]
 
                 series_raw: dict[str, list[float]] = {}
-                for label in ordered:
-                    series_raw[label] = _capitals(by_label[label])
+                for label in prefer_labels:
+                    arr = _fee_series(label)
+                    if not arr:
+                        continue
+                    series_raw[label] = _capitals(arr)
                 if buy_hold:
                     series_raw["Buy&Hold"] = _capitals(buy_hold)
 
