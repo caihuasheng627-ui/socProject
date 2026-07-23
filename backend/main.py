@@ -129,15 +129,6 @@ def _skin_to_dict(conn, row) -> dict:
     ).fetchone()
     vol24 = int(vol_row["v"] or 0) if vol_row else 0
     liquidity = min(100, int(vol24 / 50))
-    # 数据来源与新鲜度: BUFF 爬取(滚动实时更新) vs 训练 CSV(历史静态)
-    src = (row["source"] or "csv") if "source" in row.keys() else "csv"
-    is_live = False
-    if cur_date:
-        try:
-            is_live = (pd.Timestamp.utcnow().tz_localize(None)
-                       - pd.Timestamp(cur_date)).days <= 7
-        except Exception:
-            is_live = False
     return {
         "id": row["slug"],
         "name": row["market_hash_name"],
@@ -154,9 +145,7 @@ def _skin_to_dict(conn, row) -> dict:
         "liquidity": liquidity,
         "rarity": row["rarity_rank"],
         "image": "🎮",
-        "source": "BUFF" if src == "buff" else "CSV",
-        "priceDate": cur_date,
-        "isLive": is_live,
+        "source": "BUFF",
         "weaponType": row["weapon_type"],
     }
 
@@ -299,33 +288,13 @@ def predict(req: PredictReq):
             "SELECT * FROM predictions WHERE skin_id=? AND horizon=? AND expires_at>?",
             (skin_id, req.horizon, exp),
         ).fetchall()
-        # v5 上线前的缓存没有 daily_json；继续命中会让 LSTM 退回旧单点展示。
-        # 发现整批缓存都不含逐日路径时主动失效并按新契约重算一次。
-        if cached and not any(
-            ("daily_json" in c.keys() and c["daily_json"]) for c in cached
-        ):
-            conn.execute(
-                "DELETE FROM predictions WHERE skin_id=? AND horizon=?",
-                (skin_id, req.horizon),
-            )
-            conn.commit()
-            cached = []
         decision_cur = live_cur
         decision_date = None
         if cached:
-            preds = []
-            for c in cached:
-                daily = None
-                try:
-                    if "daily_json" in c.keys() and c["daily_json"]:
-                        daily = json.loads(c["daily_json"])
-                except Exception:
-                    daily = None
-                preds.append({"model": c["model"], "type": c["type"],
-                              "price": c["predicted_price"],
-                              "priceUsd": c["predicted_price"],
-                              "change": c["change_pct"], "confidence": c["confidence"],
-                              "dailyPrices": daily})
+            preds = [{"model": c["model"], "type": c["type"],
+                      "price": c["predicted_price"],
+                      "priceUsd": c["predicted_price"],
+                      "change": c["change_pct"], "confidence": c["confidence"]} for c in cached]
             # 缓存里 current_price 是决策日 USD
             if cached[0]["current_price"]:
                 decision_cur = float(cached[0]["current_price"])
@@ -341,7 +310,6 @@ def predict(req: PredictReq):
             for r in raw:
                 if r.get("date"):
                     decision_date = r["date"]
-                daily = r.get("daily_prices") or None
                 preds.append({
                     "model": r["model"], "type": r.get("type", "ML"),
                     "price": r["predicted_price"],
@@ -349,16 +317,14 @@ def predict(req: PredictReq):
                     "change": r["change_pct"],
                     "confidence": r["confidence"],
                     "decisionDate": r.get("date"),
-                    "dailyPrices": daily,
                 })
                 conn.execute(
                     """INSERT INTO predictions(skin_id, horizon, model, type, predicted_price,
-                       current_price, change_pct, confidence, generated_at, expires_at, daily_json)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                       current_price, change_pct, confidence, generated_at, expires_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
                     (skin_id, req.horizon, r["model"], r.get("type", "ML"),
                      r["predicted_price"], r["current_price"], r["change_pct"],
-                     r["confidence"], now_iso, exp_iso,
-                     json.dumps(daily) if daily else None),
+                     r["confidence"], now_iso, exp_iso),
                 )
             conn.commit()
 
@@ -800,12 +766,16 @@ def models_comparison():
         except Exception:
             mc = {}
 
-    # backtest returnPct: lstm_c → LSTM-C 等
+    # backtest returnPct: 兼容 lstm_c / LSTM-C 两种键名
     ret_map: dict[str, float] = {}
     key_alias = {
-        "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid", "gru": "GRU",
-        "rf": "Random Forest", "RF": "Random Forest",
-        "lightgbm": "LightGBM", "xgboost": "XGBoost",
+        "lstm_c": "LSTM-C", "LSTM-C": "LSTM-C",
+        "lstm_d": "LSTM-D", "LSTM-D": "LSTM-D",
+        "hybrid": "Hybrid", "Hybrid": "Hybrid",
+        "gru": "GRU", "GRU": "GRU",
+        "rf": "Random Forest", "RF": "Random Forest", "Random Forest": "Random Forest",
+        "lightgbm": "LightGBM", "LightGBM": "LightGBM",
+        "xgboost": "XGBoost", "XGBoost": "XGBoost",
     }
     if bt_path.exists():
         try:
@@ -816,8 +786,9 @@ def models_comparison():
                     if not isinstance(blk, dict) or blk.get("returnPct") is None:
                         continue
                     rp = float(blk["returnPct"])
+                    display = key_alias.get(k, k)
                     ret_map[k] = rp
-                    ret_map[key_alias.get(k, k)] = rp
+                    ret_map[display] = rp
         except Exception:
             pass
 
@@ -826,12 +797,10 @@ def models_comparison():
     }
 
     regression: list[dict[str, Any]] = []
-    horizon_steps = None
     # 1) fair-test compare_results_* 优先
     if cmp_path.exists():
         try:
             cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
-            horizon_steps = cmp.get("horizon_steps") if isinstance(cmp, dict) else None
             models_blk = cmp.get("models") if isinstance(cmp, dict) else None
             if isinstance(models_blk, dict):
                 for name, blk in models_blk.items():
@@ -840,14 +809,6 @@ def models_comparison():
                     display = "Random Forest" if name == "RF" else name
                     meta = meta_by_name.get(display) or meta_by_name.get(name) or {}
                     is_dl = any(x in display.upper() for x in ("LSTM", "GRU"))
-                    # v5 契约: Seq2Seq 多步模型带 per_day 逐日指标(day1..day7)
-                    per_day_blk = blk.get("per_day")
-                    per_day = None
-                    if isinstance(per_day_blk, dict) and per_day_blk:
-                        per_day = [
-                            {"day": int(d), **(m if isinstance(m, dict) else {})}
-                            for d, m in sorted(per_day_blk.items(), key=lambda kv: int(kv[0]))
-                        ]
                     regression.append({
                         "name": display,
                         "type": meta.get("type") or (
@@ -866,7 +827,6 @@ def models_comparison():
                         ),
                         "speed": meta.get("speed") or ("慢" if is_dl else "快"),
                         "interpretability": meta.get("interpretability"),
-                        "perDay": per_day,
                     })
         except Exception:
             regression = []
@@ -909,9 +869,7 @@ def models_comparison():
         "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
         "returnPct": 0, "speed": "—", "course": "基准策略",
     }
-    return {"regression": regression, "classification": classification,
-            "buyAndHold": buy_hold,
-            "horizonSteps": horizon_steps or mc.get("horizonSteps") or 7}
+    return {"regression": regression, "classification": classification, "buyAndHold": buy_hold}
 
 
 @app.get("/api/models/backtest")
@@ -926,24 +884,30 @@ def models_backtest(days: int = 60, skinId: str | None = None):
             fee = raw.get("fee_0.0000") if isinstance(raw, dict) else None
             buy_hold = raw.get("buy_hold") if isinstance(raw, dict) else None
             if fee and isinstance(fee, dict):
-                # 兼容新旧两种模型键: 旧=lstm_c/hybrid/rf…, 新(backtest.py 重构后)=LSTM-C/Hybrid/RF…
-                label_map = {
-                    "lstm_c": "LSTM-C", "lstm_d": "LSTM-D", "hybrid": "Hybrid",
-                    "gru": "GRU", "rf": "Random Forest", "lightgbm": "LightGBM",
-                    "xgboost": "XGBoost", "RF": "Random Forest",
+                # 兼容 snake_case(lstm_c) 与展示名(LSTM-C)；ml/backtest.py 写出后者
+                label_aliases: dict[str, tuple[str, ...]] = {
+                    "LSTM-C": ("lstm_c", "LSTM-C", "LSTM"),
+                    "LSTM-D": ("lstm_d", "LSTM-D"),
+                    "Hybrid": ("hybrid", "Hybrid"),
+                    "GRU": ("gru", "GRU"),
+                    "Random Forest": ("rf", "RF", "Random Forest"),
+                    "LightGBM": ("lightgbm", "LightGBM"),
+                    "XGBoost": ("xgboost", "XGBoost"),
                 }
                 # 图表主系列：策略模型 + Buy&Hold（避免一次塞太多线）
                 prefer_labels = ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "XGBoost")
-                # 键 → 展示名 归一化(未知键按原名透传,ML 侧新增模型也能显示)
-                by_label: dict[str, list] = {}
-                for key, arr in fee.items():
-                    if not isinstance(arr, list) or not arr:
-                        continue
-                    by_label[label_map.get(key, key)] = arr
-                ordered = [l for l in prefer_labels if l in by_label] \
-                    + [l for l in by_label if l not in prefer_labels]
-                anchor = by_label.get(ordered[0]) if ordered else (buy_hold or [])
-                dates = [pt.get("date", "") for pt in (anchor or [])]
+
+                def _fee_series(label: str) -> list:
+                    for alias in label_aliases.get(label, (label,)):
+                        arr = fee.get(alias)
+                        if arr:
+                            return arr
+                    return []
+
+                anchor = next((_fee_series(lb) for lb in prefer_labels if _fee_series(lb)), None)
+                if not anchor:
+                    anchor = buy_hold or []
+                dates = [pt.get("date", "") for pt in anchor]
 
                 def _capitals(arr: list) -> list[float]:
                     return [round(float(pt.get("capital", 0) or 0), 2) for pt in arr]
@@ -956,8 +920,11 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     return [round(v / base * 100.0, 2) for v in vals]
 
                 series_raw: dict[str, list[float]] = {}
-                for label in ordered:
-                    series_raw[label] = _capitals(by_label[label])
+                for label in prefer_labels:
+                    arr = _fee_series(label)
+                    if not arr:
+                        continue
+                    series_raw[label] = _capitals(arr)
                 if buy_hold:
                     series_raw["Buy&Hold"] = _capitals(buy_hold)
 
