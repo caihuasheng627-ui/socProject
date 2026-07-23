@@ -723,6 +723,10 @@
                 <span class="market-pulse__label">{{ t('dashboard.pulse.monitored') }}</span>
                 <strong class="market-pulse__value">{{ marketPulse.total }}</strong>
               </div>
+              <div class="market-pulse__item">
+                <span class="market-pulse__label">{{ t('dashboard.pulse.live') }}</span>
+                <strong class="market-pulse__value market-pulse__value--live">{{ marketPulse.live }}</strong>
+              </div>
               <div class="market-pulse__item market-pulse__item--up">
                 <span class="market-pulse__label">{{ t('dashboard.pulse.up') }}</span>
                 <strong class="market-pulse__value">{{ marketPulse.up }}</strong>
@@ -855,7 +859,7 @@
 
               <div v-if="filteredSkins.length" class="mb-skin-list" role="list">
                 <button
-                  v-for="(skin, idx) in filteredSkins"
+                  v-for="(skin, idx) in visibleSkins"
                   :key="skin.id"
                   type="button"
                   class="mb-skin"
@@ -872,6 +876,12 @@
                         <span class="mb-skin__dot" aria-hidden="true">·</span>
                       </template>
                       <span>{{ categoryLabel(skin.category) }}</span>
+                      <span class="mb-skin__dot" aria-hidden="true">·</span>
+                      <span
+                        class="mb-skin__source"
+                        :class="skin.isLive !== false ? 'mb-skin__source--live' : 'mb-skin__source--stale'"
+                        :title="skin.isLive !== false ? t('dashboard.sourceLiveHint') : t('dashboard.sourceStaleHint', { date: skin.priceDate || '—' })"
+                      >{{ skin.isLive !== false ? t('dashboard.sourceLive') : t('dashboard.sourceStale') }}</span>
                     </div>
                   </div>
                   <div class="mb-skin__stats">
@@ -896,6 +906,12 @@
                 </button>
               </div>
               <div v-else class="mb-empty mb-empty--panel">{{ t('dashboard.noResults') }}</div>
+              <div v-if="hasMoreSkins" class="market-catalog__more">
+                <button class="btn btn-secondary btn-sm" type="button" @click="showMoreSkins">
+                  <i class="ph ph-caret-down" aria-hidden="true"></i>
+                  {{ t('dashboard.loadMore', { count: remainingSkins }) }}
+                </button>
+              </div>
             </section>
           </div>
         </div>
@@ -914,6 +930,18 @@
                   <span class="tag tag-orange">{{ categoryLabel(selectedSkin.category) }}</span>
                   <span class="tag" style="margin-left: 6px;">{{ selectedSkin.wear }}</span>
                   <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
+                  <span
+                    v-if="selectedSkin.isLive !== false"
+                    class="tag tag-green"
+                    style="margin-left: 6px;"
+                    :title="t('dashboard.sourceLiveHint')"
+                  ><i class="ph ph-broadcast" aria-hidden="true"></i> {{ t('dashboard.sourceLive') }}</span>
+                  <span
+                    v-else
+                    class="tag"
+                    style="margin-left: 6px;"
+                    :title="t('dashboard.sourceStaleHint', { date: selectedSkin.priceDate || '—' })"
+                  >{{ t('prediction.dataAsOf', { date: selectedSkin.priceDate || '—' }) }}</span>
                 </div>
               </div>
               <div class="flex gap-2">
@@ -1075,9 +1103,9 @@
                 <thead>
                   <tr>
                     <th>{{ t('models.col.model') }}</th>
-                    <th>预测价</th>
-                    <th>变化</th>
-                    <th>置信度</th>
+                    <th>{{ t('prediction.col.price7d') }}</th>
+                    <th>{{ t('prediction.col.change') }}</th>
+                    <th>{{ t('prediction.col.confidence') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1085,6 +1113,12 @@
                     <td>
                       <strong>{{ pred.name }}</strong>
                       <span class="tag" style="margin-left: 6px; font-size: 10px;">{{ pred.type }}</span>
+                      <span
+                        v-if="pred.daily && pred.daily.length"
+                        class="tag tag-green"
+                        style="margin-left: 6px; font-size: 10px;"
+                        :title="t('prediction.dailyBadgeHint')"
+                      >{{ t('prediction.dailyBadge') }}</span>
                     </td>
                     <td>${{ formatPrice(pred.price) }}</td>
                     <td :class="pred.change >= 0 ? 'text-up' : 'text-down'">
@@ -1099,6 +1133,28 @@
                   </tr>
                 </tbody>
               </table>
+
+              <!-- v5 契约: LSTM 系列 7 天逐日精确预测路径 -->
+              <div v-if="predictionDailyRows.length" class="daily-forecast mt-4">
+                <div class="daily-forecast__head">
+                  <div class="text-muted text-sm">
+                    {{ t('prediction.dailyTitle', { model: predictionDaily?.model || 'LSTM' }) }}
+                  </div>
+                  <span class="tag tag-green" style="font-size: 10px;">Seq2Seq · D1–D7</span>
+                </div>
+                <div class="daily-forecast__strip">
+                  <div v-for="row in predictionDailyRows" :key="'d' + row.day" class="daily-forecast__cell">
+                    <div class="daily-forecast__day">D{{ row.day }} <span class="daily-forecast__date">{{ row.date }}</span></div>
+                    <div class="daily-forecast__price">${{ formatPrice(row.price) }}</div>
+                    <div class="daily-forecast__change" :class="row.change >= 0 ? 'text-up' : 'text-down'">
+                      {{ row.change >= 0 ? '+' : '' }}{{ row.change.toFixed(2) }}%
+                    </div>
+                  </div>
+                </div>
+                <div class="text-muted" style="font-size: 11px; margin-top: 6px;">
+                  {{ t('prediction.dailyNote') }}
+                </div>
+              </div>
 
               <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
                 <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
@@ -1956,6 +2012,26 @@
                 <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
               </div>
               <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
+            </section>
+
+            <!-- v5 契约: Seq2Seq Dense(7) 逐日误差 -->
+            <section v-if="modelsPerDay.length" class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.perDay') }}</h3>
+                <div class="models-lab__section-tools">
+                  <button
+                    v-for="m in ['rmse', 'mae', 'mape']"
+                    :key="'pd-' + m"
+                    type="button"
+                    class="timeframe-btn"
+                    :class="{ active: perDayMetric === m }"
+                    @click="setPerDayMetric(m)"
+                  >{{ m.toUpperCase() }}</button>
+                  <span class="tag tag-purple">{{ t('models.perDayBadge') }}</span>
+                </div>
+              </div>
+              <div class="models-lab__hint">{{ t('models.perDayDesc') }}</div>
+              <div ref="perDayChart" class="models-lab__chart"></div>
             </section>
 
             <section class="models-lab__section">

@@ -340,6 +340,15 @@ class CSVestAPI {
   _mockPredict(skinId, horizon) {
     const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
     if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
+    // 与后端 v5 契约对齐: LSTM/GRU 系列带 dailyPrices(7 天逐日精确预测)
+    const dailyPath = (totalChangePct) => {
+      const out = [];
+      for (let i = 1; i <= 7; i++) {
+        const eased = 1 - Math.pow(1 - i / 7, 2);
+        out.push(+(skin.price * (1 + (totalChangePct / 100) * eased)).toFixed(4));
+      }
+      return out;
+    };
     return {
       skinId,
       horizon,
@@ -349,8 +358,8 @@ class CSVestAPI {
         { model: 'XGBoost', type: 'ML', price: skin.price * 1.018, change: 1.8, confidence: 78 },
         { model: 'LightGBM', type: 'ML', price: skin.price * 1.016, change: 1.6, confidence: 76 },
         { model: 'RandomForest', type: 'ML', price: skin.price * 1.014, change: 1.4, confidence: 72 },
-        { model: 'LSTM', type: 'DL', price: skin.price * 1.025, change: 2.5, confidence: 82 },
-        { model: 'GRU', type: 'DL', price: skin.price * 1.022, change: 2.2, confidence: 80 },
+        { model: 'LSTM', type: 'DL', price: skin.price * 1.025, change: 2.5, confidence: 82, dailyPrices: dailyPath(2.5) },
+        { model: 'GRU', type: 'DL', price: skin.price * 1.022, change: 2.2, confidence: 80, dailyPrices: dailyPath(2.2) },
       ],
       consensus: { score: 76, level: 'high' },
       entryRange: { low: skin.price * 0.97, high: skin.price * 0.99 },

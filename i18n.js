@@ -134,7 +134,7 @@ const I18N = {
 
     // ============ 行情看板 ============
     'dashboard.title': '行情看板',
-    'dashboard.subtitle': '实时监控 {count} 个高流动性 CS2 饰品 · 数据来源 BUFF + Skinport',
+    'dashboard.subtitle': '监控 {count} 个 CS2 饰品 · BUFF 实时更新 + 历史训练数据',
     'dashboard.liveLoading': '抓取实时中…',
     'dashboard.liveDone': '已抓取 {count} 个饰品的真实市场价',
     'dashboard.livePrice': '实时',
@@ -169,6 +169,12 @@ const I18N = {
     'dashboard.liquidity': '流动性',
     'dashboard.volume24h': '24h量',
     'dashboard.skin.clickHint': '点击查看详情',
+    'dashboard.pulse.live': '实时更新',
+    'dashboard.sourceLive': '实时',
+    'dashboard.sourceStale': '历史',
+    'dashboard.sourceLiveHint': 'BUFF 实时爬取数据，滚动更新（近 7 天内有最新报价）',
+    'dashboard.sourceStaleHint': '训练数据集历史价格，已停止更新（截至 {date}）',
+    'dashboard.loadMore': '加载更多（剩余 {count} 件）',
 
     // ============ AI 预测详情 ============
     'prediction.currentPrice': '当前价格 (USD)',
@@ -186,6 +192,14 @@ const I18N = {
     'prediction.tf.90D': '90D',
     'prediction.tf.180D': '180D',
     'prediction.modelsTitle': '🔮 多模型预测对比 (7天)',
+    'prediction.col.price7d': '预测价 (第7天)',
+    'prediction.col.change': '变化',
+    'prediction.col.confidence': '置信度',
+    'prediction.dailyBadge': '7日路径',
+    'prediction.dailyBadgeHint': '该模型输出未来 7 天逐日精确预测（Seq2Seq Dense(7)）',
+    'prediction.dailyTitle': '{model} · 未来 7 天逐日精确预测',
+    'prediction.dailyNote': '逐日涨跌相对模型决策日价格计算；K 线图中的「AI 预测」虚线即该逐日路径。',
+    'prediction.dataAsOf': '数据截至 {date}',
     'prediction.platformsTitle': '多平台实时报价',
     'prediction.platformsDesc': '演示价（与模型价同口径）· 点“抓取实时价”获取各平台真实挂单',
     'prediction.platformsRealNote': '各平台真实市场价（与上方模型价不同口径，仅作跨平台价差参考）',
@@ -460,7 +474,7 @@ const I18N = {
     'models.radar': '多维雷达',
     'models.radar.badge': '综合',
     'models.backtest': '回测曲线',
-    'models.backtestBadge': '60 天',
+    'models.backtestBadge': '90 天',
     'models.shap': 'SHAP 特征',
     'models.shapBadge': 'XGBoost',
     'models.trainStrategy': '训练策略',
@@ -494,6 +508,9 @@ const I18N = {
     'models.radar.r2': 'R²',
     'models.radar.generalize': '泛化能力',
     'models.metricsHint': '滑动可查看全部指标',
+    'models.perDay': '逐日预测误差',
+    'models.perDayBadge': 'Seq2Seq D1–D7',
+    'models.perDayDesc': 'LSTM 系列 Dense(7) 输出未来 7 天逐日价格；曲线展示第 1~7 天各自的误差（预测越远误差通常越大）。',
 
     // ============ 命令面板 ============
     'cmd.search.placeholder': '搜索饰品、页面或功能...',
@@ -675,7 +692,7 @@ const I18N = {
 
     // ============ Dashboard ============
     'dashboard.title': 'Market Dashboard',
-    'dashboard.subtitle': 'Real-time monitoring of {count} high-liquidity CS2 skins · Source: BUFF + Skinport',
+    'dashboard.subtitle': 'Tracking {count} CS2 skins · Live BUFF updates + historical training data',
     'dashboard.liveLoading': 'Fetching live…',
     'dashboard.liveDone': 'Fetched real market prices for {count} skins',
     'dashboard.livePrice': 'Live',
@@ -710,6 +727,12 @@ const I18N = {
     'dashboard.liquidity': 'Liq',
     'dashboard.volume24h': '24h Vol',
     'dashboard.skin.clickHint': 'Click for details',
+    'dashboard.pulse.live': 'Live updated',
+    'dashboard.sourceLive': 'Live',
+    'dashboard.sourceStale': 'Historical',
+    'dashboard.sourceLiveHint': 'Scraped from BUFF on a rolling schedule (quoted within the last 7 days)',
+    'dashboard.sourceStaleHint': 'Static price from the training dataset, no longer updated (as of {date})',
+    'dashboard.loadMore': 'Load more ({count} left)',
 
     // ============ AI Prediction ============
     'prediction.currentPrice': 'Current Price (USD)',
@@ -727,6 +750,14 @@ const I18N = {
     'prediction.tf.90D': '90D',
     'prediction.tf.180D': '180D',
     'prediction.modelsTitle': '🔮 Multi-Model Forecast (7D)',
+    'prediction.col.price7d': 'Forecast (Day 7)',
+    'prediction.col.change': 'Change',
+    'prediction.col.confidence': 'Confidence',
+    'prediction.dailyBadge': '7-day path',
+    'prediction.dailyBadgeHint': 'This model outputs precise day-by-day forecasts for the next 7 days (Seq2Seq Dense(7))',
+    'prediction.dailyTitle': '{model} · Precise day-by-day 7-day forecast',
+    'prediction.dailyNote': 'Daily changes are relative to the model decision-day price; the dashed "AI Forecast" line on the K-line chart follows this path.',
+    'prediction.dataAsOf': 'Data as of {date}',
     'prediction.platformsTitle': 'Multi-Platform Quotes',
     'prediction.platformsDesc': 'Demo prices (same scale as model price) · click "Fetch live" for real listings',
     'prediction.platformsRealNote': 'Real market prices across platforms (different scale from the model price above; for cross-platform spread only)',
@@ -1001,7 +1032,7 @@ const I18N = {
     'models.radar': 'Radar',
     'models.radar.badge': 'Overall',
     'models.backtest': 'Backtest',
-    'models.backtestBadge': '60D',
+    'models.backtestBadge': '90D',
     'models.shap': 'SHAP',
     'models.shapBadge': 'XGBoost',
     'models.trainStrategy': 'Training',
@@ -1035,6 +1066,9 @@ const I18N = {
     'models.radar.r2': 'R²',
     'models.radar.generalize': 'Generalization',
     'models.metricsHint': 'Swipe to see all metrics',
+    'models.perDay': 'Per-day forecast error',
+    'models.perDayBadge': 'Seq2Seq D1–D7',
+    'models.perDayDesc': 'LSTM-family models output 7 daily prices via Dense(7); this curve shows the error for each of days 1–7 (errors typically grow with distance).',
 
     // ============ Command Palette ============
     'cmd.search.placeholder': 'Search skins, pages or actions...',

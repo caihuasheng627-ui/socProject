@@ -2894,6 +2894,111 @@ i.ph-duotone {
   font-size: 12px;
 }
 
+/* 数据来源徽标: BUFF 实时 vs 训练 CSV 历史 */
+.mb-skin__source {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.mb-skin__source--live {
+  color: var(--accent-green, #22c55e);
+  background: rgba(34, 199, 146, 0.12);
+}
+
+.mb-skin__source--stale {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.14);
+}
+
+/* 800+ 件分页加载 */
+.market-catalog__more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
+
+.market-pulse__value--live {
+  color: var(--accent-green, #22c55e);
+}
+
+/* v5 契约: 7 天逐日精确预测条 */
+.daily-forecast {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.daily-forecast__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.daily-forecast__strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(86px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.daily-forecast__cell {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-tertiary);
+  padding: 8px 10px;
+  text-align: center;
+  min-width: 86px;
+}
+
+.daily-forecast__day {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.daily-forecast__date {
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.daily-forecast__price {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.daily-forecast__change {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+  .daily-forecast__strip {
+    grid-template-columns: repeat(7, minmax(78px, 1fr));
+  }
+}
+
+/* 模型实验室: 逐日误差指标切换 */
+.models-lab__section-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .market-catalog {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);

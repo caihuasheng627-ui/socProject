@@ -224,6 +224,7 @@ const app = createApp({
             radarInstance?.resize();
             backtestInstance?.resize();
             shapInstance?.resize();
+            perDayInstance?.resize();
             inventoryValueChartInstance?.resize();
           }, 80);
         });
@@ -402,6 +403,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
         inventoryValueChartInstance?.resize();
       }, 250);
     };
@@ -416,6 +418,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
         inventoryValueChartInstance?.resize();
       }, 300);
     });
@@ -587,15 +590,19 @@ const app = createApp({
     const api = () => window.CSVestAPI || window.SkinVisionAPI;
 
     const reconnectLeaders = () => {
-      topGainers.value = [...skins.value]
+      // 后端已接入 800+ 件 BUFF 实时数据；涨跌/热度榜只统计实时更新的饰品，
+      // 避免与训练 CSV 的历史静态价(已停更)混排产生失真榜单
+      const liveOnly = skins.value.filter((s) => s.isLive !== false);
+      const pool = liveOnly.length >= 10 ? liveOnly : skins.value;
+      topGainers.value = [...pool]
         .filter((s) => (s.change7d || 0) > 0)
         .sort((a, b) => (b.change7d || 0) - (a.change7d || 0))
         .slice(0, 8);
-      topLosers.value = [...skins.value]
+      topLosers.value = [...pool]
         .filter((s) => (s.change7d || 0) < 0)
         .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
         .slice(0, 8);
-      hotVolume.value = [...skins.value].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
+      hotVolume.value = [...pool].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
     };
 
     const loadSkinsFromApi = async () => {
@@ -622,6 +629,10 @@ const app = createApp({
         volume24h: s.volume24h ?? 0,
         liquidity: s.liquidity ?? 0,
         wear: (s.wear && String(s.wear).toLowerCase() !== 'nan') ? s.wear : '—',
+        // 数据新鲜度: BUFF 爬取(滚动实时) vs 训练 CSV(历史静态)
+        source: s.source || 'BUFF',
+        priceDate: s.priceDate || null,
+        isLive: s.isLive != null ? !!s.isLive : inferIsLive(s.priceDate),
       }));
       reconnectLeaders();
       const prefer = skins.value.find(s => /ak-47|ak47/i.test(s.id || s.name || ''))
@@ -629,6 +640,14 @@ const app = createApp({
         || skins.value[0];
       if (prefer) selectedSkin.value = prefer;
       return true;
+    };
+
+    // priceDate 距今 ≤7 天视为实时数据(与后端 isLive 口径一致;旧后端无该字段时前端兜底)
+    const inferIsLive = (priceDate) => {
+      if (!priceDate) return true;
+      const d = new Date(priceDate);
+      if (Number.isNaN(d.getTime())) return true;
+      return (Date.now() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
     };
 
     const inferCategory = (s) => {
@@ -650,18 +669,22 @@ const app = createApp({
           ?? res.currentPriceUsd
           ?? selectedSkin.value?.price
           ?? 0;
-        // 后端返回 USD 预测价
+        // 后端返回 USD 预测价;LSTM 系列(v5 契约)带 dailyPrices = 7 天逐日精确预测
         modelPredictions.value = (res.predictions || []).map(p => {
           const change = +(p.change || 0);
           const price = (p.price != null && p.price > 0)
             ? +(+p.price).toFixed(2)
             : +(curUsd * (1 + change / 100)).toFixed(2);
+          const daily = (Array.isArray(p.dailyPrices) && p.dailyPrices.length)
+            ? p.dailyPrices.map(v => +(+v).toFixed(4))
+            : null;
           return {
             name: p.model,
             type: p.type || 'ML',
             price,
             change: +change.toFixed(2),
             confidence: Math.round(p.confidence || 0),
+            daily,
           };
         });
         const levelMap = {
@@ -674,9 +697,16 @@ const app = createApp({
           entryHigh: res.entryRange?.high ?? +(curUsd * 0.99).toFixed(2),
           targetPrice: res.targetPrice ?? +(curUsd * 1.05).toFixed(2),
         };
+        // 逐日预测主路径: 优先 LSTM(部署主力),否则任一带 daily 的模型
+        const withDaily = modelPredictions.value.filter(p => p.daily && p.daily.length);
+        const primary = withDaily.find(p => /lstm/i.test(p.name)) || withDaily[0] || null;
+        predictionDaily.value = primary
+          ? { model: primary.name, base: curUsd, prices: primary.daily }
+          : null;
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
+        predictionDaily.value = null;
         return null;
       }
     };
@@ -851,6 +881,10 @@ const app = createApp({
             ...cmp.buyAndHold,
           };
         }
+        // v5 契约: Seq2Seq 多步模型带 perDay 逐日指标(D1..D7)
+        modelsPerDay.value = (cmp?.regression || [])
+          .filter((r) => Array.isArray(r.perDay) && r.perDay.length)
+          .map((r) => ({ name: r.name, perDay: r.perDay }));
       } catch (_) { /* keep mock */ }
     };
 
@@ -1212,19 +1246,26 @@ const app = createApp({
       let up = 0;
       let down = 0;
       let sum = 0;
+      let live = 0;
       for (const s of list) {
         const ch = Number(s.change7d) || 0;
         if (ch > 0) up += 1;
         else if (ch < 0) down += 1;
         sum += ch;
+        if (s.isLive !== false) live += 1;
       }
       return {
         total: list.length,
+        live,
         up,
         down,
         avg: list.length ? sum / list.length : 0,
       };
     });
+
+    // 800+ 件全量渲染会卡顿：默认渲染前 SKIN_PAGE_SIZE 条，点“加载更多”翻页
+    const SKIN_PAGE_SIZE = 60;
+    const skinDisplayLimit = ref(SKIN_PAGE_SIZE);
 
     const filteredSkins = computed(() => {
       let list = skins.value || [];
@@ -1252,6 +1293,18 @@ const app = createApp({
         return (Number(b.change7d) || 0) - (Number(a.change7d) || 0);
       });
       return sorted;
+    });
+
+    // 实际渲染的分页切片(全量数据仍保留在 filteredSkins 供计数/导出)
+    const visibleSkins = computed(() => filteredSkins.value.slice(0, skinDisplayLimit.value));
+    const hasMoreSkins = computed(() => filteredSkins.value.length > skinDisplayLimit.value);
+    const remainingSkins = computed(() => Math.max(filteredSkins.value.length - skinDisplayLimit.value, 0));
+    const showMoreSkins = () => {
+      skinDisplayLimit.value += SKIN_PAGE_SIZE * 2;
+    };
+    // 筛选/搜索/排序变化时回到第一页
+    watch([filterCategory, skinSearch, skinSort], () => {
+      skinDisplayLimit.value = SKIN_PAGE_SIZE;
     });
 
     const refreshData = async () => {
@@ -1295,6 +1348,8 @@ const app = createApp({
     const klineLoading = ref(false);
     let klineChartInstance = null;
     const modelPredictions = ref([]);
+    // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
+    const predictionDaily = ref(null);
     const predictionMeta = ref({
       consensusScore: 76,
       consensusLevel: '',
@@ -1433,6 +1488,25 @@ const app = createApp({
       }
     };
 
+    // 7 天逐日预测明细行(供预测页逐日面板渲染)
+    const predictionDailyRows = computed(() => {
+      const dp = predictionDaily.value;
+      if (!dp?.prices?.length) return [];
+      const baseDateRaw = selectedSkin.value?.priceDate;
+      const baseDate = baseDateRaw ? new Date(baseDateRaw) : new Date();
+      const anchor = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+      return dp.prices.map((price, i) => {
+        const d = new Date(anchor.getTime() + (i + 1) * 24 * 60 * 60 * 1000);
+        const change = dp.base > 0 ? ((price - dp.base) / dp.base) * 100 : 0;
+        return {
+          day: i + 1,
+          date: `${d.getMonth() + 1}/${d.getDate()}`,
+          price: +(+price).toFixed(2),
+          change: +change.toFixed(2),
+        };
+      });
+    });
+
     const syncPredictionMetaFromSkin = (skin) => {
       const price = skin?.price || 0;
       predictionMeta.value = {
@@ -1548,29 +1622,41 @@ const app = createApp({
       const lastClose = parseFloat(kline[kline.length - 1][2]);
       const predictedDates = [];
       const predictedValues = [];
-      const horizon = 7;
+      const dailyPath = predictionDaily.value;
+      const horizon = (dailyPath?.prices?.length) || 7;
       // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
       const lastLabel = String(kline[kline.length - 1][0]);
       const [lm, ld] = lastLabel.split('/').map(Number);
       const baseDate = (lm >= 1 && lm <= 12 && ld >= 1 && ld <= 31)
         ? new Date(new Date().getFullYear(), lm - 1, ld)
         : new Date();
-      // 简单确定性伪随机（按饰品 id 播种），避免每次渲染曲线抖动
-      let seed = 0;
-      for (const ch of String(selectedSkin.value.id || '')) seed = (seed * 31 + ch.charCodeAt(0)) % 997;
-      const rand = () => {
-        seed = (seed * 137 + 71) % 997;
-        return seed / 997 - 0.5;
-      };
-      // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
-      const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
       for (let i = 1; i <= horizon; i++) {
         const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-        const t = i / horizon;
-        const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
-        const wiggle = i === horizon ? 0 : rand() * dailyVol;
-        predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
+      }
+      if (dailyPath?.prices?.length && dailyPath.base > 0) {
+        // v5 契约: LSTM 逐日精确预测。按决策日价 → 最后收盘价的比例锚定,
+        // 保持模型给出的逐日相对涨跌形状(决策日与最新 K 线可能相差数日)
+        for (const p of dailyPath.prices) {
+          predictedValues.push((lastClose * (p / dailyPath.base)).toFixed(2));
+        }
+      } else {
+        // 无逐日数据(旧模型/树模型)时退回合成路径:
+        // 简单确定性伪随机（按饰品 id 播种），避免每次渲染曲线抖动
+        let seed = 0;
+        for (const ch of String(selectedSkin.value.id || '')) seed = (seed * 31 + ch.charCodeAt(0)) % 997;
+        const rand = () => {
+          seed = (seed * 137 + 71) % 997;
+          return seed / 997 - 0.5;
+        };
+        // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
+        const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
+        for (let i = 1; i <= horizon; i++) {
+          const t = i / horizon;
+          const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
+          const wiggle = i === horizon ? 0 : rand() * dailyVol;
+          predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
+        }
       }
 
       // 成交量按类目轴对齐：历史有值，预测区间留空，避免 [index,vol,dir] 与日期类目错位
@@ -2548,19 +2634,64 @@ const app = createApp({
     const radarChart = ref(null);
     const backtestChart = ref(null);
     const shapChart = ref(null);
-    let radarInstance = null, backtestInstance = null, shapInstance = null;
+    const perDayChart = ref(null);
+    // v5 契约: LSTM 系列 Seq2Seq Dense(7) 的逐日(D1-D7)误差指标
+    const modelsPerDay = ref([]);
+    const perDayMetric = ref('rmse'); // rmse | mae | mape
+    let radarInstance = null, backtestInstance = null, shapInstance = null, perDayInstance = null;
 
     const renderRadar = () => {
       if (!radarChart.value) return;
       radarInstance = getOrCreateChart(radarInstance, radarChart.value);
       const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
 
-      // 与回归表主模型对齐，避免图例 4 条、曲线更多的错位观感
+      // 从当前 ML 输出动态计算雷达分数，避免硬编码指标与重训结果脱节
+      const wanted = ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'];
+      const rows = wanted
+        .map(name => regressionModels.value.find(r => r.name === name))
+        .filter(Boolean);
+      const maxRmse = Math.max(...rows.map(r => Number(r.rmse) || 0), 1);
+      const maxReturn = Math.max(...rows.map(r => Math.abs(Number(r.returnPct) || 0)), 1);
+      const speedScore = (speed) => {
+        const s = String(speed || '').toLowerCase();
+        if (/极快|very fast/.test(s)) return 100;
+        if (/快|fast/.test(s)) return 82;
+        if (/中|medium/.test(s)) return 58;
+        return 30;
+      };
+      const colors = [
+        ['#ff6b00', 'rgba(255, 107, 0, 0.18)'],
+        ['#06b6d4', 'rgba(6, 182, 212, 0.15)'],
+        ['#8b5cf6', 'rgba(139, 92, 246, 0.15)'],
+        ['#3b82f6', 'rgba(59, 130, 246, 0.15)'],
+      ];
+      const radarData = rows.map((r, i) => {
+        const rmseScore = Math.max(0, 100 - (Number(r.rmse) || maxRmse) / maxRmse * 55);
+        const r2Score = Math.max(0, Math.min(100, (Number(r.r2) || 0) * 100));
+        const explainScore = Math.max(20, Math.min(100, (Number(r.interpretability) || 1) / 3 * 100));
+        const returnScore = Math.max(0, Math.min(100, Math.abs(Number(r.returnPct) || 0) / maxReturn * 100));
+        const generalize = (rmseScore + r2Score) / 2;
+        return {
+          value: [
+            +rmseScore.toFixed(1),
+            speedScore(r.speed),
+            +explainScore.toFixed(1),
+            +returnScore.toFixed(1),
+            +r2Score.toFixed(1),
+            +generalize.toFixed(1),
+          ],
+          name: r.name,
+          areaStyle: { color: colors[i][1] },
+          lineStyle: { color: colors[i][0], width: 2 },
+          itemStyle: { color: colors[i][0] },
+        };
+      });
+
       const option = {
         backgroundColor: 'transparent',
         tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
         legend: {
-          data: ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'],
+          data: rows.map(r => r.name),
           textStyle: { color: '#9ca3af', fontSize: narrow ? 10 : 11 },
           top: narrow ? undefined : 0,
           bottom: narrow ? 0 : undefined,
@@ -2585,24 +2716,7 @@ const app = createApp({
         },
         series: [{
           type: 'radar',
-          data: [
-            { value: [92, 28, 35, 88, 94, 90], name: 'LSTM-C',
-              areaStyle: { color: 'rgba(255, 107, 0, 0.18)' },
-              lineStyle: { color: '#ff6b00', width: 2 },
-              itemStyle: { color: '#ff6b00' } },
-            { value: [84, 30, 38, 72, 90, 86], name: 'Hybrid',
-              areaStyle: { color: 'rgba(6, 182, 212, 0.15)' },
-              lineStyle: { color: '#06b6d4', width: 2 },
-              itemStyle: { color: '#06b6d4' } },
-            { value: [80, 86, 72, 98, 88, 82], name: 'Random Forest',
-              areaStyle: { color: 'rgba(139, 92, 246, 0.15)' },
-              lineStyle: { color: '#8b5cf6', width: 2 },
-              itemStyle: { color: '#8b5cf6' } },
-            { value: [72, 82, 70, 55, 82, 78], name: 'XGBoost',
-              areaStyle: { color: 'rgba(59, 130, 246, 0.15)' },
-              lineStyle: { color: '#3b82f6', width: 2 },
-              itemStyle: { color: '#3b82f6' } },
-          ],
+          data: radarData,
         }],
       };
       radarInstance.setOption(option, true);
@@ -2679,6 +2793,63 @@ const app = createApp({
       };
       backtestInstance.setOption(option, true);
       allowPageScrollOverChart(backtestInstance);
+    };
+
+    // Seq2Seq Dense(7) 逐日误差曲线: 展示 LSTM 系列 D1→D7 的误差递增趋势
+    const renderPerDay = () => {
+      if (!perDayChart.value) return;
+      if (!modelsPerDay.value.length) {
+        try { perDayInstance?.dispose(); } catch (_) { /* ignore */ }
+        perDayInstance = null;
+        return;
+      }
+      perDayInstance = getOrCreateChart(perDayInstance, perDayChart.value);
+      const metric = perDayMetric.value;
+      const days = modelsPerDay.value[0].perDay.map(d => `D${d.day}`);
+      const palette = ['#ff6b00', '#06b6d4', '#8b5cf6', '#3b82f6', '#10b981'];
+      const series = modelsPerDay.value.map((m, i) => ({
+        name: m.name,
+        type: 'line',
+        data: m.perDay.map(d => (d[metric] != null ? +Number(d[metric]).toFixed(4) : null)),
+        smooth: true,
+        symbolSize: 6,
+        lineStyle: { color: palette[i % palette.length], width: 2 },
+        itemStyle: { color: palette[i % palette.length] },
+        emphasis: { focus: 'series' },
+      }));
+      perDayInstance.setOption({
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis', backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        legend: {
+          data: modelsPerDay.value.map(m => m.name),
+          textStyle: { color: '#9ca3af', fontSize: 11 },
+          top: 0,
+          type: 'scroll',
+        },
+        grid: { left: 56, right: 24, top: 40, bottom: 30 },
+        xAxis: {
+          type: 'category',
+          data: days,
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+        },
+        yAxis: {
+          type: 'value',
+          scale: true,
+          name: metric.toUpperCase(),
+          nameTextStyle: { color: '#6b7280', fontSize: 10 },
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+        },
+        series,
+      }, true);
+      allowPageScrollOverChart(perDayInstance);
+    };
+
+    const setPerDayMetric = (metric) => {
+      perDayMetric.value = metric;
+      renderPerDay();
     };
 
     const renderShap = async () => {
@@ -2912,6 +3083,7 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
         inventoryValueChartInstance?.resize();
       });
 
@@ -2952,9 +3124,11 @@ const app = createApp({
           renderRadar();
           renderBacktest();
           renderShap();
+          renderPerDay();
           radarInstance?.resize();
           backtestInstance?.resize();
           shapInstance?.resize();
+          perDayInstance?.resize();
         }, 120);
       }
 
@@ -2977,10 +3151,12 @@ const app = createApp({
           radarInstance?.dispose();
           backtestInstance?.dispose();
           shapInstance?.dispose();
+          perDayInstance?.dispose();
         } catch (_) { /* ignore */ }
         radarInstance = null;
         backtestInstance = null;
         shapInstance = null;
+        perDayInstance = null;
       }
 
       if (newPage === 'prediction') {
@@ -2994,9 +3170,11 @@ const app = createApp({
           renderRadar();
           renderBacktest();
           renderShap();
+          renderPerDay();
           radarInstance?.resize();
           backtestInstance?.resize();
           shapInstance?.resize();
+          perDayInstance?.resize();
         }, 100);
       } else if (newPage === 'daily') {
         await loadDailyReport();
@@ -3031,6 +3209,7 @@ const app = createApp({
     watch(selectedSkin, (skin) => {
       relatedNewsOverride.value = null;
       explainSummary.value = '';
+      predictionDaily.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
@@ -3061,12 +3240,14 @@ const app = createApp({
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      visibleSkins, hasMoreSkins, remainingSkins, showMoreSkins,
       marketLiveQuotes, marketLiveLoading, refreshMarketLive,
       skinSearch, skinSort, marketPulse, formatChange, formatVolume,
       apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
+      modelPredictions, predictionMeta, predictionDaily, predictionDailyRows,
+      relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
@@ -3099,6 +3280,7 @@ const app = createApp({
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
       radarChart, backtestChart, shapChart,
+      perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具
       formatPrice, exportData, renderIcon,
       // 命令面板
