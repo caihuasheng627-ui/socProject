@@ -129,7 +129,11 @@ socProject/ml/data/
 │   ├── cs2_rarity_db.py       ← CS2 稀有度映射数据库 (437 条目)
 │   └── external_features.py   ← 外部特征 (Major/CCU/CS2 事件)
 └── scraper/
-    └── fetch_buff_val.py      ← BUFF 历史价格采集 (断点续传)
+    ├── fetch_buff_val.py      ← BUFF 历史价格采集 (断点续传)
+    ├── fetch_live_prices.py   ← 多平台实时行情 CLI (Skinport/BUFF/Steam)
+    ├── platforms.py           ← 平台适配器
+    ├── requirements.txt       ← httpx + brotli (+ pandas)
+    └── test_fetch_live_prices.py
 ```
 
 ---
@@ -147,6 +151,26 @@ python code/build_dataset.py
 cd socProject/ml/data
 python scraper/fetch_buff_val.py
 ```
+
+### 多平台实时行情
+```bash
+cd socProject/ml/data/scraper
+pip install -r requirements.txt
+
+# Skinport 公开 API(无需 Cookie; 需 Brotli)
+python fetch_live_prices.py --platforms skinport --limit 10
+
+# BUFF 需登录 Cookie + Steam(限流严格)
+export BUFF_SESSION='your_buff_session_cookie'
+python fetch_live_prices.py --platforms skinport,buff,steam --spread \\
+    --items "AK-47 | Redline (Field-Tested)" "AWP | Asiimov (Field-Tested)"
+
+# 轮询写入 live_quotes.csv
+python fetch_live_prices.py --platforms skinport --watch --interval 120 --append
+```
+
+输出字段: `fetched_at, platform, market_hash_name, currency, price, price_native, buy_price, sell_price, volume, ok, error`。
+BUFF 价格按 `USD_CNY_RATE`(默认 7.2)换算为 USD 写入 `price`。
 
 ### 加载训练数据
 ```python

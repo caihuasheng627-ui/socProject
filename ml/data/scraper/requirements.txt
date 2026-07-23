@@ -1,0 +1,5 @@
+# 多平台实时行情采集依赖
+# pip install -r requirements.txt
+httpx>=0.27
+brotli>=1.1
+pandas>=2.0
