@@ -710,6 +710,84 @@
             </div>
           </div>
 
+          <!-- 多平台报价 -->
+          <div class="card mb-4" v-if="selectedSkin">
+            <div class="card-header">
+              <div>
+                <div class="card-title">
+                  <i class="ph-duotone ph-storefront" aria-hidden="true"></i>
+                  {{ t('prediction.platformsTitle') }}
+                </div>
+                <div class="card-subtitle">
+                  {{ t('prediction.platformsDesc') }}
+                  <span v-if="platformQuotesMeta.mode" class="tag" style="margin-left: 8px; font-size: 10px;">
+                    {{ platformQuotesMeta.mode === 'live' ? t('prediction.platformsLive') : t('prediction.platformsDemo') }}
+                  </span>
+                </div>
+              </div>
+              <button class="btn btn-ghost btn-sm" @click="loadPlatformQuotes(selectedSkin.id)" :disabled="platformQuotesLoading">
+                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+                {{ t('prediction.platformsRefresh') }}
+              </button>
+            </div>
+            <div v-if="platformQuotesLoading && !platformQuotes.length" class="platform-quotes-loading">
+              <div class="skeleton skeleton-line medium"></div>
+              <div class="skeleton skeleton-line medium" style="margin-top: 8px;"></div>
+            </div>
+            <div v-else>
+              <div class="platform-spread" v-if="platformQuotesMeta.spread">
+                <span>{{ t('prediction.platformsSpread') }}</span>
+                <strong>{{ platformQuotesMeta.spread.spreadPct.toFixed(2) }}%</strong>
+                <span class="text-muted">
+                  ({{ platformLabel(platformQuotesMeta.spread.minPlatform) }}
+                  ${{ formatPrice(platformQuotesMeta.spread.min) }}
+                  →
+                  {{ platformLabel(platformQuotesMeta.spread.maxPlatform) }}
+                  ${{ formatPrice(platformQuotesMeta.spread.max) }})
+                </span>
+              </div>
+              <table class="data-table platform-quotes-table">
+                <thead>
+                  <tr>
+                    <th>{{ t('prediction.platformsCol.platform') }}</th>
+                    <th>{{ t('prediction.platformsCol.price') }}</th>
+                    <th class="col-hide-mobile">{{ t('prediction.platformsCol.vsBase') }}</th>
+                    <th class="col-hide-mobile">{{ t('prediction.platformsCol.volume') }}</th>
+                    <th>{{ t('prediction.platformsCol.status') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="q in platformQuotesSorted" :key="q.platform"
+                      :class="{ 'is-best': platformQuotesMeta.spread && q.platform === platformQuotesMeta.spread.minPlatform && q.ok }">
+                    <td>
+                      <strong>{{ q.label || platformLabel(q.platform) }}</strong>
+                    </td>
+                    <td>
+                      <span v-if="q.ok && q.price != null">${{ formatPrice(q.price) }}</span>
+                      <span v-else class="text-muted">—</span>
+                    </td>
+                    <td class="col-hide-mobile">
+                      <span v-if="q.ok && q.price != null && selectedSkin.price"
+                            :class="(q.price - selectedSkin.price) >= 0 ? 'change-up' : 'change-down'">
+                        {{ ((q.price - selectedSkin.price) / selectedSkin.price * 100) >= 0 ? '+' : '' }}{{ (((q.price - selectedSkin.price) / selectedSkin.price) * 100).toFixed(2) }}%
+                      </span>
+                      <span v-else class="text-muted">—</span>
+                    </td>
+                    <td class="col-hide-mobile">
+                      <span v-if="q.volume != null">{{ formatVolume(q.volume) }}</span>
+                      <span v-else class="text-muted">—</span>
+                    </td>
+                    <td>
+                      <span class="tag" :class="q.ok ? 'tag-green' : 'tag-orange'" style="font-size: 10px;">
+                        {{ q.ok ? (q.live ? t('prediction.platformsLive') : t('prediction.platformsDemo')) : (q.error || t('prediction.platformsUnavailable')) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- K线图 -->
           <div class="card mb-4">
             <div class="card-header">

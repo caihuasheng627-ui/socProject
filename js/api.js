@@ -184,6 +184,78 @@ class CSVestAPI {
     );
   }
 
+  async getPlatformQuotes(skinId, platforms) {
+    const qs = new URLSearchParams();
+    if (platforms) qs.set('platforms', platforms);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this._safeCall(
+      () => this._fetch(`/api/skins/${skinId}/quotes${suffix}`),
+      () => this._mockPlatformQuotes(skinId)
+    );
+  }
+
+  _mockPlatformQuotes(skinId) {
+    const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId)
+      || { id: skinId, name: skinId, price: 0 };
+    const base = Number(skin.price) || 0;
+    const factors = {
+      buff: 0.93,
+      skinport: 0.97,
+      csfloat: 0.96,
+      waxpeer: 0.99,
+      marketcsgo: 0.98,
+      steam: 1.06,
+      csgotrader: 1.02,
+      lootfarm: 1.18,
+    };
+    const labels = {
+      buff: 'BUFF',
+      skinport: 'Skinport',
+      csfloat: 'CSFloat',
+      waxpeer: 'Waxpeer',
+      marketcsgo: 'Market.CSGO',
+      steam: 'Steam',
+      csgotrader: 'CSGOTrader',
+      lootfarm: 'Loot.farm',
+    };
+    const quotes = Object.entries(factors).map(([platform, factor]) => {
+      const price = base > 0 ? +(base * factor).toFixed(2) : null;
+      return {
+        platform,
+        label: labels[platform],
+        currency: 'USD',
+        price,
+        priceNative: price,
+        buyPrice: price != null ? +(price * 0.97).toFixed(2) : null,
+        sellPrice: price,
+        volume: null,
+        ok: price != null,
+        error: price != null ? null : 'NO_BASE_PRICE',
+        live: false,
+      };
+    });
+    const ok = quotes.filter(q => q.ok);
+    const prices = ok.map(q => q.price);
+    const spread = prices.length >= 2
+      ? {
+          min: Math.min(...prices),
+          max: Math.max(...prices),
+          minPlatform: ok.find(q => q.price === Math.min(...prices)).platform,
+          maxPlatform: ok.find(q => q.price === Math.max(...prices)).platform,
+          spreadPct: +(((Math.max(...prices) - Math.min(...prices)) / Math.min(...prices)) * 100).toFixed(2),
+        }
+      : null;
+    return {
+      skinId,
+      marketHashName: skin.name || skinId,
+      basePrice: base || null,
+      mode: 'mock',
+      fetchedAt: new Date().toISOString(),
+      quotes,
+      spread,
+    };
+  }
+
   async predict(skinId, horizon = 7, models) {
     return this._safeCall(
       () => this._fetch('/api/predict', {
