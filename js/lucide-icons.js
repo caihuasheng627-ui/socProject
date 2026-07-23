@@ -119,6 +119,7 @@ window.ph2lucide = {
   'paper-plane-right': 'paper-plane',
   'arrow-left': 'arrow-left',
   'lock-key': 'lock',
+  'user': 'user',
 };
 
 // 自动扫描 DOM 并替换 <i class="ph-*"> 元素为内嵌 Lucide SVG
