@@ -424,11 +424,44 @@ body::before {
   color: var(--text-secondary);
 }
 
+.user-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 107, 0, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 107, 0, 0.14);
+  color: var(--accent-orange-light);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-out-expo);
+}
+
+.user-login-btn i {
+  font-size: 14px;
+}
+
+.user-login-btn:hover,
+.user-login-btn:focus-visible {
+  background: rgba(255, 107, 0, 0.22);
+  border-color: rgba(255, 107, 0, 0.55);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .user-menu-dropdown {
   position: absolute;
   right: 0;
   top: calc(100% + 10px);
   min-width: 220px;
+  max-width: min(280px, calc(100vw - 24px));
   padding: 8px;
   background: var(--bg-elevated, #14141c);
   border: 1px solid var(--border-color);
@@ -641,11 +674,28 @@ body::before {
     gap: 6px;
     margin-left: auto;
     flex-shrink: 0;
+    align-items: center;
   }
   .market-status {
     display: none !important; /* 隐藏次要信息 */
   }
-  .topbar-actions .user-avatar {
+  /* 移动端保留登录/用户入口（此前被隐藏导致无法登录） */
+  .topbar-actions .user-menu {
+    display: block;
+    order: 10;
+  }
+  .topbar-actions .user-avatar,
+  .topbar-actions .user-login-btn {
+    display: inline-flex;
+    min-width: 34px;
+    min-height: 34px;
+  }
+  .topbar-actions .user-login-btn {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  /* 窄顶栏优先露出登录：隐藏命令面板按钮（Ctrl+K 仍可用） */
+  .topbar-actions .cmd-toggle {
     display: none;
   }
   /* 顶栏添加汉堡按钮 */
@@ -4288,6 +4338,19 @@ i.ph-duotone {
 @media (max-width: 720px) {
   .landing-nav-links {
     display: none;
+  }
+  .landing-nav-inner {
+    gap: 12px;
+    padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
+  }
+  .landing-nav-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: 34px;
+    padding: 6px 14px;
+    font-size: 13px;
   }
   .landing-hero {
     padding: 60px 20px 76px;
