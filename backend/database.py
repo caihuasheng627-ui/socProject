@@ -228,6 +228,9 @@ def migrate_add_user_columns() -> None:
             conn.execute("ALTER TABLE alerts ADD COLUMN user_id INTEGER")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)")
+        # 管理员标记
+        if not _column_exists(conn, "users", "is_admin"):
+            conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
         conn.commit()
 
 
@@ -252,10 +255,49 @@ def ensure_demo_user() -> int:
         return demo_id
 
 
+def ensure_admin_user() -> int | None:
+    """确保有管理员账号: ADMIN_USERNAME/PASSWORD; 可选把 demo 提权。"""
+    from config import (
+        ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_PROMOTE_DEMO, DEMO_USERNAME,
+    )
+    from auth import hash_password
+
+    migrate_add_user_columns()
+    admin_id = None
+    with get_connection() as conn:
+        if ADMIN_USERNAME:
+            row = conn.execute(
+                "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,)
+            ).fetchone()
+            if row:
+                conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+                admin_id = row["id"]
+            else:
+                pwd = ADMIN_PASSWORD or "admin123"
+                cur = conn.execute(
+                    """INSERT INTO users(username, password_hash, created_at, is_demo, is_admin)
+                       VALUES (?,?,?,0,1)""",
+                    (ADMIN_USERNAME, hash_password(pwd), _utcnow().isoformat()),
+                )
+                admin_id = cur.lastrowid
+                print(f"[db] 已创建管理员账号: {ADMIN_USERNAME}")
+        if ADMIN_PROMOTE_DEMO:
+            conn.execute(
+                "UPDATE users SET is_admin=1 WHERE username=?", (DEMO_USERNAME,)
+            )
+        conn.commit()
+    return admin_id
+
+
 def init_schema() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
     migrate_add_user_columns()
+    try:
+        from settings_store import ensure_settings_table
+        ensure_settings_table()
+    except Exception as e:
+        print(f"[db] app_settings 初始化跳过: {e}")
 
 
 # ============================================================
@@ -514,11 +556,17 @@ def run_init() -> None:
     init_schema()
     import_skins_and_prices()
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
+    ensure_admin_user()     # 管理员账号 / demo 提权
     seed_portfolio()
     seed_news()
     seed_model_registry()
     # 确保 Expo 种子目录存在(seed_data.py 会写入)
     SEED_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        from settings_store import apply_runtime_settings
+        apply_runtime_settings()
+    except Exception as e:
+        print(f"[db] 运行时配置加载跳过: {e}")
     print(f"[db] 初始化完成 → {DB_PATH}")
 
 

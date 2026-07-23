@@ -1,7 +1,7 @@
 """
 SkinVision AI — RAG 向量检索 + 解释
 ==================================
-检索: sentence-transformers embedding → 余弦相似度 Top-K
+检索: 阿里云百炼 DashScope Embedding API → 余弦相似度 Top-K
 生成: DeepSeek 根据检索片段生成带 [编号] 引用的答案
 
 检索源:
@@ -10,7 +10,7 @@ SkinVision AI — RAG 向量检索 + 解释
   3. (explain) 该饰品近 30 日价量行为
 
 降级:
-  - 无 sentence-transformers / 模型加载失败 → 关键词检索
+  - 无 DASHSCOPE_API_KEY / API 调用失败 → 关键词检索
   - LLM 不可用 → Mock 回答
 """
 from __future__ import annotations
@@ -21,10 +21,19 @@ import sqlite3
 import threading
 from typing import Any
 
+import httpx
 import numpy as np
 
 import llm
-from config import RAG_EMBED_MODEL, RAG_INDEX_PATH, RAG_USE_VECTOR
+from config import (
+    DASHSCOPE_API_KEY,
+    DASHSCOPE_BASE_URL,
+    RAG_EMBED_DIM,
+    RAG_EMBED_ENABLED,
+    RAG_EMBED_MODEL,
+    RAG_INDEX_PATH,
+    RAG_USE_VECTOR,
+)
 from database import get_connection, resolve_skin, latest_price, change_pct
 
 # 内置知识库
@@ -60,62 +69,83 @@ def _kw_score(query_tokens: set[str], doc_text: str) -> int:
 
 
 # ============================================================
-# Embedding 模型(懒加载单例)
+# 阿里云 DashScope Embedding(OpenAI 兼容接口)
 # ============================================================
-_embedder = None
-_embedder_lock = threading.Lock()
-_embedder_failed = False
+_BATCH_SIZE = 10  # text-embedding-v3/v4 单批上限
 _index_lock = threading.Lock()
-# 内存索引: fingerprint -> {"docs": [...], "vectors": np.ndarray}
 _index_cache: dict[str, Any] | None = None
 _index_fp: str | None = None
-
-
-def _load_embedder():
-    """懒加载 sentence-transformers; 失败则标记降级。"""
-    global _embedder, _embedder_failed
-    if not RAG_USE_VECTOR or _embedder_failed:
-        return None
-    if _embedder is not None:
-        return _embedder
-    with _embedder_lock:
-        if _embedder is not None:
-            return _embedder
-        if _embedder_failed:
-            return None
-        try:
-            from sentence_transformers import SentenceTransformer
-            print(f"[rag] 加载向量模型: {RAG_EMBED_MODEL}")
-            _embedder = SentenceTransformer(RAG_EMBED_MODEL)
-            print("[rag] 向量模型就绪")
-            return _embedder
-        except Exception as e:
-            _embedder_failed = True
-            print(f"[rag] 向量模型不可用,降级关键词检索: {type(e).__name__}: {e}")
-            return None
+_embed_ok_logged = False
 
 
 def vector_status() -> dict[str, Any]:
     """供 /api/health 或调试: 当前检索后端状态。"""
-    model = _load_embedder()
+    ok = bool(RAG_EMBED_ENABLED)
     return {
-        "mode": "vector" if model is not None else "keyword",
-        "model": RAG_EMBED_MODEL if model is not None else None,
+        "mode": "vector" if ok else "keyword",
+        "provider": "dashscope" if ok else None,
+        "model": RAG_EMBED_MODEL if ok else None,
+        "dim": RAG_EMBED_DIM if ok else None,
         "enabled": RAG_USE_VECTOR,
+        "hasKey": bool(DASHSCOPE_API_KEY),
     }
 
 
+def _l2_normalize(vecs: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+    norms = np.maximum(norms, 1e-12)
+    return (vecs / norms).astype(np.float32)
+
+
+def _embed_batch(texts: list[str]) -> list[list[float]]:
+    """调用 DashScope OpenAI 兼容 /embeddings 接口(单批 ≤10)。"""
+    if not DASHSCOPE_API_KEY:
+        raise RuntimeError("DASHSCOPE_API_KEY missing")
+    payload: dict[str, Any] = {
+        "model": RAG_EMBED_MODEL,
+        "input": texts,
+        "encoding_format": "float",
+    }
+    # v3/v4 支持 dimensions
+    if RAG_EMBED_MODEL.startswith("text-embedding-v"):
+        payload["dimensions"] = RAG_EMBED_DIM
+
+    url = f"{DASHSCOPE_BASE_URL}/embeddings"
+    headers = {
+        "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    with httpx.Client(timeout=60.0) as client:
+        r = client.post(url, json=payload, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+
+    items = data.get("data") or []
+    # OpenAI 兼容: data[].embedding, 按 index 排序
+    items = sorted(items, key=lambda x: int(x.get("index", 0)))
+    if len(items) != len(texts):
+        raise RuntimeError(f"embedding count mismatch: got {len(items)} want {len(texts)}")
+    return [it["embedding"] for it in items]
+
+
 def _embed_texts(texts: list[str]) -> np.ndarray:
-    model = _load_embedder()
-    if model is None:
-        raise RuntimeError("embedder unavailable")
-    vecs = model.encode(
-        texts,
-        normalize_embeddings=True,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-    )
-    return np.asarray(vecs, dtype=np.float32)
+    """批量向量化 + L2 归一化。无 Key 时抛错由上层降级。"""
+    global _embed_ok_logged
+    if not RAG_EMBED_ENABLED:
+        raise RuntimeError("dashscope embedding disabled")
+    if not texts:
+        return np.zeros((0, RAG_EMBED_DIM), dtype=np.float32)
+
+    all_vecs: list[list[float]] = []
+    for i in range(0, len(texts), _BATCH_SIZE):
+        batch = [t if (t and t.strip()) else " " for t in texts[i:i + _BATCH_SIZE]]
+        all_vecs.extend(_embed_batch(batch))
+
+    if not _embed_ok_logged:
+        print(f"[rag] DashScope embedding OK · model={RAG_EMBED_MODEL} dim={RAG_EMBED_DIM}")
+        _embed_ok_logged = True
+
+    return _l2_normalize(np.asarray(all_vecs, dtype=np.float32))
 
 
 def _cosine_top(query_vec: np.ndarray, doc_vecs: np.ndarray, top_k: int) -> list[tuple[int, float]]:
@@ -170,7 +200,7 @@ def _collect_docs() -> list[dict[str, Any]]:
 
 def _fingerprint(docs: list[dict[str, Any]]) -> str:
     h = hashlib.sha1()
-    h.update(RAG_EMBED_MODEL.encode("utf-8"))
+    h.update(f"{RAG_EMBED_MODEL}:{RAG_EMBED_DIM}".encode("utf-8"))
     for d in docs:
         h.update(d["uid"].encode("utf-8"))
         h.update((d.get("text") or "").encode("utf-8"))
@@ -335,12 +365,12 @@ def _retrieve_keyword(query: str, kb_k: int, news_k: int) -> list[dict[str, Any]
 
 
 def _retrieve_sources(query: str, kb_k: int = 3, news_k: int = 5) -> list[dict[str, Any]]:
-    """优先向量检索,失败自动降级关键词。"""
-    if _load_embedder() is not None:
+    """优先 DashScope 向量检索,失败自动降级关键词。"""
+    if RAG_EMBED_ENABLED:
         try:
             return _retrieve_vector(query, kb_k=kb_k, news_k=news_k)
         except Exception as e:
-            print(f"[rag] 向量检索失败,降级关键词: {e}")
+            print(f"[rag] 向量检索失败,降级关键词: {type(e).__name__}: {e}")
     return _retrieve_keyword(query, kb_k=kb_k, news_k=news_k)
 
 

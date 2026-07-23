@@ -27,16 +27,27 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login", auto_error=True)
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/login", auto_error=False)
 
 
+def _user_row_to_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "is_demo": bool(row["is_demo"]) if "is_demo" in row.keys() else False,
+        "is_admin": bool(row["is_admin"]) if "is_admin" in row.keys() else False,
+        "created_at": row["created_at"] if "created_at" in row.keys() else None,
+    }
+
+
 def _demo_user() -> dict:
     """查内置 demo 用户(没有则临时返回 id=0 的匿名 demo)。"""
     from config import DEMO_USERNAME
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, username, is_demo FROM users WHERE username=?", (DEMO_USERNAME,)
+            "SELECT id, username, is_demo, is_admin, created_at FROM users WHERE username=?",
+            (DEMO_USERNAME,),
         ).fetchone()
     if row:
-        return {"id": row["id"], "username": row["username"], "is_demo": bool(row["is_demo"])}
-    return {"id": 0, "username": "demo", "is_demo": True}
+        return _user_row_to_dict(row)
+    return {"id": 0, "username": "demo", "is_demo": True, "is_admin": False, "created_at": None}
 
 
 # ============================================================
@@ -61,13 +72,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ============================================================
 # JWT
 # ============================================================
-def create_access_token(user_id: int, username: str) -> tuple[str, int]:
+def create_access_token(user_id: int, username: str, is_admin: bool = False) -> tuple[str, int]:
     """签发 JWT,返回 (token, expires_in_seconds)。"""
     now = datetime.now(timezone.utc)
     expire_delta = timedelta(days=JWT_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
         "username": username,
+        "is_admin": bool(is_admin),
         "iat": now,
         "exp": now + expire_delta,
     }
@@ -87,6 +99,15 @@ def decode_token(token: str) -> dict[str, Any]:
 # ============================================================
 # FastAPI 依赖
 # ============================================================
+def _fetch_user(user_id: int) -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, username, is_demo, is_admin, created_at FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+    return _user_row_to_dict(row) if row else None
+
+
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """从 Bearer token 解出当前用户。无/失效 token → 401。"""
     payload = decode_token(token)
@@ -96,13 +117,10 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         user_id = 0
     if not user_id:
         raise HTTPException(401, "无效 token")
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT id, username, is_demo FROM users WHERE id=?", (user_id,)
-        ).fetchone()
-    if not row:
+    user = _fetch_user(user_id)
+    if not user:
         raise HTTPException(401, "用户不存在")
-    return {"id": row["id"], "username": row["username"], "is_demo": bool(row["is_demo"])}
+    return user
 
 
 def get_current_user_optional(token: str | None = Depends(oauth2_scheme_optional)) -> dict:
@@ -119,17 +137,19 @@ def get_current_user_optional(token: str | None = Depends(oauth2_scheme_optional
         user_id = 0
     if not user_id:
         return _demo_user()
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT id, username, is_demo FROM users WHERE id=?", (user_id,)
-        ).fetchone()
-    if not row:
-        return _demo_user()
-    return {"id": row["id"], "username": row["username"], "is_demo": bool(row["is_demo"])}
+    user = _fetch_user(user_id)
+    return user or _demo_user()
+
+
+def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
+    """要求当前用户 is_admin=1。"""
+    if not user.get("is_admin"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "需要管理员权限")
+    return user
 
 
 # ============================================================
-# 业务:注册 / 登录
+# 业务:注册 / 登录 / 用户列表
 # ============================================================
 def register_user(username: str, password: str) -> dict:
     username = (username or "").strip()
@@ -141,24 +161,49 @@ def register_user(username: str, password: str) -> dict:
         if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             raise HTTPException(409, "用户名已存在")
         cur = conn.execute(
-            "INSERT INTO users(username, password_hash, created_at, is_demo) VALUES (?,?,?,0)",
+            "INSERT INTO users(username, password_hash, created_at, is_demo, is_admin) VALUES (?,?,?,0,0)",
             (username, hash_password(password), datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
         uid = cur.lastrowid
-    token, exp_in = create_access_token(uid, username)
-    return {"token": token, "expires_in": exp_in, "user": {"id": uid, "username": username}}
+    token, exp_in = create_access_token(uid, username, is_admin=False)
+    return {
+        "token": token,
+        "expires_in": exp_in,
+        "user": {"id": uid, "username": username, "is_demo": False, "is_admin": False},
+    }
 
 
 def authenticate_user(username: str, password: str) -> dict:
     username = (username or "").strip()
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, is_demo FROM users WHERE username=?",
+            "SELECT id, username, password_hash, is_demo, is_admin, created_at FROM users WHERE username=?",
             (username,),
         ).fetchone()
     if not row or not verify_password(password, row["password_hash"]):
         raise HTTPException(401, "用户名或密码错误")
-    token, exp_in = create_access_token(row["id"], row["username"])
-    return {"token": token, "expires_in": exp_in,
-            "user": {"id": row["id"], "username": row["username"]}}
+    is_admin = bool(row["is_admin"]) if "is_admin" in row.keys() else False
+    token, exp_in = create_access_token(row["id"], row["username"], is_admin=is_admin)
+    return {
+        "token": token,
+        "expires_in": exp_in,
+        "user": _user_row_to_dict(row),
+    }
+
+
+def list_users() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT u.id, u.username, u.created_at, u.is_demo, u.is_admin,
+                      (SELECT COUNT(*) FROM portfolio p WHERE p.user_id=u.id) AS portfolio_count,
+                      (SELECT COUNT(*) FROM alerts a WHERE a.user_id=u.id) AS alert_count
+               FROM users u ORDER BY u.id ASC"""
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = _user_row_to_dict(r)
+        d["portfolioCount"] = int(r["portfolio_count"] or 0)
+        d["alertCount"] = int(r["alert_count"] or 0)
+        out.append(d)
+    return out

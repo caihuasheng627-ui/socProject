@@ -29,12 +29,16 @@ from database import (
     weapon_to_category,
 )
 from model_loader import get_loader
-from auth import get_current_user, get_current_user_optional, register_user, authenticate_user
+from auth import (
+    get_current_user, get_current_user_optional, get_admin_user,
+    register_user, authenticate_user, list_users,
+)
 import rag
 import agent_debate
 import portfolio_diagnose
 import llm
 import quotes as quotes_svc
+import settings_store
 
 # ---------- 启动初始化 ----------
 ensure_dirs()
@@ -98,6 +102,17 @@ class RagAskReq(BaseModel):
     topK: int = 5
 
 
+class AdminConfigReq(BaseModel):
+    deepseekApiKey: str | None = None
+    deepseekBaseUrl: str | None = None
+    deepseekModel: str | None = None
+    dashscopeApiKey: str | None = None
+    dashscopeBaseUrl: str | None = None
+    ragEmbedModel: str | None = None
+    ragEmbedDim: int | None = None
+    ragUseVector: bool | None = None
+
+
 # ============================================================
 # 辅助:skin 序列化
 # ============================================================
@@ -139,28 +154,7 @@ def _skin_to_dict(conn, row) -> dict:
 # ============================================================
 @app.get("/api/health")
 def health():
-    with get_connection() as conn:
-        n_skins = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
-        n_price = conn.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
-        n_portfolio = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        n_news = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
-    models_status = {
-        "lstm_hybrid": "ok" if _loader.tf_available else "mock",
-        "gru": "ok" if _loader.tf_available else "mock",
-        "trees": "ok",
-        "deepseek": "ok" if LLM_ENABLED else "mock",
-        "rag": rag.vector_status().get("mode", "keyword"),
-    }
-    status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"
-    return {
-        "status": status,
-        "dataSources": {"skins": n_skins, "price_history": n_price,
-                        "portfolio": n_portfolio, "news": n_news,
-                        "buff_live": USE_BUFF_LIVE},
-        "models": models_status,
-        "rag": rag.vector_status(),
-        "timestamp": _utcnow().isoformat(),
-    }
+    return health_check_payload()
 
 
 # ============================================================
@@ -402,6 +396,133 @@ def api_register(req: AuthReq):
 @app.post("/api/login")
 def api_login(req: AuthReq):
     return authenticate_user(req.username, req.password)
+
+
+@app.get("/api/me")
+def api_me(current_user: dict = Depends(get_current_user)):
+    return {"user": current_user}
+
+
+# ============================================================
+# 管理员:用户列表 / API 配置 / 探针
+# ============================================================
+@app.get("/api/admin/users")
+def admin_users(_: dict = Depends(get_admin_user)):
+    return {"items": list_users()}
+
+
+@app.get("/api/admin/config")
+def admin_get_config(_: dict = Depends(get_admin_user)):
+    return settings_store.public_config()
+
+
+@app.put("/api/admin/config")
+def admin_put_config(req: AdminConfigReq, _: dict = Depends(get_admin_user)):
+    updates: dict[str, Any] = {}
+    if req.deepseekApiKey is not None:
+        updates["DEEPSEEK_API_KEY"] = req.deepseekApiKey
+    if req.deepseekBaseUrl is not None:
+        updates["DEEPSEEK_BASE_URL"] = req.deepseekBaseUrl
+    if req.deepseekModel is not None:
+        updates["DEEPSEEK_MODEL"] = req.deepseekModel
+    if req.dashscopeApiKey is not None:
+        updates["DASHSCOPE_API_KEY"] = req.dashscopeApiKey
+    if req.dashscopeBaseUrl is not None:
+        updates["DASHSCOPE_BASE_URL"] = req.dashscopeBaseUrl
+    if req.ragEmbedModel is not None:
+        updates["RAG_EMBED_MODEL"] = req.ragEmbedModel
+    if req.ragEmbedDim is not None:
+        updates["RAG_EMBED_DIM"] = str(req.ragEmbedDim)
+    if req.ragUseVector is not None:
+        updates["RAG_USE_VECTOR"] = "1" if req.ragUseVector else "0"
+    settings_store.set_settings(updates)
+    return {"ok": True, "config": settings_store.public_config()}
+
+
+@app.get("/api/admin/status")
+def admin_status(_: dict = Depends(get_admin_user)):
+    """聚合健康检查 + 配置态(不发外网探针)。"""
+    health = health_check_payload()
+    return {
+        "health": health,
+        "config": settings_store.public_config(),
+        "rag": rag.vector_status(),
+    }
+
+
+@app.post("/api/admin/probe/llm")
+def admin_probe_llm(_: dict = Depends(get_admin_user)):
+    """探测 DeepSeek LLM 是否可用。"""
+    import time
+    t0 = time.time()
+    try:
+        text = llm.chat_sync(
+            [{"role": "user", "content": "请只回复两个字:正常"}],
+            temperature=0.1,
+            timeout=20.0,
+        )
+        ms = int((time.time() - t0) * 1000)
+        ok = bool(text) and "Mock" not in (text[:40] if text else "")
+        # 无 Key 时 llm 返回 Mock,视为失败
+        from config import LLM_ENABLED
+        if not LLM_ENABLED:
+            return {"ok": False, "provider": "deepseek", "latencyMs": ms,
+                    "error": "未配置 DEEPSEEK_API_KEY", "sample": (text or "")[:120]}
+        return {"ok": True, "provider": "deepseek", "latencyMs": ms,
+                "sample": (text or "")[:120]}
+    except Exception as e:
+        return {"ok": False, "provider": "deepseek",
+                "latencyMs": int((time.time() - t0) * 1000),
+                "error": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/api/admin/probe/embed")
+def admin_probe_embed(_: dict = Depends(get_admin_user)):
+    """探测阿里云 DashScope Embedding 是否可用。"""
+    import time
+    t0 = time.time()
+    try:
+        from config import RAG_EMBED_ENABLED
+        if not RAG_EMBED_ENABLED:
+            return {"ok": False, "provider": "dashscope",
+                    "latencyMs": 0, "error": "未配置 DASHSCOPE_API_KEY 或未启用向量检索"}
+        vecs = rag._embed_texts(["CS2 饰品市场测试向量"])
+        ms = int((time.time() - t0) * 1000)
+        dim = int(vecs.shape[1]) if vecs.size else 0
+        return {"ok": True, "provider": "dashscope", "latencyMs": ms, "dim": dim,
+                "model": rag.vector_status().get("model")}
+    except Exception as e:
+        return {"ok": False, "provider": "dashscope",
+                "latencyMs": int((time.time() - t0) * 1000),
+                "error": f"{type(e).__name__}: {e}"}
+
+
+def health_check_payload() -> dict:
+    """抽出健康检查 payload,供 /api/health 与管理员 status 复用。"""
+    with get_connection() as conn:
+        n_skins = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+        n_price = conn.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
+        n_portfolio = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
+        n_news = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
+        n_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    from config import LLM_ENABLED as _llm_on
+    models_status = {
+        "lstm_hybrid": "ok" if _loader.tf_available else "mock",
+        "gru": "ok" if _loader.tf_available else "mock",
+        "trees": "ok",
+        "deepseek": "ok" if _llm_on else "mock",
+        "rag": rag.vector_status().get("mode", "keyword"),
+    }
+    status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"
+    return {
+        "status": status,
+        "dataSources": {"skins": n_skins, "price_history": n_price,
+                        "portfolio": n_portfolio, "news": n_news,
+                        "users": n_users, "buff_live": USE_BUFF_LIVE},
+        "models": models_status,
+        "rag": rag.vector_status(),
+        "timestamp": _utcnow().isoformat(),
+    }
 
 
 # ============================================================

@@ -163,6 +163,44 @@ class CSVestAPI {
     }
   }
 
+  async login(username, password) {
+    return this._fetch('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  async me() {
+    return this._fetch('/api/me');
+  }
+
+  async adminUsers() {
+    return this._fetch('/api/admin/users');
+  }
+
+  async adminGetConfig() {
+    return this._fetch('/api/admin/config');
+  }
+
+  async adminPutConfig(body) {
+    return this._fetch('/api/admin/config', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async adminStatus() {
+    return this._fetch('/api/admin/status');
+  }
+
+  async adminProbeLlm() {
+    return this._fetch('/api/admin/probe/llm', { method: 'POST', body: '{}' });
+  }
+
+  async adminProbeEmbed() {
+    return this._fetch('/api/admin/probe/embed', { method: 'POST', body: '{}' });
+  }
+
   async getSkins(params = {}, opts = {}) {
     return this._safeCall(
       () => this._fetch(`/api/skins?${new URLSearchParams(params)}`),
@@ -458,7 +496,7 @@ class CSVestAPI {
           query,
           answer: `(演示模式) 根据向量检索到的知识库与资讯,针对「${query}」的分析:相关饰品近期受 Major 赛程与 Valve 更新预期影响,成交量与价格波动加大 [1][2];建议结合成交量与磨损等级判断入场时机。⚠ 饰品市场高波动,以上不构成投资建议。`,
           sources,
-          retrieval: { mode: 'vector', model: 'mock-minilm' },
+          retrieval: { mode: 'vector', provider: 'dashscope', model: 'text-embedding-v3' },
         };
       }
     );

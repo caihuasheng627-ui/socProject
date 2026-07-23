@@ -63,35 +63,38 @@ const app = createApp({
     // ============ 菜单 ============
     // 5 页信息架构(策划书 §5):行情中心 / 我的库存 / AI 对话 / AI 日报 / 模型实验室
     // 物品详情(prediction)与价格预警(alerts)为二级视图,不入侧边栏
-    const menu = computed(() => [
-      {
-        id: 'dashboard',
-        label: t('menu.dashboard'),
-        badge: t('menu.badge.core'),
-        iconName: 'chart-line',
-      },
-      {
-        id: 'portfolio',
-        label: t('menu.portfolio'),
-        iconName: 'clipboard-list',
-      },
-      {
-        id: 'chat',
-        label: t('menu.chat'),
-        badge: t('menu.badge.highlight'),
-        iconName: 'message-circle',
-      },
-      {
-        id: 'daily',
-        label: t('menu.daily'),
-        iconName: 'newspaper',
-      },
-      {
-        id: 'models',
-        label: t('menu.models'),
-        iconName: 'cpu',
-      },
-    ]);
+    const menu = computed(() => {
+      // 管理端不进侧边栏 / 命令面板 / 数字快捷键,仅通过 #admin 隐藏入口进入
+      return [
+        {
+          id: 'dashboard',
+          label: t('menu.dashboard'),
+          badge: t('menu.badge.core'),
+          iconName: 'chart-line',
+        },
+        {
+          id: 'portfolio',
+          label: t('menu.portfolio'),
+          iconName: 'clipboard-list',
+        },
+        {
+          id: 'chat',
+          label: t('menu.chat'),
+          badge: t('menu.badge.highlight'),
+          iconName: 'message-circle',
+        },
+        {
+          id: 'daily',
+          label: t('menu.daily'),
+          iconName: 'newspaper',
+        },
+        {
+          id: 'models',
+          label: t('menu.models'),
+          iconName: 'cpu',
+        },
+      ];
+    });
 
     // 二级视图 → 所属一级页面(侧边栏高亮 + 面包屑)
     const PARENT_PAGE = { prediction: 'dashboard', alerts: 'portfolio' };
@@ -118,13 +121,30 @@ const app = createApp({
 
     const currentPage = ref((() => {
       try {
+        // 隐藏入口: URL hash #admin
+        if (typeof location !== 'undefined' && (location.hash || '').replace(/^#/, '') === 'admin') {
+          return 'admin';
+        }
         const saved = sessionStorage.getItem('sv_page');
-        if (saved && typeof saved === 'string') return saved;
+        // 管理端不从 session 恢复,避免普通用户刷新后停在管理页
+        if (saved && saved !== 'admin' && typeof saved === 'string') return saved;
       } catch (_) { /* ignore */ }
       return 'dashboard';
     })());
     watch(currentPage, (pageId) => {
-      try { sessionStorage.setItem('sv_page', pageId); } catch (_) { /* ignore */ }
+      try {
+        if (pageId === 'admin') {
+          sessionStorage.removeItem('sv_page');
+          if (typeof location !== 'undefined' && location.hash !== '#admin') {
+            history.replaceState(null, '', '#admin');
+          }
+        } else {
+          sessionStorage.setItem('sv_page', pageId);
+          if (typeof location !== 'undefined' && (location.hash || '').replace(/^#/, '') === 'admin') {
+            history.replaceState(null, '', location.pathname + location.search);
+          }
+        }
+      } catch (_) { /* ignore */ }
     });
     const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
     const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
@@ -318,6 +338,10 @@ const app = createApp({
     };
 
     const goToPage = (pageId) => {
+      // 侧边栏/快捷键不应切到管理端; 管理端仅 #admin 进入
+      if (pageId === 'admin' && (location.hash || '').replace(/^#/, '') !== 'admin') {
+        try { history.replaceState(null, '', '#admin'); } catch (_) { /* ignore */ }
+      }
       currentPage.value = pageId;
       sidebarOpen.value = false;
     };
@@ -918,6 +942,189 @@ const app = createApp({
       const esc = String(text || '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return esc.replace(/\[(\d+)\]/g, '<sup class="rag-cite">[$1]</sup>');
+    };
+
+    // ============ 管理员端 ============
+    const ADMIN_SESSION_KEY = 'sv_admin_session';
+    const loadAdminSession = () => {
+      try {
+        const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    };
+    const adminSession = ref(loadAdminSession());
+    const adminIsAuthed = computed(() => !!(adminSession.value?.token && adminSession.value?.user?.is_admin));
+    const adminLoginForm = ref({ username: 'admin', password: '' });
+    const adminLoginError = ref('');
+    const adminLoginLoading = ref(false);
+    const adminUsers = ref([]);
+    const adminConfig = ref(null);
+    const adminStatus = ref(null);
+    const adminProbeLlm = ref(null);
+    const adminProbeEmbed = ref(null);
+    const adminSaving = ref(false);
+    const adminLoading = ref(false);
+    const adminConfigForm = ref({
+      deepseekApiKey: '',
+      deepseekBaseUrl: 'https://api.deepseek.com',
+      deepseekModel: 'deepseek-chat',
+      dashscopeApiKey: '',
+      dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      ragEmbedModel: 'text-embedding-v3',
+      ragEmbedDim: 1024,
+      ragUseVector: true,
+    });
+
+    const persistAdminSession = (payload) => {
+      adminSession.value = payload;
+      if (payload?.token) {
+        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(payload));
+        localStorage.setItem('sv_token', payload.token);
+        try { api()?.setToken?.(payload.token); } catch (_) { /* ignore */ }
+      } else {
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+      }
+    };
+
+    const adminLogout = () => {
+      persistAdminSession(null);
+      adminUsers.value = [];
+      adminConfig.value = null;
+      adminStatus.value = null;
+      adminProbeLlm.value = null;
+      adminProbeEmbed.value = null;
+    };
+
+    const adminLogin = async () => {
+      adminLoginLoading.value = true;
+      adminLoginError.value = '';
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        const res = await client.login(
+          (adminLoginForm.value.username || '').trim(),
+          adminLoginForm.value.password || ''
+        );
+        if (!res?.user?.is_admin) {
+          adminLoginError.value = t('admin.err.notAdmin');
+          return;
+        }
+        persistAdminSession({ token: res.token, user: res.user, expiresIn: res.expires_in });
+        adminLoginForm.value.password = '';
+        showToast({ title: t('admin.toast.loginOk'), type: 'success' });
+        await loadAdminPanel();
+      } catch (err) {
+        adminLoginError.value = err?.message || t('admin.err.login');
+      } finally {
+        adminLoginLoading.value = false;
+      }
+    };
+
+    const fillAdminConfigForm = (cfg) => {
+      if (!cfg) return;
+      adminConfigForm.value = {
+        deepseekApiKey: '',
+        deepseekBaseUrl: cfg.deepseek?.baseUrl || 'https://api.deepseek.com',
+        deepseekModel: cfg.deepseek?.model || 'deepseek-chat',
+        dashscopeApiKey: '',
+        dashscopeBaseUrl: cfg.dashscope?.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        ragEmbedModel: cfg.dashscope?.embedModel || 'text-embedding-v3',
+        ragEmbedDim: cfg.dashscope?.embedDim || 1024,
+        ragUseVector: cfg.dashscope?.useVector !== false,
+      };
+    };
+
+    const loadAdminPanel = async () => {
+      if (!adminIsAuthed.value) return;
+      adminLoading.value = true;
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        // 确保 Bearer 用管理员 token
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const [usersRes, cfg, status] = await Promise.all([
+          client.adminUsers(),
+          client.adminGetConfig(),
+          client.adminStatus(),
+        ]);
+        adminUsers.value = Array.isArray(usersRes?.items) ? usersRes.items : [];
+        adminConfig.value = cfg;
+        adminStatus.value = status;
+        fillAdminConfigForm(cfg);
+      } catch (err) {
+        console.warn('[admin]', err);
+        if (String(err?.message || '').includes('403') || err?.status === 403) {
+          adminLogout();
+          adminLoginError.value = t('admin.err.notAdmin');
+        }
+        showToast({ title: t('admin.err.load'), subtitle: err?.message || '', type: 'warning' });
+      } finally {
+        adminLoading.value = false;
+      }
+    };
+
+    const saveAdminConfig = async () => {
+      if (!adminIsAuthed.value) return;
+      adminSaving.value = true;
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const f = adminConfigForm.value;
+        const body = {
+          deepseekBaseUrl: f.deepseekBaseUrl,
+          deepseekModel: f.deepseekModel,
+          dashscopeBaseUrl: f.dashscopeBaseUrl,
+          ragEmbedModel: f.ragEmbedModel,
+          ragEmbedDim: Number(f.ragEmbedDim) || 1024,
+          ragUseVector: !!f.ragUseVector,
+        };
+        // 仅当输入了新 Key 才覆盖(空=不改)
+        if ((f.deepseekApiKey || '').trim()) body.deepseekApiKey = f.deepseekApiKey.trim();
+        if ((f.dashscopeApiKey || '').trim()) body.dashscopeApiKey = f.dashscopeApiKey.trim();
+        const res = await client.adminPutConfig(body);
+        adminConfig.value = res?.config || res;
+        fillAdminConfigForm(adminConfig.value);
+        showToast({ title: t('admin.toast.saved'), type: 'success' });
+        await refreshAdminStatus();
+      } catch (err) {
+        showToast({ title: t('admin.err.save'), subtitle: err?.message || '', type: 'warning' });
+      } finally {
+        adminSaving.value = false;
+      }
+    };
+
+    const refreshAdminStatus = async () => {
+      try {
+        const client = api();
+        if (!client || !adminIsAuthed.value) return;
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminStatus.value = await client.adminStatus();
+      } catch (err) {
+        console.warn('[admin-status]', err);
+      }
+    };
+
+    const runProbeLlm = async () => {
+      adminProbeLlm.value = { loading: true };
+      try {
+        const client = api();
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminProbeLlm.value = await client.adminProbeLlm();
+      } catch (err) {
+        adminProbeLlm.value = { ok: false, error: err?.message || String(err) };
+      }
+    };
+
+    const runProbeEmbed = async () => {
+      adminProbeEmbed.value = { loading: true };
+      try {
+        const client = api();
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminProbeEmbed.value = await client.adminProbeEmbed();
+      } catch (err) {
+        adminProbeEmbed.value = { ok: false, error: err?.message || String(err) };
+      }
     };
     const regressionModels = ref(
       (modelComparison.regression || []).map((r) => ({ ...r }))
@@ -2686,6 +2893,21 @@ const app = createApp({
         inventoryValueChartInstance?.resize();
       });
 
+      // 隐藏入口: #admin 进出管理端(不进侧边栏)
+      const syncAdminHash = () => {
+        const isAdminHash = (location.hash || '').replace(/^#/, '') === 'admin';
+        if (isAdminHash && currentPage.value !== 'admin') {
+          currentPage.value = 'admin';
+          if (adminIsAuthed.value) loadAdminPanel();
+        } else if (!isAdminHash && currentPage.value === 'admin') {
+          currentPage.value = 'dashboard';
+        }
+      };
+      window.addEventListener('hashchange', syncAdminHash);
+      if ((location.hash || '').replace(/^#/, '') === 'admin') {
+        syncAdminHash();
+      }
+
       // 网络状态监听
       const updateOnlineStatus = () => {
         if (!navigator.onLine) {
@@ -2754,6 +2976,8 @@ const app = createApp({
         }, 100);
       } else if (newPage === 'daily') {
         await loadDailyReport();
+      } else if (newPage === 'admin') {
+        if (adminIsAuthed.value) await loadAdminPanel();
       } else if (newPage === 'alerts') {
         await loadAlertsFromApi();
       } else if (newPage === 'portfolio') {
@@ -2829,6 +3053,10 @@ const app = createApp({
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
+      adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
+      adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,
+      adminSaving, adminLoading, adminConfigForm,
+      adminLogin, adminLogout, loadAdminPanel, saveAdminConfig, refreshAdminStatus, runProbeLlm, runProbeEmbed,
       // 预警
       alerts, showAlertModal, newAlert, addAlert, deleteAlert,
       // 持仓 / 库存

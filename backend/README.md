@@ -84,7 +84,7 @@ backend/
 ├── database.py             SQLite 建表 + 导入 + 种子
 ├── model_loader.py         Hybrid LSTM-C/D + GRU + 树(预录 CSV)
 ├── llm.py                  DeepSeek 同步/SSE 流式 + Mock
-├── rag.py                  关键词 RAG 检索 + LLM 解释
+├── rag.py                  DashScope 向量 RAG + 关键词降级 + LLM 解释
 ├── agent_debate.py         双 Agent 辩论(预录/现场双模式)
 ├── portfolio_diagnose.py   组合诊断三块输出
 ├── scheduler.py            APScheduler(RSS/日报/增量训练)

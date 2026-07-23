@@ -45,6 +45,11 @@ JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "7"))
 DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo123")
 
+# 管理员账号(首次启动自动创建/提权; 默认 admin/admin123,并把 demo 提为管理员方便演示)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123").strip()
+ADMIN_PROMOTE_DEMO = os.getenv("ADMIN_PROMOTE_DEMO", "1") == "1"
+
 # ---------- 数据源开关 ----------
 USE_BUFF_LIVE = os.getenv("USE_BUFF_LIVE", "0") == "1"   # 默认关:用已落库历史价
 RSS_FEEDS = [
@@ -61,14 +66,19 @@ PORTFLOTTO_BATCH = 20               # 库存 >20 件时分批诊断
 # 历史兼容:训练/展示统一为 USD,不再做 CNY 换算
 USD_CNY_RATE = float(os.getenv("USD_CNY_RATE", "1.0"))
 
-# ---------- RAG 向量检索 ----------
-# 默认多语言 MiniLM(中英均可); 无 sentence-transformers / 模型下载失败时自动降级关键词
-RAG_EMBED_MODEL = os.getenv(
-    "RAG_EMBED_MODEL",
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-)
+# ---------- RAG 向量检索(阿里云百炼 DashScope Embedding) ----------
+# 无 DASHSCOPE_API_KEY 时自动降级关键词检索
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "").strip()
+DASHSCOPE_BASE_URL = os.getenv(
+    "DASHSCOPE_BASE_URL",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+).rstrip("/")
+# text-embedding-v3 / v4; 维度仅 v3/v4 支持
+RAG_EMBED_MODEL = os.getenv("RAG_EMBED_MODEL", "text-embedding-v3")
+RAG_EMBED_DIM = int(os.getenv("RAG_EMBED_DIM", "1024"))
 RAG_USE_VECTOR = os.getenv("RAG_USE_VECTOR", "1") == "1"
 RAG_INDEX_PATH = DATA_RUNTIME_DIR / "rag_vectors.npz"
+RAG_EMBED_ENABLED = bool(DASHSCOPE_API_KEY) and RAG_USE_VECTOR
 
 
 def ensure_dirs() -> None:
