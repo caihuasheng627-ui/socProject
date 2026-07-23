@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import (
-    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, ensure_dirs,
+    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, USE_BUFF_LIVE, ensure_dirs,
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
@@ -34,6 +34,7 @@ import rag
 import agent_debate
 import portfolio_diagnose
 import llm
+import quotes as quotes_svc
 
 # ---------- 启动初始化 ----------
 ensure_dirs()
@@ -149,7 +150,7 @@ def health():
         "status": status,
         "dataSources": {"skins": n_skins, "price_history": n_price,
                         "portfolio": n_portfolio, "news": n_news,
-                        "buff_live": False},
+                        "buff_live": USE_BUFF_LIVE},
         "models": models_status,
         "timestamp": _utcnow().isoformat(),
     }
@@ -196,6 +197,37 @@ def get_skin(skin_id: str):
         item["listings"] = listings
         item["daysSinceRelease"] = listings
         return item
+
+
+@app.get("/api/skins/{skin_id}/quotes")
+def get_skin_quotes(
+    skin_id: str,
+    platforms: str | None = Query(
+        None,
+        description="逗号分隔平台: skinport,waxpeer,marketcsgo,lootfarm,csgotrader,steam,buff,csfloat",
+    ),
+    live: bool | None = Query(
+        None,
+        description="强制实时拉取; 默认跟随 USE_BUFF_LIVE",
+    ),
+):
+    """多平台实时/演示报价。USE_BUFF_LIVE=0 时返回基于库内价的跨平台演示价差。"""
+    with get_connection() as conn:
+        row = resolve_skin(conn, skin_id)
+        if not row:
+            raise HTTPException(404, "skin not found")
+        base, _ = latest_price(conn, row["id"])
+        name = row["market_hash_name"]
+        slug = row["slug"]
+    plat_list = [p.strip() for p in platforms.split(",")] if platforms else None
+    payload = quotes_svc.get_skin_quotes(
+        market_hash_name=name,
+        base_price=base,
+        platforms=plat_list,
+        live=live,
+    )
+    payload["skinId"] = slug
+    return payload
 
 
 @app.get("/api/skins/{skin_id}/kline")

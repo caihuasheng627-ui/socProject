@@ -228,7 +228,7 @@ Push 使用 GitHub Personal Access Token（勾选 `repo`），不是账户密码
 - [x] Hybrid LSTM 推理 + 树模型 pred CSV
 - [x] Docker Compose 一键部署
 - [x] 移动端适配 / 中英 i18n
-- [ ] 接入真实 BUFF / Skinport 实时行情（CLI 已就绪: `ml/data/scraper/fetch_live_prices.py`）
+- [ ] 接入真实 BUFF / Skinport 实时行情（CLI + `/api/skins/{id}/quotes` 已就绪；`USE_BUFF_LIVE=1` 开启真拉取）
 - [ ] 用户系统（登录 / 收藏）
 - [ ] 分类模型输出接入 `/api/predict`
 - [ ] 真·30 日预测（当前 30 日由 7 日外推）

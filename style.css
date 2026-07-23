@@ -1637,6 +1637,33 @@ body.sidebar-open {
   pointer-events: none;
 }
 
+.platform-quotes-loading {
+  padding: 12px 4px 8px;
+}
+
+.platform-spread {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.platform-spread strong {
+  color: var(--accent-orange-light);
+  font-size: 16px;
+}
+
+.platform-quotes-table tr.is-best td {
+  background: rgba(34, 199, 146, 0.08);
+}
+
+.platform-quotes-table tr.is-best td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-green);
+}
+
 .prediction-target {
   display: flex;
   align-items: center;

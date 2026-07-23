@@ -931,6 +931,51 @@ const app = createApp({
       entryHigh: 0,
       targetPrice: 0,
     });
+    const platformQuotes = ref([]);
+    const platformQuotesLoading = ref(false);
+    const platformQuotesMeta = ref({ mode: '', spread: null, fetchedAt: '' });
+
+    const PLATFORM_LABELS = {
+      buff: 'BUFF',
+      skinport: 'Skinport',
+      steam: 'Steam',
+      waxpeer: 'Waxpeer',
+      marketcsgo: 'Market.CSGO',
+      lootfarm: 'Loot.farm',
+      csgotrader: 'CSGOTrader',
+      csfloat: 'CSFloat',
+    };
+    const platformLabel = (key) => PLATFORM_LABELS[key] || key;
+
+    const platformQuotesSorted = computed(() => {
+      return [...platformQuotes.value].sort((a, b) => {
+        if (a.ok && b.ok) return (a.price ?? 0) - (b.price ?? 0);
+        if (a.ok) return -1;
+        if (b.ok) return 1;
+        return String(a.platform).localeCompare(String(b.platform));
+      });
+    });
+
+    const loadPlatformQuotes = async (skinId) => {
+      if (!skinId) return;
+      platformQuotesLoading.value = true;
+      try {
+        const client = window.CSVestAPI;
+        const data = await client.getPlatformQuotes(skinId);
+        platformQuotes.value = Array.isArray(data?.quotes) ? data.quotes : [];
+        platformQuotesMeta.value = {
+          mode: data?.mode || '',
+          spread: data?.spread || null,
+          fetchedAt: data?.fetchedAt || '',
+        };
+      } catch (err) {
+        console.warn('[quotes]', err);
+        platformQuotes.value = [];
+        platformQuotesMeta.value = { mode: '', spread: null, fetchedAt: '' };
+      } finally {
+        platformQuotesLoading.value = false;
+      }
+    };
 
     const syncPredictionMetaFromSkin = (skin) => {
       const price = skin?.price || 0;
@@ -948,6 +993,7 @@ const app = createApp({
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
+        loadPlatformQuotes(skinId);
       }
     };
 
@@ -2180,6 +2226,7 @@ const app = createApp({
         renderKline();
         if (selectedSkin.value?.id) {
           loadExplanation(selectedSkin.value.id);
+          loadPlatformQuotes(selectedSkin.value.id);
         }
       } else if (newPage === 'models') {
         await loadModelsFromApi();
@@ -2212,6 +2259,7 @@ const app = createApp({
         renderKline();
         if (skin?.id) {
           loadExplanation(skin.id);
+          loadPlatformQuotes(skin.id);
         }
       }
     });
@@ -2244,6 +2292,8 @@ const app = createApp({
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
+      platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
+      loadPlatformQuotes, platformLabel,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,

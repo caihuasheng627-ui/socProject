@@ -109,6 +109,42 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/skins/{skinId}/quotes:
+    get:
+      tags: [Dashboard, Prediction]
+      summary: 多平台实时/演示报价
+      description: |
+        聚合 Skinport / Waxpeer / Market.CSGO / Loot.farm / CSGOTrader 等平台报价。
+        `USE_BUFF_LIVE=0` 时返回基于库内基准价的演示价差; 开启后尝试真实拉取。
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platforms
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 逗号分隔平台列表
+          example: skinport,waxpeer,marketcsgo,lootfarm,csgotrader
+        - name: live
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 强制实时拉取; 默认跟随 USE_BUFF_LIVE
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformQuotesResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/skins/{skinId}/kline:
     get:
       tags: [Dashboard, Prediction]
@@ -731,6 +767,73 @@ components:
               type: integer
             daysSinceRelease:
               type: integer
+
+    PlatformQuote:
+      type: object
+      properties:
+        platform:
+          type: string
+        label:
+          type: string
+        currency:
+          type: string
+        price:
+          type: number
+          nullable: true
+        priceNative:
+          type: number
+          nullable: true
+        buyPrice:
+          type: number
+          nullable: true
+        sellPrice:
+          type: number
+          nullable: true
+        volume:
+          type: integer
+          nullable: true
+        ok:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        live:
+          type: boolean
+
+    PlatformQuotesResponse:
+      type: object
+      properties:
+        skinId:
+          type: string
+        marketHashName:
+          type: string
+        basePrice:
+          type: number
+          nullable: true
+        mode:
+          type: string
+          enum: [live, mock, mock_fallback]
+        fetchedAt:
+          type: string
+          format: date-time
+        quotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlatformQuote'
+        spread:
+          type: object
+          nullable: true
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            minPlatform:
+              type: string
+            maxPlatform:
+              type: string
+            spreadPct:
+              type: number
 
     KLinePoint:
       type: object
