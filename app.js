@@ -195,7 +195,6 @@ const app = createApp({
             backtestInstance?.resize();
             shapInstance?.resize();
             inventoryValueChartInstance?.resize();
-            inventoryItemChartInstance?.resize();
           }, 80);
         });
       };
@@ -370,7 +369,6 @@ const app = createApp({
         backtestInstance?.resize();
         shapInstance?.resize();
         inventoryValueChartInstance?.resize();
-        inventoryItemChartInstance?.resize();
       }, 250);
     };
 
@@ -385,7 +383,6 @@ const app = createApp({
         backtestInstance?.resize();
         shapInstance?.resize();
         inventoryValueChartInstance?.resize();
-        inventoryItemChartInstance?.resize();
       }, 300);
     });
     watch(currentPage, () => {
@@ -1756,17 +1753,27 @@ const app = createApp({
     const showInventoryModal = ref(false);
     const newInventory = ref({
       skinId: '',
-      acquirePrice: null,
+      acquirePrice: 0,
       quantity: 1,
       acquireDate: new Date().toISOString().slice(0, 10),
       source: 'manual',
     });
     const selectedInventoryItem = ref(null);
-    const inventoryValueHistory = ref({ dates: [], values: [], total: 0 });
+    const inventoryMenuId = ref(null);
+    const showInventoryEditModal = ref(false);
+    const editingInventory = ref({ id: null, name: '', acquirePrice: 0 });
+    const inventoryValueHistory = ref({ dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 });
     const inventoryValueChart = ref(null);
-    const inventoryItemChart = ref(null);
     let inventoryValueChartInstance = null;
-    let inventoryItemChartInstance = null;
+
+    const getSkinMeta = (skinId) => skins.value.find(s => s.id === skinId) || null;
+
+    const getSkinImage = (skinId) => getSkinMeta(skinId)?.image || '🎯';
+
+    const getSkinChange24h = (skinId) => {
+      const ch = Number(getSkinMeta(skinId)?.change24h);
+      return Number.isFinite(ch) ? ch : 0;
+    };
 
     const getCurrentPrice = (skinId) => {
       const fromPortfolio = portfolio.value.find(p => p.skinId === skinId);
@@ -1823,22 +1830,36 @@ const app = createApp({
     const renderInventoryValueChart = () => {
       if (!inventoryValueChart.value) return;
       inventoryValueChartInstance = getOrCreateChart(inventoryValueChartInstance, inventoryValueChart.value);
-      const hist = inventoryValueHistory.value || { dates: [], values: [] };
+      const hist = inventoryValueHistory.value || {};
       const dates = hist.dates || [];
       const values = hist.values || [];
+      const predictedDates = hist.predictedDates || [];
+      const predictedValues = hist.predictedValues || [];
+      const lastValue = values.length ? values[values.length - 1] : null;
+      const forecastSeries = lastValue == null
+        ? []
+        : new Array(Math.max(dates.length - 1, 0)).fill('-').concat([lastValue], predictedValues);
+
       inventoryValueChartInstance.setOption({
         backgroundColor: 'transparent',
-        grid: { left: 48, right: 16, top: 24, bottom: 32 },
+        animation: true,
+        legend: {
+          data: [t('inventory.valueTrend'), 'AI 预测'],
+          textStyle: { color: '#9ca3af', fontSize: 11 },
+          top: 0,
+        },
+        grid: { left: 52, right: 16, top: 36, bottom: 32 },
         tooltip: {
           trigger: 'axis',
           backgroundColor: '#1f2937',
           borderColor: '#374151',
           textStyle: { color: '#f3f4f6' },
-          valueFormatter: (v) => `$${Number(v).toFixed(2)}`,
+          valueFormatter: (v) => (v == null || v === '-' ? '-' : `$${Number(v).toFixed(2)}`),
         },
         xAxis: {
           type: 'category',
-          data: dates,
+          data: dates.concat(predictedDates),
+          boundaryGap: false,
           axisLabel: { color: '#9ca3af', fontSize: 10 },
           axisLine: { lineStyle: { color: '#374151' } },
         },
@@ -1848,67 +1869,38 @@ const app = createApp({
           axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => `$${v}` },
           splitLine: { lineStyle: { color: '#2a3447' } },
         },
-        series: [{
-          type: 'line',
-          data: values,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2.5, color: '#ff6b00' },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(255,107,0,0.28)' },
-              { offset: 1, color: 'rgba(255,107,0,0.02)' },
-            ]),
+        series: [
+          {
+            name: t('inventory.valueTrend'),
+            type: 'line',
+            data: values.concat(predictedDates.map(() => '-')),
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#ff6b00' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255,107,0,0.28)' },
+                { offset: 1, color: 'rgba(255,107,0,0.02)' },
+              ]),
+            },
           },
-        }],
-      }, true);
-    };
-
-    const renderInventoryItemChart = (item) => {
-      if (!inventoryItemChart.value || !item) return;
-      inventoryItemChartInstance = getOrCreateChart(inventoryItemChartInstance, inventoryItemChart.value);
-      const skin = skins.value.find(s => s.id === item.skinId);
-      const base = skin?.price || item.acquirePrice || getCurrentPrice(item.skinId) || 100;
-      const mock = window.CSVestData.generateKLineData(base, 90, 0.025, 0.0008);
-      const closes = (mock.kline || []).map(d => +d[2]);
-      const dates = (mock.kline || []).map(d => d[0]);
-      inventoryItemChartInstance.setOption({
-        backgroundColor: 'transparent',
-        grid: { left: 48, right: 16, top: 24, bottom: 32 },
-        tooltip: {
-          trigger: 'axis',
-          backgroundColor: '#1f2937',
-          borderColor: '#374151',
-          textStyle: { color: '#f3f4f6' },
-          valueFormatter: (v) => `$${Number(v).toFixed(2)}`,
-        },
-        xAxis: {
-          type: 'category',
-          data: dates,
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          axisLine: { lineStyle: { color: '#374151' } },
-        },
-        yAxis: {
-          type: 'value',
-          scale: true,
-          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => `$${v}` },
-          splitLine: { lineStyle: { color: '#2a3447' } },
-        },
-        series: [{
-          name: item.name,
-          type: 'line',
-          data: closes,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2.5, color: '#3b82f6' },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(59,130,246,0.25)' },
-              { offset: 1, color: 'rgba(59,130,246,0.02)' },
-            ]),
+          {
+            name: 'AI 预测',
+            type: 'line',
+            data: forecastSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#22c792', type: 'dashed' },
+            markLine: predictedDates.length ? {
+              symbol: 'none',
+              label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
+              lineStyle: { color: '#6b7280', type: 'dashed' },
+              data: [{ xAxis: dates[dates.length - 1] }],
+            } : undefined,
           },
-        }],
+        ],
       }, true);
+      allowPageScrollOverChart(inventoryValueChartInstance);
     };
 
     const refreshInventoryCharts = async () => {
@@ -1917,7 +1909,7 @@ const app = createApp({
       try {
         if (client) {
           const hist = await client.getInventoryValueHistory(90);
-          inventoryValueHistory.value = hist || { dates: [], values: [], total: 0 };
+          inventoryValueHistory.value = hist || { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
         } else if (window.CSVestData.generateInventoryValueHistory) {
           inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
         }
@@ -1928,17 +1920,13 @@ const app = createApp({
       }
       nextTick(() => {
         renderInventoryValueChart();
-        if (!selectedInventoryItem.value && myInventory.value.length) {
-          selectedInventoryItem.value = myInventory.value[0];
-        }
-        if (selectedInventoryItem.value) renderInventoryItemChart(selectedInventoryItem.value);
         inventoryValueChartInstance?.resize();
-        inventoryItemChartInstance?.resize();
       });
     };
 
     const setPortfolioTab = (tab) => {
       portfolioTab.value = tab;
+      inventoryMenuId.value = null;
       if (tab === 'inventory' && currentUser.value) {
         loadInventoryFromApi().then(() => refreshInventoryCharts());
       } else if (tab === 'sim') {
@@ -1947,12 +1935,48 @@ const app = createApp({
       }
     };
 
-    const selectInventoryItem = (item) => {
-      selectedInventoryItem.value = item;
-      nextTick(() => {
-        renderInventoryItemChart(item);
-        inventoryItemChartInstance?.resize();
-      });
+    const openInventoryItem = (item) => {
+      inventoryMenuId.value = null;
+      if (item?.skinId) viewSkin(item.skinId);
+    };
+
+    const toggleInventoryMenu = (id) => {
+      inventoryMenuId.value = inventoryMenuId.value === id ? null : id;
+    };
+
+    const closeInventoryMenu = () => {
+      inventoryMenuId.value = null;
+    };
+
+    const openEditInventoryPrice = (item) => {
+      if (!item) return;
+      inventoryMenuId.value = null;
+      editingInventory.value = {
+        id: item.id,
+        name: item.name,
+        acquirePrice: item.acquirePrice != null ? +item.acquirePrice : 0,
+      };
+      showInventoryEditModal.value = true;
+    };
+
+    const saveInventoryPrice = async () => {
+      if (!requireInventoryLogin()) return;
+      const id = editingInventory.value.id;
+      if (id == null) return;
+      const price = Number(editingInventory.value.acquirePrice);
+      const nextPrice = Number.isFinite(price) ? price : 0;
+      const idx = myInventory.value.findIndex(p => p.id === id);
+      if (idx >= 0) {
+        myInventory.value[idx] = {
+          ...myInventory.value[idx],
+          acquirePrice: nextPrice,
+        };
+        // 预留：后端对接后在此调用 PATCH /api/inventory/{id}
+        showToast({ title: t('inventory.updated'), subtitle: editingInventory.value.name || '', type: 'success' });
+        await refreshInventoryCharts();
+      }
+      showInventoryEditModal.value = false;
+      editingInventory.value = { id: null, name: '', acquirePrice: 0 };
     };
 
     const addPortfolio = async () => {
@@ -2002,9 +2026,10 @@ const app = createApp({
       if (!requireInventoryLogin()) return;
       if (!newInventory.value.skinId) return;
       const skin = skins.value.find(s => s.id === newInventory.value.skinId);
+      const rawPrice = newInventory.value.acquirePrice;
       const payload = {
         skinId: newInventory.value.skinId,
-        acquirePrice: newInventory.value.acquirePrice != null ? +newInventory.value.acquirePrice : (skin?.price || 0),
+        acquirePrice: rawPrice != null && rawPrice !== '' && Number.isFinite(+rawPrice) ? +rawPrice : 0,
         quantity: +newInventory.value.quantity || 1,
         acquireDate: newInventory.value.acquireDate,
         source: 'manual',
@@ -2029,7 +2054,7 @@ const app = createApp({
       showInventoryModal.value = false;
       newInventory.value = {
         skinId: '',
-        acquirePrice: null,
+        acquirePrice: 0,
         quantity: 1,
         acquireDate: new Date().toISOString().slice(0, 10),
         source: 'manual',
@@ -2038,6 +2063,7 @@ const app = createApp({
 
     const removeInventoryItem = async (id) => {
       if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
       try {
         const client = api();
         if (client && apiOnline.value) {
@@ -2054,6 +2080,7 @@ const app = createApp({
 
     const importSteamInventory = async () => {
       if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
       showToast({
         title: t('inventory.steamPending'),
         subtitle: t('inventory.steamPending.desc'),
@@ -2447,7 +2474,6 @@ const app = createApp({
         backtestInstance?.resize();
         shapInstance?.resize();
         inventoryValueChartInstance?.resize();
-        inventoryItemChartInstance?.resize();
       });
 
       // 网络状态监听
@@ -2601,9 +2627,12 @@ const app = createApp({
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
       portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
       myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
-      importSteamInventory, selectInventoryItem, selectedInventoryItem,
+      importSteamInventory, openInventoryItem,
+      inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
+      showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
       inventoryItemCount, inventoryTotalValue, inventorySourceLabel,
-      inventoryValueChart, inventoryItemChart, inventoryValueHistory,
+      getSkinImage, getSkinChange24h,
+      inventoryValueChart, inventoryValueHistory,
       refreshInventoryCharts,
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,

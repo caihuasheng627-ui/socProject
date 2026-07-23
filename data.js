@@ -207,29 +207,67 @@ const DEFAULT_INVENTORY = [
   { id: 104, skinId: 'usps-killconfirmed-ft', name: 'USP-S | Kill Confirmed (FT)', acquirePrice: 18.90, quantity: 6, acquireDate: '2026-07-01', source: 'manual' },
 ];
 
-/** 根据库存与饰品现价，生成库存总价值历史曲线（前端 mock，后端对接后走 API） */
-function generateInventoryValueHistory(inventory, days = 90) {
+/** 根据库存与饰品现价，生成库存总价值历史 + 预测曲线（前端 mock，后端对接后走 API） */
+function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
   const dates = [];
   const values = [];
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
-  const baseTotal = (inventory || []).reduce((sum, item) => {
+  const items = inventory || [];
+  const baseTotal = items.reduce((sum, item) => {
     const skin = SKINS_POOL.find(s => s.id === item.skinId);
     const price = skin?.price ?? item.acquirePrice ?? 0;
     return sum + price * (item.quantity || 1);
   }, 0) || 1000;
 
+  // 按市值加权的 24h 涨跌，用于预测段斜率
+  let weightSum = 0;
+  let weightedChange = 0;
+  items.forEach((item) => {
+    const skin = SKINS_POOL.find(s => s.id === item.skinId);
+    const price = skin?.price ?? item.acquirePrice ?? 0;
+    const w = price * (item.quantity || 1);
+    weightSum += w;
+    weightedChange += w * ((skin?.change24h ?? 0) / 100);
+  });
+  const dailyPred = weightSum > 0 ? weightedChange / Math.max(forecastDays, 1) : 0.002;
+
   let cursor = baseTotal * 0.88;
   for (let i = days; i >= 0; i--) {
     const d = new Date(now - i * dayMs);
-    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
     const drift = (Math.random() - 0.48) * 0.012 * cursor;
     cursor = Math.max(cursor + drift, baseTotal * 0.6);
     values.push(+cursor.toFixed(2));
   }
   // 末日对齐当前总市值
   if (values.length) values[values.length - 1] = +baseTotal.toFixed(2);
-  return { dates, values, total: +baseTotal.toFixed(2) };
+
+  const predictedDates = [];
+  const predictedValues = [];
+  let predCursor = baseTotal;
+  let seed = Math.round(baseTotal) % 997;
+  const rand = () => {
+    seed = (seed * 137 + 71) % 997;
+    return seed / 997 - 0.5;
+  };
+  for (let i = 1; i <= forecastDays; i++) {
+    const d = new Date(now + i * dayMs);
+    predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
+    const t = i / forecastDays;
+    const eased = 1 - Math.pow(1 - t, 2);
+    const wiggle = i === forecastDays ? 0 : rand() * 0.006;
+    predCursor = baseTotal * (1 + dailyPred * forecastDays * eased + wiggle);
+    predictedValues.push(+predCursor.toFixed(2));
+  }
+
+  return {
+    dates,
+    values,
+    predictedDates,
+    predictedValues,
+    total: +baseTotal.toFixed(2),
+  };
 }
 
 // 风险指标生成

@@ -1325,7 +1325,7 @@
                 <div class="summary-card">
                   <div class="summary-label">{{ t('inventory.count') }}</div>
                   <div class="summary-value">{{ inventoryItemCount }}</div>
-                  <div class="summary-delta text-muted">{{ myInventory.length }} SKU</div>
+                  <div class="summary-delta text-muted">{{ t('inventory.skuUnit', { count: myInventory.length }) }}</div>
                 </div>
                 <div class="summary-card">
                   <div class="summary-label">{{ t('inventory.totalValue') }}</div>
@@ -1343,71 +1343,78 @@
                 <div ref="inventoryValueChart" class="inventory-chart"></div>
               </div>
 
-              <div class="inventory-grid">
-                <div class="card">
-                  <div class="card-header">
-                    <div class="card-title">{{ t('inventory.list') }}</div>
-                    <span class="tag">{{ t('inventory.countUnit', { count: myInventory.length }) }}</span>
-                  </div>
-                  <div v-if="!myInventory.length" class="inventory-empty text-muted text-sm">
-                    {{ t('inventory.empty') }}
-                  </div>
-                  <div v-else class="table-scroll">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>{{ t('alerts.skin') }}</th>
-                          <th>{{ t('inventory.source') }}</th>
-                          <th>{{ t('inventory.acquirePrice') }}</th>
-                          <th>{{ t('portfolio.quantity') }}</th>
-                          <th>{{ t('portfolio.currentPrice') }}</th>
-                          <th>{{ t('portfolio.marketValue') }}</th>
-                          <th>{{ t('inventory.acquireDate') }}</th>
-                          <th>{{ t('alerts.actions') }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr
-                          v-for="item in myInventory"
-                          :key="item.id"
-                          class="inventory-row"
-                          :class="{ active: selectedInventoryItem && selectedInventoryItem.id === item.id }"
-                          @click="selectInventoryItem(item)"
-                        >
-                          <td><strong>{{ item.name }}</strong></td>
-                          <td>
-                            <span class="tag" :class="item.source === 'steam' ? 'tag-blue' : 'tag-orange'">
-                              {{ inventorySourceLabel(item.source) }}
-                            </span>
-                          </td>
-                          <td>${{ formatPrice(item.acquirePrice) }}</td>
-                          <td>{{ item.quantity }}</td>
-                          <td>${{ formatPrice(getCurrentPrice(item.skinId)) }}</td>
-                          <td>${{ formatPrice(getCurrentPrice(item.skinId) * item.quantity) }}</td>
-                          <td class="text-muted text-sm">{{ item.acquireDate }}</td>
-                          <td @click.stop>
-                            <button class="btn btn-ghost btn-sm" @click="selectInventoryItem(item)">{{ t('inventory.viewTrend') }}</button>
-                            <button class="btn btn-ghost btn-sm" @click="removeInventoryItem(item.id)">{{ t('inventory.remove') }}</button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">{{ t('inventory.list') }}</div>
+                  <span class="tag">{{ t('inventory.countUnit', { count: inventoryItemCount }) }}</span>
                 </div>
-
-                <div class="card">
-                  <div class="card-header">
-                    <div>
-                      <div class="card-title">{{ t('inventory.itemTrend') }}</div>
-                      <div class="card-subtitle">
-                        {{ selectedInventoryItem ? selectedInventoryItem.name : t('inventory.itemTrendHint') }}
+                <div v-if="!myInventory.length" class="inventory-empty text-muted text-sm">
+                  {{ t('inventory.empty') }}
+                </div>
+                <div v-else class="inv-item-grid" role="list" @click="closeInventoryMenu">
+                  <article
+                    v-for="(item, idx) in myInventory"
+                    :key="item.id"
+                    class="inv-item"
+                    role="listitem"
+                    :style="{ '--inv-delay': Math.min(idx, 12) * 28 + 'ms' }"
+                  >
+                    <button
+                      type="button"
+                      class="inv-item__main"
+                      @click="openInventoryItem(item)"
+                    >
+                      <span class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</span>
+                      <div class="inv-item__info">
+                        <div class="inv-item__name">{{ item.name }}</div>
+                        <div class="inv-item__sub">
+                          <span class="tag" :class="item.source === 'steam' ? 'tag-blue' : 'tag-orange'">
+                            {{ inventorySourceLabel(item.source) }}
+                          </span>
+                          <span>×{{ item.quantity }}</span>
+                        </div>
+                      </div>
+                      <div class="inv-item__quote">
+                        <div class="inv-item__price">${{ formatPrice(getCurrentPrice(item.skinId)) }}</div>
+                        <div
+                          class="inv-item__change"
+                          :class="getSkinChange24h(item.skinId) >= 0 ? 'change-up' : 'change-down'"
+                        >
+                          <i
+                            :class="getSkinChange24h(item.skinId) >= 0 ? 'ph-bold ph-caret-up' : 'ph-bold ph-caret-down'"
+                            aria-hidden="true"
+                          ></i>
+                          <span>{{ formatChange(getSkinChange24h(item.skinId)) }}</span>
+                        </div>
+                      </div>
+                    </button>
+                    <div class="inv-item__more" @click.stop>
+                      <button
+                        type="button"
+                        class="inv-item__more-btn"
+                        :aria-label="t('inventory.moreActions')"
+                        :aria-expanded="inventoryMenuId === item.id"
+                        @click="toggleInventoryMenu(item.id)"
+                      >
+                        <i class="ph-bold ph-dots-three" aria-hidden="true"></i>
+                      </button>
+                      <div
+                        v-if="inventoryMenuId === item.id"
+                        class="inv-item__menu"
+                        role="menu"
+                      >
+                        <button type="button" class="inv-item__menu-item" role="menuitem" @click="openInventoryItem(item)">
+                          {{ t('inventory.viewDetail') }}
+                        </button>
+                        <button type="button" class="inv-item__menu-item" role="menuitem" @click="openEditInventoryPrice(item)">
+                          {{ t('inventory.editPrice') }}
+                        </button>
+                        <button type="button" class="inv-item__menu-item danger" role="menuitem" @click="removeInventoryItem(item.id)">
+                          {{ t('inventory.remove') }}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div v-if="!selectedInventoryItem" class="inventory-empty text-muted text-sm">
-                    {{ t('inventory.itemTrendHint') }}
-                  </div>
-                  <div v-show="selectedInventoryItem" ref="inventoryItemChart" class="inventory-chart"></div>
+                  </article>
                 </div>
               </div>
             </template>
@@ -1758,6 +1765,25 @@
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="showInventoryModal = false">{{ t('common.cancel') }}</button>
           <button class="btn btn-primary" @click="addInventoryItem">{{ t('common.add') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑入手价弹窗 -->
+    <div v-if="showInventoryEditModal && currentUser" class="modal-mask" @click.self="showInventoryEditModal = false" role="dialog" aria-modal="true">
+      <div class="modal">
+        <div class="modal-title">
+          <span>{{ t('inventory.editModal.title') }}</span>
+          <button class="modal-close" @click="showInventoryEditModal = false" :aria-label="t('common.close')">×</button>
+        </div>
+        <p class="text-muted text-sm mb-3">{{ editingInventory.name }}</p>
+        <div class="form-group">
+          <label class="form-label">{{ t('inventory.modal.acquirePrice') }}</label>
+          <input type="number" class="form-input" v-model.number="editingInventory.acquirePrice" :placeholder="t('inventory.modal.acquirePrice.placeholder')" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showInventoryEditModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" @click="saveInventoryPrice">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>
