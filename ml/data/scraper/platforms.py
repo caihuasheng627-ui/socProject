@@ -4,9 +4,14 @@
 统一输出字段见 Quote.to_dict()。
 
 平台:
-  - Skinport — 公开 API(需 Brotli Accept-Encoding)
-  - BUFF     — 需登录 Cookie(环境变量 BUFF_SESSION)
-  - Steam    — Community Market priceoverview(限流严格)
+  - Skinport   — 公开 API(需 Brotli Accept-Encoding)
+  - BUFF       — 需登录 Cookie(环境变量 BUFF_SESSION)
+  - Steam      — Community Market priceoverview(限流严格)
+  - Waxpeer    — 公开全量价表(价格单位 0.001 USD)
+  - MarketCSGO — market.csgo.com 公开 USD 价表
+  - Lootfarm   — loot.farm fullprice(美分)
+  - CSGOTrader — prices.csgotrader.app Steam 均价聚合
+  - CSFloat    — 挂单最低价(限流严格)
 
 注意: 仅用于课程演示 / 个人研究; 请遵守各平台 ToS, 控制请求频率。
 """
@@ -429,10 +434,328 @@ class SteamClient(PlatformClient):
         return out
 
 
+class CatalogClient(PlatformClient):
+    """一次拉全量价表再本地过滤的通用基类。"""
+
+    cache_ttl = 90.0
+
+    def __init__(self, client: httpx.Client | None = None):
+        super().__init__(client, timeout=90.0)
+        self._cache: dict[str, dict] | None = None
+        self._cache_at: float = 0.0
+
+    def _headers(self) -> dict[str, str]:
+        return {"User-Agent": DEFAULT_UA, "Accept": "application/json"}
+
+    def _load_catalog(self, force: bool = False) -> dict[str, dict]:
+        now = time.time()
+        if (
+            not force
+            and self._cache is not None
+            and (now - self._cache_at) < self.cache_ttl
+        ):
+            return self._cache
+        self._cache = self._fetch_catalog()
+        self._cache_at = now
+        return self._cache
+
+    def _fetch_catalog(self) -> dict[str, dict]:
+        raise NotImplementedError
+
+    def _quote_from_item(self, name: str, it: dict) -> Quote:
+        raise NotImplementedError
+
+    def fetch_quotes(self, names: Iterable[str]) -> list[Quote]:
+        try:
+            catalog = self._load_catalog()
+        except Exception as e:
+            return [
+                Quote(
+                    market_hash_name=n,
+                    platform=self.name,
+                    currency="USD",
+                    price=None,
+                    ok=False,
+                    error=str(e),
+                )
+                for n in names
+            ]
+        out: list[Quote] = []
+        for name in names:
+            it = catalog.get(name)
+            if not it:
+                out.append(
+                    Quote(
+                        market_hash_name=name,
+                        platform=self.name,
+                        currency="USD",
+                        price=None,
+                        ok=False,
+                        error="NOT_FOUND",
+                    )
+                )
+            else:
+                out.append(self._quote_from_item(name, it))
+        return out
+
+
+class WaxpeerClient(CatalogClient):
+    """Waxpeer 公开价表。min / steam_price 单位为 0.001 USD(千分之一美元)。"""
+
+    name = "waxpeer"
+    URL = "https://api.waxpeer.com/v1/prices"
+
+    def _fetch_catalog(self) -> dict[str, dict]:
+        r = self.client.get(self.URL, params={"game": "csgo"}, headers=self._headers())
+        r.raise_for_status()
+        data = r.json()
+        if not data.get("success"):
+            raise RuntimeError(f"waxpeer error: {data}")
+        catalog: dict[str, dict] = {}
+        for it in data.get("items") or []:
+            n = it.get("name")
+            if n:
+                catalog[n] = it
+        return catalog
+
+    def _quote_from_item(self, name: str, it: dict) -> Quote:
+        raw_min = parse_money(it.get("min"))
+        price = round(raw_min / 1000.0, 4) if raw_min is not None else None
+        steam_raw = parse_money(it.get("steam_price"))
+        steam = round(steam_raw / 1000.0, 4) if steam_raw is not None else None
+        count = it.get("count")
+        return Quote(
+            market_hash_name=name,
+            platform=self.name,
+            currency="USD",
+            price=price,
+            price_native=price,
+            sell_price=price,
+            volume=int(count) if count is not None else None,
+            ok=price is not None,
+            error=None if price is not None else "NO_PRICE",
+            extra={"steam_price": steam, "type": it.get("type")},
+        )
+
+
+class MarketCsgoClient(CatalogClient):
+    """market.csgo.com 公开 USD 价表。"""
+
+    name = "marketcsgo"
+    URL = "https://market.csgo.com/api/v2/prices/USD.json"
+
+    def _fetch_catalog(self) -> dict[str, dict]:
+        r = self.client.get(self.URL, headers=self._headers())
+        r.raise_for_status()
+        data = r.json()
+        if not data.get("success"):
+            raise RuntimeError(f"marketcsgo error: {data}")
+        catalog: dict[str, dict] = {}
+        for it in data.get("items") or []:
+            n = it.get("market_hash_name")
+            if n:
+                catalog[n] = it
+        return catalog
+
+    def _quote_from_item(self, name: str, it: dict) -> Quote:
+        price = parse_money(it.get("price"))
+        vol = parse_money(it.get("volume"))
+        return Quote(
+            market_hash_name=name,
+            platform=self.name,
+            currency="USD",
+            price=price,
+            price_native=price,
+            sell_price=price,
+            volume=int(vol) if vol is not None else None,
+            ok=price is not None,
+            error=None if price is not None else "NO_PRICE",
+        )
+
+
+class LootfarmClient(CatalogClient):
+    """Loot.farm fullprice — price 为美分。"""
+
+    name = "lootfarm"
+    URL = "https://loot.farm/fullprice.json"
+
+    def _fetch_catalog(self) -> dict[str, dict]:
+        r = self.client.get(self.URL, headers=self._headers())
+        r.raise_for_status()
+        items = r.json()
+        catalog: dict[str, dict] = {}
+        for it in items:
+            n = it.get("name")
+            if n:
+                catalog[n] = it
+        return catalog
+
+    def _quote_from_item(self, name: str, it: dict) -> Quote:
+        raw = parse_money(it.get("price"))
+        price = round(raw / 100.0, 4) if raw is not None else None
+        have = it.get("have")
+        return Quote(
+            market_hash_name=name,
+            platform=self.name,
+            currency="USD",
+            price=price,
+            price_native=price,
+            sell_price=price,
+            volume=int(have) if have is not None else None,
+            ok=price is not None,
+            error=None if price is not None else "NO_PRICE",
+            extra={
+                "max": it.get("max"),
+                "rate": it.get("rate"),
+                "tr": it.get("tr"),
+                "res": it.get("res"),
+            },
+        )
+
+
+class CsgoTraderClient(CatalogClient):
+    """CSGO Trader 扩展聚合的 Steam 近期均价(非挂单实时,但更新频繁)。"""
+
+    name = "csgotrader"
+    URL = "https://prices.csgotrader.app/latest/steam.json"
+
+    def _fetch_catalog(self) -> dict[str, dict]:
+        r = self.client.get(self.URL, headers=self._headers())
+        r.raise_for_status()
+        data = r.json()
+        # { market_hash_name: {last_24h, last_7d, ...} }
+        return {k: v for k, v in data.items() if isinstance(v, dict)}
+
+    def _quote_from_item(self, name: str, it: dict) -> Quote:
+        price = parse_money(it.get("last_24h"))
+        if price is None:
+            price = parse_money(it.get("last_7d"))
+        return Quote(
+            market_hash_name=name,
+            platform=self.name,
+            currency="USD",
+            price=price,
+            price_native=price,
+            sell_price=price,
+            ok=price is not None,
+            error=None if price is not None else "NO_PRICE",
+            extra={
+                "last_24h": parse_money(it.get("last_24h")),
+                "last_7d": parse_money(it.get("last_7d")),
+                "last_30d": parse_money(it.get("last_30d")),
+                "last_90d": parse_money(it.get("last_90d")),
+            },
+        )
+
+
+class CsfloatClient(PlatformClient):
+    """CSFloat 挂单最低价(美分)。公开接口限流严格,失败会标记 RATE_LIMITED。"""
+
+    name = "csfloat"
+    URL = "https://csfloat.com/api/v1/listings"
+
+    def __init__(
+        self,
+        client: httpx.Client | None = None,
+        request_interval: float = 1.5,
+        max_retries: int = 2,
+    ):
+        super().__init__(client)
+        self.request_interval = request_interval
+        self.max_retries = max_retries
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "User-Agent": DEFAULT_UA,
+            "Accept": "application/json",
+            "Referer": "https://csfloat.com/search",
+            "Origin": "https://csfloat.com",
+        }
+
+    def fetch_one(self, name: str) -> Quote:
+        last_err = "UNKNOWN"
+        for attempt in range(self.max_retries):
+            try:
+                r = self.client.get(
+                    self.URL,
+                    params={
+                        "market_hash_name": name,
+                        "limit": 1,
+                        "type": "buy_now",
+                        "sort_by": "lowest_price",
+                    },
+                    headers=self._headers(),
+                )
+                if r.status_code == 429:
+                    last_err = "RATE_LIMITED"
+                    time.sleep(3 * (attempt + 1))
+                    continue
+                if r.status_code != 200:
+                    last_err = f"HTTP_{r.status_code}"
+                    time.sleep(1.5)
+                    continue
+                data = r.json()
+                # 新旧字段兼容: data 列表 或 {data:[...]}
+                rows = data if isinstance(data, list) else (data.get("data") or [])
+                if not rows:
+                    return Quote(
+                        market_hash_name=name,
+                        platform=self.name,
+                        currency="USD",
+                        price=None,
+                        ok=False,
+                        error="NOT_FOUND",
+                    )
+                row = rows[0]
+                raw = parse_money(row.get("price"))
+                price = round(raw / 100.0, 4) if raw is not None else None
+                item = row.get("item") or {}
+                matched = item.get("market_hash_name") or name
+                return Quote(
+                    market_hash_name=matched,
+                    platform=self.name,
+                    currency="USD",
+                    price=price,
+                    price_native=price,
+                    sell_price=price,
+                    volume=len(rows),
+                    ok=price is not None,
+                    error=None if price is not None else "NO_PRICE",
+                    extra={
+                        "listing_id": row.get("id"),
+                        "float_value": (item.get("float_value") if isinstance(item, dict) else None),
+                    },
+                )
+            except Exception as e:
+                last_err = str(e)
+                time.sleep(1.5 * (attempt + 1))
+        return Quote(
+            market_hash_name=name,
+            platform=self.name,
+            currency="USD",
+            price=None,
+            ok=False,
+            error=last_err,
+        )
+
+    def fetch_quotes(self, names: Iterable[str]) -> list[Quote]:
+        out: list[Quote] = []
+        for i, name in enumerate(names):
+            if i > 0 and self.request_interval > 0:
+                time.sleep(self.request_interval)
+            out.append(self.fetch_one(name))
+        return out
+
+
 PLATFORM_REGISTRY: dict[str, type[PlatformClient]] = {
     "skinport": SkinportClient,
     "buff": BuffClient,
     "steam": SteamClient,
+    "waxpeer": WaxpeerClient,
+    "marketcsgo": MarketCsgoClient,
+    "lootfarm": LootfarmClient,
+    "csgotrader": CsgoTraderClient,
+    "csfloat": CsfloatClient,
 }
 
 
@@ -443,8 +766,7 @@ def build_clients(
     clients: list[PlatformClient] = []
     for p in platforms:
         key = p.strip().lower()
-        cls = PLATFORM_REGISTRY.get(key)
-        if not cls:
+        if key not in PLATFORM_REGISTRY:
             raise ValueError(f"未知平台: {p} (可选: {', '.join(PLATFORM_REGISTRY)})")
         if key == "buff":
             rate = kwargs.get("usd_cny_rate")
@@ -459,8 +781,25 @@ def build_clients(
             clients.append(
                 SteamClient(request_interval=float(kwargs.get("steam_interval", 3.0)))
             )
-        else:
+        elif key == "skinport":
             clients.append(SkinportClient(currency=kwargs.get("currency", "USD")))
+        elif key == "csfloat":
+            clients.append(
+                CsfloatClient(
+                    request_interval=float(kwargs.get("csfloat_interval", 1.5))
+                )
+            )
+        elif key == "waxpeer":
+            clients.append(WaxpeerClient())
+        elif key == "marketcsgo":
+            clients.append(MarketCsgoClient())
+        elif key == "lootfarm":
+            clients.append(LootfarmClient())
+        elif key == "csgotrader":
+            clients.append(CsgoTraderClient())
+        else:
+            # 兜底: 无参构造
+            clients.append(PLATFORM_REGISTRY[key]())
     return clients
 
 

@@ -12,9 +12,14 @@ sys.path.insert(0, str(HERE))
 
 from platforms import (  # noqa: E402
     BuffClient,
+    CsfloatClient,
+    CsgoTraderClient,
+    LootfarmClient,
+    MarketCsgoClient,
     Quote,
     SkinportClient,
     SteamClient,
+    WaxpeerClient,
     parse_money,
 )
 from fetch_live_prices import (  # noqa: E402
@@ -134,6 +139,81 @@ def test_steam_fetch_one_ok():
     q = steam.fetch_one("AK-47 | Redline (Field-Tested)")
     assert q.ok and q.price == 29.41 and q.volume == 1234
     steam.close()
+
+
+def test_waxpeer_marketcsgo_lootfarm_csgotrader_csfloat():
+    name = "AK-47 | Redline (Field-Tested)"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "waxpeer" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "items": [
+                        {"name": name, "min": 31450, "steam_price": 29802, "count": 10}
+                    ],
+                },
+            )
+        if "market.csgo.com" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "items": [
+                        {"market_hash_name": name, "price": "29.759", "volume": "452"}
+                    ],
+                },
+            )
+        if "loot.farm" in url:
+            return httpx.Response(
+                200,
+                json=[{"name": name, "price": 5135, "have": 2, "max": 5, "rate": 122}],
+            )
+        if "csgotrader" in url:
+            return httpx.Response(
+                200,
+                json={name: {"last_24h": 30.1, "last_7d": 29.8, "last_30d": 28.0}},
+            )
+        if "csfloat" in url:
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "abc",
+                        "price": 2842,
+                        "item": {"market_hash_name": name, "float_value": 0.18},
+                    }
+                ],
+            )
+        return httpx.Response(404, json={"error": "unexpected"})
+
+    transport = httpx.MockTransport(handler)
+
+    w = WaxpeerClient(client=httpx.Client(transport=transport))
+    assert abs(w.fetch_quotes([name])[0].price - 31.45) < 1e-6
+    w.close()
+
+    m = MarketCsgoClient(client=httpx.Client(transport=transport))
+    q = m.fetch_quotes([name])[0]
+    assert q.ok and q.price == 29.759 and q.volume == 452
+    m.close()
+
+    lf = LootfarmClient(client=httpx.Client(transport=transport))
+    q = lf.fetch_quotes([name])[0]
+    assert q.ok and abs(q.price - 51.35) < 1e-6
+    lf.close()
+
+    ct = CsgoTraderClient(client=httpx.Client(transport=transport))
+    q = ct.fetch_quotes([name])[0]
+    assert q.ok and q.price == 30.1
+    ct.close()
+
+    cf = CsfloatClient(client=httpx.Client(transport=transport), request_interval=0)
+    q = cf.fetch_one(name)
+    assert q.ok and abs(q.price - 28.42) < 1e-6
+    cf.close()
 
 
 def test_write_csv_and_resolve_names(tmp_path: Path):

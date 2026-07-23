@@ -157,17 +157,19 @@ python scraper/fetch_buff_val.py
 cd socProject/ml/data/scraper
 pip install -r requirements.txt
 
-# Skinport 公开 API(无需 Cookie; 需 Brotli)
-python fetch_live_prices.py --platforms skinport --limit 10
+# 免 Cookie 批量平台(推荐默认)
+python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm,csgotrader --limit 10
 
-# BUFF 需登录 Cookie + Steam(限流严格)
+# BUFF 需登录 Cookie; Steam/CSFloat 限流严格
 export BUFF_SESSION='your_buff_session_cookie'
-python fetch_live_prices.py --platforms skinport,buff,steam --spread \\
+python fetch_live_prices.py --platforms skinport,buff,steam,csfloat --spread \\
     --items "AK-47 | Redline (Field-Tested)" "AWP | Asiimov (Field-Tested)"
 
 # 轮询写入 live_quotes.csv
-python fetch_live_prices.py --platforms skinport --watch --interval 120 --append
+python fetch_live_prices.py --platforms waxpeer,marketcsgo --watch --interval 120 --append
 ```
+
+支持平台: `skinport` / `buff` / `steam` / `waxpeer` / `marketcsgo` / `lootfarm` / `csgotrader` / `csfloat`。
 
 输出字段: `fetched_at, platform, market_hash_name, currency, price, price_native, buy_price, sell_price, volume, ok, error`。
 BUFF 价格按 `USD_CNY_RATE`(默认 7.2)换算为 USD 写入 `price`。

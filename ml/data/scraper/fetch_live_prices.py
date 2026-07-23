@@ -2,25 +2,26 @@
 """
 多平台 CS2 饰品实时行情采集
 ============================
-聚合 Skinport / BUFF / Steam 当前挂单价, 输出统一 CSV / JSON。
+聚合 Skinport / BUFF / Steam / Waxpeer / MarketCSGO / Lootfarm /
+CSGOTrader / CSFloat 当前报价, 输出统一 CSV / JSON。
 
 用法示例:
-  # 默认 watchlist + Skinport(无需 Cookie)
-  python fetch_live_prices.py --platforms skinport
+  # 默认 watchlist + 免 Cookie 批量平台
+  python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm,csgotrader
 
-  # 三平台 + 自定义物品
+  # 含需 Cookie / 限流平台
   export BUFF_SESSION='你的 buff.163.com session cookie'
   python fetch_live_prices.py \\
-      --platforms skinport,buff,steam \\
+      --platforms skinport,buff,steam,csfloat \\
       --items "AK-47 | Redline (Field-Tested)" "AWP | Asiimov (Field-Tested)"
 
   # 从训练集 CSV 取前 20 件, 持续轮询
   python fetch_live_prices.py \\
       --from-csv ../training_dataset.csv --limit 20 \\
-      --platforms skinport --watch --interval 120
+      --platforms waxpeer,marketcsgo --watch --interval 120
 
-  # 仅对比价差(跨平台)
-  python fetch_live_prices.py --platforms skinport,steam --spread
+  # 跨平台价差
+  python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm --spread
 
 环境变量:
   BUFF_SESSION     BUFF Cookie `session` 值(F12 → Application → Cookies)
@@ -60,12 +61,12 @@ from platforms import (  # noqa: E402
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Crawl real-time CS2 skin quotes from Skinport / BUFF / Steam",
+        description="Crawl real-time CS2 skin quotes from multiple marketplaces",
     )
     p.add_argument(
         "--platforms",
-        default="skinport",
-        help=f"逗号分隔平台列表, 可选: {','.join(PLATFORM_REGISTRY)} (默认 skinport)",
+        default="skinport,waxpeer,marketcsgo",
+        help=f"逗号分隔平台列表, 可选: {','.join(PLATFORM_REGISTRY)}",
     )
     p.add_argument("--items", nargs="*", help="market_hash_name 列表; 省略则用默认 watchlist")
     p.add_argument("--from-csv", help="从 CSV 读取物品名(列 market_hash_name)")
