@@ -1489,6 +1489,76 @@ body.sidebar-open {
   border-top: 1px solid var(--border-color);
 }
 
+.chat-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 10px;
+  background: var(--bg-root);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.chat-mode-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: calc(var(--radius-md) - 2px);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.chat-mode-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.chat-mode-btn.active {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 1px var(--border-accent);
+}
+
+.chat-mode-hint {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.chat-debate-card {
+  width: 100%;
+}
+
+.chat-debate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.chat-debate-consensus {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.chat-debate-metric {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.chat-debate-metric.accent { color: var(--accent-orange); }
+.chat-debate-metric.up { color: var(--accent-green); }
+.chat-debate-metric.down { color: var(--accent-red); }
+
 .chat-input {
   width: 100%;
   background: var(--bg-root);

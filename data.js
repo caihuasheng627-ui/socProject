@@ -264,6 +264,13 @@ const SUGGESTED_QUESTIONS = [
   '📊 模型对比结果怎么样?',
 ];
 
+const DEBATE_SUGGESTED_QUESTIONS = [
+  '🐂🐻 对 AK-47 火蛇发起牛熊辩论',
+  '🐂🐻 龙狙现在多空怎么看?',
+  '🐂🐻 红线该不该买?开辩论',
+  '🐂🐻 Asiimov 三轮多空对决',
+];
+
 // 导出到全局
 window.CSVestData = {
   SKINS_POOL,
@@ -281,6 +288,7 @@ window.CSVestData = {
   calculateRiskMetrics,
   AI_PRESET_RESPONSES,
   SUGGESTED_QUESTIONS,
+  DEBATE_SUGGESTED_QUESTIONS,
   HYBRID_ROUTE: MODEL_COMPARISON.hybridRoute,
 };
 // Legacy alias (pre-rebrand)
