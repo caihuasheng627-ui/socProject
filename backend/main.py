@@ -483,10 +483,22 @@ def admin_probe_embed(_: dict = Depends(get_admin_user)):
     import time
     t0 = time.time()
     try:
-        from config import RAG_EMBED_ENABLED
+        from config import RAG_EMBED_ENABLED, RAG_EMBED_MODEL
         if not RAG_EMBED_ENABLED:
             return {"ok": False, "provider": "dashscope",
                     "latencyMs": 0, "error": "未配置 DASHSCOPE_API_KEY 或未启用向量检索"}
+        model = (RAG_EMBED_MODEL or "").strip().lower()
+        if "rerank" in model:
+            return {
+                "ok": False,
+                "provider": "dashscope",
+                "latencyMs": 0,
+                "model": RAG_EMBED_MODEL,
+                "error": (
+                    f"模型「{RAG_EMBED_MODEL}」是重排序(Rerank)，不能用于向量检索。"
+                    "请改成 text-embedding-v3 或 text-embedding-v4 后再测。"
+                ),
+            }
         vecs = rag._embed_texts(["CS2 饰品市场测试向量"])
         ms = int((time.time() - t0) * 1000)
         dim = int(vecs.shape[1]) if vecs.size else 0
