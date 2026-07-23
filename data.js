@@ -90,29 +90,29 @@ const NEWS_FEED = [
   { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', relatedSkins: [] },
 ];
 
-// 模型对比：公平 test（35,229 行 · 154 件 · horizon=7）
-// 来源 ml/outputs/compare_results_test.json · 2026-07-20
-// returnPct 来自同契约回测 fee=0（10 件子集演示曲线，非 154 件主结论）
+// 模型对比：公平 test（25,702 行 · 113 件 · horizon=7；剔除同名异价脏行）
+// 来源 ml/outputs/compare_results_test.json · 2026-07-23 树模型重训后
+// returnPct 来自同契约回测 fee=0（子集演示曲线，非主结论）
 const MODEL_COMPARISON = {
   split: 'test',
   horizonSteps: 7,
-  nItems: 154,
-  nRows: 35229,
+  nItems: 113,
+  nRows: 25702,
   hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
-  note: 'Fair test metrics. Hybrid route frozen on val: low→C, mid/high→D. LSTM-C best RMSE/MAE/R²; RF best MAPE. Hybrid is NOT strictly best on all metrics.',
+  note: 'Fair test after 2026-07-23 tree retrain. Rows with mismatched truth vs LSTM panel dropped. LSTM-C best RMSE/MAE/R²; RF best MAPE.',
   regression: [
-    { name: 'LSTM-C', rmse: 39.74, mae: 5.77, mape: 8.83, r2: 0.9501, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, typeKey: 'dl_panel', type: 'DL · 共享面板', course: 'DL · panel Embedding' },
-    { name: 'LSTM-D', rmse: 52.17, mae: 7.02, mape: 7.47, r2: 0.914, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, typeKey: 'dl_tier', type: 'DL · 分组', course: 'DL · price tiers' },
-    { name: 'Hybrid', rmse: 52.17, mae: 7.02, mape: 8.81, r2: 0.914, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, typeKey: 'route', type: '部署路由', course: 'Route: low→C, mid/high→D' },
-    { name: 'Random Forest', rmse: 51.75, mae: 7.03, mape: 6.03, r2: 0.9154, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, typeKey: 'tree_mape', type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
-    { name: 'LightGBM', rmse: 57.61, mae: 8.25, mape: 6.11, r2: 0.8952, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
-    { name: 'XGBoost', rmse: 62.00, mae: 9.21, mape: 6.50, r2: 0.8786, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
+    { name: 'LSTM-C', rmse: 46.43, mae: 7.87, mape: 9.66, r2: 0.9488, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, typeKey: 'dl_panel', type: 'DL · 共享面板', course: 'DL · panel Embedding' },
+    { name: 'LSTM-D', rmse: 60.95, mae: 9.59, mape: 9.40, r2: 0.9118, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, typeKey: 'dl_tier', type: 'DL · 分组', course: 'DL · price tiers' },
+    { name: 'Hybrid', rmse: 60.95, mae: 9.58, mape: 9.63, r2: 0.9118, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, typeKey: 'route', type: '部署路由', course: 'Route: low→C, mid/high→D' },
+    { name: 'Random Forest', rmse: 62.42, mae: 9.92, mape: 7.84, r2: 0.9075, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, typeKey: 'tree_mape', type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
+    { name: 'LightGBM', rmse: 70.70, mae: 11.78, mape: 7.93, r2: 0.8814, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
+    { name: 'XGBoost', rmse: 71.61, mae: 12.19, mape: 8.01, r2: 0.8783, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
   ],
   classification: [
     { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, typeKey: 'linear', type: '线性基线' },
-    { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.65, auc: 0.69, returnPct: 12.4, speed: '快', interpretability: 2, typeKey: 'ensemble', type: '集成基线' },
-    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.7688, auc: 0.9041, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
-    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.7661, auc: 0.8992, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
+    { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6837, auc: 0.8551, returnPct: 12.4, speed: '快', interpretability: 2, typeKey: 'ensemble', type: '集成基线' },
+    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6798, auc: 0.8536, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
+    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6805, auc: 0.8537, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
   ],
   buyAndHold: { name: '买入持有', returnPct: 194.65 }
 };

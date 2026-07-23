@@ -50,7 +50,8 @@ app = FastAPI(title="SkinVision AI API", version="1.1.0",
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # 课程演示:前端 CDN 直连
+    # 反射具体 Origin；勿用 allow_origins=["*"] + credentials（浏览器会拒）
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

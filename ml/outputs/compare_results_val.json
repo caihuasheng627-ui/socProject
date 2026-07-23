@@ -5,99 +5,99 @@
   "missing_models": [],
   "models": {
     "LSTM-C": {
-      "rmse": 13.1289,
-      "mae": 2.3408,
-      "mape": 6.19,
-      "r2": 0.9892,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 15.4422,
+      "mae": 3.238,
+      "mape": 7.37,
+      "r2": 0.9889,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.4854,
-        "precision": 0.3694,
-        "recall": 0.545,
-        "f1": 0.4403,
+        "accuracy": 0.559,
+        "precision": 0.5324,
+        "recall": 0.5206,
+        "f1": 0.5265,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     },
     "LSTM-D": {
-      "rmse": 10.7407,
-      "mae": 2.0885,
-      "mape": 4.53,
-      "r2": 0.9928,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 12.6332,
+      "mae": 2.8893,
+      "mape": 6.27,
+      "r2": 0.9925,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.6352,
-        "precision": 0.5074,
-        "recall": 0.6127,
-        "f1": 0.5551,
+        "accuracy": 0.5391,
+        "precision": 0.5081,
+        "recall": 0.6686,
+        "f1": 0.5774,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     },
     "Hybrid": {
-      "rmse": 10.7407,
-      "mae": 2.088,
-      "mape": 5.84,
-      "r2": 0.9928,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 12.6332,
+      "mae": 2.8883,
+      "mape": 6.89,
+      "r2": 0.9925,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.4858,
-        "precision": 0.3667,
-        "recall": 0.5289,
-        "f1": 0.4331,
+        "accuracy": 0.5596,
+        "precision": 0.5343,
+        "recall": 0.5031,
+        "f1": 0.5182,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     },
     "RF": {
-      "rmse": 14.4919,
-      "mae": 2.6405,
-      "mape": 4.06,
-      "r2": 0.9869,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 17.1589,
+      "mae": 3.6816,
+      "mape": 5.72,
+      "r2": 0.9862,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.4118,
-        "precision": 0.3548,
-        "recall": 0.713,
-        "f1": 0.4738,
+        "accuracy": 0.5168,
+        "precision": 0.4898,
+        "recall": 0.6255,
+        "f1": 0.5494,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     },
     "LightGBM": {
-      "rmse": 17.0934,
-      "mae": 2.9817,
-      "mape": 4.47,
-      "r2": 0.9817,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 21.4883,
+      "mae": 4.1995,
+      "mape": 5.94,
+      "r2": 0.9784,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.4171,
-        "precision": 0.3661,
-        "recall": 0.7783,
-        "f1": 0.498,
+        "accuracy": 0.5308,
+        "precision": 0.5015,
+        "recall": 0.5653,
+        "f1": 0.5315,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     },
     "XGBoost": {
-      "rmse": 18.3061,
-      "mae": 3.2435,
-      "mape": 4.47,
-      "r2": 0.979,
-      "items": 154,
-      "rows": 34615,
+      "rmse": 22.0585,
+      "mae": 4.2672,
+      "mape": 5.71,
+      "r2": 0.9772,
+      "items": 113,
+      "rows": 25021,
       "direction": {
-        "accuracy": 0.4607,
-        "precision": 0.3817,
-        "recall": 0.7289,
-        "f1": 0.501,
+        "accuracy": 0.5204,
+        "precision": 0.4922,
+        "recall": 0.5803,
+        "f1": 0.5326,
         "auc": null,
-        "n": 34615
+        "n": 25021
       }
     }
   }

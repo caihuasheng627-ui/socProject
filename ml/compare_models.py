@@ -104,21 +104,39 @@ def align_common_prediction_frames(frames):
             ["market_hash_name", "date"]
         ).reset_index(drop=True)
 
-    contract_columns = [
-        "split",
-        "date",
-        "target_date",
-        "market_hash_name",
-        "current_price",
-        "actual_future_price",
-        "horizon_steps",
-    ]
+    # 按共同 key 对齐后，丢掉真值/现价不一致的脏行（同名不同价）
     reference_name, reference = next(iter(aligned.items()))
+    keep = np.ones(len(reference), dtype=bool)
     for name, frame in aligned.items():
-        if not frame[contract_columns].equals(reference[contract_columns]):
-            raise ValueError(
-                f"{name} contract values differ from {reference_name} on common prediction rows"
+        if name == reference_name:
+            continue
+        if len(frame) != len(reference):
+            raise ValueError(f"{name}: aligned length mismatch vs {reference_name}")
+        keep &= (
+            np.isclose(
+                frame["current_price"].to_numpy(dtype=float),
+                reference["current_price"].to_numpy(dtype=float),
+                rtol=0, atol=1e-6, equal_nan=False,
             )
+            & np.isclose(
+                frame["actual_future_price"].to_numpy(dtype=float),
+                reference["actual_future_price"].to_numpy(dtype=float),
+                rtol=0, atol=1e-6, equal_nan=False,
+            )
+            & (
+                pd.to_datetime(frame["target_date"]).to_numpy()
+                == pd.to_datetime(reference["target_date"]).to_numpy()
+            )
+        )
+    if not keep.any():
+        raise ValueError("no common rows with matching contract truth values")
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"  dropped {dropped} mismatched-truth rows for fair compare", flush=True)
+    for name, frame in list(aligned.items()):
+        aligned[name] = frame.loc[keep].sort_values(
+            ["market_hash_name", "date"]
+        ).reset_index(drop=True)
     return aligned
 
 

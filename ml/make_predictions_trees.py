@@ -113,6 +113,11 @@ def load_tree_splits() -> tuple[dict[str, pd.DataFrame], dict]:
             & (panel["_target_split"] == split)
             & panel["Target"].notna()
         ].sort_values(["date", "market_hash_name"])
+        # test.csv 存在同物品同日多行（历史清洗残留），预测契约要求唯一键
+        before = len(valid)
+        valid = valid.drop_duplicates(subset=["market_hash_name", "date"], keep="last")
+        if len(valid) != before:
+            print(f"  dedupe {split}: {before} -> {len(valid)} rows", flush=True)
         splits[split] = valid.reset_index(drop=True)
     return splits, encoders
 
