@@ -17,7 +17,9 @@ ML 侧最新预测契约与公平评测见 [`ml/FORECAST_CONTRACT.md`](ml/FORECA
 |------|------|
 | GitHub | https://github.com/caihuasheng627-ui/socproject |
 | GitHub Pages | https://caihuasheng627-ui.github.io/socProject |
-> Pages / 静态演示默认走 Mock。完整预测、对话、辩论、持仓诊断需启动后端（见下方部署）。
+> Pages 是纯静态站，**默认 Mock**，无法直连本机 `localhost:8000`（HTTPS 混合内容 + 无 `/api` 反代）。  
+> 本地联调请用 `localhost` 打开前端；Pages 要接真后端需部署 **公网 HTTPS API**，再执行：  
+> `localStorage.setItem('sv_api_url','https://你的API'); localStorage.setItem('sv_use_mock','false'); location.reload()`
 
 ---
 

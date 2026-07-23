@@ -635,20 +635,32 @@ const app = createApp({
         console.warn('[CSVest] js/api.js not loaded');
         return false;
       }
+      const isLocalHost = (h) => !h || h === 'localhost' || h === '127.0.0.1';
+      const isStaticPages = (() => {
+        const h = (location.hostname || '').toLowerCase();
+        return h.endsWith('github.io') || h.endsWith('gitlab.io') || h.endsWith('pages.dev');
+      })();
       try {
-        // 与 js/api.js 一致：公网同源 /api（nginx 反代），忽略误存的 localhost
-        const remote = location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+        // 与 js/api.js 一致：公网同源 /api（nginx 反代）；Pages 无反代；忽略误存的 localhost
+        const remote = !isLocalHost(location.hostname);
         let apiBase = localStorage.getItem('sv_api_url') || '';
         if (remote) {
           try {
             if (apiBase) {
               const u = new URL(apiBase, location.href);
-              if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') apiBase = '';
+              if (isLocalHost(u.hostname)) apiBase = '';
             }
           } catch (_) {
             apiBase = '';
           }
-          // 默认同源；仍兼容显式配置的公网 :8000
+          // GitHub Pages 等静态站：没有 /api 反代，未配置公网 API 时保持 Mock
+          if (isStaticPages && !apiBase) {
+            client.setUseMock(true);
+            apiOnline.value = false;
+            console.info('[CSVest] static Pages: no public API configured, using mock');
+            return false;
+          }
+          // 其它公网页默认同源；仍兼容显式配置的公网 API
           if (!apiBase) apiBase = '';
         } else if (!apiBase) {
           apiBase = 'http://localhost:8000';
@@ -669,6 +681,7 @@ const app = createApp({
         return true;
       } catch (err) {
         apiOnline.value = false;
+        try { client.setUseMock(true); } catch (_) { /* ignore */ }
         console.warn('[CSVest] backend offline, mock data:', err?.message || err);
         return false;
       }
