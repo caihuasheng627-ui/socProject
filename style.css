@@ -176,6 +176,8 @@ body::before {
   position: relative;
   z-index: 1;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ============ 侧边栏 (Glass) ============ */
@@ -317,6 +319,8 @@ body::before {
 /* ============ 主内容区 ============ */
 .main-content {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -479,11 +483,14 @@ body::before {
 
 .content-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 28px;
   scroll-behavior: smooth;
   min-width: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* ============ 通用组件 ============ */
@@ -2275,6 +2282,20 @@ i.ph-duotone {
 
 .model-metric-stat--wide {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.model-metric-stat--wide .model-metric-stat__label {
+  margin-bottom: 0;
+}
+
+.model-metric-stat--wide .model-metric-stat__value {
+  font-size: 15px;
 }
 
 .model-metric-stat__label {
