@@ -6,8 +6,11 @@
 CSGOTrader / CSFloat 当前报价, 输出统一 CSV / JSON。
 
 用法示例:
-  # 默认 watchlist + 免 Cookie 批量平台
+  # 默认读 docs/expo/seed_portfolio.json 名单 + 免 Cookie 批量平台
   python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm,csgotrader
+
+  # 显式指定 docs 目录
+  python fetch_live_prices.py --from-docs docs/expo --spread
 
   # 含需 Cookie / 限流平台
   export BUFF_SESSION='你的 buff.163.com session cookie'
@@ -55,6 +58,7 @@ from platforms import (  # noqa: E402
     Quote,
     build_clients,
     load_names_from_csv,
+    load_names_from_docs,
     utc_now_iso,
 )
 
@@ -68,7 +72,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="skinport,waxpeer,marketcsgo",
         help=f"逗号分隔平台列表, 可选: {','.join(PLATFORM_REGISTRY)}",
     )
-    p.add_argument("--items", nargs="*", help="market_hash_name 列表; 省略则用默认 watchlist")
+    p.add_argument("--items", nargs="*", help="market_hash_name 列表; 省略则用 docs/expo 名单")
+    p.add_argument(
+        "--from-docs",
+        nargs="?",
+        const="docs/expo",
+        default=None,
+        help="从 docs/expo 种子读取名单(默认路径 docs/expo; 与 --items/--from-csv 互斥优先 items)",
+    )
     p.add_argument("--from-csv", help="从 CSV 读取物品名(列 market_hash_name)")
     p.add_argument("--limit", type=int, default=0, help="最多采集 N 件(0=全部)")
     p.add_argument(
@@ -97,7 +108,21 @@ def resolve_names(args: argparse.Namespace) -> list[str]:
     elif args.from_csv:
         names = load_names_from_csv(args.from_csv)
     else:
-        names = list(DEFAULT_WATCHLIST)
+        # 默认 / --from-docs: 读 docs/expo
+        docs_path = args.from_docs
+        if docs_path is None:
+            # 相对仓库根
+            repo = Path(__file__).resolve().parents[3]
+            docs_path = str(repo / "docs" / "expo")
+        elif not Path(docs_path).is_absolute():
+            # 相对调用 cwd 或仓库根都试一次
+            cand = Path(docs_path)
+            if not cand.exists():
+                cand = Path(__file__).resolve().parents[3] / docs_path
+            docs_path = str(cand)
+        names = load_names_from_docs(docs_path)
+        if not names and DEFAULT_WATCHLIST:
+            names = list(DEFAULT_WATCHLIST)
     if args.limit and args.limit > 0:
         names = names[: args.limit]
     return names

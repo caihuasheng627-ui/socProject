@@ -20,6 +20,7 @@ from platforms import (  # noqa: E402
     SkinportClient,
     SteamClient,
     WaxpeerClient,
+    load_names_from_docs,
     parse_money,
 )
 from fetch_live_prices import (  # noqa: E402
@@ -216,8 +217,24 @@ def test_waxpeer_marketcsgo_lootfarm_csgotrader_csfloat():
     cf.close()
 
 
+def test_load_names_from_docs():
+    names = load_names_from_docs()
+    assert "AK-47 | Elite Build (Minimal Wear)" in names
+    assert "AWP | Asiimov (Field-Tested)" in names
+    assert "★ Karambit | Doppler (Factory New)" in names
+    assert "★ Driver Gloves | Overtake (Field-Tested)" in names
+    assert len(names) == 6
+
+
+def test_resolve_names_defaults_to_docs():
+    args = argparse.Namespace(items=None, from_csv=None, from_docs=None, limit=0)
+    names = resolve_names(args)
+    assert names[0] == "AK-47 | Elite Build (Minimal Wear)"
+    assert len(names) == 6
+
+
 def test_write_csv_and_resolve_names(tmp_path: Path):
-    args = argparse.Namespace(items=["A", "B", "C"], from_csv=None, limit=2)
+    args = argparse.Namespace(items=["A", "B", "C"], from_csv=None, from_docs=None, limit=2)
     assert resolve_names(args) == ["A", "B"]
 
     rows = quotes_to_rows(

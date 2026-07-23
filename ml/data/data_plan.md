@@ -157,8 +157,11 @@ python scraper/fetch_buff_val.py
 cd socProject/ml/data/scraper
 pip install -r requirements.txt
 
-# 免 Cookie 批量平台(推荐默认)
-python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm,csgotrader --limit 10
+# 免 Cookie 批量平台(默认名单 = docs/expo/seed_portfolio.json)
+python fetch_live_prices.py --platforms skinport,waxpeer,marketcsgo,lootfarm,csgotrader
+
+# 显式指定 docs 目录
+python fetch_live_prices.py --from-docs docs/expo --spread
 
 # BUFF 需登录 Cookie; Steam/CSFloat 限流严格
 export BUFF_SESSION='your_buff_session_cookie'

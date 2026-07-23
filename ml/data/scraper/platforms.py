@@ -23,6 +23,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterable
 
 import httpx
@@ -803,29 +804,41 @@ def build_clients(
     return clients
 
 
-# 默认演示 watchlist(与前端 data.js 对齐; 磨损取 Skinport 常见在售档)
-DEFAULT_WATCHLIST = [
-    "AK-47 | Redline (Field-Tested)",
-    "AK-47 | Fire Serpent (Field-Tested)",
-    "AWP | Dragon Lore (Factory New)",
-    "AWP | Asiimov (Field-Tested)",
-    "M4A1-S | Printstream (Field-Tested)",
-    "M4A4 | Howl (Field-Tested)",
-    "Desert Eagle | Printstream (Field-Tested)",
-    "★ Butterfly Knife | Doppler (Factory New)",
-    "★ Karambit | Doppler (Factory New)",
-    "★ Sport Gloves | Pandora's Box (Field-Tested)",
-    "Dreams & Nightmares Case",
-    "Danger Zone Case",
-    "USP-S | Kill Confirmed (Field-Tested)",
-    "Glock-18 | Fade (Factory New)",
-    "AWP | Hyper Beast (Field-Tested)",
-]
+# 默认演示 watchlist — 与 docs/expo 种子对齐(见 load_names_from_docs)
+DEFAULT_WATCHLIST: list[str] = []  # 启动时由 load_names_from_docs 填充
+
+
+def _repo_root() -> Path:
+    # ml/data/scraper → repo root
+    return Path(__file__).resolve().parents[3]
+
+
+def load_names_from_docs(docs_expo: str | Path | None = None) -> list[str]:
+    """从 docs/expo 种子读取饰品 market_hash_name。
+
+    读取 seed_portfolio.json 的 name 字段(Expo 演示持仓名单)。
+    """
+    import json
+
+    expo = Path(docs_expo) if docs_expo else (_repo_root() / "docs" / "expo")
+    names: list[str] = []
+    seen: set[str] = set()
+
+    portfolio = expo / "seed_portfolio.json"
+    if not portfolio.exists():
+        return names
+
+    data = json.loads(portfolio.read_text(encoding="utf-8"))
+    for row in data:
+        n = (row.get("name") or "").strip()
+        if n and n not in seen:
+            seen.add(n)
+            names.append(n)
+    return names
 
 
 def load_names_from_csv(path: str, column: str = "market_hash_name") -> list[str]:
     import csv
-    from pathlib import Path
 
     names: list[str] = []
     seen: set[str] = set()
@@ -839,3 +852,10 @@ def load_names_from_csv(path: str, column: str = "market_hash_name") -> list[str
                 seen.add(n)
                 names.append(n)
     return names
+
+
+# 模块加载时填充默认名单(docs 缺失则保留空, CLI 再报错)
+try:
+    DEFAULT_WATCHLIST = load_names_from_docs()
+except Exception:
+    DEFAULT_WATCHLIST = []
