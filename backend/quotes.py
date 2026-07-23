@@ -215,7 +215,7 @@ def get_skin_quotes(
     quotes: list[dict[str, Any]]
     if want_live:
         try:
-            quotes = _live_quotes(market_hash_name, plats)
+            quotes = _live_quotes(market_hash_name, plats, base_price)
             # 若全部失败则降级 mock
             if not any(q.get("ok") for q in quotes):
                 quotes = _mock_quotes(market_hash_name, base_price, plats)
