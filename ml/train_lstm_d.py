@@ -1,15 +1,16 @@
 """
-LSTM-D: 价格分层分组训练 (3 组独立 LSTM)
-==============================================
+LSTM-D: 价格分层分组训练 (3 组独立 LSTM) — Seq2Seq 7 天版
+===========================================================
 参考: Lecture4 例 8 (IBM LSTM) + LSTM-C 同款特征/滑窗
 
-策略 (对照 LSTM-C 的 Embedding 知识迁移, 按 team_tasks.md V2.0):
+策略 (对照 LSTM-C 的 Embedding 知识迁移):
   - 按 train 集逐物品价格中位数分层:
       低价位 < 55% 分位 (Mil-Spec及以下 ≈ 84件)
       中价位 55%~87% 分位 (Classified/Restricted ≈ 50件)
       高价位 > 87% 分位 (刀/手套/Covert ≈ 20件)
   - 每组训练一个独立 Sequential LSTM (无 Embedding, 单输入)
   - 组边界存盘 → 新物品按自身中位数落组 (C 对新物品 Embedding 无效, D 天然泛化)
+  - 每组输出 Dense(7), 直接预测 7 天每日价格
 
 核心规则 (与 LSTM-C 一致):
   - 严禁跨物品拼序列, 必须 groupby 后逐物品构建滑动窗口
@@ -17,7 +18,7 @@ LSTM-D: 价格分层分组训练 (3 组独立 LSTM)
   - 每组独立 StandardScaler (x + y)
 
 输出文件:
-  - lstm_d_low.keras / lstm_d_mid.keras / lstm_d_high.keras   三组模型
+  - lstm_d_low.keras / lstm_d_mid.keras / lstm_d_high.keras   三组模型 (Dense(7))
   - lstm_d_scalers.pkl     每组 {x_scaler, y_scaler}
   - lstm_d_group_map.pkl   {boundaries: (q1, q2), item_group: {物品名: 组名}}
 """
@@ -36,11 +37,14 @@ from tensorflow import keras
 from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
 from forecast_contract import (
     HORIZON_STEPS,
+    add_grouped_targets_multi,
     assign_price_groups,
-    build_sequence_windows,
+    build_sequence_windows_multi,
+    decode_log_price_predictions_multi,
     load_feature_panel,
     route_price_group,
 )
+from gpu_config import configure_device, create_dataset
 
 warnings.filterwarnings("ignore")
 
@@ -48,7 +52,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (与 LSTM-C 对齐, 保证对比公平)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
+SEQ_HORIZON = 7         # 输出未来 7 天每日价格
 LSTM_UNITS = 50         # LSTM 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
 BATCH_SIZE = 32
@@ -72,12 +76,13 @@ GROUP_MAP_PATH = OUTPUT_DIR / "lstm_d_group_map.pkl"
 # 第 1 步: 加载数据 + 特征工程 (与 LSTM-C 完全一致)
 # ============================================================
 def load_data():
-    """一次加载连续 train/val/test 面板并计算特征。"""
+    """一次加载连续 train/val/test 面板, 计算特征 + 多步 target。"""
     print("=" * 60)
-    print("第 1 步: 加载数据 + 特征工程")
+    print("第 1 步: 加载数据 + 特征工程 + 多步 target")
     print("=" * 60)
 
     panel = load_feature_panel(DATA_DIR)
+    panel = add_grouped_targets_multi(panel, horizon_steps=SEQ_HORIZON)
     for split in ("train", "val", "test"):
         part = panel[panel["_split"] == split]
         print(f"  {split}: {len(part):,} 行, {part['market_hash_name'].nunique()} 件")
@@ -128,13 +133,13 @@ def build_sequences(
     x_scaler=None, fit_scaler=False,
 ):
     """
-    逐物品构建滑动窗口 X(60,15) → y(1), 单输入版 (无物品 ID)
+    逐物品构建滑动窗口 X(60,15) → y(7)
 
     x_scaler:   已 fit 的 StandardScaler (val 时传入)
     fit_scaler: True → fit 新 scaler 并返回
     """
-    X, y, meta = build_sequence_windows(
-        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    X, y, meta = build_sequence_windows_multi(
+        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
     routes = np.array([
         route_price_group(row.market_hash_name, row.current_price, item_group, boundaries)
@@ -168,9 +173,9 @@ def build_model(group_name):
             Dropout(DROPOUT),
             LSTM(LSTM_UNITS, return_sequences=False),
             Dropout(DROPOUT),
-            Dense(1),
+            Dense(SEQ_HORIZON),
         ],
-        name=f"LSTM_D_{group_name}",
+        name=f"LSTM_D_{group_name}_Seq7",
     )
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -197,11 +202,12 @@ def train_group(gname, panel, boundaries, item_group):
         panel, "val", gname, boundaries, item_group, x_scaler=x_scaler
     )
     print(f"  滑动窗口: X_train={X_train.shape}, X_val={X_val.shape}")
+    print(f"  y shape: train={y_train.shape}, val={y_val.shape}")
 
     y_scaler = StandardScaler()
-    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
-    y_val_scaled   = y_scaler.transform(y_val.reshape(-1, 1)).ravel()
-    print(f"  y scaler mean={y_scaler.mean_[0]:.4f}, scale={y_scaler.scale_[0]:.4f}")
+    y_train_scaled = y_scaler.fit_transform(y_train)    # (n, 7)
+    y_val_scaled = y_scaler.transform(y_val)
+    print(f"  y scaler mean={y_scaler.mean_}, scale={y_scaler.scale_}")
 
     model = build_model(gname)
     model.summary()
@@ -214,38 +220,44 @@ def train_group(gname, panel, boundaries, item_group):
     )
 
     history = model.fit(
-        X_train, y_train_scaled,
-        validation_data=(X_val, y_val_scaled),
+        create_dataset(X_train, y_train_scaled, batch_size=BATCH_SIZE, shuffle=True),
+        validation_data=create_dataset(X_val, y_val_scaled, batch_size=BATCH_SIZE, shuffle=False),
         epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
         callbacks=[early_stop, reduce_lr],
         verbose=1,
     )
 
-    # --- 组内评估 (输出格式与 LSTM-C 第 6 步一致) ---
-    y_pred_scaled = model.predict(X_val, verbose=0).ravel()
-    y_pred = y_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
+    # --- 组内评估: 逐日 + 整体 ---
+    y_pred_scaled = model.predict(X_val, verbose=0)  # (n, 7)
+    y_pred_log = y_scaler.inverse_transform(y_pred_scaled)
+    y_pred_price = np.expm1(y_pred_log)               # (n, 7) USD
+    y_true_price = np.expm1(y_val)                    # (n, 7) USD
 
-    rmse_log = np.sqrt(mean_squared_error(y_val, y_pred))
-    mae_log  = mean_absolute_error(y_val, y_pred)
-    print(f"\n  Val RMSE (log space): {rmse_log:.6f}")
-    print(f"  Val MAE  (log space): {mae_log:.6f}")
+    # Day 7 only (对标旧版)
+    yt_d7 = y_true_price[:, -1]
+    yp_d7 = y_pred_price[:, -1]
 
-    y_true_price = np.expm1(y_val)
-    y_pred_price = np.expm1(y_pred)
+    print(f"\n  {'Day':<8} {'RMSE':>10} {'MAE':>10} {'R²':>8}")
+    for d in range(SEQ_HORIZON):
+        yt = y_true_price[:, d]
+        yp = y_pred_price[:, d]
+        rmse = np.sqrt(mean_squared_error(yt, yp))
+        mae = mean_absolute_error(yt, yp)
+        r2 = r2_score(yt, yp)
+        print(f"  Day{d+1:<5} ${rmse:>8.4f} ${mae:>8.4f} {r2:>8.4f}")
+
     metrics = {
         "n_val": len(y_val),
         "epochs": len(history.history["loss"]),
         "params": model.count_params(),
-        "mae":  mean_absolute_error(y_true_price, y_pred_price),
-        "rmse": np.sqrt(mean_squared_error(y_true_price, y_pred_price)),
-        "mape": np.mean(np.abs((y_true_price - y_pred_price) / y_true_price)) * 100,
-        "r2":   r2_score(y_true_price, y_pred_price),
+        "mae":  mean_absolute_error(yt_d7, yp_d7),
+        "rmse": np.sqrt(mean_squared_error(yt_d7, yp_d7)),
+        "mape": np.mean(np.abs((yt_d7 - yp_d7) / np.maximum(yt_d7, 0.01))) * 100,
+        "r2":   r2_score(yt_d7, yp_d7),
+        "mae_all": mean_absolute_error(y_true_price.ravel(), y_pred_price.ravel()),
+        "rmse_all": np.sqrt(mean_squared_error(y_true_price.ravel(), y_pred_price.ravel())),
     }
-    print(f"  Val RMSE (real USD):  ${metrics['rmse']:.4f}")
-    print(f"  Val MAE  (real USD):  ${metrics['mae']:.4f}")
-    print(f"  Val MAPE (real USD):   {metrics['mape']:.2f}%")
-    print(f"  Val R²   (real USD):   {metrics['r2']:.4f}")
+    print(f"\n  Day 7 only (对标旧版): RMSE=${metrics['rmse']:.4f}  MAE=${metrics['mae']:.4f}  R²={metrics['r2']:.4f}")
     print(f"  模型参数: {metrics['params']:,} | 训练轮数: {metrics['epochs']}")
 
     return model, {"x_scaler": x_scaler, "y_scaler": y_scaler}, metrics, y_true_price, y_pred_price
@@ -256,6 +268,7 @@ def train_group(gname, panel, boundaries, item_group):
 # ============================================================
 def main():
     keras.utils.set_random_seed(42)
+    configure_device()
 
     # --- 加载 + 分组 ---
     panel = load_data()
@@ -281,26 +294,33 @@ def main():
         all_true.append(y_t)
         all_pred.append(y_p)
 
-    # --- 整体评估 (三组合并, 与 LSTM-C 同口径) ---
+    # --- 整体评估 (三组合并, Day 7 only + all days) ---
     print("\n" + "=" * 60)
     print("第 7 步: 整体评估 (三组合并)")
     print("=" * 60)
-    y_true = np.concatenate(all_true)
-    y_pred = np.concatenate(all_pred)
+    y_true_all = np.concatenate(all_true)   # each (n_g, 7)
+    y_pred_all = np.concatenate(all_pred)
+
+    # Day 7 only
+    yt7 = y_true_all[:, -1]
+    yp7 = y_pred_all[:, -1]
     overall = {
-        "mae":  mean_absolute_error(y_true, y_pred),
-        "rmse": np.sqrt(mean_squared_error(y_true, y_pred)),
-        "mape": np.mean(np.abs((y_true - y_pred) / y_true)) * 100,
-        "r2":   r2_score(y_true, y_pred),
+        "mae":  mean_absolute_error(yt7, yp7),
+        "rmse": np.sqrt(mean_squared_error(yt7, yp7)),
+        "mape": np.mean(np.abs((yt7 - yp7) / np.maximum(yt7, 0.01))) * 100,
+        "r2":   r2_score(yt7, yp7),
+        "mae_all": mean_absolute_error(y_true_all.ravel(), y_pred_all.ravel()),
+        "rmse_all": np.sqrt(mean_squared_error(y_true_all.ravel(), y_pred_all.ravel())),
     }
 
-    print(f"\n  {'组':<6} {'样本':>7} {'MAE':>10} {'RMSE':>10} {'MAPE':>8} {'R²':>8} {'轮数':>5}")
+    print(f"\n  {'组':<6} {'样本':>7} {'MAE(d7)':>10} {'RMSE(d7)':>10} {'R²(d7)':>8} {'轮数':>5}")
     for gname in GROUP_NAMES:
         m = group_metrics[gname]
         print(f"  {gname:<6} {m['n_val']:>7,} ${m['mae']:>8.4f} "
-              f"${m['rmse']:>8.4f} {m['mape']:>7.2f}% {m['r2']:>8.4f} {m['epochs']:>5}")
-    print(f"  {'ALL':<6} {len(y_true):>7,} ${overall['mae']:>8.4f} "
-          f"${overall['rmse']:>8.4f} {overall['mape']:>7.2f}% {overall['r2']:>8.4f}")
+              f"${m['rmse']:>8.4f} {m['r2']:>8.4f} {m['epochs']:>5}")
+    print(f"  {'ALL':<6} {len(y_true_all):>7,} ${overall['mae']:>8.4f} "
+          f"${overall['rmse']:>8.4f} {overall['r2']:>8.4f}")
+    print(f"  ALL (7天展平) MAE=${overall['mae_all']:.4f} RMSE=${overall['rmse_all']:.4f}")
     print(f"\n  对照见 compare_results_test.json（公平 test 口径）")
 
     # --- 保存 ---

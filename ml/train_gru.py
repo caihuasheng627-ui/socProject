@@ -1,21 +1,21 @@
 """
-GRU: RNN 变体对比模型 (10 件高流动性代表物品)
-==============================================
+GRU: RNN 变体对比模型 (10 件高流动性代表物品) — Seq2Seq 7 天版
+===============================================================
 参考: Lecture4 例 8 (IBM LSTM) — 把 LSTM 层换成 GRU
 
 策略 (team_tasks.md 第 4 步):
   - 按 train 集 daily_volume 均值选 10 件高流动性代表物品
   - 单个 Sequential GRU 在这 10 件的滑动窗口上训练
-  - 与 LSTM-D 单组网络唯一区别是循环单元 (LSTM → GRU), 构成干净的变体对比
+  - 输出 Dense(7), 直接预测 7 天每日价格
 
 核心规则 (与 LSTM-C/D 一致):
   - 严禁跨物品拼序列, 必须 groupby 后逐物品构建滑动窗口
   - 训练在 log 空间, 预测后 expm1 还原真实价格
 
 输出文件:
-  - gru.keras          模型权重
+  - gru.keras          模型权重 (Dense(7) 输出)
   - gru_scaler.pkl     {x_scaler, y_scaler}
-  - gru_items.pkl      10 件物品名单 (组员 3 推理时判断是否支持)
+  - gru_items.pkl      10 件物品名单
 """
 import numpy as np
 import pandas as pd
@@ -30,7 +30,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from tensorflow import keras
 from tensorflow.keras.layers import Input, GRU, Dense, Dropout
-from forecast_contract import HORIZON_STEPS, build_sequence_windows, load_feature_panel
+from forecast_contract import (
+    HORIZON_STEPS,
+    add_grouped_targets_multi,
+    build_sequence_windows_multi,
+    load_feature_panel,
+)
+from gpu_config import configure_device, create_dataset
 
 warnings.filterwarnings("ignore")
 
@@ -38,7 +44,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (与 LSTM-C/D 对齐, 保证对比公平)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
+SEQ_HORIZON = 7         # 输出未来 7 天每日价格
 N_ITEMS = 10            # 高流动性代表物品数
 GRU_UNITS = 50          # GRU 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
@@ -83,6 +89,7 @@ def load_data():
 
     panel = load_feature_panel(DATA_DIR)
     panel = panel[panel["market_hash_name"].isin(items)].copy()
+    panel = add_grouped_targets_multi(panel, horizon_steps=SEQ_HORIZON)
     print(f"\n  连续特征面板: {len(panel):,} 行")
     return panel, items
 
@@ -110,9 +117,9 @@ FEATURE_COLS = [
 ]
 
 def build_sequences(df, sample_split, x_scaler=None, fit_scaler=False):
-    """逐物品构建滑动窗口 X(60,15) → y(1), 单输入版"""
-    X, y, _ = build_sequence_windows(
-        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    """逐物品构建滑动窗口 X(60,15) → y(7), 单输入版"""
+    X, y, _ = build_sequence_windows_multi(
+        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
 
     # --- 全局 StandardScaler ---
@@ -140,9 +147,9 @@ def build_model():
             Dropout(DROPOUT),
             GRU(GRU_UNITS, return_sequences=False),
             Dropout(DROPOUT),
-            Dense(1),
+            Dense(SEQ_HORIZON),
         ],
-        name="GRU_Top10_Liquidity",
+        name="GRU_Top10_Liquidity_Seq7",
     )
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -157,6 +164,7 @@ def build_model():
 # ============================================================
 def main():
     keras.utils.set_random_seed(42)
+    configure_device()
 
     # --- 加载 ---
     panel, items = load_data()
@@ -168,15 +176,15 @@ def main():
     X_train, y_train, x_scaler = build_sequences(panel, "train", fit_scaler=True)
     X_val, y_val = build_sequences(panel, "val", x_scaler=x_scaler)
 
-    # --- 对 y 做标准化 ---
+    # --- 对 y 做标准化 (7 维, 每天独立) ---
     y_scaler = StandardScaler()
-    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
-    y_val_scaled   = y_scaler.transform(y_val.reshape(-1, 1)).ravel()
-    print(f"  y scaler mean={y_scaler.mean_[0]:.4f}, scale={y_scaler.scale_[0]:.4f}")
+    y_train_scaled = y_scaler.fit_transform(y_train)
+    y_val_scaled = y_scaler.transform(y_val)
+    print(f"  y scaler mean={y_scaler.mean_}, scale={y_scaler.scale_}")
 
     # --- 构建模型 ---
     print("\n" + "=" * 60)
-    print("第 3 步: 构建 GRU 模型")
+    print("第 3 步: 构建 GRU Seq2Seq 模型 (Dense(7))")
     print("=" * 60)
     model = build_model()
     model.summary()
@@ -193,37 +201,40 @@ def main():
     )
 
     history = model.fit(
-        X_train, y_train_scaled,
-        validation_data=(X_val, y_val_scaled),
+        create_dataset(X_train, y_train_scaled, batch_size=BATCH_SIZE, shuffle=True),
+        validation_data=create_dataset(X_val, y_val_scaled, batch_size=BATCH_SIZE, shuffle=False),
         epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
         callbacks=[early_stop, reduce_lr],
         verbose=1,
     )
 
-    # --- 评估 (输出格式与 LSTM-C 第 6 步一致) ---
+    # --- 评估: 逐日 + 整体 ---
     print("\n" + "=" * 60)
     print("第 5 步: 评估 (仅 10 件高流动性物品)")
     print("=" * 60)
-    y_pred_scaled = model.predict(X_val, verbose=0).ravel()
-    y_pred = y_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
-
-    rmse_log = np.sqrt(mean_squared_error(y_val, y_pred))
-    mae_log  = mean_absolute_error(y_val, y_pred)
-    print(f"  Val RMSE (log space): {rmse_log:.6f}")
-    print(f"  Val MAE  (log space): {mae_log:.6f}")
-
+    y_pred_scaled = model.predict(X_val, verbose=0)  # (n, 7)
+    y_pred_log = y_scaler.inverse_transform(y_pred_scaled)
+    y_pred_price = np.expm1(y_pred_log)
     y_true_price = np.expm1(y_val)
-    y_pred_price = np.expm1(y_pred)
-    rmse_price = np.sqrt(mean_squared_error(y_true_price, y_pred_price))
-    mae_price  = mean_absolute_error(y_true_price, y_pred_price)
-    mape       = np.mean(np.abs((y_true_price - y_pred_price) / y_true_price)) * 100
-    r2         = r2_score(y_true_price, y_pred_price)
-    print(f"  Val RMSE (real USD):  ${rmse_price:.4f}")
-    print(f"  Val MAE  (real USD):  ${mae_price:.4f}")
-    print(f"  Val MAPE (real USD):   {mape:.2f}%")
-    print(f"  Val R²   (real USD):   {r2:.4f}")
-    print(f"\n  ⚠️ 注意: GRU 只覆盖 10 件高流动性物品, 与 LSTM-C/D 的全量指标不同口径")
+
+    print(f"\n  {'Day':<8} {'RMSE':>10} {'MAE':>10} {'MAPE':>8} {'R²':>8}")
+    for d in range(SEQ_HORIZON):
+        yt = y_true_price[:, d]
+        yp = y_pred_price[:, d]
+        rmse = np.sqrt(mean_squared_error(yt, yp))
+        mae = mean_absolute_error(yt, yp)
+        mape = np.mean(np.abs((yt - yp) / np.maximum(yt, 0.01))) * 100
+        r2 = r2_score(yt, yp)
+        print(f"  Day{d+1:<5} ${rmse:>8.4f} ${mae:>8.4f} {mape:>7.2f}% {r2:>8.4f}")
+
+    # Day 7 only
+    yt7, yp7 = y_true_price[:, -1], y_pred_price[:, -1]
+    rmse_price = np.sqrt(mean_squared_error(yt7, yp7))
+    mae_price = mean_absolute_error(yt7, yp7)
+    mape = np.mean(np.abs((yt7 - yp7) / np.maximum(yt7, 0.01))) * 100
+    r2 = r2_score(yt7, yp7)
+    print(f"\n  Day 7 only (对标旧版): RMSE=${rmse_price:.4f}  MAE=${mae_price:.4f}  MAPE={mape:.2f}%  R²={r2:.4f}")
+    print(f"  ⚠️ 注意: GRU 只覆盖 10 件高流动性物品, 与 LSTM-C/D 的全量指标不同口径")
 
     # --- 保存 ---
     print("\n" + "=" * 60)

@@ -140,15 +140,29 @@ def align_common_prediction_frames(frames):
     return aligned
 
 
+def _get_predicted_col(frame):
+    """Resolve the predicted_price column — works with both old and new formats."""
+    if "predicted_price" in frame.columns:
+        return "predicted_price"
+    if "predicted_price_d7" in frame.columns:
+        return "predicted_price_d7"
+    raise KeyError("frame has neither 'predicted_price' nor 'predicted_price_d7'")
+
+
 def evaluate_frames(frames):
     frames = align_common_prediction_frames(frames)
     results = {}
     for model, frame in frames.items():
-        metrics = reg_metrics(frame["actual_future_price"], frame["predicted_price"])
+        pred_col = _get_predicted_col(frame)
+        metrics = reg_metrics(frame["actual_future_price"], frame[pred_col])
+        # Direction metrics use the predicted_price column
+        dir_frame = frame.copy()
+        if pred_col != "predicted_price":
+            dir_frame["predicted_price"] = dir_frame[pred_col]
         metrics.update({
             "items": int(frame["market_hash_name"].nunique()),
             "rows": int(len(frame)),
-            "direction": direction_metrics(frame),
+            "direction": direction_metrics(dir_frame),
         })
         results[model] = metrics
     return results

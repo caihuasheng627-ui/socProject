@@ -1,20 +1,20 @@
 """
-LSTM-C: 面板 Embedding 模型 (Functional API)
-==============================================
+LSTM-C: 面板 Embedding 模型 (Functional API) — Seq2Seq 7 天版
+==============================================================
 参考: Lecture4 例 8 (IBM LSTM) + 自研双输入架构
 
 架构图:
-  价格分支: Input(60, 17) ─────────────────┐
-  物品分支: Input(1) → Embedding(154, 8) ──┼→ Concatenate → LSTM(50)×2 → Dense(1)
+  价格分支: Input(60, 15) ─────────────────┐
+  物品分支: Input(1) → Embedding(154, 8) ──┼→ Concatenate → LSTM(50)×2 → Dense(7)
 
 核心规则:
   - 严禁跨物品拼序列, 必须 groupby 后逐物品构建滑动窗口
   - 训练在 log 空间, 预测后 expm1 还原真实价格
-  - 每件物品独立 StandardScaler
+  - 输出 7 天每日价格 [day1 .. day7], 前端直接用, 不再需要插值画线
 
 输出文件:
-  - lstm_c.keras           模型权重
-  - lstm_c_scaler.pkl      价格 Scaler (推理时反标准化)
+  - lstm_c.keras           模型权重 (Dense(7) 输出)
+  - lstm_c_scaler.pkl      价格 Scaler (x_scaler + y_scaler, 适配 7 维)
   - lstm_c_item_map.pkl    物品名 → ID 映射
 """
 import numpy as np
@@ -32,11 +32,14 @@ from tensorflow.keras.layers import (
 )
 from forecast_contract import (
     HORIZON_STEPS,
-    build_sequence_windows,
+    add_grouped_targets_multi,
+    build_sequence_windows_multi,
     build_training_item_map,
+    decode_log_price_predictions_multi,
     encode_item_ids,
     load_feature_panel,
 )
+from gpu_config import configure_device, create_multi_input_dataset
 
 warnings.filterwarnings("ignore")
 
@@ -44,7 +47,7 @@ warnings.filterwarnings("ignore")
 # 超参数 (方便微调)
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
-HORIZON = HORIZON_STEPS # 预测后续 7 个有效日频观测
+SEQ_HORIZON = 7         # 输出未来 7 天每日价格
 EMBEDDING_DIM = 8       # 物品 Embedding 维度
 LSTM_UNITS = 50         # LSTM 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
@@ -67,12 +70,14 @@ ITEM_MAP_PATH = OUTPUT_DIR / "lstm_c_item_map.pkl"
 # 第 1 步: 加载数据 + 特征工程
 # ============================================================
 def load_data():
-    """一次加载连续 train/val/test 面板并计算特征。"""
+    """一次加载连续 train/val/test 面板, 计算特征 + 多步 target。"""
     print("=" * 60)
-    print("第 1 步: 加载数据 + 特征工程")
+    print("第 1 步: 加载数据 + 特征工程 + 多步 target")
     print("=" * 60)
 
     panel = load_feature_panel(DATA_DIR)
+    # 追加 Target_1..Target_7 多步目标列
+    panel = add_grouped_targets_multi(panel, horizon_steps=SEQ_HORIZON)
     for split in ("train", "val", "test"):
         part = panel[panel["_split"] == split]
         print(f"  {split}: {len(part):,} 行, {part['market_hash_name'].nunique()} 件")
@@ -114,18 +119,15 @@ FEATURE_COLS = [
 
 def build_sequences(df, item_map, sample_split, x_scaler=None, fit_scaler=False):
     """
-    逐物品构建滑动窗口 X(60,17) → y(1)
-    参考 Lecture4 例 8 的 for i in range(60, len):
-
-    x_scaler:   已 fit 的 StandardScaler (val 时传入)
-    fit_scaler: True → fit 新 scaler 并返回
+    逐物品构建滑动窗口 X(60,15) → y(7)
+    返回多步 target y shape: (n_samples, 7)
     """
-    X_price, y, meta = build_sequence_windows(
-        df, FEATURE_COLS, LOOKBACK, sample_split=sample_split
+    X_price, y, meta = build_sequence_windows_multi(
+        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
     X_item = encode_item_ids(meta["market_hash_name"], item_map).reshape(-1, 1)
 
-    # --- 全局 StandardScaler (解决 17 个特征量级差异) ---
+    # --- 全局 StandardScaler (解决 15 个特征量级差异) ---
     nsamples, nsteps, nfeats = X_price.shape
     if fit_scaler or x_scaler is None:
         x_scaler = StandardScaler()
@@ -149,39 +151,36 @@ def build_sequences(df, item_map, sample_split, x_scaler=None, fit_scaler=False)
 #         加上物品 Embedding 分支
 # ============================================================
 def build_model(n_items):
-    """构建双输入 LSTM 模型"""
+    """构建双输入 LSTM 模型, Dense(7) 输出 7 天每日 log_price"""
 
     # ---- 分支 A: 价格时间序列 ----
     input_price = Input(shape=(LOOKBACK, len(FEATURE_COLS)), name="price_input")
-    # 不用在这里加 Masking, 因为我们已经逐物品构建窗口
 
     # ---- 分支 B: 物品 Embedding ----
     input_item = Input(shape=(1,), name="item_input")
     embed = Embedding(input_dim=n_items, output_dim=EMBEDDING_DIM, name="item_embedding")(input_item)
-    # Flatten: (None, 1, 8) → (None, 8)
     embed = Flatten()(embed)
-    # RepeatVector: (None, 8) → (None, 60, 8)
     embed = RepeatVector(LOOKBACK)(embed)
 
     # ---- 合并两路 ----
     concat = Concatenate(name="concat")([input_price, embed])
-    # concat shape: (None, 60, 17+8=25)
+    # concat shape: (None, 60, 15+8=23)
 
-    # ---- LSTM 层 (照搬 Lecture4 例 8: LSTM(50)×2 + Dropout(0.2)) ----
+    # ---- LSTM 层 ----
     x = LSTM(LSTM_UNITS, return_sequences=True, name="lstm_1")(concat)
     x = Dropout(DROPOUT, name="dropout_1")(x)
 
     x = LSTM(LSTM_UNITS, return_sequences=False, name="lstm_2")(x)
     x = Dropout(DROPOUT, name="dropout_2")(x)
 
-    # ---- 输出层 ----
-    output = Dense(1, name="output")(x)
+    # ---- 输出层: 7 天每日预测 ----
+    output = Dense(SEQ_HORIZON, name="output")(x)
 
     # ---- 组装模型 ----
     model = keras.Model(
         inputs=[input_price, input_item],
         outputs=output,
-        name="LSTM_C_Panel_Embedding"
+        name="LSTM_C_Panel_Embedding_Seq7"
     )
 
     model.compile(
@@ -198,8 +197,9 @@ def build_model(n_items):
 # 第 6 步: 主流程
 # ============================================================
 def main():
-    # 固定随机种子 (参照 Lecture4 例 8: tf.random.set_seed(7))
+    # 固定随机种子
     keras.utils.set_random_seed(42)
+    configure_device()
 
     # --- 加载 ---
     panel = load_data()
@@ -218,15 +218,23 @@ def main():
         panel, item_map, "val", x_scaler=x_scaler, fit_scaler=False
     )
 
-    # --- 对 y 做标准化 (全局, log 空间量级已接近) ---
+    # --- 对 y 做标准化 (7 维, 每天独立 mean/scale) ---
     y_scaler = StandardScaler()
-    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
-    y_val_scaled   = y_scaler.transform(y_val.reshape(-1, 1)).ravel()
-    print(f"  y scaler mean={y_scaler.mean_[0]:.4f}, scale={y_scaler.scale_[0]:.4f}")
+    y_train_scaled = y_scaler.fit_transform(y_train)
+    y_val_scaled = y_scaler.transform(y_val)
+    print(f"  y scaler mean={y_scaler.mean_}, scale={y_scaler.scale_}")
+
+    # --- 构建 tf.data 流水线 ---
+    train_ds = create_multi_input_dataset(
+        Xp_train, Xi_train, y_train_scaled, batch_size=BATCH_SIZE, shuffle=True
+    )
+    val_ds = create_multi_input_dataset(
+        Xp_val, Xi_val, y_val_scaled, batch_size=BATCH_SIZE, shuffle=False
+    )
 
     # --- 构建模型 ---
     print("\n" + "=" * 60)
-    print("第 4 步: 构建 LSTM-C 模型")
+    print("第 4 步: 构建 LSTM-C Seq2Seq 模型 (Dense(7))")
     print("=" * 60)
     model = build_model(n_items)
     model.summary()
@@ -243,37 +251,50 @@ def main():
     )
 
     history = model.fit(
-        [Xp_train, Xi_train], y_train_scaled,
-        validation_data=([Xp_val, Xi_val], y_val_scaled),
+        train_ds,
+        validation_data=val_ds,
         epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
         callbacks=[early_stop, reduce_lr],
         verbose=1
     )
 
-    # --- 评估 ---
+    # --- 评估: 逐日 + 整体 ---
     print("\n" + "=" * 60)
-    print("第 6 步: 评估")
+    print("第 6 步: 评估 (逐日 + 整体)")
     print("=" * 60)
-    y_pred_scaled = model.predict([Xp_val, Xi_val], verbose=0).ravel()
-    y_pred = y_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
-    y_true = y_val  # 原始 log_price
+    y_pred_scaled = model.predict([Xp_val, Xi_val], verbose=0)  # (n, 7)
+    y_pred_log = y_scaler.inverse_transform(y_pred_scaled)       # (n, 7) log_price
+    y_pred = np.expm1(y_pred_log)                                # (n, 7) USD
 
-    # RMSE / MAE (在 log 空间)
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-    mae  = mean_absolute_error(y_true, y_pred)
-    print(f"  Val RMSE (log space): {rmse:.6f}")
-    print(f"  Val MAE  (log space): {mae:.6f}")
+    # 真实价格 (USD) per day
+    y_true_price_all = np.expm1(y_val)  # (n, 7), y_val 是 log_price
 
-    # 还原到真实价格
-    y_true_price = np.expm1(y_true)
-    y_pred_price = np.expm1(y_pred)
-    rmse_price = np.sqrt(mean_squared_error(y_true_price, y_pred_price))
-    mae_price  = mean_absolute_error(y_true_price, y_pred_price)
-    r2 = r2_score(y_true_price, y_pred_price)
-    print(f"  Val RMSE (real USD):  ${rmse_price:.4f}")
-    print(f"  Val MAE  (real USD):  ${mae_price:.4f}")
-    print(f"  Val R²   (real USD):   {r2:.4f}")
+    print(f"\n  {'Day':<8} {'RMSE':>10} {'MAE':>10} {'MAPE':>8} {'R²':>8}")
+    print(f"  {'-'*8} {'-'*10} {'-'*10} {'-'*8} {'-'*8}")
+    for d in range(SEQ_HORIZON):
+        yt = y_true_price_all[:, d]
+        yp = y_pred[:, d]
+        rmse = np.sqrt(mean_squared_error(yt, yp))
+        mae = mean_absolute_error(yt, yp)
+        mape = np.mean(np.abs((yt - yp) / np.maximum(yt, 0.01))) * 100
+        r2 = r2_score(yt, yp)
+        print(f"  Day{d+1:<5} ${rmse:>8.4f} ${mae:>8.4f} {mape:>7.2f}% {r2:>8.4f}")
+
+    # 整体 (全部 7 天展平)
+    yt_all = y_true_price_all.ravel()
+    yp_all = y_pred.ravel()
+    rmse_all = np.sqrt(mean_squared_error(yt_all, yp_all))
+    mae_all = mean_absolute_error(yt_all, yp_all)
+    r2_all = r2_score(yt_all, yp_all)
+    print(f"  {'ALL':<8} ${rmse_all:>8.4f} ${mae_all:>8.4f} {'-':>8} {r2_all:>8.4f}")
+
+    # Day 7 单点 (对标旧版)
+    yt_d7 = y_true_price_all[:, -1]
+    yp_d7 = y_pred[:, -1]
+    rmse_d7 = np.sqrt(mean_squared_error(yt_d7, yp_d7))
+    mae_d7 = mean_absolute_error(yt_d7, yp_d7)
+    r2_d7 = r2_score(yt_d7, yp_d7)
+    print(f"\n  Day 7 only (对标旧版单点): RMSE=${rmse_d7:.4f}  MAE=${mae_d7:.4f}  R²={r2_d7:.4f}")
 
     # --- 保存 ---
     print("\n" + "=" * 60)
@@ -291,10 +312,10 @@ def main():
     print(f"\n  模型参数: {model.count_params():,}")
     print(f"  训练轮数: {len(history.history['loss'])}")
     print("\n" + "=" * 60)
-    print("LSTM-C 训练完成!")
+    print("LSTM-C Seq2Seq (Dense(7)) 训练完成!")
     print("=" * 60)
 
-    return model, history, y_true_price, y_pred_price
+    return model, history, y_true_price_all, y_pred
 
 
 if __name__ == "__main__":
