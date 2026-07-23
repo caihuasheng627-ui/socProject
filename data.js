@@ -220,7 +220,7 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
     return sum + price * (item.quantity || 1);
   }, 0) || 1000;
 
-  // 按市值加权的 24h 涨跌，用于预测段斜率
+  // 按市值加权的 24h 涨跌，用于预测段斜率（日均变化率）
   let weightSum = 0;
   let weightedChange = 0;
   items.forEach((item) => {
@@ -230,7 +230,9 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
     weightSum += w;
     weightedChange += w * ((skin?.change24h ?? 0) / 100);
   });
-  const dailyPred = weightSum > 0 ? weightedChange / Math.max(forecastDays, 1) : 0.002;
+  // 将 24h 涨跌摊到预测区间，并限制幅度，避免曲线失真
+  const avgChange = weightSum > 0 ? weightedChange / weightSum : 0.002;
+  const horizonMove = Math.max(-0.08, Math.min(0.08, avgChange * 0.85));
 
   let cursor = baseTotal * 0.88;
   for (let i = days; i >= 0; i--) {
@@ -245,7 +247,6 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
 
   const predictedDates = [];
   const predictedValues = [];
-  let predCursor = baseTotal;
   let seed = Math.round(baseTotal) % 997;
   const rand = () => {
     seed = (seed * 137 + 71) % 997;
@@ -256,8 +257,8 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
     predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
     const t = i / forecastDays;
     const eased = 1 - Math.pow(1 - t, 2);
-    const wiggle = i === forecastDays ? 0 : rand() * 0.006;
-    predCursor = baseTotal * (1 + dailyPred * forecastDays * eased + wiggle);
+    const wiggle = i === forecastDays ? 0 : rand() * 0.004;
+    const predCursor = baseTotal * (1 + horizonMove * eased + wiggle);
     predictedValues.push(+predCursor.toFixed(2));
   }
 
