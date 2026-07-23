@@ -805,6 +805,12 @@ const app = createApp({
       return m.type || '—';
     };
     const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
+    const debateSuggestedQuestions = window.CSVestData.DEBATE_SUGGESTED_QUESTIONS || [];
+    const chatMode = ref('qa'); // 'qa' | 'debate'
+
+    const activeSuggestedQuestions = computed(() => (
+      chatMode.value === 'debate' ? debateSuggestedQuestions : suggestedQuestions
+    ));
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
@@ -942,7 +948,6 @@ const app = createApp({
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
-        loadDebate(skin.id);
       }
     };
 
@@ -1224,14 +1229,154 @@ const app = createApp({
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
 
+    const setChatMode = (mode) => {
+      chatMode.value = mode === 'debate' ? 'debate' : 'qa';
+      chatSuggestedIndex.value = -1;
+    };
+
+    const chatNow = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    const SKIN_ALIASES = [
+      { keys: ['火蛇', 'fireserpent', 'fire serpent', 'ak47-fireserpent'], idHint: 'fireserpent' },
+      { keys: ['龙狙', 'dragonlore', 'dragon lore', 'awp-dragonlore'], idHint: 'dragonlore' },
+      { keys: ['红线', 'redline', 'ak47-redline'], idHint: 'redline' },
+      { keys: ['asiimov', '二西莫夫', 'awp-asiimov'], idHint: 'asiimov' },
+      { keys: ['蝴蝶刀', 'butterfly'], idHint: 'butterfly' },
+      { keys: ['多普勒', 'doppler'], idHint: 'doppler' },
+    ];
+
+    const resolveSkinFromQuery = (query) => {
+      const q = String(query || '').trim().toLowerCase();
+      const list = skins.value || [];
+      if (!q) return selectedSkin.value || null;
+
+      const byId = list.find(s => String(s.id || '').toLowerCase() === q);
+      if (byId) return byId;
+
+      for (const alias of SKIN_ALIASES) {
+        if (alias.keys.some(k => q.includes(k))) {
+          const hit = list.find(s => String(s.id || '').toLowerCase().includes(alias.idHint)
+            || String(s.name || '').toLowerCase().includes(alias.idHint));
+          if (hit) return hit;
+        }
+      }
+
+      // 名称子串匹配：优先更长命中
+      let best = null;
+      let bestScore = 0;
+      for (const s of list) {
+        const name = String(s.name || '').toLowerCase();
+        const id = String(s.id || '').toLowerCase();
+        if (!name && !id) continue;
+        if (q.includes(name) || name.includes(q) || q.includes(id) || id.includes(q.replace(/\s+/g, '-'))) {
+          const score = Math.max(name.length, id.length);
+          if (score > bestScore) {
+            best = s;
+            bestScore = score;
+          }
+        }
+      }
+      if (best) return best;
+
+      // 泛化请求 + 已选饰品
+      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(q)) {
+        return selectedSkin.value;
+      }
+      return selectedSkin.value || null;
+    };
+
+    const canSendChat = computed(() => {
+      if (chatLoading.value) return false;
+      const text = chatInput.value.trim();
+      if (chatMode.value === 'debate') {
+        return !!(text || selectedSkin.value);
+      }
+      return !!text;
+    });
+
+    const ensureDebateLoaded = async (skin) => {
+      if (!skin?.id) return null;
+      await loadDebate(skin.id);
+      return debateData.value;
+    };
+
+    const sendDebateMessage = async (overrideText) => {
+      const raw = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
+      const skin = resolveSkinFromQuery(raw);
+      const displayText = raw || (skin ? t('chat.debateHintSkin', { name: skin.name }).replace(/；.*/, '') : '');
+
+      if (!skin) {
+        chatMessages.value.push({
+          role: 'user',
+          content: raw || t('chat.startDebate'),
+          time: chatNow(),
+        });
+        chatInput.value = '';
+        chatMessages.value.push({
+          role: 'assistant',
+          content: t('chat.debateNeedSkin'),
+          time: chatNow(),
+          model: 'CSVest',
+        });
+        await scrollChatBottom();
+        return;
+      }
+
+      chatMessages.value.push({
+        role: 'user',
+        content: displayText || t('chat.debateHintSkin', { name: skin.name }),
+        time: chatNow(),
+      });
+      chatInput.value = '';
+      chatLoading.value = true;
+      await scrollChatBottom();
+
+      try {
+        const data = await ensureDebateLoaded(skin);
+        chatMessages.value.push({
+          role: 'assistant',
+          type: 'debate',
+          content: `${t('prediction.debateTitle')} · ${skin.name}`,
+          debate: {
+            skin: data?.skin || skin.name,
+            currentPrice: data?.currentPrice ?? skin.price,
+            rounds: data?.rounds || [],
+            consensus: data?.consensus || {
+              recommendation: '观望',
+              entryRange: '—',
+              stopLoss: '—',
+              targetPrice: '—',
+              risks: [],
+            },
+          },
+          time: chatNow(),
+          model: apiOnline.value ? 'Bull/Bear Agents' : 'Mock Debate',
+        });
+      } catch (e) {
+        chatMessages.value.push({
+          role: 'assistant',
+          content: t('chat.debateNeedSkin'),
+          time: chatNow(),
+          model: 'Mock',
+        });
+      }
+      chatLoading.value = false;
+      await scrollChatBottom();
+    };
+
     const sendMessage = async (overrideText) => {
+      if (chatMode.value === 'debate') {
+        await sendDebateMessage(overrideText);
+        return;
+      }
+
       const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
       if (!text || chatLoading.value) return;
 
       chatMessages.value.push({
         role: 'user',
         content: text,
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        time: chatNow(),
       });
       chatInput.value = '';
       chatLoading.value = true;
@@ -1240,7 +1385,7 @@ const app = createApp({
       const assistantMsg = {
         role: 'assistant',
         content: '',
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        time: chatNow(),
         model: apiOnline.value ? 'DeepSeek-V3' : 'Mock',
       };
       chatMessages.value.push(assistantMsg);
@@ -1271,18 +1416,19 @@ const app = createApp({
 
     // 监听聊天输入框的键盘事件
     const onChatKeydown = (e) => {
+      const suggestions = activeSuggestedQuestions.value;
       // 输入框为空时,支持上下方向键选择建议问题
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestedQuestions.length - 1);
+          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestions.length - 1);
           if (chatSuggestedIndex.value < 0) chatSuggestedIndex.value = 0;
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           chatSuggestedIndex.value = Math.max(chatSuggestedIndex.value - 1, 0);
         } else if (e.key === 'Enter' && chatSuggestedIndex.value >= 0) {
           e.preventDefault();
-          sendMessage(suggestedQuestions[chatSuggestedIndex.value]);
+          sendMessage(suggestions[chatSuggestedIndex.value]);
           chatSuggestedIndex.value = -1;
           return;
         }
@@ -1290,7 +1436,7 @@ const app = createApp({
       // 默认 Enter 发送
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        if (canSendChat.value) sendMessage();
         chatSuggestedIndex.value = -1;
       }
     };
@@ -2033,7 +2179,6 @@ const app = createApp({
       if (newPage === 'prediction') {
         renderKline();
         if (selectedSkin.value?.id) {
-          loadDebate(selectedSkin.value.id);
           loadExplanation(selectedSkin.value.id);
         }
       } else if (newPage === 'models') {
@@ -2066,7 +2211,6 @@ const app = createApp({
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
-          loadDebate(skin.id);
           loadExplanation(skin.id);
         }
       }
@@ -2101,7 +2245,9 @@ const app = createApp({
       modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
       // 对话
-      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
+      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
+      suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
+      chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport,
       // 预警

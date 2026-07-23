@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723e" />
+  <link rel="stylesheet" href="style.css?v=20260723f" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -812,62 +812,6 @@
             </div>
           </div>
 
-          <!-- 双 Agent 辩论 -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">{{ t('prediction.debateTitle') }}</div>
-                <div class="card-subtitle">{{ t('prediction.debateDesc') }}</div>
-              </div>
-              <span class="tag tag-orange">{{ t('prediction.debate.badge') }}</span>
-            </div>
-
-            <div class="debate-rounds">
-              <div v-for="(round, idx) in debateData.rounds" :key="idx" class="debate-round">
-                <div class="debate-round-title">
-                  <span>Round {{ round.round }}</span>
-                  <span>·</span>
-                  <span>{{ t('prediction.debate.r' + (idx + 1)) }}</span>
-                </div>
-                <div class="debate-message debate-bull">
-                  <span class="debate-icon">
-                    <i class="ph-duotone ph-trend-up" style="color: var(--accent-green); font-size: 18px;" aria-hidden="true"></i>
-                  </span>
-                  <span style="flex: 1;">{{ round.bull }}</span>
-                </div>
-                <div class="debate-message debate-bear">
-                  <span class="debate-icon">
-                    <i class="ph-duotone ph-trend-down" style="color: var(--accent-red); font-size: 18px;" aria-hidden="true"></i>
-                  </span>
-                  <span style="flex: 1;">{{ round.bear }}</span>
-                </div>
-              </div>
-
-              <!-- 最终共识 -->
-              <div class="card" style="background: var(--bg-tertiary);">
-                <div class="text-muted text-sm mb-3">{{ t('prediction.consensus.title') }}</div>
-                <div class="grid grid-2 gap-3 mb-3">
-                  <div>
-                    <div class="text-muted text-sm">{{ t('prediction.consensus.advice') }}</div>
-                    <div style="font-size: 18px; font-weight: 700; color: var(--accent-orange);">{{ debateData.consensus.recommendation }}</div>
-                  </div>
-                  <div>
-                    <div class="text-muted text-sm">{{ t('prediction.consensus.entry') }}</div>
-                    <div style="font-size: 18px; font-weight: 700;">{{ debateData.consensus.entryRange }}</div>
-                  </div>
-                  <div>
-                    <div class="text-muted text-sm">{{ t('prediction.consensus.target') }}</div>
-                    <div style="font-size: 18px; font-weight: 700; color: var(--accent-green);">{{ debateData.consensus.targetPrice }}</div>
-                  </div>
-                  <div>
-                    <div class="text-muted text-sm">{{ t('prediction.consensus.stoploss') }}</div>
-                    <div style="font-size: 18px; font-weight: 700; color: var(--accent-red);">{{ debateData.consensus.stopLoss }}</div>
-                  </div>
-                </div>
-                <div class="text-muted text-sm">{{ t('prediction.consensus.risks') }}: {{ debateData.consensus.risks.join(' · ') }}</div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- AI 对话顾问 -->
@@ -893,7 +837,7 @@
               <!-- 推荐问题 -->
               <div class="suggested-questions" v-if="chatMessages.length <= 1">
                 <div
-                  v-for="(q, qIdx) in suggestedQuestions"
+                  v-for="(q, qIdx) in activeSuggestedQuestions"
                   :key="q"
                   class="suggested-question"
                   :class="{ focused: chatSuggestedIndex === qIdx }"
@@ -914,7 +858,59 @@
                   {{ msg.role === 'user' ? t('chat.meta.you').charAt(0) : 'AI' }}
                 </div>
                 <div style="flex: 1;">
-                  <div class="chat-content" v-html="renderMarkdown(msg.content)"></div>
+                  <div v-if="msg.type === 'debate' && msg.debate" class="chat-content chat-debate-card">
+                    <div class="chat-debate-header">
+                      <strong>{{ t('prediction.debateTitle') }}</strong>
+                      <span class="tag tag-orange">{{ msg.debate.skin || '' }}</span>
+                    </div>
+                    <div class="text-muted text-sm mb-3">{{ t('prediction.debateDesc') }}</div>
+                    <div class="debate-rounds">
+                      <div v-for="(round, rIdx) in msg.debate.rounds" :key="rIdx" class="debate-round">
+                        <div class="debate-round-title">
+                          <span>Round {{ round.round }}</span>
+                          <span>·</span>
+                          <span>{{ t('prediction.debate.r' + (rIdx + 1)) }}</span>
+                        </div>
+                        <div class="debate-message debate-bull">
+                          <span class="debate-icon">
+                            <i class="ph-duotone ph-trend-up" style="color: var(--accent-green); font-size: 18px;" aria-hidden="true"></i>
+                          </span>
+                          <span style="flex: 1;">{{ round.bull }}</span>
+                        </div>
+                        <div class="debate-message debate-bear">
+                          <span class="debate-icon">
+                            <i class="ph-duotone ph-trend-down" style="color: var(--accent-red); font-size: 18px;" aria-hidden="true"></i>
+                          </span>
+                          <span style="flex: 1;">{{ round.bear }}</span>
+                        </div>
+                      </div>
+                      <div class="chat-debate-consensus">
+                        <div class="text-muted text-sm mb-3">{{ t('prediction.consensus.title') }}</div>
+                        <div class="grid grid-2 gap-3 mb-3">
+                          <div>
+                            <div class="text-muted text-sm">{{ t('prediction.consensus.advice') }}</div>
+                            <div class="chat-debate-metric accent">{{ msg.debate.consensus.recommendation }}</div>
+                          </div>
+                          <div>
+                            <div class="text-muted text-sm">{{ t('prediction.consensus.entry') }}</div>
+                            <div class="chat-debate-metric">{{ msg.debate.consensus.entryRange }}</div>
+                          </div>
+                          <div>
+                            <div class="text-muted text-sm">{{ t('prediction.consensus.target') }}</div>
+                            <div class="chat-debate-metric up">{{ msg.debate.consensus.targetPrice }}</div>
+                          </div>
+                          <div>
+                            <div class="text-muted text-sm">{{ t('prediction.consensus.stoploss') }}</div>
+                            <div class="chat-debate-metric down">{{ msg.debate.consensus.stopLoss }}</div>
+                          </div>
+                        </div>
+                        <div class="text-muted text-sm" v-if="msg.debate.consensus.risks?.length">
+                          {{ t('prediction.consensus.risks') }}: {{ msg.debate.consensus.risks.join(' · ') }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="chat-content" v-html="renderMarkdown(msg.content)"></div>
                   <div class="chat-meta">
                     <span>{{ msg.role === 'user' ? t('chat.meta.you') : t('chat.meta.ai') }}</span>
                     <span>·</span>
@@ -932,28 +928,54 @@
                   <div class="typing-dots">
                     <span></span><span></span><span></span>
                   </div>
-                  <span style="margin-left: 8px; color: var(--text-muted);">{{ t('chat.aiLoading') }}</span>
+                  <span style="margin-left: 8px; color: var(--text-muted);">{{ chatMode === 'debate' ? t('chat.debateLoading') : t('chat.aiLoading') }}</span>
                 </div>
               </div>
             </div>
 
             <div class="chat-input-area">
+              <div class="chat-mode-toggle" role="tablist" :aria-label="t('chat.modeLabel')">
+                <button
+                  type="button"
+                  role="tab"
+                  class="chat-mode-btn"
+                  :class="{ active: chatMode === 'qa' }"
+                  :aria-selected="chatMode === 'qa'"
+                  @click="setChatMode('qa')"
+                >{{ t('chat.mode.qa') }}</button>
+                <button
+                  type="button"
+                  role="tab"
+                  class="chat-mode-btn"
+                  :class="{ active: chatMode === 'debate' }"
+                  :aria-selected="chatMode === 'debate'"
+                  @click="setChatMode('debate')"
+                >{{ t('chat.mode.debate') }}</button>
+              </div>
+              <p v-if="chatMode === 'debate'" class="chat-mode-hint text-muted text-sm">
+                {{ selectedSkin ? t('chat.debateHintSkin', { name: selectedSkin.name }) : t('chat.debateHint') }}
+              </p>
               <textarea
                 class="chat-input"
                 v-model="chatInput"
                 @keydown="onChatKeydown"
-                :placeholder="t('chat.placeholder')"
+                :placeholder="chatMode === 'debate' ? t('chat.placeholderDebate') : t('chat.placeholder')"
                 rows="2"
-                :aria-label="t('chat.placeholder')"
+                :aria-label="chatMode === 'debate' ? t('chat.placeholderDebate') : t('chat.placeholder')"
               ></textarea>
               <div class="chat-input-actions">
                 <div class="text-muted text-sm">
                   💡 {{ t('chat.placeholderKeys') }}
                 </div>
-                <button class="btn btn-primary" :class="{ loading: chatLoading }" @click="sendMessage" :disabled="!chatInput.trim() || chatLoading">
-                  <span v-if="!chatLoading">📤</span>
-                  <span v-if="!chatLoading">{{ t('chat.send') }}</span>
-                  <span v-if="chatLoading">{{ t('chat.thinking') }}</span>
+                <button
+                  class="btn btn-primary"
+                  :class="{ loading: chatLoading }"
+                  @click="sendMessage"
+                  :disabled="!canSendChat || chatLoading"
+                >
+                  <span v-if="!chatLoading">{{ chatMode === 'debate' ? '🐂🐻' : '📤' }}</span>
+                  <span v-if="!chatLoading">{{ chatMode === 'debate' ? t('chat.startDebate') : t('chat.send') }}</span>
+                  <span v-if="chatLoading">{{ chatMode === 'debate' ? t('chat.debating') : t('chat.thinking') }}</span>
                 </button>
               </div>
             </div>
@@ -1608,11 +1630,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723e"></script>
-  <script src="i18n.js?v=20260723e"></script>
+  <script src="data.js?v=20260723f"></script>
+  <script src="i18n.js?v=20260723f"></script>
   <script src="js/api.js?v=20260723e"></script>
   <script src="js/auth.js?v=20260723e"></script>
   <script src="js/lucide-icons.js?v=20260723e"></script>
-  <script src="app.js?v=20260723e"></script>
+  <script src="app.js?v=20260723f"></script>
 </body>
 </html>
