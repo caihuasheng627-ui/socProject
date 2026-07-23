@@ -5233,9 +5233,73 @@ select:focus-visible {
   .rag-ask { flex-direction: column; }
   .rag-source__rel { width: 52px; }
 }
-/* ============ 管理端 ============ */
+/* ============ 管理端（独立全页，无侧边栏） ============ */
+.admin-shell {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(255, 107, 0, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 0%, rgba(59, 130, 246, 0.08), transparent 50%),
+    var(--bg-primary);
+}
+.admin-shell__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.admin-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-shell__logo {
+  color: var(--accent-orange);
+  display: flex;
+}
+.admin-shell__title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.admin-shell__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.admin-shell__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-shell__body {
+  flex: 1;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  box-sizing: border-box;
+}
 .admin-page { max-width: 1100px; }
-.admin-login { max-width: 420px; }
+.admin-login { max-width: 420px; margin: 40px auto 0; }
+.admin-table-wrap { overflow-x: auto; }
 .admin-status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -5271,4 +5335,6 @@ select:focus-visible {
 }
 @media (max-width: 800px) {
   .admin-config-grid { grid-template-columns: 1fr; }
+  .admin-shell__bar { padding: 12px 16px; }
+  .admin-shell__body { padding: 16px 14px 40px; }
 }

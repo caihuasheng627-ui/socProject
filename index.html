@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260723r" />
+  <link rel="stylesheet" href="style.css?v=20260723t" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -79,7 +79,7 @@
 
     <!-- ============ 首屏 Landing ============ -->
     <section
-      v-if="showLanding"
+      v-if="showLanding && !showAdmin"
       class="landing"
       :class="{ 'landing--exit': landingExiting }"
       aria-label="CSVest landing"
@@ -328,7 +328,208 @@
       </div>
     </section>
 
-    <template v-if="!showLanding && (currentUser || isGuest)">
+    <!-- ============ 独立管理端（无侧边栏，仅 #admin） ============ -->
+    <section v-if="showAdmin" class="admin-shell" aria-label="Admin">
+      <header class="admin-shell__bar">
+        <div class="admin-shell__brand">
+          <span class="admin-shell__logo" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
+              <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
+            </svg>
+          </span>
+          <div>
+            <div class="admin-shell__title">{{ t('admin.title') }}</div>
+            <div class="admin-shell__sub">{{ t('admin.subtitle') }}</div>
+          </div>
+        </div>
+        <div class="admin-shell__actions" v-if="adminIsAuthed">
+          <button class="btn btn-secondary btn-sm" @click="loadAdminPanel" :disabled="adminLoading">
+            <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+            {{ adminLoading ? t('admin.loading') : t('common.refresh') }}
+          </button>
+          <button class="btn btn-ghost btn-sm" @click="adminLogout">{{ t('admin.logout') }}</button>
+          <button class="btn btn-ghost btn-sm" @click="leaveAdmin">{{ t('admin.back') }}</button>
+        </div>
+        <div class="admin-shell__actions" v-else>
+          <button class="btn btn-ghost btn-sm" @click="leaveAdmin">{{ t('admin.back') }}</button>
+        </div>
+      </header>
+
+      <div class="admin-shell__body fade-in admin-page">
+          <!-- 管理员登录 -->
+          <div v-if="!adminIsAuthed" class="card admin-login">
+            <div class="card-title mb-3">{{ t('admin.loginTitle') }}</div>
+            <p class="text-muted text-sm mb-3">{{ t('admin.loginHint') }}</p>
+            <div class="form-group">
+              <label class="form-label">{{ t('admin.username') }}</label>
+              <input class="form-input" v-model.trim="adminLoginForm.username" autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ t('admin.password') }}</label>
+              <input class="form-input" type="password" v-model="adminLoginForm.password"
+                     autocomplete="current-password" @keyup.enter="adminLogin" />
+            </div>
+            <p v-if="adminLoginError" class="text-down text-sm mb-3">{{ adminLoginError }}</p>
+            <button class="btn btn-primary" @click="adminLogin" :disabled="adminLoginLoading">
+              {{ adminLoginLoading ? t('admin.loggingIn') : t('admin.login') }}
+            </button>
+          </div>
+
+          <template v-else>
+            <!-- API 状态 -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <div class="card-title">{{ t('admin.statusTitle') }}</div>
+                <div class="flex gap-2">
+                  <button class="btn btn-sm btn-secondary" @click="runProbeLlm">{{ t('admin.probeLlm') }}</button>
+                  <button class="btn btn-sm btn-secondary" @click="runProbeEmbed">{{ t('admin.probeEmbed') }}</button>
+                  <button class="btn btn-sm btn-ghost" @click="refreshAdminStatus">{{ t('common.refresh') }}</button>
+                </div>
+              </div>
+              <div class="admin-status-grid">
+                <div class="admin-status-item">
+                  <span class="text-muted">DeepSeek LLM</span>
+                  <strong :class="adminStatus?.config?.deepseek?.enabled ? 'text-up' : 'text-down'">
+                    {{ adminStatus?.config?.deepseek?.enabled ? t('admin.status.ok') : t('admin.status.off') }}
+                  </strong>
+                  <span class="text-muted text-sm" v-if="adminStatus?.config?.deepseek?.keyMasked">
+                    {{ adminStatus.config.deepseek.keyMasked }}
+                  </span>
+                  <div class="admin-probe" v-if="adminProbeLlm">
+                    <span v-if="adminProbeLlm.loading">…</span>
+                    <span v-else :class="adminProbeLlm.ok ? 'text-up' : 'text-down'">
+                      {{ adminProbeLlm.ok ? ('OK · ' + adminProbeLlm.latencyMs + 'ms') : (adminProbeLlm.error || 'fail') }}
+                    </span>
+                  </div>
+                </div>
+                <div class="admin-status-item">
+                  <span class="text-muted">DashScope Embedding</span>
+                  <strong :class="adminStatus?.config?.dashscope?.enabled ? 'text-up' : 'text-down'">
+                    {{ adminStatus?.config?.dashscope?.enabled ? t('admin.status.ok') : t('admin.status.off') }}
+                  </strong>
+                  <span class="text-muted text-sm">
+                    {{ adminStatus?.rag?.mode || '—' }} · {{ adminStatus?.config?.dashscope?.embedModel || '' }}
+                  </span>
+                  <div class="admin-probe" v-if="adminProbeEmbed">
+                    <span v-if="adminProbeEmbed.loading">…</span>
+                    <span v-else :class="adminProbeEmbed.ok ? 'text-up' : 'text-down'">
+                      {{ adminProbeEmbed.ok ? ('OK · dim ' + adminProbeEmbed.dim + ' · ' + adminProbeEmbed.latencyMs + 'ms') : (adminProbeEmbed.error || 'fail') }}
+                    </span>
+                  </div>
+                </div>
+                <div class="admin-status-item">
+                  <span class="text-muted">{{ t('admin.usersCount') }}</span>
+                  <strong>{{ adminStatus?.health?.dataSources?.users ?? adminUsers.length }}</strong>
+                </div>
+                <div class="admin-status-item">
+                  <span class="text-muted">Health</span>
+                  <strong>{{ adminStatus?.health?.status || '—' }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- 一键配置 API -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <div class="card-title">{{ t('admin.configTitle') }}</div>
+                <button class="btn btn-primary btn-sm" @click="saveAdminConfig" :disabled="adminSaving">
+                  {{ adminSaving ? t('admin.saving') : t('admin.saveConfig') }}
+                </button>
+              </div>
+              <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
+              <div class="admin-config-grid">
+                <div>
+                  <h4 class="admin-section-label">DeepSeek (LLM)</h4>
+                  <div class="form-group">
+                    <label class="form-label">API Key
+                      <span class="text-muted" v-if="adminConfig?.deepseek?.keyMasked">
+                        ({{ t('admin.current') }} {{ adminConfig.deepseek.keyMasked }})
+                      </span>
+                    </label>
+                    <input class="form-input" type="password" v-model="adminConfigForm.deepseekApiKey"
+                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Base URL</label>
+                    <input class="form-input" v-model="adminConfigForm.deepseekBaseUrl" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Model</label>
+                    <input class="form-input" v-model="adminConfigForm.deepseekModel" />
+                  </div>
+                </div>
+                <div>
+                  <h4 class="admin-section-label">DashScope (向量)</h4>
+                  <div class="form-group">
+                    <label class="form-label">API Key
+                      <span class="text-muted" v-if="adminConfig?.dashscope?.keyMasked">
+                        ({{ t('admin.current') }} {{ adminConfig.dashscope.keyMasked }})
+                      </span>
+                    </label>
+                    <input class="form-input" type="password" v-model="adminConfigForm.dashscopeApiKey"
+                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Base URL</label>
+                    <input class="form-input" v-model="adminConfigForm.dashscopeBaseUrl" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Embedding Model</label>
+                    <input class="form-input" v-model="adminConfigForm.ragEmbedModel" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Dim</label>
+                    <input class="form-input" type="number" v-model.number="adminConfigForm.ragEmbedDim" />
+                  </div>
+                  <label class="admin-check">
+                    <input type="checkbox" v-model="adminConfigForm.ragUseVector" />
+                    {{ t('admin.useVector') }}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 用户列表 -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">{{ t('admin.usersTitle') }}</div>
+                <span class="tag">{{ adminUsers.length }}</span>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>{{ t('admin.col.username') }}</th>
+                      <th>{{ t('admin.col.role') }}</th>
+                      <th>{{ t('admin.col.created') }}</th>
+                      <th>{{ t('admin.col.portfolio') }}</th>
+                      <th>{{ t('admin.col.alerts') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="u in adminUsers" :key="u.id">
+                      <td>{{ u.id }}</td>
+                      <td><strong>{{ u.username }}</strong></td>
+                      <td>
+                        <span v-if="u.is_admin" class="tag tag-purple">admin</span>
+                        <span v-else-if="u.is_demo" class="tag tag-blue">demo</span>
+                        <span v-else class="tag">user</span>
+                      </td>
+                      <td class="text-muted text-sm">{{ u.created_at || '—' }}</td>
+                      <td>{{ u.portfolioCount ?? 0 }}</td>
+                      <td>{{ u.alertCount ?? 0 }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+      </div>
+    </section>
+
+    <template v-if="!showLanding && !showAdmin && (currentUser || isGuest)">
     <!-- 移动端侧边栏遮罩 -->
     <div class="sidebar-overlay" :class="{ show: sidebarOpen }" @click="sidebarOpen = false"></div>
 
@@ -1781,198 +1982,6 @@
           </div>
         </div>
 
-        <!-- 管理员端 -->
-        <div v-if="currentPage === 'admin'" class="fade-in admin-page">
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                <i class="ph-duotone ph-shield-check icon-primary" aria-hidden="true"></i>
-                {{ t('admin.title') }}
-              </h2>
-              <p class="text-muted text-sm mt-2">{{ t('admin.subtitle') }}</p>
-            </div>
-            <div class="flex gap-2" v-if="adminIsAuthed">
-              <button class="btn btn-secondary btn-sm" @click="loadAdminPanel" :disabled="adminLoading">
-                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
-                {{ adminLoading ? t('admin.loading') : t('common.refresh') }}
-              </button>
-              <button class="btn btn-ghost btn-sm" @click="adminLogout">{{ t('admin.logout') }}</button>
-              <button class="btn btn-ghost btn-sm" @click="goToPage('dashboard')">{{ t('admin.back') }}</button>
-            </div>
-            <div class="flex gap-2" v-else>
-              <button class="btn btn-ghost btn-sm" @click="goToPage('dashboard')">{{ t('admin.back') }}</button>
-            </div>
-          </div>
-
-          <!-- 管理员登录 -->
-          <div v-if="!adminIsAuthed" class="card admin-login">
-            <div class="card-title mb-3">{{ t('admin.loginTitle') }}</div>
-            <p class="text-muted text-sm mb-3">{{ t('admin.loginHint') }}</p>
-            <div class="form-group">
-              <label class="form-label">{{ t('admin.username') }}</label>
-              <input class="form-input" v-model.trim="adminLoginForm.username" autocomplete="username" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ t('admin.password') }}</label>
-              <input class="form-input" type="password" v-model="adminLoginForm.password"
-                     autocomplete="current-password" @keyup.enter="adminLogin" />
-            </div>
-            <p v-if="adminLoginError" class="text-down text-sm mb-3">{{ adminLoginError }}</p>
-            <button class="btn btn-primary" @click="adminLogin" :disabled="adminLoginLoading">
-              {{ adminLoginLoading ? t('admin.loggingIn') : t('admin.login') }}
-            </button>
-          </div>
-
-          <template v-else>
-            <!-- API 状态 -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <div class="card-title">{{ t('admin.statusTitle') }}</div>
-                <div class="flex gap-2">
-                  <button class="btn btn-sm btn-secondary" @click="runProbeLlm">{{ t('admin.probeLlm') }}</button>
-                  <button class="btn btn-sm btn-secondary" @click="runProbeEmbed">{{ t('admin.probeEmbed') }}</button>
-                  <button class="btn btn-sm btn-ghost" @click="refreshAdminStatus">{{ t('common.refresh') }}</button>
-                </div>
-              </div>
-              <div class="admin-status-grid">
-                <div class="admin-status-item">
-                  <span class="text-muted">DeepSeek LLM</span>
-                  <strong :class="adminStatus?.config?.deepseek?.enabled ? 'text-up' : 'text-down'">
-                    {{ adminStatus?.config?.deepseek?.enabled ? t('admin.status.ok') : t('admin.status.off') }}
-                  </strong>
-                  <span class="text-muted text-sm" v-if="adminStatus?.config?.deepseek?.keyMasked">
-                    {{ adminStatus.config.deepseek.keyMasked }}
-                  </span>
-                  <div class="admin-probe" v-if="adminProbeLlm">
-                    <span v-if="adminProbeLlm.loading">…</span>
-                    <span v-else :class="adminProbeLlm.ok ? 'text-up' : 'text-down'">
-                      {{ adminProbeLlm.ok ? ('OK · ' + adminProbeLlm.latencyMs + 'ms') : (adminProbeLlm.error || 'fail') }}
-                    </span>
-                  </div>
-                </div>
-                <div class="admin-status-item">
-                  <span class="text-muted">DashScope Embedding</span>
-                  <strong :class="adminStatus?.config?.dashscope?.enabled ? 'text-up' : 'text-down'">
-                    {{ adminStatus?.config?.dashscope?.enabled ? t('admin.status.ok') : t('admin.status.off') }}
-                  </strong>
-                  <span class="text-muted text-sm">
-                    {{ adminStatus?.rag?.mode || '—' }} · {{ adminStatus?.config?.dashscope?.embedModel || '' }}
-                  </span>
-                  <div class="admin-probe" v-if="adminProbeEmbed">
-                    <span v-if="adminProbeEmbed.loading">…</span>
-                    <span v-else :class="adminProbeEmbed.ok ? 'text-up' : 'text-down'">
-                      {{ adminProbeEmbed.ok ? ('OK · dim ' + adminProbeEmbed.dim + ' · ' + adminProbeEmbed.latencyMs + 'ms') : (adminProbeEmbed.error || 'fail') }}
-                    </span>
-                  </div>
-                </div>
-                <div class="admin-status-item">
-                  <span class="text-muted">{{ t('admin.usersCount') }}</span>
-                  <strong>{{ adminStatus?.health?.dataSources?.users ?? adminUsers.length }}</strong>
-                </div>
-                <div class="admin-status-item">
-                  <span class="text-muted">Health</span>
-                  <strong>{{ adminStatus?.health?.status || '—' }}</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- 一键配置 API -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <div class="card-title">{{ t('admin.configTitle') }}</div>
-                <button class="btn btn-primary btn-sm" @click="saveAdminConfig" :disabled="adminSaving">
-                  {{ adminSaving ? t('admin.saving') : t('admin.saveConfig') }}
-                </button>
-              </div>
-              <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
-              <div class="admin-config-grid">
-                <div>
-                  <h4 class="admin-section-label">DeepSeek (LLM)</h4>
-                  <div class="form-group">
-                    <label class="form-label">API Key
-                      <span class="text-muted" v-if="adminConfig?.deepseek?.keyMasked">
-                        ({{ t('admin.current') }} {{ adminConfig.deepseek.keyMasked }})
-                      </span>
-                    </label>
-                    <input class="form-input" type="password" v-model="adminConfigForm.deepseekApiKey"
-                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Base URL</label>
-                    <input class="form-input" v-model="adminConfigForm.deepseekBaseUrl" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Model</label>
-                    <input class="form-input" v-model="adminConfigForm.deepseekModel" />
-                  </div>
-                </div>
-                <div>
-                  <h4 class="admin-section-label">DashScope (向量)</h4>
-                  <div class="form-group">
-                    <label class="form-label">API Key
-                      <span class="text-muted" v-if="adminConfig?.dashscope?.keyMasked">
-                        ({{ t('admin.current') }} {{ adminConfig.dashscope.keyMasked }})
-                      </span>
-                    </label>
-                    <input class="form-input" type="password" v-model="adminConfigForm.dashscopeApiKey"
-                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Base URL</label>
-                    <input class="form-input" v-model="adminConfigForm.dashscopeBaseUrl" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Embedding Model</label>
-                    <input class="form-input" v-model="adminConfigForm.ragEmbedModel" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Dim</label>
-                    <input class="form-input" type="number" v-model.number="adminConfigForm.ragEmbedDim" />
-                  </div>
-                  <label class="admin-check">
-                    <input type="checkbox" v-model="adminConfigForm.ragUseVector" />
-                    {{ t('admin.useVector') }}
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- 用户列表 -->
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('admin.usersTitle') }}</div>
-                <span class="tag">{{ adminUsers.length }}</span>
-              </div>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>{{ t('admin.col.username') }}</th>
-                    <th>{{ t('admin.col.role') }}</th>
-                    <th>{{ t('admin.col.created') }}</th>
-                    <th>{{ t('admin.col.portfolio') }}</th>
-                    <th>{{ t('admin.col.alerts') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="u in adminUsers" :key="u.id">
-                    <td>{{ u.id }}</td>
-                    <td><strong>{{ u.username }}</strong></td>
-                    <td>
-                      <span v-if="u.is_admin" class="tag tag-purple">admin</span>
-                      <span v-else-if="u.is_demo" class="tag tag-blue">demo</span>
-                      <span v-else class="tag">user</span>
-                    </td>
-                    <td class="text-muted text-sm">{{ u.created_at || '—' }}</td>
-                    <td>{{ u.portfolioCount ?? 0 }}</td>
-                    <td>{{ u.alertCount ?? 0 }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-        </div>
-
       </div>
     </main>
 
@@ -2216,11 +2225,11 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260723r"></script>
-  <script src="i18n.js?v=20260723r"></script>
-  <script src="js/api.js?v=20260723r"></script>
-  <script src="js/auth.js?v=20260723r"></script>
-  <script src="js/lucide-icons.js?v=20260723r"></script>
-  <script src="app.js?v=20260723r"></script>
+  <script src="data.js?v=20260723t"></script>
+  <script src="i18n.js?v=20260723t"></script>
+  <script src="js/api.js?v=20260723t"></script>
+  <script src="js/auth.js?v=20260723t"></script>
+  <script src="js/lucide-icons.js?v=20260723t"></script>
+  <script src="app.js?v=20260723t"></script>
 </body>
 </html>

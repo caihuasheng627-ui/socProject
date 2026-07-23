@@ -146,6 +146,7 @@ const app = createApp({
         }
       } catch (_) { /* ignore */ }
     });
+    const showAdmin = computed(() => currentPage.value === 'admin');
     const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
     const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
     // 二级视图在面包屑中的子标题
@@ -174,16 +175,25 @@ const app = createApp({
     });
 
     const canEnter = () => !!(currentUser.value || isGuest.value);
-    const showLanding = ref(!canEnter() || sessionStorage.getItem('sv_entered') !== '1');
+    const showLanding = ref(
+      currentPage.value === 'admin'
+        ? false
+        : (!canEnter() || sessionStorage.getItem('sv_entered') !== '1')
+    );
     const landingExiting = ref(false);
 
-    // 无登录且非游客时，强制停留在启动页
-    if (!canEnter()) {
+    // 无登录且非游客时，强制停留在启动页（管理端除外）
+    if (!canEnter() && currentPage.value !== 'admin') {
       sessionStorage.removeItem('sv_entered');
       sessionStorage.removeItem('sv_guest');
       isGuest.value = false;
       showLanding.value = true;
     }
+
+    // 进入管理端时隐藏 Landing（独立全页）
+    watch(showAdmin, (on) => {
+      if (on) showLanding.value = false;
+    });
 
     const enterSystem = (asGuest = false) => {
       if (landingExiting.value || !showLanding.value) return;
@@ -993,6 +1003,18 @@ const app = createApp({
       adminStatus.value = null;
       adminProbeLlm.value = null;
       adminProbeEmbed.value = null;
+    };
+
+    /** 离开独立管理页：有会话则回用户端，否则回 Landing */
+    const leaveAdmin = () => {
+      const entered = canEnter() && sessionStorage.getItem('sv_entered') === '1';
+      currentPage.value = 'dashboard';
+      showLanding.value = !entered;
+      try {
+        if ((location.hash || '').replace(/^#/, '') === 'admin') {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      } catch (_) { /* ignore */ }
     };
 
     const adminLogin = async () => {
@@ -2893,18 +2915,20 @@ const app = createApp({
         inventoryValueChartInstance?.resize();
       });
 
-      // 隐藏入口: #admin 进出管理端(不进侧边栏)
+      // 隐藏入口: #admin 进出独立管理端(不进侧边栏)
       const syncAdminHash = () => {
         const isAdminHash = (location.hash || '').replace(/^#/, '') === 'admin';
         if (isAdminHash && currentPage.value !== 'admin') {
           currentPage.value = 'admin';
+          showLanding.value = false;
           if (adminIsAuthed.value) loadAdminPanel();
         } else if (!isAdminHash && currentPage.value === 'admin') {
-          currentPage.value = 'dashboard';
+          leaveAdmin();
         }
       };
       window.addEventListener('hashchange', syncAdminHash);
       if ((location.hash || '').replace(/^#/, '') === 'admin') {
+        showLanding.value = false;
         syncAdminHash();
       }
 
@@ -3027,7 +3051,7 @@ const app = createApp({
       // 菜单
       menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
-      showLanding, landingExiting, enterSystem,
+      showLanding, landingExiting, enterSystem, showAdmin, leaveAdmin,
       // 用户认证
       currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,
