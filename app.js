@@ -608,7 +608,7 @@ const app = createApp({
     const loadSkinsFromApi = async () => {
       const client = api();
       if (!client) return false;
-      // 后端全集 868 件(154 csv + 714 buff); limit 调大到 1000 以全量展示
+      // 后端全集 681 件(132 csv + 549 buff); limit 调大到 1000 以全量展示
       // 连真实后端时禁止静默退回 Mock，避免行情中心“看起来在线实则演示”
       const res = await client.getSkins(
         { limit: 1000, sort: 'volume_desc' },

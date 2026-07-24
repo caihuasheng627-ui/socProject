@@ -1,5 +1,5 @@
 """
-临时脚本：爬取 train/val/test 那 158 件饰品的 BUFF 近 180 天价格。
+临时脚本：爬取 train/val/test 那 154 件饰品的 BUFF 近 180 天价格。
 运行后 price_history 表会同时有 CSV 旧数据(2019-2023)和 BUFF 新数据(2026)。
 """
 import sys, time

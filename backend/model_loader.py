@@ -325,7 +325,7 @@ class ModelLoader:
         if not self.tf_available:
             return self._mock_trend(market_hash_name, cur_price, cur_date)
 
-        # 新物品强制 LSTM-C(__UNK__);原 154 件按 group 路由
+        # 新物品强制 LSTM-C(__UNK__);已知物品按 group 路由
         if is_new_item:
             prefer = "LSTM-C"
             grp = "new"
