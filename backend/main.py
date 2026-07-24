@@ -881,10 +881,14 @@ def get_news(limit: int = 20, sentiment: str | None = None, source: str | None =
 
 
 @app.get("/api/daily-report")
-def daily_report(date: str | None = None):
+def daily_report(date: str | None = None, refresh: bool = False):
     # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；
     # aiSummary 若是旧的 Mock/调用失败文案，则现场刷新（LLM 可用则重生成）。
+    # refresh=1 时强制重新生成整份日报（「重新生成」按钮）。
     import scheduler
+    if refresh:
+        return scheduler.generate_daily_report()
+
     live_metrics = scheduler.market_metrics_from_db()
 
     from config import SEED_DIR

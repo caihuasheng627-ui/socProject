@@ -1351,11 +1351,12 @@
               <p class="text-muted text-sm mt-2">{{ t('daily.date') }}</p>
             </div>
             <div class="flex gap-2">
-              <button class="btn btn-secondary btn-sm">
+              <button class="btn btn-secondary btn-sm" type="button" @click="exportDailyReport" :disabled="dailyReportLoading">
                 <i class="ph ph-file-pdf" aria-hidden="true"></i> {{ t('daily.exportPdf') }}
               </button>
-              <button class="btn btn-primary btn-sm">
-                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{ t('daily.regenerate') }}
+              <button class="btn btn-primary btn-sm" type="button" @click="regenerateDailyReport" :disabled="dailyReportLoading">
+                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+                {{ dailyReportLoading ? t('daily.regenerating') : t('daily.regenerate') }}
               </button>
             </div>
           </div>
@@ -1932,9 +1933,6 @@
               <p class="models-lab__sub">{{ t('models.subtitleShort') }}</p>
             </div>
             <div class="models-lab__actions">
-              <button class="btn btn-primary btn-sm" type="button">
-                <i class="ph ph-rocket-launch" aria-hidden="true"></i> {{ t('models.retrain') }}
-              </button>
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
                 <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
               </button>

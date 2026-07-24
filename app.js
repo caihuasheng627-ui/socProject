@@ -895,37 +895,93 @@ const app = createApp({
       aiSummary: '',
       sources: [],
     });
+    const dailyReportLoading = ref(false);
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
     const portfolioValueHistory = ref({ dates: [], values: [] });
 
-    const loadDailyReport = async () => {
+    const applyDailyReport = (rep) => {
+      if (!rep) return;
+      dailyReport.value = {
+        date: rep.date || '',
+        generatedAt: rep.generatedAt || '',
+        metrics: {
+          monitored: rep.metrics?.monitored ?? skins.value.length,
+          gainers: rep.metrics?.gainers ?? topGainers.value.length,
+          losers: rep.metrics?.losers ?? topLosers.value.length,
+        },
+        aiSummary: rep.aiSummary || rep.summary || '',
+        sources: Array.isArray(rep.sources) ? rep.sources : [],
+        news: Array.isArray(rep.news) ? rep.news : [],
+        portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
+      };
+      if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
+        hotVolume.value = rep.hotVolume;
+      } else {
+        reconnectLeaders();
+      }
+      const news = Array.isArray(rep.news) ? rep.news : [];
+      if (news.length) newsFeed.value = news;
+    };
+
+    const loadDailyReport = async ({ refresh = false } = {}) => {
       const client = api();
       if (!client) return;
       try {
-        const rep = await client.getDailyReport();
-        if (!rep) return;
-        dailyReport.value = {
-          date: rep.date || '',
-          generatedAt: rep.generatedAt || '',
-          metrics: {
-            monitored: rep.metrics?.monitored ?? skins.value.length,
-            gainers: rep.metrics?.gainers ?? topGainers.value.length,
-            losers: rep.metrics?.losers ?? topLosers.value.length,
-          },
-          aiSummary: rep.aiSummary || rep.summary || '',
-          sources: Array.isArray(rep.sources) ? rep.sources : [],
-        };
-        if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
-          hotVolume.value = rep.hotVolume;
-        } else {
-          reconnectLeaders();
-        }
-        const news = Array.isArray(rep.news) ? rep.news : [];
-        if (news.length) newsFeed.value = news;
+        const rep = await client.getDailyReport(undefined, { refresh });
+        applyDailyReport(rep);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
       }
+    };
+
+    const regenerateDailyReport = async () => {
+      if (dailyReportLoading.value) return;
+      dailyReportLoading.value = true;
+      showToast({ title: t('daily.regenerating'), type: 'info' });
+      try {
+        await loadDailyReport({ refresh: true });
+        showToast({ title: t('daily.regenerateDone'), type: 'success' });
+      } catch (e) {
+        showToast({
+          title: t('daily.regenerateFail'),
+          subtitle: e?.message || String(e),
+          type: 'error',
+        });
+      } finally {
+        dailyReportLoading.value = false;
+      }
+    };
+
+    const exportDailyReport = () => {
+      const r = dailyReport.value || {};
+      const m = r.metrics || {};
+      const lines = [
+        `# CSVest AI 市场日报`,
+        `日期: ${r.date || '-'}`,
+        `生成: ${r.generatedAt || '-'}`,
+        '',
+        `## 指标`,
+        `- 监控: ${m.monitored ?? '-'}`,
+        `- 上涨: ${m.gainers ?? '-'}`,
+        `- 下跌: ${m.losers ?? '-'}`,
+        '',
+        `## AI 市场总结`,
+        r.aiSummary || '(暂无)',
+        '',
+        `## 引用来源`,
+        ...((r.sources || []).map((s, i) =>
+          `${i + 1}. [${s.source || s.type || 'source'}] ${s.snippet || s.title || ''}`
+        )),
+        '',
+        `## 资讯`,
+        ...((r.news || newsFeed.value || []).slice(0, 8).map((n) =>
+          `- ${n.title || ''} (${n.source || ''})`
+        )),
+      ];
+      const filename = `CSVest_daily_${(r.date || new Date().toISOString().slice(0, 10))}.md`;
+      downloadFile(lines.join('\n'), filename, 'text/markdown;charset=utf-8;');
+      showToast({ title: t('export.success'), subtitle: filename, type: 'success' });
     };
 
     const loadExplanation = async (skinId) => {
@@ -3390,7 +3446,8 @@ const app = createApp({
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
       chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
-      newsFeed, dailyReport, loadDailyReport,
+      newsFeed, dailyReport, loadDailyReport, dailyReportLoading,
+      regenerateDailyReport, exportDailyReport,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
       adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,

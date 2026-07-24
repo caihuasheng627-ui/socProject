@@ -459,9 +459,13 @@ class CSVestAPI {
     );
   }
 
-  async getDailyReport(date) {
+  async getDailyReport(date, { refresh = false } = {}) {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (refresh) params.set('refresh', '1');
+    const qs = params.toString();
     return this._safeCall(
-      () => this._fetch(`/api/daily-report?date=${date || ''}`),
+      () => this._fetch(`/api/daily-report${qs ? `?${qs}` : ''}`),
       () => ({
         date: date || new Date().toISOString().slice(0, 10),
         generatedAt: new Date().toISOString(),
