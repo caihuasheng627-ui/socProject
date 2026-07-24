@@ -181,6 +181,56 @@ const app = createApp({
         : (!canEnter() || sessionStorage.getItem('sv_entered') !== '1')
     );
     const landingExiting = ref(false);
+    let landingScenesApi = null;
+    let landingScrollApi = null;
+
+    const destroyLandingCanvas = () => {
+      try {
+        landingScenesApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScenesApi = null;
+      try {
+        landingScrollApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScrollApi = null;
+    };
+
+    const mountLandingCanvas = async () => {
+      await nextTick();
+      destroyLandingCanvas();
+      if (!showLanding.value) return;
+      const sceneRoot = document.getElementById('landing-scene-root');
+      if (typeof window.initLandingScenes === 'function' && sceneRoot) {
+        const landingRoot = document.querySelector('.landing');
+        const hero = document.querySelector('.landing-hero');
+        landingScenesApi = window.initLandingScenes(sceneRoot, {
+          wheelHost: landingRoot || hero || window,
+          captionEl: document.getElementById('landing-scene-caption'),
+          nameEl: document.getElementById('landing-scene-name'),
+          mapEl: document.getElementById('landing-scene-map'),
+          priceEl: document.getElementById('landing-scene-price'),
+          dotsEl: document.getElementById('landing-scene-dots'),
+        });
+      }
+      if (typeof window.initLandingScroll === 'function') {
+        const landingRoot = document.querySelector('.landing');
+        if (landingRoot) {
+          landingScrollApi = window.initLandingScroll(landingRoot);
+        }
+      }
+    };
+
+    watch(showLanding, (on) => {
+      if (on) mountLandingCanvas();
+      else destroyLandingCanvas();
+    });
+
+    watch(currentLang, async () => {
+      await nextTick();
+      try {
+        landingScenesApi?.refreshLang?.();
+      } catch (_) { /* ignore */ }
+    });
 
     // 无登录且非游客时，强制停留在启动页（管理端除外）
     if (!canEnter() && currentPage.value !== 'admin') {
@@ -214,6 +264,7 @@ const app = createApp({
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
       showAuthPanel.value = false;
+      destroyLandingCanvas();
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
@@ -3409,7 +3460,9 @@ const app = createApp({
       await connectBackend();
 
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
-      if (!showLanding.value) {
+      if (showLanding.value) {
+        await mountLandingCanvas();
+      } else {
         renderKline();
         await hydrateCurrentPage(currentPage.value);
       }
