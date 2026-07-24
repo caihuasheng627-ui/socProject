@@ -1,0 +1,162 @@
+import json
+import sqlite3
+from datetime import datetime, timezone
+
+from prediction_service import predict_for_skin
+
+
+NOW = datetime(2026, 7, 24, 12, 0, tzinfo=timezone.utc)
+
+
+def make_conn():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE skins (
+            id INTEGER PRIMARY KEY, slug TEXT, market_hash_name TEXT,
+            source TEXT
+        );
+        CREATE TABLE price_history (
+            id INTEGER PRIMARY KEY, skin_id INTEGER, date TEXT, price REAL,
+            daily_volume INTEGER
+        );
+        CREATE TABLE predictions (
+            id INTEGER PRIMARY KEY, skin_id INTEGER, horizon INTEGER,
+            model TEXT, type TEXT, predicted_price REAL, current_price REAL,
+            change_pct REAL, confidence REAL, generated_at TEXT,
+            expires_at TEXT, daily_json TEXT, decision_date TEXT,
+            model_version TEXT, data_through TEXT
+        );
+        INSERT INTO skins VALUES (1, 'test-skin', 'Test Skin', 'buff');
+        INSERT INTO price_history VALUES
+            (1, 1, '2026-07-21', 98.0, 0),
+            (2, 1, '2026-07-22', 100.0, 0);
+        """
+    )
+    return conn
+
+
+class FakeLoader:
+    def __init__(self, result):
+        self.result = result
+        self.live_calls = 0
+
+    def live_model_version(self):
+        return "lstm-test-v1"
+
+    def predict_live_lstm(self, name):
+        self.live_calls += 1
+        return self.result
+
+    def predict_all_models(self, name, horizon):
+        raise AssertionError("offline prediction adapter was called")
+
+
+def live_result(price=105.0, date="2026-07-22", current=100.0):
+    daily = [100.5, 101.0, 102.0, 103.0, 104.0, 104.5, price]
+    return {
+        "current_price": current,
+        "predicted_price": price,
+        "daily_prices": daily,
+        "model": "LSTM-C(__UNK__)",
+        "date": date,
+        "change_pct": round((price - current) / current * 100, 2),
+        "confidence": 73.6,
+    }
+
+
+def call(conn, loader, horizon=7, models=None):
+    skin = conn.execute("SELECT * FROM skins WHERE id=1").fetchone()
+    return predict_for_skin(conn, skin, horizon, models, loader, NOW, ttl_hours=6)
+
+
+def test_service_returns_fresh_live_prediction():
+    result = call(make_conn(), FakeLoader(live_result()))
+    assert result["status"] == "available"
+    assert result["decisionDate"] == "2026-07-22"
+    assert result["currentPrice"] == 100.0
+    assert result["predictions"][0]["price"] == 105.0
+
+
+def test_service_rejects_stale_decision_date():
+    result = call(make_conn(), FakeLoader(live_result(date="2023-05-19")))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "STALE_INPUT"
+    assert result["predictions"] == []
+
+
+def test_service_rejects_price_anchor_mismatch():
+    result = call(make_conn(), FakeLoader(live_result(current=99.0)))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "PRICE_ANCHOR_MISMATCH"
+
+
+def test_service_rejects_move_over_thirty_percent():
+    result = call(make_conn(), FakeLoader(live_result(price=131.0)))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+
+
+def test_service_returns_unavailable_when_tensorflow_is_missing():
+    result = call(make_conn(), FakeLoader(None))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "MODEL_UNAVAILABLE"
+
+
+def test_service_rejects_unsupported_model_request():
+    result = call(make_conn(), FakeLoader(live_result()), models=["XGBoost"])
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "REQUESTED_MODEL_UNAVAILABLE"
+
+
+def test_service_never_calls_predict_all_models():
+    loader = FakeLoader(live_result())
+    call(make_conn(), loader)
+    assert loader.live_calls == 1
+
+
+def test_cache_requires_unexpired_matching_date_price_and_version():
+    conn = make_conn()
+    conn.execute(
+        """INSERT INTO predictions(
+               skin_id, horizon, model, type, predicted_price, current_price,
+               change_pct, confidence, generated_at, expires_at, daily_json,
+               decision_date, model_version, data_through
+           ) VALUES (1, 7, 'LSTM', 'DL', 105, 100, 5, 73.6, ?, ?, ?, ?, ?, ?)""",
+        (
+            "2026-07-24T11:00:00+00:00",
+            "2026-07-24T18:00:00+00:00",
+            json.dumps([100.5, 101, 102, 103, 104, 104.5, 105]),
+            "2026-07-22",
+            "lstm-test-v1",
+            "2026-07-22",
+        ),
+    )
+    loader = FakeLoader(live_result())
+    result = call(conn, loader)
+    assert result["status"] == "available"
+    assert result["generatedAt"] == "2026-07-24T11:00:00+00:00"
+    assert loader.live_calls == 0
+
+
+def test_expired_cache_is_not_reused():
+    conn = make_conn()
+    conn.execute(
+        """INSERT INTO predictions(
+               skin_id, horizon, model, type, predicted_price, current_price,
+               change_pct, confidence, generated_at, expires_at, daily_json,
+               decision_date, model_version, data_through
+           ) VALUES (1, 7, 'LSTM', 'DL', 105, 100, 5, 73.6, ?, ?, ?, ?, ?, ?)""",
+        (
+            "2026-07-24T01:00:00+00:00",
+            "2026-07-24T11:59:59+00:00",
+            json.dumps([100.5, 101, 102, 103, 104, 104.5, 105]),
+            "2026-07-22",
+            "lstm-test-v1",
+            "2026-07-22",
+        ),
+    )
+    loader = FakeLoader(live_result())
+    call(conn, loader)
+    assert loader.live_calls == 1
