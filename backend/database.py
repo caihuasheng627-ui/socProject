@@ -9,7 +9,7 @@ SQLite 建表 + 导入 + 种子(组员 3 主线第 1 步)。
 数据来源(课程演示,策划书 §13.2 降级口径):
   - skins        : train.csv 去重导入(weapon_type/rarity/wear/is_stattrak)
   - price_history: train+val+test 回填(BUFF 实时爬虫关闭,训练 CSV 兜底)
-  - portfolio    : Expo 种子 3-5 件预置持仓(real/sim 混合)
+  - portfolio    : 默认空(不再预置 Expo 演示持仓)
   - news         : 几条种子资讯(RSS 采集由 scheduler 增量补充)
   - model_registry: 8 模型指标(读 ml/outputs/*.json)
 
@@ -654,40 +654,23 @@ SEED_NEWS = [
 
 
 def seed_portfolio() -> None:
-    """Expo 预置 3-5 件持仓(real/sim 混合),归 demo 用户。仅在空库时执行。"""
-    from config import DEMO_USERNAME
+    """默认空库存:不再写入 Expo 演示持仓。"""
+    print("[db] 种子 portfolio=跳过(默认空库存)")
+
+
+def clear_demo_seed_portfolio() -> int:
+    """清除内置演示持仓(按种子备注匹配),用户自建持仓保留。"""
+    notes = tuple(item[-1] for item in SEED_PORTFOLIO_NAMES)
+    if not notes:
+        return 0
+    placeholders = ",".join("?" * len(notes))
     with get_connection() as conn:
-        if conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0] > 0:
-            return
-        demo_row = conn.execute("SELECT id FROM users WHERE username=?", (DEMO_USERNAME,)).fetchone()
-        if demo_row is None:
-            return  # ensure_demo_user 应已创建;兜底跳过
-        demo_id = demo_row["id"]
-        today = _utcnow().strftime("%Y-%m-%d")
-        for frag, htype, buy_mult, qty, note in SEED_PORTFOLIO_NAMES:
-            row = conn.execute(
-                "SELECT id, market_hash_name FROM skins WHERE market_hash_name LIKE ? LIMIT 1",
-                (f"{frag}%",),
-            ).fetchone()
-            if not row:
-                continue
-            skin_id = row["id"]
-            # 最新价
-            p = conn.execute(
-                "SELECT price FROM price_history WHERE skin_id=? ORDER BY date DESC LIMIT 1",
-                (skin_id,),
-            ).fetchone()
-            cur = p["price"] if p else None
-            buy_price = round(cur * buy_mult, 2) if (buy_mult and cur) else None
-            buy_date = (_utcnow() - timedelta(days=45)).strftime("%Y-%m-%d")
-            conn.execute(
-                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (skin_id, htype, buy_price, buy_date, qty, note, today, demo_id),
-            )
-        n = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        print(f"[db] 种子 portfolio={n} 件(归 demo 用户)")
+        cur = conn.execute(
+            f"DELETE FROM portfolio WHERE note IN ({placeholders})",
+            notes,
+        )
         conn.commit()
+        return int(cur.rowcount)
 
 
 def seed_news() -> None:
@@ -849,6 +832,9 @@ def run_init() -> None:
         print(f"[db] 已清空假成交量 daily_volume: {cleared} 行")
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
+    cleared = clear_demo_seed_portfolio()
+    if cleared:
+        print(f"[db] 已清除演示持仓 {cleared} 件")
     seed_portfolio()
     seed_news()
     seed_model_registry()
