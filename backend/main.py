@@ -208,9 +208,12 @@ def list_skins(category: str | None = None, sort: str = "volume_desc",
         "price_asc": lambda x: x["priceUsd"] or 0,
         "change7d_desc": lambda x: -(x["change7d"] or 0),
         "change7d_asc": lambda x: x["change7d"] or 0,
-        "volume_desc": lambda x: -(x["volume24h"] or 0),
+        "change24h_desc": lambda x: -(x["change24h"] or 0),
+        "rarity_desc": lambda x: -(x["rarity"] or 0),
+        # volume_desc 保留兼容旧前端,但已无真实成交量,回退到 7 日涨跌
+        "volume_desc": lambda x: -(x["change7d"] or 0),
     }
-    items.sort(key=sort_map.get(sort, sort_map["volume_desc"]))
+    items.sort(key=sort_map.get(sort, sort_map["change7d_desc"]))
     items = items[:limit]
     return {"total": len(rows), "items": items}
 

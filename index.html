@@ -770,7 +770,7 @@
                     <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
                       <div class="mb-row__name">{{ skin.name }}</div>
-                      <div class="mb-row__meta">{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</div>
+                      <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
                     <div class="mb-row__quote">
                       <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
@@ -803,7 +803,7 @@
                     <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
                       <div class="mb-row__name">{{ skin.name }}</div>
-                      <div class="mb-row__meta">{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</div>
+                      <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
                     <div class="mb-row__quote">
                       <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
@@ -841,9 +841,9 @@
                 </label>
                 <select v-model="skinSort" class="market-sort" :aria-label="t('dashboard.sort')">
                   <option value="change7d">{{ t('dashboard.sort.change7d') }}</option>
-                  <option value="volume">{{ t('dashboard.sort.volume') }}</option>
+                  <option value="change24h">{{ t('dashboard.sort.change24h') }}</option>
                   <option value="price">{{ t('dashboard.sort.price') }}</option>
-                  <option value="liquidity">{{ t('dashboard.sort.liquidity') }}</option>
+                  <option value="rarity">{{ t('dashboard.sort.rarity') }}</option>
                   <option value="name">{{ t('dashboard.sort.name') }}</option>
                 </select>
               </div>
@@ -902,8 +902,8 @@
                     </div>
                   </div>
                   <div class="mb-skin__side">
-                    <span>{{ t('dashboard.volume24h') }} {{ formatVolume(skin.volume24h) }}</span>
-                    <span>{{ t('dashboard.liquidity') }} {{ skin.liquidity ?? '—' }}</span>
+                    <span>{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</span>
+                    <span>{{ t('dashboard.change7d') }} {{ formatChange(skin.change7d) }}</span>
                   </div>
                 </button>
               </div>
@@ -1395,7 +1395,7 @@
                 </div>
                 <div style="text-align: right;">
                   <div class="font-bold">${{ formatPrice(skin.price) }}</div>
-                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.volume24h') }} {{ skin.volume24h }}</div>
+                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                 </div>
               </div>
             </div>
