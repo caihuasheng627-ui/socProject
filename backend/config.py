@@ -65,6 +65,9 @@ USE_BUFF_LIVE = os.getenv("USE_BUFF_LIVE", "0") == "1"   # 默认关:用已落�
 BUFF_COOKIE = os.getenv("BUFF_COOKIE", "").strip()
 BUFF_BASE_URL = "https://buff.163.com"
 BUFF_HISTORY_DAYS = int(os.getenv("BUFF_HISTORY_DAYS", "180"))   # 滚动窗口天数
+# Steam 库存导入默认 cookie(可选;私有库存必填。steamcommunity.com → F12 → Cookies → steamLoginSecure)
+# 弹窗里临时填的 cookie 优先于此值。
+STEAM_COOKIE = os.getenv("STEAM_COOKIE", "").strip()
 BUFF_REFRESH_HOURS = int(os.getenv("BUFF_REFRESH_HOURS", "6"))   # 定时刷新间隔(小时)
 BUFF_REQUEST_DELAY = float(os.getenv("BUFF_REQUEST_DELAY", "1.5"))  # 礼貌限速(秒)
 BUFF_BATCH_SIZE = int(os.getenv("BUFF_BATCH_SIZE", "50"))        # 分批每批件数

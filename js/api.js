@@ -699,11 +699,11 @@ class CSVestAPI {
    * POST /api/inventory/steam/import — Steam 库存导入（待开发）
    * 后端对接后：拉取 Steam inventory → 映射 market_hash_name → 写入 inventory
    */
-  async importSteamInventory(_payload = {}) {
+  async importSteamInventory(payload = {}) {
     return this._safeCall(
       () => this._fetch('/api/inventory/steam/import', {
         method: 'POST',
-        body: JSON.stringify(_payload),
+        body: JSON.stringify(payload),
       }),
       () => {
         const err = new Error('Steam 导入功能开发中');

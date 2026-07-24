@@ -94,6 +94,21 @@ class PortfolioReq(BaseModel):
     holdingType: str = "real"
 
 
+class InventoryReq(BaseModel):
+    """手动添加真实库存饰品(对应前端 addInventoryItem)。"""
+    skinId: str
+    acquirePrice: float | None = None
+    quantity: int = 1
+    acquireDate: str | None = None
+    source: str = "manual"
+
+
+class SteamImportReq(BaseModel):
+    """Steam 库存导入:链接 + 可选 steamLoginSecure cookie。"""
+    steamUrl: str
+    cookie: str | None = None
+
+
 class AlertReq(BaseModel):
     skinId: str
     type: str = "above"
@@ -654,6 +669,127 @@ def delete_portfolio(item_id: int, current_user: dict = Depends(get_current_user
         if r.rowcount == 0:
             raise HTTPException(404, "not found")
     return {"success": True}
+
+
+# ============================================================
+# 🆕 我的库存(holding_type='real' 的 portfolio 项)+ Steam 导入
+# ============================================================
+@app.get("/api/inventory")
+def get_inventory(current_user: dict = Depends(get_current_user_optional)):
+    """返回当前用户的真实库存(holding_type='real')。字段对齐前端 loadInventoryFromApi。"""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT p.*, s.market_hash_name, s.slug
+               FROM portfolio p JOIN skins s ON s.id=p.skin_id
+               WHERE p.user_id=? AND p.holding_type='real' ORDER BY p.id""",
+            (current_user["id"],),
+        ).fetchall()
+        items = []
+        for r in rows:
+            cur, _ = latest_price(conn, r["skin_id"])
+            note = r["note"] or ""
+            items.append({
+                "id": r["id"], "skinId": r["slug"], "name": r["market_hash_name"],
+                "acquirePrice": r["buy_price"], "quantity": r["quantity"],
+                "acquireDate": r["buy_date"],
+                "source": "steam" if "steam" in note.lower() else "manual",
+                "currentPrice": round(cur, 2) if cur else None,
+            })
+        total = round(sum((i["currentPrice"] or 0) * i["quantity"] for i in items), 2)
+    return {"total": total, "items": items}
+
+
+@app.post("/api/inventory")
+def add_inventory(req: InventoryReq, current_user: dict = Depends(get_current_user_optional)):
+    """手动添加一件真实库存饰品。"""
+    with get_connection() as conn:
+        skin = resolve_skin(conn, req.skinId)
+        if not skin:
+            raise HTTPException(404, "skin not found")
+        cur = _utcnow().isoformat()
+        c = conn.execute(
+            """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (skin["id"], "real", req.acquirePrice, req.acquireDate,
+             req.quantity, req.source, cur, current_user["id"]),
+        )
+        conn.commit()
+        pid = c.lastrowid
+    return {"id": pid, "skinId": skin["slug"], "acquirePrice": req.acquirePrice,
+            "quantity": req.quantity, "acquireDate": req.acquireDate, "source": req.source}
+
+
+@app.delete("/api/inventory/{item_id}")
+def delete_inventory(item_id: int, current_user: dict = Depends(get_current_user_optional)):
+    with get_connection() as conn:
+        r = conn.execute(
+            "DELETE FROM portfolio WHERE id=? AND user_id=? AND holding_type='real'",
+            (item_id, current_user["id"]),
+        )
+        conn.commit()
+        if r.rowcount == 0:
+            raise HTTPException(404, "not found")
+    return {"success": True}
+
+
+@app.post("/api/inventory/steam/import")
+def import_steam_inventory(req: SteamImportReq, current_user: dict = Depends(get_current_user_optional)):
+    """从 Steam 链接拉取 CS2 库存,映射到 skins 表,写入真实库存(holding_type='real')。"""
+    import steam_inventory
+    from config import STEAM_COOKIE
+
+    steamid = steam_inventory.parse_steamid(req.steamUrl)
+    if not steamid:
+        raise HTTPException(400, "链接格式不对,需为 https://steamcommunity.com/profiles/<你的ID>/inventory")
+
+    cookie = (req.cookie or STEAM_COOKIE or "").strip() or None
+
+    try:
+        items = steam_inventory.fetch_cs2_inventory(steamid, cookie=cookie)
+    except steam_inventory.SteamPrivate:
+        raise HTTPException(403, "库存私有或被拒,请在弹窗里填写 steamLoginSecure cookie")
+    except steam_inventory.SteamNotFound:
+        raise HTTPException(404, "账号不存在或无 CS2 库存")
+    except steam_inventory.SteamRateLimited:
+        raise HTTPException(429, "Steam 限流,请稍后再试或填写 cookie")
+    except steam_inventory.SteamError as e:
+        raise HTTPException(502, f"Steam 拉取失败: {e}")
+
+    today = _utcnow().strftime("%Y-%m-%d")
+    imported, skipped, unmatched = 0, 0, []
+    with get_connection() as conn:
+        # 预取该用户已有 real 持仓的 skin_id,去重
+        existing = {r["skin_id"] for r in conn.execute(
+            "SELECT skin_id FROM portfolio WHERE user_id=? AND holding_type='real'",
+            (current_user["id"],)).fetchall()}
+        # 按 market_hash_name 批量查 skins
+        names = [it["market_hash_name"] for it in items]
+        skin_map = {r["market_hash_name"]: r["id"] for r in conn.execute(
+            "SELECT id, market_hash_name FROM skins WHERE market_hash_name IN (%s)"
+            % ",".join("?" * len(names)), names).fetchall()} if names else {}
+
+        now = _utcnow().isoformat()
+        for it in items:
+            name, qty = it["market_hash_name"], it["quantity"]
+            skin_id = skin_map.get(name)
+            if not skin_id:
+                unmatched.append({"name": name, "qty": qty})
+                continue
+            if skin_id in existing:
+                skipped += 1
+                continue
+            cur, _ = latest_price(conn, skin_id)
+            conn.execute(
+                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (skin_id, "real", cur, today, qty, f"Steam导入 {today}", now, current_user["id"]),
+            )
+            existing.add(skin_id)
+            imported += 1
+        conn.commit()
+
+    return {"imported": imported, "skipped": skipped,
+            "unmatched": unmatched, "total_items": len(items), "steamid": steamid}
 
 
 # ============================================================

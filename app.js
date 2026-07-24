@@ -2288,6 +2288,11 @@ const app = createApp({
     const inventoryMenuId = ref(null);
     const showInventoryEditModal = ref(false);
     const editingInventory = ref({ id: null, name: '', acquirePrice: 0 });
+    // Steam 库存导入
+    const showSteamImportModal = ref(false);
+    const steamImportLoading = ref(false);
+    const steamImportForm = ref({ steamUrl: '', cookie: '' });
+    const steamImportResult = ref(null);
     const inventoryValueHistory = ref({ dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 });
     const inventoryValueChart = ref(null);
     let inventoryValueChartInstance = null;
@@ -2618,22 +2623,51 @@ const app = createApp({
       }
     };
 
-    const importSteamInventory = async () => {
+    const importSteamInventory = () => {
       if (!requireInventoryLogin()) return;
       inventoryMenuId.value = null;
-      showToast({
-        title: t('inventory.steamPending'),
-        subtitle: t('inventory.steamPending.desc'),
-        type: 'info',
-      });
-      // 预留对接：await api().importSteamInventory({ steamId })
+      steamImportForm.value = { steamUrl: '', cookie: '' };
+      steamImportResult.value = null;
+      showSteamImportModal.value = true;
+    };
+
+    const submitSteamImport = async () => {
+      if (!steamImportForm.value.steamUrl.trim()) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('inventory.steamModal.urlRequired'), type: 'error' });
+        return;
+      }
+      const client = api();
+      if (!client || !apiOnline.value) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('network.offline') || '后端未连接', type: 'error' });
+        return;
+      }
+      steamImportLoading.value = true;
+      steamImportResult.value = null;
       try {
-        const client = api();
-        if (client && apiOnline.value) {
-          await client.importSteamInventory({});
-        }
-      } catch (_) {
-        /* pending stub */
+        const res = await client.importSteamInventory({
+          steamUrl: steamImportForm.value.steamUrl.trim(),
+          cookie: steamImportForm.value.cookie.trim(),
+        });
+        steamImportResult.value = res;
+        await loadInventoryFromApi();
+        await refreshInventoryCharts();
+        const imported = res?.imported ?? 0;
+        const skipped = res?.skipped ?? 0;
+        const unmatched = res?.unmatched?.length ?? 0;
+        showToast({
+          title: t('inventory.steamModal.success'),
+          subtitle: t('inventory.steamModal.summary', { imported, skipped, unmatched }),
+          type: imported > 0 ? 'success' : 'info',
+        });
+      } catch (e) {
+        const msg = e?.message || '';
+        let title = t('inventory.steamModal.failed');
+        if (/403|private|私有|cookie/i.test(msg)) title = t('inventory.steamModal.private');
+        else if (/429|限流|rate/i.test(msg)) title = t('inventory.steamModal.rateLimited');
+        else if (/400|格式|链接/i.test(msg)) title = t('inventory.steamModal.badUrl');
+        showToast({ title, subtitle: msg, type: 'error' });
+      } finally {
+        steamImportLoading.value = false;
       }
     };
 
@@ -3293,6 +3327,7 @@ const app = createApp({
       portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
       myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
       importSteamInventory, openInventoryItem,
+      showSteamImportModal, steamImportLoading, steamImportForm, steamImportResult, submitSteamImport,
       inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
       showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
       inventoryItemCount, inventoryTotalValue, inventoryTotalChange24h, inventorySourceLabel,
