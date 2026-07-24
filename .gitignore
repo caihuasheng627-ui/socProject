@@ -77,6 +77,11 @@ backend/skinvision.db-*
 backend/data/
 backend/server.log
 
+# 云端部署用的全量种子库（约 681 件有行情，首次灌入 Docker volume）
+!backend/seed/
+!backend/seed/skinvision.db
+!backend/seed/README.md
+
 # BUFF 爬取导出的训练面板(25MB,可用 export_training_data.py 重新生成)
 ml/data/buff_training_panel.csv
 

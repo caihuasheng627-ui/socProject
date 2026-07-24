@@ -22,6 +22,8 @@ services:
       USD_CNY_RATE: ${USD_CNY_RATE:-7.2}
       USE_BUFF_LIVE: ${USE_BUFF_LIVE:-0}
       ENABLE_INCREMENTAL_TRAIN: ${ENABLE_INCREMENTAL_TRAIN:-0}
+      # 设为 1 时用镜像内 seed 库覆盖 volume（把云端 154 升到全量 681）
+      RESET_DB_FROM_SEED: ${RESET_DB_FROM_SEED:-0}
     volumes:
       # 持久化 SQLite(持仓/预警/缓存),重启不丢
       - sqlite-data:/app/backend/data

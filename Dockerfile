@@ -21,7 +21,8 @@ COPY backend/ /app/backend/
 COPY ml/ /app/ml/
 COPY docs/ /app/docs/
 
-RUN mkdir -p /app/backend/data
+RUN mkdir -p /app/backend/data \
+    && chmod +x /app/backend/entrypoint.sh
 
 WORKDIR /app/backend
 
@@ -30,4 +31,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
+ENTRYPOINT ["bash", "/app/backend/entrypoint.sh"]
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
