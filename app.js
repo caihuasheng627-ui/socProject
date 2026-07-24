@@ -2636,6 +2636,10 @@ const app = createApp({
         showToast({ title: t('inventory.steamModal.failed'), subtitle: t('inventory.steamModal.urlRequired'), type: 'error' });
         return;
       }
+      if (!steamImportForm.value.cookie.trim()) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('inventory.steamModal.cookieRequired'), type: 'error' });
+        return;
+      }
       const client = api();
       if (!client || !apiOnline.value) {
         showToast({ title: t('inventory.steamModal.failed'), subtitle: t('network.offline') || '后端未连接', type: 'error' });

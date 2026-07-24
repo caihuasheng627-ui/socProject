@@ -104,7 +104,7 @@ class InventoryReq(BaseModel):
 
 
 class SteamImportReq(BaseModel):
-    """Steam 库存导入:链接 + 可选 steamLoginSecure cookie。"""
+    """Steam 库存导入:链接 + steamLoginSecure cookie(必填,Steam 已限制匿名访问)。"""
     steamUrl: str
     cookie: str | None = None
 
@@ -743,6 +743,9 @@ def import_steam_inventory(req: SteamImportReq, current_user: dict = Depends(get
         raise HTTPException(400, "链接格式不对,需为 https://steamcommunity.com/profiles/<你的ID>/inventory")
 
     cookie = (req.cookie or STEAM_COOKIE or "").strip() or None
+    if not cookie:
+        # Steam 已限制匿名访问库存,cookie 现为必填(前端弹窗也会拦截空值)
+        raise HTTPException(400, "请填写 steamLoginSecure Cookie,否则无法拉取 Steam 库存")
 
     try:
         items = steam_inventory.fetch_cs2_inventory(steamid, cookie=cookie)
