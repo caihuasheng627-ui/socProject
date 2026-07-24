@@ -39,11 +39,17 @@ def clean_price_points(
     market_hash_name: str,
     rows: Iterable[tuple[str, float]],
     *,
-    ordinary_threshold: float = 5.0,
-    protected_threshold: float = 10.0,
+    ordinary_threshold: float = 2.0,
+    protected_threshold: float = 5.0,
     neighbour_ratio_limit: float = 1.25,
 ) -> list[CleanedPricePoint]:
-    """Replace only clear isolated spikes whose two neighbours agree."""
+    """Replace only clear isolated spikes whose two neighbours agree.
+
+    阈值设计（经验验证）：
+      - 普通饰品 2.0x：可捕获 Black Laminate MW $284→$132 类单日尖刺
+      - 特殊图案/低价 5.0x：淬火/多普勒等真实图案溢价可达 3-4x
+      - 邻点一致性 ≤1.25x：确保前后两点在同一量级，排除趋势转折误伤
+    """
     ordered = sorted((str(date_str), float(price)) for date_str, price in rows)
     if not ordered:
         return []
