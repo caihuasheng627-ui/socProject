@@ -82,12 +82,12 @@ function calculateMA(data, period) {
 
 // 新闻数据（RAG 知识库）
 const NEWS_FEED = [
-  { id: 1, time: '2小时前', source: 'Valve 官方', title: 'CS2 7月更新:武器平衡性调整', summary: 'Valve 发布最新 CS2 更新,AK-47 后坐力微调,无削弱操作。', impact: 'AK 系列利好', sentiment: 'positive', relatedSkins: ['ak47-redline-ft', 'ak47-fireserpent-fn'] },
-  { id: 2, time: '5小时前', source: 'HLTV', title: 'IEM Cologne 2026 即将开赛', summary: 'IEM Cologne 即将于 7月25日开赛,Major 级别赛事带动饰品经济。', impact: '整体利好', sentiment: 'positive', relatedSkins: ['awp-dragonlore-ft', 'ak47-fireserpent-fn'] },
-  { id: 3, time: '1天前', source: 'Reddit r/csgomarketforum', title: '手套市场流通性下降讨论', summary: '社区热议近期高端手套成交稀疏,价格短期承压。', impact: '手套类利空', sentiment: 'negative', relatedSkins: ['gloves-pandora-ft', 'gloves-crimson-ft'] },
-  { id: 4, time: '2天前', source: 'Steam 公告', title: 'Dreams & Nightmares Case 掉宝率提升', summary: 'Valve 临时提升 D&N Case 掉宝率,箱子价格短期波动。', impact: '箱子价格波动', sentiment: 'neutral', relatedSkins: ['case-dreams'] },
-  { id: 5, time: '3天前', source: 'HLTV', title: 'Top 战队偏爱 AWP Dragon Lore', summary: '近期多场重要比赛中,职业选手频繁使用 AWP Dragon Lore。', impact: 'AWP 龙狙利好', sentiment: 'positive', relatedSkins: ['awp-dragonlore-ft'] },
-  { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', relatedSkins: [] },
+  { id: 1, time: '2小时前', source: 'Valve 官方', title: 'CS2 7月更新:武器平衡性调整', summary: 'Valve 发布最新 CS2 更新,AK-47 后坐力微调,无削弱操作。', impact: 'AK 系列利好', sentiment: 'positive', url: 'https://blog.counter-strike.net/', relatedSkins: ['ak47-redline-ft', 'ak47-fireserpent-fn'] },
+  { id: 2, time: '5小时前', source: 'HLTV', title: 'IEM Cologne 2026 即将开赛', summary: 'IEM Cologne 即将于 7月25日开赛,Major 级别赛事带动饰品经济。', impact: '整体利好', sentiment: 'positive', url: 'https://www.hltv.org/', relatedSkins: ['awp-dragonlore-ft', 'ak47-fireserpent-fn'] },
+  { id: 3, time: '1天前', source: 'Reddit r/csgomarketforum', title: '手套市场流通性下降讨论', summary: '社区热议近期高端手套成交稀疏,价格短期承压。', impact: '手套类利空', sentiment: 'negative', url: 'https://www.reddit.com/r/GlobalOffensive/', relatedSkins: ['gloves-pandora-ft', 'gloves-crimson-ft'] },
+  { id: 4, time: '2天前', source: 'Steam 公告', title: 'Dreams & Nightmares Case 掉宝率提升', summary: 'Valve 临时提升 D&N Case 掉宝率,箱子价格短期波动。', impact: '箱子价格波动', sentiment: 'neutral', url: '', relatedSkins: ['case-dreams'] },
+  { id: 5, time: '3天前', source: 'HLTV', title: 'Top 战队偏爱 AWP Dragon Lore', summary: '近期多场重要比赛中,职业选手频繁使用 AWP Dragon Lore。', impact: 'AWP 龙狙利好', sentiment: 'positive', url: 'https://www.hltv.org/', relatedSkins: ['awp-dragonlore-ft'] },
+  { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', url: '', relatedSkins: [] },
 ];
 
 // 模型对比：公平 test（25,702 行 · 113 件 · horizon=7；剔除同名异价脏行）

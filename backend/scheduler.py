@@ -2,7 +2,7 @@
 SkinVision AI — 定时任务(组员 3 第 4 步)
 =========================================
 APScheduler 后台任务(均 try/except,不崩主进程):
-  1. RSS 资讯采集     → news 表增量追加(每 6 小时)
+  1. RSS 资讯采集     → news 表增量追加(每日 UTC 01:00 ≈ 北京 09:00)
   2. 每日 AI 市场日报 → 生成 aiSummary + 拼持仓段(每日 09:00)
   3. 增量训练触发     → 调组员 2 的 --mode incremental 脚本(每日 02:00,默认禁用)
 
@@ -11,18 +11,49 @@ APScheduler 后台任务(均 try/except,不崩主进程):
 from __future__ import annotations
 
 import json
+import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
+from html import unescape
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 import llm
-from config import RSS_FEEDS, ML_DIR, REPO_ROOT
+from config import RSS_FEEDS, RSS_MAX_AGE_DAYS, ML_DIR, REPO_ROOT
 from database import get_connection, _utcnow
 
 _scheduler: BackgroundScheduler | None = None
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str) -> str:
+    return _TAG_RE.sub(" ", unescape(text or "")).strip()
+
+
+def _entry_published(entry) -> datetime | None:
+    """解析 RSS published/updated 为 aware UTC datetime。"""
+    for key in ("published_parsed", "updated_parsed"):
+        st = entry.get(key)
+        if st:
+            try:
+                return datetime(*st[:6], tzinfo=timezone.utc)
+            except Exception:
+                pass
+    for key in ("published", "updated"):
+        raw = entry.get(key)
+        if not raw:
+            continue
+        try:
+            dt = parsedate_to_datetime(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+        except Exception:
+            pass
+    return None
 
 
 # ============================================================
@@ -35,31 +66,54 @@ def fetch_rss_news() -> int:
         print(f"[scheduler] feedparser 不可用: {e}")
         return 0
     inserted = 0
+    cutoff = _utcnow() - timedelta(days=max(1, RSS_MAX_AGE_DAYS))
+    skipped_old = 0
     with get_connection() as conn:
         for url in RSS_FEEDS:
             try:
                 feed = feedparser.parse(url)
-                for entry in feed.entries[:10]:
-                    title = entry.get("title", "").strip()
+                # 按发布时间新→旧处理,每源最多看 20 条
+                entries = list(feed.entries or [])
+
+                def _sort_key(e):
+                    dt = _entry_published(e)
+                    return dt or datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+                entries.sort(key=_sort_key, reverse=True)
+                for entry in entries[:20]:
+                    title = (entry.get("title") or "").strip()
                     if not title:
                         continue
-                    # 去重
-                    exists = conn.execute("SELECT 1 FROM news WHERE title=? LIMIT 1", (title,)).fetchone()
+                    pub_dt = _entry_published(entry)
+                    if pub_dt is not None and pub_dt < cutoff:
+                        skipped_old += 1
+                        continue
+                    exists = conn.execute(
+                        "SELECT 1 FROM news WHERE title=? LIMIT 1", (title,)
+                    ).fetchone()
                     if exists:
                         continue
-                    summary = (entry.get("summary", "") or "")[:300]
-                    published = entry.get("published", _utcnow().isoformat())
+                    summary = _strip_html(entry.get("summary", "") or "")[:300]
+                    if pub_dt is not None:
+                        published = pub_dt.isoformat()
+                    else:
+                        published = _utcnow().isoformat()
+                    source = "hltv" if "hltv.org" in url else (
+                        "valve" if "counter-strike.net" in url else "rss"
+                    )
                     conn.execute(
                         """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
                            VALUES (?,?,?,?,?,?,?,?)""",
-                        (title, summary, "rss", entry.get("link", ""), published, "neutral", "low", ""),
+                        (title, summary, source, entry.get("link", "") or "",
+                         published, "neutral", "low", ""),
                     )
                     inserted += 1
             except Exception as e:
                 print(f"[scheduler] RSS 采集失败 {url}: {e}")
         conn.commit()
+    if inserted or skipped_old:
+        print(f"[scheduler] RSS 新增 {inserted} 条(跳过过期 {skipped_old},窗口 {RSS_MAX_AGE_DAYS} 天)")
     if inserted:
-        print(f"[scheduler] RSS 新增 {inserted} 条")
         try:
             import rag
             rag.invalidate_index()
@@ -196,8 +250,8 @@ def start_scheduler() -> BackgroundScheduler:
         return _scheduler
     _scheduler = BackgroundScheduler(timezone="UTC")
 
-    _scheduler.add_job(fetch_rss_news, IntervalTrigger(hours=6), id="rss",
-                       next_run_time=None, misfire_grace_time=3600)
+    _scheduler.add_job(fetch_rss_news, CronTrigger(hour=1, minute=0), id="rss",
+                       misfire_grace_time=3600)  # UTC 01:00 ≈ 北京 09:00,每日一次
     _scheduler.add_job(generate_daily_report, CronTrigger(hour=1, minute=0), id="daily",
                        misfire_grace_time=3600)   # UTC 01:00 ≈ 北京 09:00
     _scheduler.add_job(trigger_incremental_training, CronTrigger(hour=18, minute=0), id="train",
@@ -208,7 +262,7 @@ def start_scheduler() -> BackgroundScheduler:
                        id="buff_refresh", next_run_time=None, misfire_grace_time=7200)
     _scheduler.start()
     live = "开(USE_BUFF_LIVE=1)" if __import__("os").getenv("USE_BUFF_LIVE", "0") == "1" else "关(USE_BUFF_LIVE=0)"
-    print(f"[scheduler] 已启动 (rss 6h / daily 09:00 / buff刷新{BUFF_REFRESH_HOURS}h·{live} / incremental 默认禁用)")
+    print(f"[scheduler] 已启动 (rss 每日09:00 / daily 09:00 / buff刷新{BUFF_REFRESH_HOURS}h·{live} / incremental 默认禁用)")
     return _scheduler
 
 

@@ -1461,13 +1461,16 @@
                 <div class="rag-answer" v-html="renderCitations(ragAnswer)"></div>
                 <div v-if="ragAnswerSources.length" class="rag-answer-sources">
                   <div class="rag-answer-sources__label">{{ t('daily.rag.citedSources') }}</div>
-                  <div v-for="s in ragAnswerSources" :key="'qs'+s.id" class="rag-source rag-source--sm">
+                <div v-for="s in ragAnswerSources" :key="'qs'+s.id" class="rag-source rag-source--sm"
+                     :class="{ 'rag-source--link': !!s.url }">
                     <span class="rag-source__id">[{{ s.id }}]</span>
                     <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
                       {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
                     </span>
                     <div class="rag-source__body">
-                      <div class="rag-source__title">{{ s.title }}</div>
+                      <a v-if="s.url" class="rag-source__title rag-source__title--a"
+                         :href="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a>
+                      <div v-else class="rag-source__title">{{ s.title }}</div>
                       <div class="rag-source__snippet">{{ s.snippet }}</div>
                       <div class="rag-source__meta">{{ s.source }}<template v-if="s.date"> · {{ s.date }}</template></div>
                     </div>
@@ -1492,13 +1495,16 @@
             </div>
             <p class="text-muted text-sm mb-3">{{ t('daily.rag.sourcesDesc') }}</p>
             <div class="rag-sources">
-              <div v-for="s in dailyReport.sources" :key="'ds'+s.id" class="rag-source">
+              <div v-for="s in dailyReport.sources" :key="'ds'+s.id" class="rag-source"
+                   :class="{ 'rag-source--link': !!s.url }">
                 <span class="rag-source__id">[{{ s.id }}]</span>
                 <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
                   {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
                 </span>
                 <div class="rag-source__body">
-                  <div class="rag-source__title">{{ s.title }}</div>
+                  <a v-if="s.url" class="rag-source__title rag-source__title--a"
+                     :href="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a>
+                  <div v-else class="rag-source__title">{{ s.title }}</div>
                   <div class="rag-source__snippet">{{ s.snippet }}</div>
                   <div class="rag-source__meta">{{ s.source }}<template v-if="s.date"> · {{ s.date }}</template></div>
                 </div>
@@ -1516,10 +1522,14 @@
               <span class="tag tag-blue">{{ t('daily.newsBadge') }}</span>
             </div>
             <div class="news-list">
-              <div v-for="news in newsFeed" :key="news.id" class="news-item">
+              <div v-for="news in newsFeed" :key="news.id"
+                   class="news-item"
+                   :class="{ 'news-item--link': !!news.url }">
                 <div class="news-icon">{{ newsIcon(news.sentiment) }}</div>
                 <div class="news-body">
-                  <div class="news-title">{{ news.title }}</div>
+                  <a v-if="news.url" class="news-title news-title--a"
+                     :href="news.url" target="_blank" rel="noopener noreferrer">{{ news.title }}</a>
+                  <div v-else class="news-title">{{ news.title }}</div>
                   <div class="news-summary">{{ news.summary }}</div>
                   <div class="news-meta">
                     <span class="tag">{{ news.source }}</span>

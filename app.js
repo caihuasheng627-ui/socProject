@@ -1543,7 +1543,29 @@ const app = createApp({
     });
 
     const newsIcon = (sentiment) => {
-      return sentiment === 'positive' ? '📈' : sentiment === 'negative' ? '📉' : '📰';
+      if (sentiment === 'positive') return '📈';
+      if (sentiment === 'negative') return '📉';
+      return '📰';
+    };
+
+    const openExternalUrl = (url) => {
+      const u = (url || '').trim();
+      if (!u) return;
+      try {
+        const parsed = new URL(u, location.href);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+        const w = window.open(parsed.href, '_blank', 'noopener,noreferrer');
+        // 部分环境拦截 window.open:退化为同页跳转提示
+        if (!w) {
+          const a = document.createElement('a');
+          a.href = parsed.href;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+      } catch (_) { /* ignore bad urls */ }
     };
 
     // K线图渲染（优先后端真实 K 线 + 模型预测）
@@ -3247,7 +3269,7 @@ const app = createApp({
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionMeta, predictionDaily, predictionDailyRows,
-      relatedNews, newsIcon, roundTitle, debateData,
+      relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,

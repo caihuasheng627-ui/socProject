@@ -699,18 +699,43 @@ def explain(skin_id: str, days: int = 7):
 
 
 @app.get("/api/news")
-def get_news(limit: int = 20, sentiment: str | None = None, source: str | None = None):
+def get_news(limit: int = 20, sentiment: str | None = None, source: str | None = None,
+             maxAgeDays: int | None = Query(default=60, ge=1, le=365)):
+    """资讯列表。优先返回带原文链接的近期条目(可点击跳转)。"""
     with get_connection() as conn:
         q = "SELECT * FROM news WHERE 1=1"
         params: list[Any] = []
+        # 用日期前缀比较,兼容带时区的 ISO 时间戳(避免 date() 解析失败把新稿滤掉)
+        if maxAgeDays:
+            q += " AND substr(IFNULL(published_at,''), 1, 10) >= date('now', ?)"
+            params.append(f"-{int(maxAgeDays)} days")
         if sentiment:
             q += " AND sentiment=?"; params.append(sentiment)
         if source:
             q += " AND source=?"; params.append(source)
-        q += " ORDER BY published_at DESC LIMIT ?"; params.append(limit)
+        # 有 url 的排前面,再按时间
+        q += """ ORDER BY
+                   CASE WHEN IFNULL(url,'') != '' THEN 0 ELSE 1 END,
+                   substr(IFNULL(published_at,''), 1, 10) DESC,
+                   id DESC
+                 LIMIT ?"""
+        params.append(limit)
         rows = conn.execute(q, params).fetchall()
+        if not rows:
+            q2 = """SELECT * FROM news WHERE 1=1"""
+            p2: list[Any] = []
+            if sentiment:
+                q2 += " AND sentiment=?"; p2.append(sentiment)
+            if source:
+                q2 += " AND source=?"; p2.append(source)
+            q2 += """ ORDER BY
+                        CASE WHEN IFNULL(url,'') != '' THEN 0 ELSE 1 END,
+                        id DESC LIMIT ?"""
+            p2.append(limit)
+            rows = conn.execute(q2, p2).fetchall()
     return [{"id": r["id"], "title": r["title"], "summary": r["summary"],
-             "source": r["source"], "time": r["published_at"],
+             "source": r["source"], "url": (r["url"] or None) or None,
+             "time": r["published_at"],
              "sentiment": r["sentiment"], "impact": r["impact"],
              "relatedSkins": r["related_skins"].split(",") if r["related_skins"] else []}
             for r in rows]

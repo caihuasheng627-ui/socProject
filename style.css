@@ -2303,7 +2303,16 @@ body.sidebar-open {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   transition: all var(--duration-base) var(--ease-out-expo);
+  cursor: default;
+}
+
+.news-item--link {
   cursor: pointer;
+}
+
+.news-item--link:hover .news-title {
+  text-decoration: underline;
+  color: var(--accent, #ff6b00);
 }
 
 .news-item:hover {
@@ -5294,6 +5303,34 @@ select:focus-visible {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
+}
+
+.rag-source--link {
+  cursor: pointer;
+}
+
+.rag-source--link:hover .rag-source__title,
+.rag-source--link:hover .rag-source__title--a {
+  text-decoration: underline;
+  color: var(--accent, #ff6b00);
+}
+
+.rag-source__title--a {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.news-title--a {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.news-item--link:hover .news-title--a {
+  text-decoration: underline;
+  color: var(--accent, #ff6b00);
 }
 
 .rag-source__snippet {

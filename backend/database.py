@@ -453,10 +453,38 @@ SEED_PORTFOLIO_NAMES = [
 ]
 
 SEED_NEWS = [
-    ("Valve 发布 CS2 春季更新,饰品市场活跃度提升", "更新涉及武器磨损与贴图重做,市场流动性短期上升。", "valve", "positive", "medium"),
-    ("BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖", "Major 后 7-14 天相关饰品成交量通常上升 15-30%。", "hltv", "positive", "high"),
-    ("BUFF 平台部分高价值饰品挂单减少", "高价值饰品流动性下降,短期价格波动可能加大。", "internal", "neutral", "low"),
-    ("社区热议新箱子掉落率调整", "若掉落率下调,箱子价格可能上行。", "reddit", "positive", "medium"),
+    (
+        "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
+        "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
+        "valve",
+        "https://blog.counter-strike.net/",
+        "positive",
+        "medium",
+    ),
+    (
+        "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
+        "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
+        "hltv",
+        "https://www.hltv.org/",
+        "positive",
+        "high",
+    ),
+    (
+        "BUFF 平台部分高价值饰品挂单减少",
+        "高价值饰品流动性下降,短期价格波动可能加大。",
+        "internal",
+        "",
+        "neutral",
+        "low",
+    ),
+    (
+        "社区热议新箱子掉落率调整",
+        "若掉落率下调,箱子价格可能上行。",
+        "reddit",
+        "https://www.reddit.com/r/GlobalOffensive/",
+        "positive",
+        "medium",
+    ),
 ]
 
 
@@ -499,17 +527,31 @@ def seed_portfolio() -> None:
 
 def seed_news() -> None:
     with get_connection() as conn:
-        if conn.execute("SELECT COUNT(*) FROM news").fetchone()[0] > 0:
+        n = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
+        if n == 0:
+            now = _utcnow()
+            for i, (title, summary, source, url, sent, impact) in enumerate(SEED_NEWS):
+                conn.execute(
+                    """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (title, summary, source, url or "", (now - timedelta(days=i)).isoformat(), sent, impact, ""),
+                )
+            conn.commit()
+            print(f"[db] 种子 news={len(SEED_NEWS)} 条")
             return
-        now = _utcnow()
-        for i, (title, summary, source, sent, impact) in enumerate(SEED_NEWS):
-            conn.execute(
-                """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (title, summary, source, "", (now - timedelta(days=i)).isoformat(), sent, impact, ""),
+        # 已有库:给种子标题补外链(仅 url 为空时),方便本地点击跳转演示
+        patched = 0
+        for title, _summary, _source, url, _sent, _impact in SEED_NEWS:
+            if not url:
+                continue
+            cur = conn.execute(
+                "UPDATE news SET url=? WHERE title=? AND (url IS NULL OR url='')",
+                (url, title),
             )
-        conn.commit()
-        print(f"[db] 种子 news={len(SEED_NEWS)} 条")
+            patched += cur.rowcount
+        if patched:
+            conn.commit()
+            print(f"[db] 种子 news 补全 url={patched} 条")
 
 
 def seed_model_registry() -> None:

@@ -20,11 +20,13 @@ import httpx
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_ENABLED
 
 SYSTEM_PROMPT = (
-    "你是 SkinVision AI,一个 CS2 饰品市场分析助手。"
-    "你会基于 6 个回归模型(ARIMA/XGBoost/LightGBM/RandomForest/LSTM/GRU)+ "
-    "RAG 知识库(Valve 公告/HLTV 赛事/历史日报)给出饰品价格分析与投资建议。"
-    "回答用中文,简洁、有数据支撑,涉及预测时标注模型名称与置信度,"
-    "并提示风险(饰品市场高波动,不构成投资建议)。"
+    "You are SkinVision AI, a CS2 skin market analysis assistant. "
+    "You use regression models (ARIMA/XGBoost/LightGBM/RandomForest/LSTM/GRU) plus "
+    "a RAG knowledge base (Valve announcements / HLTV / daily reports) for advice. "
+    "Always reply in the same language as the user's latest message "
+    "(English question → English answer; Chinese question → Chinese answer). "
+    "Be concise and data-backed; name models and confidence when forecasting; "
+    "always include a short risk disclaimer (volatile market, not investment advice)."
 )
 
 
@@ -49,15 +51,29 @@ def _mock_reply(messages: list[dict], *, reason: str | None = None) -> str:
         if m.get("role") == "user":
             user_msg = m.get("content", "")
             break
+    # 粗判:含较多拉丁字母且几乎无 CJK → 英文 Mock
+    letters = sum(1 for ch in user_msg if ("A" <= ch <= "Z") or ("a" <= ch <= "z"))
+    cjk = sum(1 for ch in user_msg if "\u4e00" <= ch <= "\u9fff")
+    use_en = letters >= 8 and cjk == 0
     if reason:
-        header = f"(Mock 模式 · {reason})"
+        header = f"(Mock · {reason})" if use_en else f"(Mock 模式 · {reason})"
     elif not LLM_ENABLED:
-        header = "(Mock 模式 · 未配置 DEEPSEEK_API_KEY)"
+        header = "(Mock · DEEPSEEK_API_KEY missing)" if use_en else "(Mock 模式 · 未配置 DEEPSEEK_API_KEY)"
     else:
-        header = "(Mock 模式 · LLM 调用失败)"
+        header = "(Mock · LLM call failed)" if use_en else "(Mock 模式 · LLM 调用失败)"
+    q = user_msg[:60]
+    if use_en:
+        return (
+            f"{header}\n"
+            f"Got your question: 「{q}」\n"
+            f"Based on Hybrid (LSTM-C/D) and the last 7 days, this skin looks mildly bullish; "
+            f"7-day forecast about +1.5%~+2.5% (confidence ~78%). "
+            f"Watch volume and Major schedules; suggest stop-loss around -5%.\n\n"
+            f"⚠ Skin markets are volatile; this is not investment advice."
+        )
     return (
         f"{header}\n"
-        f"已收到你的问题:「{user_msg[:60]}」\n"
+        f"已收到你的问题:「{q}」\n"
         f"基于 Hybrid 模型(LSTM-C/D 路由)与近 7 日行情,该饰品短期偏强震荡,"
         f"7 天预测涨幅约 +1.5%~+2.5%(置信度 ~78%)。"
         f"建议关注成交量与 Major 赛程节奏,设止损 -5%。"

@@ -175,6 +175,7 @@ def _collect_docs() -> list[dict[str, Any]]:
             "source": "内置知识库",
             "date": None,
             "sentiment": None,
+            "url": None,
             "text": text,
             "kb_item": item,
         })
@@ -192,6 +193,7 @@ def _collect_docs() -> list[dict[str, Any]]:
             "source": r["source"],
             "date": r["published_at"],
             "sentiment": r["sentiment"],
+            "url": (r["url"] or None) if "url" in r.keys() else None,
             "text": text,
             "news_row": r,
         })
@@ -302,6 +304,7 @@ def _retrieve_vector(query: str, kb_k: int, news_k: int) -> list[dict[str, Any]]
             "source": d["source"],
             "date": d["date"],
             "sentiment": d.get("sentiment"),
+            "url": d.get("url"),
             "score": round(float(sim), 4),
             "method": "vector",
         })
@@ -346,14 +349,16 @@ def _retrieve_keyword(query: str, kb_k: int, news_k: int) -> list[dict[str, Any]
     for s, item in kb_scored[:kb_k]:
         sources.append({
             "type": "kb", "title": "CS2 市场知识库", "snippet": item["v"],
-            "source": "内置知识库", "date": None, "score": float(s),
+            "source": "内置知识库", "date": None, "url": None, "score": float(s),
             "method": "keyword",
         })
     for s, r in news_top:
         sources.append({
             "type": "news", "title": r["title"], "snippet": r["summary"],
             "source": r["source"], "date": r["published_at"],
-            "sentiment": r["sentiment"], "score": float(s),
+            "sentiment": r["sentiment"],
+            "url": (r["url"] or None) if "url" in r.keys() else None,
+            "score": float(s),
             "method": "keyword",
         })
 
@@ -411,7 +416,7 @@ def retrieve_context(skin_row: sqlite3.Row, query: str | None = None) -> dict[st
     news = [{
         "title": s["title"], "summary": s["snippet"], "source": s["source"],
         "published_at": s["date"], "sentiment": s.get("sentiment"),
-        "impact": None,
+        "impact": None, "url": s.get("url"),
     } for s in sources if s["type"] == "news"]
     return {
         "name": name,
@@ -461,26 +466,55 @@ def retrieve_daily_sources(query: str | None = None, limit: int = 6) -> list[dic
     return _retrieve_sources(q, kb_k=3, news_k=limit)
 
 
+def _query_lang(q: str) -> str:
+    """粗判用户问题语言: en / zh。"""
+    letters = sum(1 for ch in q if ("A" <= ch <= "Z") or ("a" <= ch <= "z"))
+    cjk = sum(1 for ch in q if "\u4e00" <= ch <= "\u9fff")
+    if cjk >= 2:
+        return "zh"
+    if letters >= 6:
+        return "en"
+    return "zh" if cjk > letters else "en"
+
+
 def ask(query: str, top_k: int = 5) -> dict[str, Any]:
     """RAG 问答: 向量检索 → LLM 生成带 [编号] 引用的答案。"""
     q = (query or "").strip()
     if not q:
-        return {"query": "", "answer": "请输入你的问题。", "sources": [], "retrieval": vector_status()}
+        return {"query": "", "answer": "请输入你的问题。 / Please enter a question.",
+                "sources": [], "retrieval": vector_status()}
 
     sources = _retrieve_sources(q, kb_k=3, news_k=top_k)
     context_text = "\n".join(
         f"[{s['id']}] ({s['source']}) {s['snippet']}" for s in sources
-    ) or "(无检索结果)"
+    ) or "(no retrieval hits)"
     status = vector_status()
+    lang = _query_lang(q)
+    if lang == "en":
+        lang_rule = (
+            "OUTPUT LANGUAGE: English ONLY. "
+            "The retrieved notes may be Chinese — translate facts into English. "
+            "Do NOT write any Chinese characters in your answer."
+        )
+    else:
+        lang_rule = "输出语言:仅中文。检索资料若为英文请译成中文作答。"
 
-    prompt = (
-        "你是 CS2 饰品市场 RAG 助手。请【仅依据】下面向量检索到的资料回答用户问题,"
-        "在相关句子末尾用 [编号] 标注引用的资料(可多个);不要编造资料之外的事实,"
-        "若资料不足请直接说明。用中文,3-6 句,并在结尾附一句风险提示。\n\n"
-        f"检索方式:{status['mode']}\n"
-        f"检索资料:\n{context_text}\n\n用户问题:{q}"
+    context_msg = (
+        f"{lang_rule}\n\n"
+        "You are a CS2 skin-market RAG assistant. Answer ONLY from the retrieved notes. "
+        "Cite with [n]. Do not invent facts; if evidence is insufficient, say so. "
+        "Keep 3-6 sentences and end with one risk disclaimer.\n\n"
+        f"Retrieval mode: {status['mode']}\n"
+        f"Retrieved notes:\n{context_text}"
     )
-    answer = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.4)
+    # 用户原句单独作为最后一条,避免模型把英文指令当成「用户语言」
+    answer = llm.chat_sync(
+        [
+            {"role": "user", "content": context_msg},
+            {"role": "user", "content": q},
+        ],
+        temperature=0.3,
+    )
     return {
         "query": q,
         "answer": answer,

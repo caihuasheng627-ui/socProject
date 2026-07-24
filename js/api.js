@@ -487,6 +487,7 @@ class CSVestAPI {
       source: n.source || 'RAG 知识库',
       date: n.time || n.published_at || null,
       sentiment: n.sentiment,
+      url: n.url || null,
       score: Math.max(1, 2 - i * 0.5),
       relevance: Math.max(0.2, 0.9 - i * 0.2),
     }));
