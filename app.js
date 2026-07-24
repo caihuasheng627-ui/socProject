@@ -996,9 +996,24 @@ const app = createApp({
         return raw ? JSON.parse(raw) : null;
       } catch { return null; }
     };
+    const defaultAdminApiBase = () => {
+      try {
+        const client = api();
+        if (client?.baseURL) return client.baseURL;
+      } catch (_) { /* ignore */ }
+      const saved = localStorage.getItem('sv_api_url');
+      if (saved) return saved.replace(/\/$/, '');
+      const host = (typeof location !== 'undefined' ? location.hostname : '') || '';
+      const isLocal = !host || host === 'localhost' || host === '127.0.0.1';
+      const isStatic = /\.(github|gitlab)\.io$/i.test(host) || /\.pages\.dev$/i.test(host);
+      if (isStatic) return '';
+      if (isLocal) return 'http://localhost:8000';
+      return ''; // 公网 Docker/nginx：同源 /api
+    };
     const adminSession = ref(loadAdminSession());
     const adminIsAuthed = computed(() => !!(adminSession.value?.token && adminSession.value?.user?.is_admin));
     const adminLoginForm = ref({ username: 'admin', password: '' });
+    const adminApiBase = ref(defaultAdminApiBase());
     const adminLoginError = ref('');
     const adminLoginLoading = ref(false);
     const adminUsers = ref([]);
@@ -1030,6 +1045,27 @@ const app = createApp({
       }
     };
 
+    /** 管理端必须连真实后端；关闭 Mock，并应用 API Base URL */
+    const ensureAdminApiClient = () => {
+      const client = api();
+      if (!client) throw new Error(t('admin.err.apiOffline'));
+      const host = (typeof location !== 'undefined' ? location.hostname : '') || '';
+      const isLocal = !host || host === 'localhost' || host === '127.0.0.1';
+      const isStatic = /\.(github|gitlab)\.io$/i.test(host) || /\.pages\.dev$/i.test(host);
+      let base = String(adminApiBase.value || '').trim().replace(/\/$/, '');
+      if (!base) {
+        if (isStatic) throw new Error(t('admin.err.needApiUrl'));
+        base = isLocal ? 'http://localhost:8000' : '';
+      }
+      if (isStatic && /localhost|127\.0\.0\.1/i.test(base)) {
+        throw new Error(t('admin.err.pagesNeedHttpsApi'));
+      }
+      client.ensureLiveBackend(base);
+      adminApiBase.value = client.baseURL || base;
+      if (adminSession.value?.token) client.setToken(adminSession.value.token);
+      return client;
+    };
+
     const adminLogout = () => {
       persistAdminSession(null);
       adminUsers.value = [];
@@ -1055,8 +1091,13 @@ const app = createApp({
       adminLoginLoading.value = true;
       adminLoginError.value = '';
       try {
-        const client = api();
-        if (!client) throw new Error('api offline');
+        const client = ensureAdminApiClient();
+        // 先探活，避免登录失败只显示含糊网络错误
+        try {
+          await client.health();
+        } catch (healthErr) {
+          throw new Error(healthErr?.message || t('admin.err.backendDown'));
+        }
         const res = await client.login(
           (adminLoginForm.value.username || '').trim(),
           adminLoginForm.value.password || ''
@@ -1094,10 +1135,7 @@ const app = createApp({
       if (!adminIsAuthed.value) return;
       adminLoading.value = true;
       try {
-        const client = api();
-        if (!client) throw new Error('api offline');
-        // 确保 Bearer 用管理员 token
-        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const client = ensureAdminApiClient();
         const [usersRes, cfg, status] = await Promise.all([
           client.adminUsers(),
           client.adminGetConfig(),
@@ -1123,9 +1161,7 @@ const app = createApp({
       if (!adminIsAuthed.value) return;
       adminSaving.value = true;
       try {
-        const client = api();
-        if (!client) throw new Error('api offline');
-        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const client = ensureAdminApiClient();
         const f = adminConfigForm.value;
         const body = {
           deepseekBaseUrl: f.deepseekBaseUrl,
@@ -1152,9 +1188,8 @@ const app = createApp({
 
     const refreshAdminStatus = async () => {
       try {
-        const client = api();
-        if (!client || !adminIsAuthed.value) return;
-        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        if (!adminIsAuthed.value) return;
+        const client = ensureAdminApiClient();
         adminStatus.value = await client.adminStatus();
       } catch (err) {
         console.warn('[admin-status]', err);
@@ -1164,8 +1199,7 @@ const app = createApp({
     const runProbeLlm = async () => {
       adminProbeLlm.value = { loading: true };
       try {
-        const client = api();
-        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const client = ensureAdminApiClient();
         adminProbeLlm.value = await client.adminProbeLlm();
       } catch (err) {
         adminProbeLlm.value = { ok: false, error: err?.message || String(err) };
@@ -1175,8 +1209,7 @@ const app = createApp({
     const runProbeEmbed = async () => {
       adminProbeEmbed.value = { loading: true };
       try {
-        const client = api();
-        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const client = ensureAdminApiClient();
         adminProbeEmbed.value = await client.adminProbeEmbed();
       } catch (err) {
         adminProbeEmbed.value = { ok: false, error: err?.message || String(err) };
@@ -3259,7 +3292,7 @@ const app = createApp({
       newsFeed, dailyReport, loadDailyReport,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
-      adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,
+      adminApiBase, adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,
       adminSaving, adminLoading, adminConfigForm,
       adminLogin, adminLogout, loadAdminPanel, saveAdminConfig, refreshAdminStatus, runProbeLlm, runProbeEmbed,
       // 预警

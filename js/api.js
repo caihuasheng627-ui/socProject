@@ -91,7 +91,44 @@ class CSVestAPI {
     localStorage.setItem('sv_use_mock', String(this.useMock));
   }
 
+  /** 把 FastAPI / 网关错误体抽成可读文案 */
+  _errorMessage(payload, fallback) {
+    if (!payload || typeof payload !== 'object') return fallback;
+    const detail = payload.detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (Array.isArray(detail) && detail.length) {
+      return detail
+        .map((d) => (typeof d === 'string' ? d : d?.msg || d?.message || JSON.stringify(d)))
+        .filter(Boolean)
+        .join('; ');
+    }
+    if (typeof payload.message === 'string' && payload.message.trim()) return payload.message;
+    if (typeof payload.error === 'string' && payload.error.trim()) return payload.error;
+    return fallback;
+  }
+
+  /**
+   * 管理端强制走真实后端（关闭 Mock）。
+   * @param {string} [baseURL] 显式 API 根地址；空串表示同源 /api
+   */
+  ensureLiveBackend(baseURL) {
+    if (baseURL !== undefined && baseURL !== null) {
+      this.setBaseURL(String(baseURL).trim().replace(/\/$/, ''));
+    }
+    this.setUseMock(false);
+    return this;
+  }
+
   async _fetch(path, options = {}) {
+    // 静态 Pages 未配置公网 API 时，避免把 /api 打到 github.io 自己
+    if (!this.baseURL && typeof location !== 'undefined' && isStaticPagesHost(location.hostname)) {
+      throw new APIError(
+        'GitHub Pages 无后端。请在管理端填写公网 API 地址（HTTPS），或改用 Docker 部署。',
+        0,
+        'NO_API_BASE'
+      );
+    }
+
     const url = `${this.baseURL}${path}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -112,7 +149,11 @@ class CSVestAPI {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({ message: res.statusText }));
-        throw new APIError(error.message || res.statusText, res.status, error.code);
+        throw new APIError(
+          this._errorMessage(error, res.statusText || `HTTP ${res.status}`),
+          res.status,
+          error.code || error.error
+        );
       }
 
       // 204 / 空 body：DELETE 等无内容响应
@@ -131,7 +172,14 @@ class CSVestAPI {
       if (err.name === 'AbortError') {
         throw new APIError('请求超时', 408, 'TIMEOUT');
       }
-      throw err;
+      if (err instanceof APIError) throw err;
+      // Failed to fetch / CORS / 后端未启动
+      const hint = (err && err.message) ? String(err.message) : 'network error';
+      throw new APIError(
+        `无法连接后端 API（${this.baseURL || location?.origin || ''}）：${hint}`,
+        0,
+        'NETWORK'
+      );
     }
   }
 
