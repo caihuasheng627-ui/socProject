@@ -574,20 +574,19 @@ paths:
       tags: [Portfolio]
       summary: AI 组合诊断(三块输出)
       description: |
-        方案 B 核心创新。逐件 Hybrid 预测(走 predictions 缓存)→ 三块固定输出:
-          1. 7/30 天库存总值预估区间
+        方案 B 核心创新。仅诊断 `holding_type=sim` 模拟持仓。
+        逐件 Hybrid 预测(走 predictions 缓存)→ 三块固定输出:
+          1. 7/30 天总值预估区间
           2. 逐件调仓建议(卖/持/加)+ RAG 理由
           3. 风险贡献 Top N(波动 × 市值)
-        库存 >20 件时分批。
+        空仓返回 `{ empty: true, summary }`（HTTP 200），不抛 400。
       responses:
         '200':
-          description: 成功
+          description: 成功（含空仓 empty 响应）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PortfolioDiagnosis'
-        '400':
-          $ref: '#/components/responses/BadRequest'
 
   # ============ 我的库存（真实库存；前端先行，后端待对接）============
   /api/inventory:
