@@ -175,7 +175,7 @@ def trigger_incremental_training() -> None:
 # ============================================================
 def refresh_buff_prices() -> None:
     """定时重采 BUFF 价格(force=True,upsert 最新 + 删 >180d 旧数据)。
-    较重(~每件 4s × 549 ≈ 37min),跑在调度线程池里不阻塞主服务。"""
+    较重(~每件 4s × 769 ≈ 50min),跑在调度线程池里不阻塞主服务。"""
     import os
     if os.getenv("USE_BUFF_LIVE", "0") != "1":
         return
