@@ -602,7 +602,9 @@ const app = createApp({
         .filter((s) => (s.change7d || 0) < 0)
         .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
         .slice(0, 8);
-      hotVolume.value = [...pool].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
+      hotVolume.value = [...pool]
+        .sort((a, b) => Math.abs(Number(b.change24h) || 0) - Math.abs(Number(a.change24h) || 0))
+        .slice(0, 8);
     };
 
     const loadSkinsFromApi = async () => {
@@ -1291,7 +1293,8 @@ const app = createApp({
 
     const formatVolume = (num) => {
       const v = Number(num);
-      if (!Number.isFinite(v) || v <= 0) return '0';
+      // 无真实日成交量时不展示伪造数字
+      if (!Number.isFinite(v) || v <= 0) return '—';
       if (v >= 1000000) return `${(v / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
       if (v >= 10000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}k`;
       return Math.round(v).toLocaleString('en-US');
@@ -1748,8 +1751,13 @@ const app = createApp({
       const bridgePoint = Number(bridgeValue).toFixed(2);
 
       // 成交量按类目轴对齐：历史有值，预测区间留空，避免 [index,vol,dir] 与日期类目错位
+      // BUFF 未提供真日成交量时 volumes 全为 0,不渲染量能副图以免误导
       const forecastPad = predictedDates.map(() => '-');
-      const volumeBars = volumes.map((v) => {
+      const hasVolume = volumes.some((v) => {
+        const vol = Array.isArray(v) ? Number(v[1]) : Number(v);
+        return Number.isFinite(vol) && vol > 0;
+      });
+      const volumeBars = hasVolume ? volumes.map((v) => {
         const vol = Array.isArray(v) ? v[1] : v;
         const dir = Array.isArray(v) ? v[2] : 0;
         return {
@@ -1759,8 +1767,9 @@ const app = createApp({
             opacity: 0.6,
           },
         };
-      }).concat(forecastPad);
+      }).concat(forecastPad) : [];
 
+      const categoryDates = kline.map(d => d[0]).concat(predictedDates);
       const option = {
         backgroundColor: 'transparent',
         animation: false,
@@ -1777,52 +1786,76 @@ const app = createApp({
           textStyle: { color: '#f3f4f6' },
         },
         axisPointer: {
-          link: [{ xAxisIndex: 'all' }],
+          link: hasVolume ? [{ xAxisIndex: 'all' }] : [],
           label: { backgroundColor: '#ff6b00' },
         },
-        grid: [
-          { left: 52, right: 16, top: 40, height: '58%' },
-          { left: 52, right: 16, top: '76%', height: '14%' },
-        ],
-        xAxis: [
-          {
-            type: 'category',
-            data: kline.map(d => d[0]).concat(predictedDates),
-            // 与成交量轴保持同一 boundaryGap，否则 K 线与 Volume 会左右错位
-            boundaryGap: true,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-          {
-            type: 'category',
-            gridIndex: 1,
-            data: kline.map(d => d[0]).concat(predictedDates),
-            boundaryGap: true,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { show: false },
-            splitLine: { show: false },
-          },
-        ],
-        yAxis: [
-          {
-            scale: true,
-            splitArea: { show: false },
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
-          },
-          {
-            scale: true,
-            gridIndex: 1,
-            splitNumber: 2,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-        ],
+        grid: hasVolume
+          ? [
+              { left: 52, right: 16, top: 40, height: '58%' },
+              { left: 52, right: 16, top: '76%', height: '14%' },
+            ]
+          : [
+              { left: 52, right: 16, top: 40, bottom: 36 },
+            ],
+        xAxis: hasVolume
+          ? [
+              {
+                type: 'category',
+                data: categoryDates,
+                boundaryGap: true,
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { show: false },
+              },
+              {
+                type: 'category',
+                gridIndex: 1,
+                data: categoryDates,
+                boundaryGap: true,
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { show: false },
+                splitLine: { show: false },
+              },
+            ]
+          : [
+              {
+                type: 'category',
+                data: categoryDates,
+                boundaryGap: true,
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { show: false },
+              },
+            ],
+        yAxis: hasVolume
+          ? [
+              {
+                scale: true,
+                splitArea: { show: false },
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+              },
+              {
+                scale: true,
+                gridIndex: 1,
+                splitNumber: 2,
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { show: false },
+              },
+            ]
+          : [
+              {
+                scale: true,
+                splitArea: { show: false },
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+              },
+            ],
         dataZoom: [
-          { type: 'inside', xAxisIndex: [0, 1], start: 50, end: 100 },
+          { type: 'inside', xAxisIndex: hasVolume ? [0, 1] : [0], start: 50, end: 100 },
         ],
         series: [
           {
@@ -1878,14 +1911,14 @@ const app = createApp({
               ]],
             },
           },
-          {
+          ...(hasVolume ? [{
             name: 'Volume',
             type: 'bar',
             xAxisIndex: 1,
             yAxisIndex: 1,
             data: volumeBars,
             barMaxWidth: 10,
-          },
+          }] : []),
         ],
       };
       klineChartInstance.setOption(option, true);

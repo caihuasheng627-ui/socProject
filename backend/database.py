@@ -817,6 +817,16 @@ def change_pct(conn: sqlite3.Connection, skin_id: int, days: int) -> float | Non
 # ============================================================
 # 启动入口
 # ============================================================
+def clear_fake_daily_volumes() -> int:
+    """清空由挂单数 sell_num 污染的假 daily_volume(恒为常数、非真成交量)。"""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE price_history SET daily_volume=0 WHERE daily_volume != 0"
+        )
+        conn.commit()
+        return int(cur.rowcount)
+
+
 def run_init() -> None:
     ensure_dirs()
     init_schema()
@@ -834,6 +844,9 @@ def run_init() -> None:
             f"[db] 末端价格修复: {endpoint['items']} 件 / {endpoint['rows']} 行 / "
             f"{endpoint['outliers']} 个异常点"
         )
+    cleared = clear_fake_daily_volumes()
+    if cleared:
+        print(f"[db] 已清空假成交量 daily_volume: {cleared} 行")
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
     seed_portfolio()

@@ -8,7 +8,8 @@ SkinVision AI — BUFF 实时价格爬虫(组员 3)
   - 分批(BUFF_BATCH_SIZE,默认 50)+ 断点续传(跳过近 BUFF_REFRESH_HOURS 内已采集的)
   - 礼貌限速(BUFF_REQUEST_DELAY,默认 1.5s)+ 3 次重试 + 指数退避
   - 搜索 goods_id → 拉 price_history(days=180)→ 按天取中位数 → upsert
-  - daily_volume 用搜索结果里的 sell_num(挂单数)作流动性代理
+  - 不再写入假成交量:BUFF 未提供逐日成交量,旧逻辑把挂单数 sell_num
+    复制到每一天会误导图表/排序;daily_volume 固定为 0 保留列兼容
   - Cookie 从 .env 读(BUFF_COOKIE),不进仓库
 
 运行:
@@ -162,10 +163,14 @@ def fetch_price_history(client: httpx.Client, goods_id: int, days: int) -> list[
 # 写库 + 滚动清理
 # ============================================================
 def upsert_price_history(skin_id: int, rows: list[tuple[str, float]],
-                         sell_num: int, window_days: int) -> int:
-    """保存原价和清洗价;删超过 window_days 的旧数据。"""
+                         window_days: int, sell_num: int = 0) -> int:
+    """保存原价和清洗价;删超过 window_days 的旧数据。
+
+    sell_num 已废弃(旧挂单数代理会污染整段 daily_volume),保留参数仅兼容旧调用,恒写 0。
+    """
     if not rows:
         return 0
+    del sell_num  # 明确不使用
     with get_connection() as conn:
         skin = conn.execute(
             "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
@@ -180,7 +185,7 @@ def upsert_price_history(skin_id: int, rows: list[tuple[str, float]],
                    ) VALUES (?,?,?,?,?,?,?)
                    ON CONFLICT(skin_id, date) DO UPDATE SET
                        price=excluded.price,
-                       daily_volume=excluded.daily_volume,
+                       daily_volume=0,
                        raw_price=excluded.raw_price,
                        is_outlier=excluded.is_outlier,
                        outlier_reason=excluded.outlier_reason""",
@@ -188,7 +193,7 @@ def upsert_price_history(skin_id: int, rows: list[tuple[str, float]],
                     skin_id,
                     point.date,
                     round(point.price, 4),
-                    sell_num,
+                    0,
                     round(point.raw_price, 4),
                     int(point.is_outlier),
                     point.outlier_reason,
@@ -264,7 +269,6 @@ def scrape_buff(force: bool = False, limit: int | None = None,
                 failed += 1
                 time.sleep(BUFF_REQUEST_DELAY)
                 continue
-            sell_num = int(info.get("sell_num") or 0) if info else 0
             time.sleep(BUFF_REQUEST_DELAY)
             rows = fetch_price_history(client, gid, BUFF_HISTORY_DAYS)
             if not rows:
@@ -272,7 +276,7 @@ def scrape_buff(force: bool = False, limit: int | None = None,
                 failed += 1
                 time.sleep(BUFF_REQUEST_DELAY)
                 continue
-            n = upsert_price_history(it["id"], rows, sell_num, BUFF_HISTORY_DAYS)
+            n = upsert_price_history(it["id"], rows, BUFF_HISTORY_DAYS)
             scraped += 1
             if i % 10 == 0 or i == len(items):
                 print(f"[{i}/{len(items)}] ✓ {name[:40]} → {n} 天 | 累计采 {scraped} 跳 {skipped} 败 {failed} | {time.time()-t0:.0f}s")

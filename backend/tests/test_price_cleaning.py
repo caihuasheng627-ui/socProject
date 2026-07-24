@@ -223,15 +223,15 @@ def test_upsert_preserves_raw_price_and_writes_cleaned_effective_price(monkeypat
     upsert_price_history(
         1,
         [("2026-07-20", 100.0), ("2026-07-21", 1000.0), ("2026-07-22", 100.0)],
-        sell_num=50,
         window_days=180,
     )
 
     middle = conn.execute(
-        """SELECT price, raw_price, is_outlier, outlier_reason
+        """SELECT price, raw_price, is_outlier, outlier_reason, daily_volume
            FROM price_history WHERE date='2026-07-21'"""
     ).fetchone()
     assert middle["price"] == 100.0
     assert middle["raw_price"] == 1000.0
     assert middle["is_outlier"] == 1
     assert middle["outlier_reason"] == "isolated_price_spike"
+    assert middle["daily_volume"] == 0
