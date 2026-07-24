@@ -45,19 +45,28 @@ def test_clean_price_points_keeps_move_when_neighbours_are_not_stable():
 
 
 def test_pattern_finish_uses_stricter_threshold():
+    # 图案皮肤走 5x 保护阈值: 3.9x 溢价保留(普通饰品 2x 阈值下会被清), 6.8x 清洗
+    kept = clean_price_points(
+        "AK-47 | Case Hardened (Field-Tested)",
+        [("2026-01-01", 100.0), ("2026-01-02", 400.0), ("2026-01-03", 105.0)],
+    )
     cleaned = clean_price_points(
         "AK-47 | Case Hardened (Field-Tested)",
         [("2026-01-01", 100.0), ("2026-01-02", 700.0), ("2026-01-03", 105.0)],
     )
 
-    assert cleaned[1].price == 700.0
-    assert cleaned[1].is_outlier is False
+    assert kept[1].price == 400.0
+    assert kept[1].is_outlier is False
+    assert cleaned[1].is_outlier is True
+    assert cleaned[1].outlier_reason == "isolated_price_spike"
+    assert math.isclose(cleaned[1].price, math.sqrt(100.0 * 105.0), rel_tol=1e-9)
 
 
 def test_cheap_item_uses_stricter_threshold_but_still_removes_extreme_error():
+    # 低价饰品(中位数<1)同样走 5x 保护阈值: 4x 波动保留, 56x 极端错误仍清洗
     protected = clean_price_points(
         "Dual Berettas | Colony (Field-Tested)",
-        [("2026-01-01", 0.1), ("2026-01-02", 0.8), ("2026-01-03", 0.1)],
+        [("2026-01-01", 0.1), ("2026-01-02", 0.4), ("2026-01-03", 0.1)],
     )
     extreme = clean_price_points(
         "Dual Berettas | Colony (Field-Tested)",
