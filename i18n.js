@@ -485,8 +485,8 @@ const I18N = {
 
     // ============ 模型实验室 ============
     'models.title': '模型实验室',
-    'models.subtitle': '公平 test · 154 件 · Hybrid 路由 low→C / mid·high→D · SHAP',
-    'models.subtitleShort': '公平测试 · 154 件饰品 · 7 日预测',
+    'models.subtitle': '公平 test · 154 件训练集 · Hybrid 路由 low→C / mid·high→D · SHAP',
+    'models.subtitleShort': '公平测试 · 154 件训练集 · 7 日预测',
     'models.routeNote': 'Hybrid 路由（val 冻结）：low → LSTM-C · mid/high → LSTM-D',
     'models.exportReport': '导出报告',
     'models.retrain': '重新训练',
@@ -1068,8 +1068,8 @@ const I18N = {
 
     // ============ Model Lab ============
     'models.title': 'Model Lab',
-    'models.subtitle': 'Fair test · 154 items · Hybrid route low→C / mid·high→D · SHAP',
-    'models.subtitleShort': 'Fair test · 154 skins · 7-day forecast',
+    'models.subtitle': 'Fair test · 154 training items · Hybrid route low→C / mid·high→D · SHAP',
+    'models.subtitleShort': 'Fair test · 154 training skins · 7-day forecast',
     'models.routeNote': 'Hybrid route (val-frozen): low → LSTM-C · mid/high → LSTM-D',
     'models.exportReport': 'Export Report',
     'models.retrain': 'Retrain',
