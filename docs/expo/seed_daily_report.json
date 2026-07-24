@@ -1,9 +1,10 @@
 {
-  "date": "2026-07-23",
+  "date": "2026-07-24",
+  "generatedAt": "2026-07-24T01:52:40+00:00",
   "metrics": {
-    "monitored": 868,
-    "gainers": 325,
-    "losers": 434
+    "monitored": 703,
+    "gainers": 288,
+    "losers": 369
   },
   "portfolio": [
     {
@@ -37,7 +38,90 @@
       "holdingType": "real"
     }
   ],
-  "aiSummary": "今日市场整体偏弱，监控 868 件饰品中下跌 434 件，上涨仅 325 件，短期情绪承压。你的持仓中，AWP | 二西莫夫（久经沙场）和 M4A1-S | 简报（崭新出厂）近期流动性较好，但需关注大盘回调对中低价位皮肤的影响；★ 渐变大理石 | 多普勒（崭新出厂）与 ★ 驾驶手套 | 超车（久经沙场）属高价值资产，波动更敏感。根据 ARIMA 模型（置信度 65%），未来 3 日市场可能延续震荡下行，建议暂缓追高，优先持有现金或高流通性饰品。风险提示：饰品市场高波动，模型预测仅供参考，不构成投资建议。",
+  "aiSummary": "今日市场整体偏弱，监控703件饰品中下跌369件，上涨288件，短期回调压力明显。当前Major赛事前后成交量通常上升15-30%[1][6]，但赛事结束后有回调风险，建议关注持仓中高价值低流动性饰品（如★ Karambit | Doppler FN与★ Driver Gloves | Overtake FT）的日内波动，其买卖价差较宽，不适合短线操作[3]。基于XGBoost模型（置信度75%），AK-47 | Elite Build MW与M4A1-S | Briefing FN短期价格可能随流动性回升而小幅上行，但需警惕Valve更新后磨损与贴图调整带来的短期波动[4]。风险提示：饰品市场高波动，以上分析不构成投资建议，请结合自身风险承受能力决策。",
+  "sources": [
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。",
+      "source": "内置知识库",
+      "date": null,
+      "score": 6.0,
+      "method": "keyword",
+      "id": 1,
+      "relevance": 0.67
+    },
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "同款饰品中 Factory New(FN)磨损最稀有,价格显著高于 Field-Tested(FT);磨损越低流动性往往越弱。",
+      "source": "内置知识库",
+      "date": null,
+      "score": 4.0,
+      "method": "keyword",
+      "id": 2,
+      "relevance": 0.44
+    },
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "高价值低流动性饰品(刀/手套)日内波动大,买卖价差宽,不适合大额短线。",
+      "source": "内置知识库",
+      "date": null,
+      "score": 4.0,
+      "method": "keyword",
+      "id": 3,
+      "relevance": 0.44
+    },
+    {
+      "type": "news",
+      "title": "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
+      "snippet": "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
+      "source": "valve",
+      "date": "2026-07-21T15:49:03.589638+00:00",
+      "sentiment": "positive",
+      "score": 9.0,
+      "method": "keyword",
+      "id": 4,
+      "relevance": 1.0
+    },
+    {
+      "type": "news",
+      "title": "BUFF 平台部分高价值饰品挂单减少",
+      "snippet": "高价值饰品流动性下降,短期价格波动可能加大。",
+      "source": "internal",
+      "date": "2026-07-19T15:49:03.589638+00:00",
+      "sentiment": "neutral",
+      "score": 3.0,
+      "method": "keyword",
+      "id": 5,
+      "relevance": 0.33
+    },
+    {
+      "type": "news",
+      "title": "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
+      "snippet": "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
+      "source": "hltv",
+      "date": "2026-07-20T15:49:03.589638+00:00",
+      "sentiment": "positive",
+      "score": 2.0,
+      "method": "keyword",
+      "id": 6,
+      "relevance": 0.22
+    },
+    {
+      "type": "news",
+      "title": "社区热议新箱子掉落率调整",
+      "snippet": "若掉落率下调,箱子价格可能上行。",
+      "source": "reddit",
+      "date": "2026-07-18T15:49:03.589638+00:00",
+      "sentiment": "positive",
+      "score": 0.0,
+      "method": "keyword",
+      "id": 7,
+      "relevance": 0.0
+    }
+  ],
   "news": [
     {
       "title": "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
