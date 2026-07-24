@@ -981,13 +981,16 @@
 
               <div style="flex: 1;">
                 <div class="text-muted text-sm">{{ t('prediction.consensus') }}</div>
-                <div class="flex items-center gap-3 mt-2">
+                <div v-if="predictionStatus === 'unavailable'" class="mt-2 text-muted">
+                  {{ t('prediction.unavailable', { reason: predictionReason }) }}
+                </div>
+                <div v-else class="flex items-center gap-3 mt-2">
                   <div class="consensus-meter" style="flex: 1;">
                     <div class="consensus-bar" :style="{ width: (predictionMeta.consensusScore || 0) + '%' }"></div>
                   </div>
                   <strong style="color: var(--accent-orange); font-size: 20px;">{{ predictionMeta.consensusScore || 0 }}%</strong>
                 </div>
-                <div class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length || 6, classification: 4 }) }}</div>
+                <div v-if="predictionStatus !== 'unavailable'" class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length, classification: 0 }) }}</div>
               </div>
             </div>
           </div>
@@ -1111,6 +1114,11 @@
                   </tr>
                 </thead>
                 <tbody>
+                  <tr v-if="predictionStatus === 'unavailable'">
+                    <td colspan="4" class="text-muted" style="text-align: center; padding: 24px;">
+                      {{ t('prediction.unavailable', { reason: predictionReason }) }}
+                    </td>
+                  </tr>
                   <tr v-for="pred in modelPredictions" :key="pred.name">
                     <td>
                       <strong>{{ pred.name }}</strong>
@@ -1158,7 +1166,7 @@
                 </div>
               </div>
 
-              <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+              <div v-if="predictionStatus !== 'unavailable'" class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
                 <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
                 <div class="flex items-center gap-3">
                   <div style="font-size: 22px; font-weight: 700; color: var(--accent-orange);">
