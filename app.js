@@ -1713,10 +1713,18 @@ const app = createApp({
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
       }
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
-        // v5 契约: LSTM 逐日精确预测。按决策日价 → 最后收盘价的比例锚定,
-        // 保持模型给出的逐日相对涨跌形状(决策日与最新 K 线可能相差数日)
+        // v5 契约: LSTM 逐日精确预测。
+        // 正常情况按「决策日价 → 最后收盘价」比例锚定,保持模型相对涨跌形状;
+        // 若最后收盘价相对首日预测偏离过大(末端脏数据),改画模型绝对价,
+        // 避免把异常收盘价画成「AI 预测尖峰」。
+        const firstPred = Number(dailyPath.prices[0]);
+        const dirtyAnchor = firstPred > 0
+          && Math.max(lastClose / firstPred, firstPred / lastClose) > 1.5;
         for (const p of dailyPath.prices) {
-          predictedValues.push((lastClose * (p / dailyPath.base)).toFixed(2));
+          const value = dirtyAnchor
+            ? Number(p)
+            : lastClose * (Number(p) / dailyPath.base);
+          predictedValues.push(value.toFixed(2));
         }
       } else {
         // 无逐日数据(旧模型/树模型)时退回合成路径:
@@ -1846,7 +1854,9 @@ const app = createApp({
           {
             name: 'AI 预测',
             type: 'line',
-            data: new Array(kline.length - 1).fill('-').concat([kline[kline.length - 1][2]]).concat(predictedValues),
+            // 预测线只画在未来区间,不用最后一根 K 线收盘价做伪锚点
+            // (末端异常价会在 tooltip 里伪装成「AI 预测」)
+            data: new Array(kline.length).fill('-').concat(predictedValues),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },

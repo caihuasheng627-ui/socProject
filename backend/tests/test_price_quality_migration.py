@@ -73,3 +73,69 @@ def test_migration_can_reclean_from_preserved_raw_prices():
     assert result == {"items": 1, "rows": 3, "outliers": 1}
     assert middle["raw_price"] == 0.64
     assert middle["is_outlier"] == 1
+
+
+def test_repair_endpoint_price_outliers_fixes_latest_spike_and_clears_predictions():
+    from database import repair_endpoint_price_outliers
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE skins (
+            id INTEGER PRIMARY KEY,
+            market_hash_name TEXT NOT NULL
+        );
+        CREATE TABLE price_history (
+            id INTEGER PRIMARY KEY,
+            skin_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            price REAL NOT NULL,
+            daily_volume INTEGER DEFAULT 0,
+            raw_price REAL,
+            is_outlier INTEGER DEFAULT 0,
+            outlier_reason TEXT,
+            UNIQUE (skin_id, date)
+        );
+        CREATE TABLE predictions (
+            id INTEGER PRIMARY KEY,
+            skin_id INTEGER NOT NULL,
+            horizon INTEGER NOT NULL
+        );
+        INSERT INTO skins(id, market_hash_name)
+        VALUES (1, 'Desert Eagle | Heat Treated (Field-Tested)');
+        INSERT INTO predictions(skin_id, horizon) VALUES (1, 7);
+        """
+    )
+    for day in range(1, 15):
+        conn.execute(
+            """INSERT INTO price_history(
+                   skin_id, date, price, daily_volume, raw_price, is_outlier
+               ) VALUES (1, ?, 2.2, 10, 2.2, 0)""",
+            (f"2026-07-{day:02d}",),
+        )
+    conn.execute(
+        """INSERT INTO price_history(
+               skin_id, date, price, daily_volume, raw_price, is_outlier
+           ) VALUES (1, '2026-07-15', 5.8, 10, 5.8, 0)"""
+    )
+    conn.commit()
+
+    result = repair_endpoint_price_outliers(conn)
+    latest = conn.execute(
+        """SELECT price, raw_price, is_outlier, outlier_reason
+           FROM price_history WHERE date='2026-07-15'"""
+    ).fetchone()
+    pred_count = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+
+    assert result["items"] == 1
+    assert result["rows"] >= 1
+    assert latest["raw_price"] == 5.8
+    assert latest["is_outlier"] == 1
+    assert latest["outlier_reason"] == "endpoint_price_spike"
+    assert abs(latest["price"] - 2.2) < 1e-9
+    assert pred_count == 0
+    # 幂等
+    assert repair_endpoint_price_outliers(conn) == {
+        "items": 0, "rows": 0, "outliers": 0
+    }

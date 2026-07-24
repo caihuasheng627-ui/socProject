@@ -78,7 +78,8 @@ def test_cheap_item_uses_stricter_threshold_but_still_removes_extreme_error():
     assert extreme[1].price == 0.03
 
 
-def test_first_and_last_points_are_never_replaced_automatically():
+def test_short_series_endpoints_are_left_alone():
+    # 样本太短时不做末端修复,避免两点序列误伤
     cleaned = clean_price_points(
         "USP-S | The Traitor (Factory New)",
         [("2026-01-01", 1.0), ("2026-01-02", 100.0)],
@@ -86,6 +87,28 @@ def test_first_and_last_points_are_never_replaced_automatically():
 
     assert [point.price for point in cleaned] == [1.0, 100.0]
     assert not any(point.is_outlier for point in cleaned)
+
+
+def test_endpoint_spike_is_replaced_against_recent_median():
+    # Desert Eagle | Heat Treated 类: 末端单日冲到 2.6x 近期中位,应替换
+    rows = [(f"2026-07-{day:02d}", 2.2) for day in range(1, 15)]
+    rows.append(("2026-07-15", 5.8))
+    cleaned = clean_price_points("Desert Eagle | Heat Treated (Field-Tested)", rows)
+
+    assert cleaned[-1].raw_price == 5.8
+    assert cleaned[-1].is_outlier is True
+    assert cleaned[-1].outlier_reason == "endpoint_price_spike"
+    assert math.isclose(cleaned[-1].price, 2.2, rel_tol=1e-9)
+    assert all(not point.is_outlier for point in cleaned[:-1])
+
+
+def test_endpoint_keeps_mild_move_within_threshold():
+    rows = [(f"2026-07-{day:02d}", 2.0) for day in range(1, 15)]
+    rows.append(("2026-07-15", 3.5))  # 1.75x < 2.0 末端阈值
+    cleaned = clean_price_points("AK-47 | Redline (Field-Tested)", rows)
+
+    assert cleaned[-1].price == 3.5
+    assert cleaned[-1].is_outlier is False
 
 
 def test_adjacent_candidates_are_left_for_manual_review():
@@ -99,8 +122,12 @@ def test_adjacent_candidates_are_left_for_manual_review():
         ],
     )
 
-    assert [point.price for point in cleaned] == [0.03, 0.45, 0.03, 0.49]
-    assert not any(point.is_outlier for point in cleaned)
+    # 中部相邻候选互锁,留给人工;末端 0.49 相对窗口中位过跳,按 endpoint 规则修复
+    assert [point.price for point in cleaned[:3]] == [0.03, 0.45, 0.03]
+    assert not any(point.is_outlier for point in cleaned[:3])
+    assert cleaned[3].is_outlier is True
+    assert cleaned[3].outlier_reason == "endpoint_price_spike"
+    assert math.isclose(cleaned[3].price, 0.03, rel_tol=1e-9)
 
 
 class FakeResponse:

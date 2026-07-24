@@ -302,6 +302,92 @@ def migrate_price_history_quality(
             db.close()
 
 
+def repair_endpoint_price_outliers(
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, int]:
+    """Re-check first/last prices against the updated endpoint cleaner.
+
+    Idempotent: only writes rows whose effective price / outlier flags change.
+    Clears prediction cache for skins whose latest price was repaired, so the
+    next /predict call does not reuse a poisoned current_price.
+    """
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        skin_ids = [
+            row[0]
+            for row in db.execute("SELECT DISTINCT skin_id FROM price_history")
+        ]
+        updated_rows = 0
+        outlier_count = 0
+        touched_skins: list[int] = []
+        for skin_id in skin_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price,
+                          price, is_outlier, outlier_reason
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            if len(history) < 4:
+                continue
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            skin_changed = False
+            for row, point in zip(history, cleaned):
+                old_price = float(row[3])
+                old_outlier = int(row[4] or 0)
+                old_reason = row[5]
+                if (
+                    abs(old_price - point.price) < 1e-9
+                    and old_outlier == int(point.is_outlier)
+                    and (old_reason or None) == point.outlier_reason
+                ):
+                    continue
+                db.execute(
+                    """UPDATE price_history
+                       SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                       WHERE id=?""",
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    ),
+                )
+                updated_rows += 1
+                outlier_count += int(point.is_outlier)
+                skin_changed = True
+            if skin_changed:
+                touched_skins.append(skin_id)
+
+        if touched_skins:
+            db.executemany(
+                "DELETE FROM predictions WHERE skin_id=?",
+                [(sid,) for sid in touched_skins],
+            )
+        db.commit()
+        return {
+            "items": len(touched_skins),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
+
+
 def migrate_add_user_columns() -> None:
     """幂等:给已存在的 portfolio/alerts 表补 user_id 列 + 索引(新库由 CREATE TABLE 已带列)。"""
     with get_connection() as conn:
@@ -741,6 +827,12 @@ def run_init() -> None:
         print(
             f"[db] 价格质量迁移: {quality['items']} 件 / {quality['rows']} 行 / "
             f"{quality['outliers']} 个异常点"
+        )
+    endpoint = repair_endpoint_price_outliers()
+    if endpoint["rows"]:
+        print(
+            f"[db] 末端价格修复: {endpoint['items']} 件 / {endpoint['rows']} 行 / "
+            f"{endpoint['outliers']} 个异常点"
         )
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
