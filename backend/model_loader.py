@@ -21,6 +21,7 @@ CSVest — 模型加载 + 推理(组员 3 主线第 3 步)
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 import threading
@@ -259,6 +260,19 @@ class ModelLoader:
         inv = y_scaler.inverse_transform(pred_log_2d.reshape(-1, n_feat)).ravel()
         return [float(v) for v in np.expm1(inv)]
 
+    def live_model_version(self) -> str:
+        """Return a stable cache identity for the deployed LSTM artifacts."""
+        digest = hashlib.sha256()
+        for artifact in sorted(MODEL_DIR.glob("lstm*"), key=lambda path: path.name):
+            try:
+                stat = artifact.stat()
+            except OSError:
+                continue
+            digest.update(
+                f"{artifact.name}:{stat.st_size}:{stat.st_mtime_ns}\n".encode("utf-8")
+            )
+        return f"lstm-live-{digest.hexdigest()[:16]}"
+
     # ---------- 单模型推理(v5 契约: 返回 7 天每日价格列表) ----------
     def _predict_lstm_c(self, X: np.ndarray, name: str) -> list[float] | None:
         if "lstm_c" not in self.models:
@@ -292,6 +306,57 @@ class ModelLoader:
         sc = self.scalers["gru"]
         p = self.models["gru"].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
         return self._to_prices(p, sc["y_scaler"])
+
+    def predict_live_lstm(self, market_hash_name: str) -> dict | None:
+        """Run only the deployed LSTM against the latest database window.
+
+        This online path intentionally excludes offline prediction CSVs, the
+        2019-2023 feature panel, and synthetic trend fallbacks.
+        """
+        win = _skin_window_from_db(market_hash_name)
+        if win is None or not self.tf_available:
+            return None
+
+        X, cur_price, cur_date = win
+        is_known_item = (
+            market_hash_name in self.item_map or market_hash_name in self.group_map
+        )
+
+        if not is_known_item:
+            grp = "new"
+            prefer = "LSTM-C"
+            daily = self._predict_lstm_c(X, market_hash_name)
+            model_tag = "LSTM-C(__UNK__)"
+        else:
+            grp = self.group_map.get(market_hash_name, "mid")
+            prefer = self.hybrid_route.get(grp, "LSTM-D")
+            if prefer == "LSTM-C":
+                daily = self._predict_lstm_c(X, market_hash_name)
+                model_tag = "LSTM-C"
+            else:
+                daily = self._predict_lstm_d(X, market_hash_name)
+                model_tag = "LSTM-D"
+
+        if daily is None:
+            if prefer == "LSTM-C":
+                daily = self._predict_lstm_d(X, market_hash_name)
+                fallback_tag = "LSTM-D"
+            else:
+                daily = self._predict_lstm_c(X, market_hash_name)
+                fallback_tag = "LSTM-C(__UNK__)" if not is_known_item else "LSTM-C"
+            model_tag = f"{fallback_tag}(fallback)"
+        if daily is None:
+            return None
+
+        return {
+            "current_price": round(cur_price, 2),
+            **self._daily_payload(daily, cur_price),
+            "model": model_tag,
+            "date": cur_date,
+            "confidence": self._confidence(model_tag),
+            "price_tier": grp,
+            "route": prefer,
+        }
 
     @staticmethod
     def _daily_payload(daily: list[float], cur_price: float) -> dict:
