@@ -721,7 +721,7 @@ class CSVestAPI {
     );
   }
 
-  /** 将资金曲线统一为起始=100 的净值指数 */
+  /** 将资金曲线统一为「整段起点=100」的净值指数 */
   _reindexSeries(series) {
     const out = {};
     for (const [name, arr] of Object.entries(series || {})) {
@@ -750,8 +750,15 @@ class CSVestAPI {
     if (raw.dates && raw.series) {
       const first = Object.values(raw.series)[0];
       if (Array.isArray(first) && (typeof first[0] === 'number' || first[0] == null)) {
-        // 后端若已 indexed 则不再二次缩放；否则把绝对资金拉回 100 起点
-        const series = raw.indexed ? raw.series : this._reindexSeries(raw.series);
+        // 后端已按全程起点归一(indexBase=full_start)时勿再缩放；
+        // 旧接口若仅 indexed、却是「窗口首点=100」，再按 days 截取即可。
+        let series = raw.series;
+        if (!raw.indexed) {
+          series = this._reindexSeries(raw.series);
+        } else if (raw.indexBase !== 'full_start' && !raw._windowReindexed) {
+          // 兼容旧后端：已是窗口归一，保持原样
+          series = raw.series;
+        }
         let dates = raw.dates;
         let seriesOut = series;
         if (days > 0 && dates.length > days) {
@@ -760,7 +767,13 @@ class CSVestAPI {
             Object.entries(series).map(([k, v]) => [k, Array.isArray(v) ? v.slice(-days) : v])
           );
         }
-        return { dates, series: seriesOut, indexed: true };
+        return {
+          dates,
+          series: seriesOut,
+          indexed: true,
+          indexBase: raw.indexBase || 'full_start',
+          note: raw.note,
+        };
       }
     }
     // 新格式: fee_0.0000.{model}: [{date, capital}, ...]
@@ -769,7 +782,7 @@ class CSVestAPI {
     if (block && typeof block === 'object') {
       const modelNames = Object.keys(block);
       const anchor = block[modelNames[0]] || [];
-      const dates = anchor.map(p => {
+      const datesAll = anchor.map(p => {
         const d = String(p.date || '');
         if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
           const [, m, day] = d.split(/[-T]/);
@@ -777,26 +790,34 @@ class CSVestAPI {
         }
         return d;
       });
-      const series = {};
+      // 先按整段起点归一，再截最近 N 天
+      const seriesFull = {};
       for (const [name, pts] of Object.entries(block)) {
         const caps = pts.map(p => Number(p.capital) || 0);
         const base = caps.find((v) => v) || 1;
-        series[name] = caps.map(v => +((v / base) * 100).toFixed(2));
+        seriesFull[name] = caps.map(v => +((v / base) * 100).toFixed(2));
       }
       if (Array.isArray(raw.buy_hold) && raw.buy_hold.length) {
         const caps = raw.buy_hold.map(p => Number(p.capital) || 0);
         const base = caps.find((v) => v) || 1;
-        series['Buy&Hold'] = caps.map(v => +((v / base) * 100).toFixed(2));
+        seriesFull['Buy&Hold'] = caps.map(v => +((v / base) * 100).toFixed(2));
       }
-      let datesOut = dates;
-      let seriesOut = series;
+      let datesOut = datesAll;
+      let seriesOut = seriesFull;
       if (days > 0 && datesOut.length > days) {
         datesOut = datesOut.slice(-days);
         seriesOut = Object.fromEntries(
-          Object.entries(series).map(([k, v]) => [k, v.slice(-days)])
+          Object.entries(seriesFull).map(([k, v]) => [k, v.slice(-days)])
         );
       }
-      return { dates: datesOut, series: seriesOut, fee: feeKey, indexed: true };
+      return {
+        dates: datesOut,
+        series: seriesOut,
+        fee: feeKey,
+        indexed: true,
+        indexBase: 'full_start',
+        note: '净值以整段回测起点=100；策略含现金仓位，波动通常小于满仓 Buy&Hold。',
+      };
     }
     return {
       dates: Array.from({ length: days }, (_, i) => {

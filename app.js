@@ -2805,51 +2805,125 @@ const app = createApp({
         });
       }
 
+      // 展示窗口内各自归一到首日=100，放大模型间差异；Buy&Hold 走右轴，避免撑破左轴
+      const toWindowIndex = (arr) => {
+        if (!Array.isArray(arr) || !arr.length) return arr || [];
+        const base = arr.find((v) => v != null && Number(v) !== 0);
+        const b = (base == null || Number(base) === 0) ? 1 : Number(base);
+        return arr.map((v) => (v == null ? null : +((Number(v) / b) * 100).toFixed(2)));
+      };
+
       const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899', '#10b981'];
       const names = Object.keys(seriesMap);
-      const series = names.map((name, i) => {
-        const isBench = /buy|hold|持有/i.test(name);
-        return {
+      const strategyNames = names.filter((n) => !/buy|hold|持有/i.test(n));
+      const benchNames = names.filter((n) => /buy|hold|持有/i.test(n));
+      const hasBench = benchNames.length > 0;
+
+      let colorIdx = 0;
+      const series = [];
+      for (const name of strategyNames) {
+        const color = palette[colorIdx++ % palette.length];
+        series.push({
           name,
           type: 'line',
-          data: seriesMap[name],
-          smooth: true,
+          yAxisIndex: 0,
+          data: toWindowIndex(seriesMap[name]),
+          smooth: false,
           showSymbol: false,
           lineStyle: {
-            color: isBench ? '#9ca3af' : palette[i % palette.length],
-            width: isBench ? 2 : (/hybrid|lstm/i.test(name) ? 3 : 2),
-            type: isBench ? 'dashed' : 'solid',
+            color,
+            width: /hybrid/i.test(name) ? 3 : 2,
           },
-          itemStyle: { color: isBench ? '#9ca3af' : palette[i % palette.length] },
+          itemStyle: { color },
           emphasis: { focus: 'series' },
-        };
-      });
+        });
+      }
+      for (const name of benchNames) {
+        series.push({
+          name,
+          type: 'line',
+          yAxisIndex: hasBench ? 1 : 0,
+          data: toWindowIndex(seriesMap[name]),
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { color: '#9ca3af', width: 2, type: 'dashed' },
+          itemStyle: { color: '#9ca3af' },
+          emphasis: { focus: 'series' },
+        });
+      }
+
+      const note = hasBench
+        ? (typeof t === 'function' ? t('models.backtestNote') : '')
+        : '';
 
       const option = {
         backgroundColor: 'transparent',
-        tooltip: { trigger: 'axis', backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: '#1f2937',
+          borderColor: '#374151',
+          textStyle: { color: '#f3f4f6' },
+          valueFormatter: (v) => (v == null ? '-' : Number(v).toFixed(2)),
+        },
         legend: {
-          data: names,
+          data: [...strategyNames, ...benchNames],
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
           type: 'scroll',
+          selected: Object.fromEntries(
+            [...strategyNames, ...benchNames].map((n) => [n, true])
+          ),
         },
-        grid: { left: 60, right: 30, top: 40, bottom: 30 },
+        grid: { left: 56, right: hasBench ? 56 : 30, top: 40, bottom: note ? 52 : 30 },
         xAxis: {
           type: 'category',
           data: dates,
           axisLine: { lineStyle: { color: '#374151' } },
           axisLabel: { color: '#9ca3af', fontSize: 10 },
         },
-        yAxis: {
-          type: 'value',
-          name: '净值',
-          nameTextStyle: { color: '#6b7280', fontSize: 10 },
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: '{value}' },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
-        },
+        yAxis: hasBench
+          ? [
+              {
+                type: 'value',
+                name: typeof t === 'function' ? t('models.backtestAxisModels') : '模型',
+                scale: true,
+                nameTextStyle: { color: '#6b7280', fontSize: 10 },
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+              },
+              {
+                type: 'value',
+                name: 'Buy&Hold',
+                scale: true,
+                nameTextStyle: { color: '#6b7280', fontSize: 10 },
+                axisLine: { lineStyle: { color: '#374151' } },
+                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                splitLine: { show: false },
+              },
+            ]
+          : {
+              type: 'value',
+              name: typeof t === 'function' ? t('models.backtestAxisModels') : '模型',
+              scale: true,
+              nameTextStyle: { color: '#6b7280', fontSize: 10 },
+              axisLine: { lineStyle: { color: '#374151' } },
+              axisLabel: { color: '#9ca3af', fontSize: 10 },
+              splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+            },
         series,
+        graphic: note ? [{
+          type: 'text',
+          left: 56,
+          bottom: 8,
+          style: {
+            text: note,
+            fill: '#6b7280',
+            fontSize: 11,
+            width: 560,
+            overflow: 'break',
+          },
+        }] : [],
       };
       backtestInstance.setOption(option, true);
       allowPageScrollOverChart(backtestInstance);

@@ -1167,7 +1167,7 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     return [round(float(pt.get("capital", 0) or 0), 2) for pt in arr]
 
                 def _reindex(vals: list[float]) -> list[float]:
-                    """统一成起始=100 的净值指数，避免 Buy&Hold 绝对资金撑破 Y 轴。"""
+                    """全程起点=100 的净值指数（先归一再截窗口，避免后期平台期被压成直线）。"""
                     if not vals:
                         return vals
                     base = next((v for v in vals if v), 0.0) or 1.0
@@ -1182,12 +1182,21 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                 if buy_hold:
                     series_raw["Buy&Hold"] = _capitals(buy_hold)
 
+                # 先按全样本起点归一，再截最近 N 天（否则窗口内各自 /首点 会把已上涨的策略压成近乎水平线）
+                series = {k: _reindex(v) for k, v in series_raw.items()}
                 if days and days > 0 and len(dates) > days:
                     dates = dates[-days:]
-                    series_raw = {k: v[-days:] for k, v in series_raw.items()}
+                    series = {k: v[-days:] for k, v in series.items()}
 
-                series = {k: _reindex(v) for k, v in series_raw.items()}
-                return {"dates": dates, "series": series, "indexed": True}
+                return {
+                    "dates": dates,
+                    "series": series,
+                    "indexed": True,
+                    "indexBase": "full_start",
+                    "note": (
+                        "净值以整段回测起点=100；策略含现金/固定仓位，波动通常小于满仓 Buy&Hold。"
+                    ),
+                }
             return raw
         except Exception:
             pass
