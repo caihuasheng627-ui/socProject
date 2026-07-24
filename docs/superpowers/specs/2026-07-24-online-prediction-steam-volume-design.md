@@ -71,7 +71,9 @@ Serving rules:
 2. Require the window decision date to equal the latest database price date.
 3. Reject insufficient, stale, non-finite, or incompatible input instead of falling back to offline CSV.
 4. Run the deployed live LSTM route only. Tree/ARIMA CSV predictions are not online predictions and are omitted.
-5. Reject outputs with non-positive prices or a seven-observation move beyond the initial 30% circuit breaker.
+5. Reject outputs with non-positive prices. The 30% circuit breaker is controlled by
+   `PREDICTION_CIRCUIT_BREAKER_ENABLED`; observation mode disables rejection but
+   returns `PREDICTION_OUT_OF_RANGE` in the response `warnings` array.
 6. Do not generate consensus, entry range, or target price when no valid live prediction exists.
 
 The response adds:
@@ -86,6 +88,7 @@ The response adds:
 - `volumeSource`
 - `volumeCoverage`
 - `generatedAt`
+- `warnings`: stable machine-readable warnings for results returned in observation mode
 
 The response never exposes `actual_future_price`.
 
@@ -101,6 +104,8 @@ Cache lookup requires:
 - matching input price within numeric tolerance
 
 Any price or volume update for a skin invalidates that skin's cached predictions. Legacy cache rows without the new metadata are deleted during migration. Cached responses return their original generation time rather than the current request time.
+Cached predictions are rechecked against the active circuit-breaker policy so a result
+cached in observation mode cannot bypass the breaker after it is re-enabled.
 
 ## API and Frontend Behavior
 
