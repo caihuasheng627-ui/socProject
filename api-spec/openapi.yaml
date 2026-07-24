@@ -310,16 +310,48 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  # ============ 双 Agent 辩论 ============
+  # ============ Bull / Bear / Judge 多 Agent 辩论 ============
+  /api/ai/orchestrate:
+    post:
+      tags: [Chat]
+      summary: Unified AI Chat orchestration
+      description: |
+        Routes one request to recommendation, Hybrid prediction,
+        Bull/Bear/Judge debate, a targeted agent follow-up, or ordinary chat.
+        Automatic debate requires a resolvable specific skin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIOrchestratorRequest'
+      responses:
+        '200':
+          description: Routed AI result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIOrchestratorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/debate/{skinId}:
     post:
       tags: [Debate]
-      summary: 双 Agent 辩论分析 (核心创新)
+      summary: Bull / Bear / Judge 多 Agent 辩论分析
       description: |
-        🐂 Bull vs 🐻 Bear 3 轮迭代:
+        Bull 与 Bear 使用独立 Prompt、历史和工具权限，在同一不可变市场快照上进行迭代，
+        最后由独立 Judge 校验证据并裁决。旧版字符串字段继续保留供当前前端展示。
+
+        默认优先返回预录结果；`live=true` 现场执行。无 LLM Key 时使用同一结构化流程的明确 Mock。
+
+        默认 3 轮:
         - Round 1: 独立分析
         - Round 2: 互相质疑
-        - Round 3: 达成共识
+        - Round 3: 修正观点
+        - Judge: 独立裁决
       parameters:
         - name: skinId
           in: path
@@ -338,6 +370,33 @@ paths:
           schema:
             type: boolean
             default: false
+        - name: budget
+          in: query
+          description: 用户预算(USD)
+          schema:
+            type: number
+            exclusiveMinimum: 0
+        - name: riskLevel
+          in: query
+          description: 用户风险偏好
+          schema:
+            type: string
+            enum: [low, medium, high]
+            default: medium
+        - name: horizon
+          in: query
+          description: 当前 Hybrid 契约仅支持 7 天
+          schema:
+            type: integer
+            enum: [7]
+            default: 7
+        - name: rounds
+          in: query
+          description: Bull/Bear 辩论轮数；未传时读取 DEBATE_ROUNDS
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
       responses:
         '200':
           description: 成功
@@ -345,6 +404,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DebateResult'
+
+  /api/agent/sessions:
+    post:
+      tags: [Debate]
+      summary: 创建用户参与式 Agent 会话
+      description: 创建共享市场快照，运行初始 Bull/Bear/Judge 分析并持久化公开结果。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentSessionCreateRequest'
+      responses:
+        '200':
+          description: 会话已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSession'
+
+  /api/agent/sessions/{sessionId}:
+    get:
+      tags: [Debate]
+      summary: 获取 Agent 会话及公开历史
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 会话状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/agent/sessions/{sessionId}/message:
+    post:
+      tags: [Debate]
+      summary: 向 Bull、Bear 或 Judge 定向发送消息
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentSessionMessageRequest'
+      responses:
+        '200':
+          description: 更新后的会话状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/agent/sessions/{sessionId}/round:
+    post:
+      tags: [Debate]
+      summary: Run one user-participating debate round
+      description: Runs Bull, then Bear with the new Bull opinion, then Judge with both opinions and the user message.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentSessionRoundRequest'
+      responses:
+        '200':
+          description: Updated session including the new sequential round
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ============ 资讯流 ============
   /api/news:
@@ -808,6 +959,167 @@ components:
           type: string
           format: date-time
 
+    AIOrchestratorRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        action:
+          type: string
+          enum: [auto, recommend, predict, debate, chat]
+          default: auto
+        skinId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        targetAgent:
+          type: string
+          enum: [bull, bear, judge]
+          nullable: true
+        budget:
+          type: number
+          exclusiveMinimum: 0
+          nullable: true
+        horizonDays:
+          type: integer
+          enum: [7, 30]
+          default: 7
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        history:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+
+    SkinRecommendation:
+      type: object
+      required: [skinId, name, price, score, reasons]
+      properties:
+        skinId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+        change7d:
+          type: number
+        liquidity:
+          type: number
+        risk:
+          type: string
+          enum: [low, medium, high]
+        score:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
+
+    AIOrchestratorResponse:
+      type: object
+      required: [type, message]
+      properties:
+        type:
+          type: string
+          enum: [recommendation, prediction, debate, debate_round, debate_answer, profile_update, agent_followup, chat, clarification]
+        message:
+          type: string
+        skin:
+          type: object
+          nullable: true
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkinRecommendation'
+        prediction:
+          allOf:
+            - $ref: '#/components/schemas/PredictionResult'
+          nullable: true
+        agentSession:
+          allOf:
+            - $ref: '#/components/schemas/AgentSession'
+          nullable: true
+        debateRound:
+          allOf:
+            - $ref: '#/components/schemas/DebateConversationRound'
+          nullable: true
+        skinCandidates:
+          type: array
+          items:
+            type: object
+            properties:
+              skinId:
+                type: string
+              name:
+                type: string
+              price:
+                type: number
+                nullable: true
+              category:
+                type: string
+        requestedAction:
+          type: string
+          enum: [predict, debate]
+        runtime:
+          $ref: '#/components/schemas/AIRuntime'
+
+    AIRuntime:
+      type: object
+      properties:
+        llm:
+          type: object
+          required: [mode, enabled, provider, model]
+          properties:
+            mode:
+              type: string
+              enum: [live, mock]
+            enabled:
+              type: boolean
+            provider:
+              type: string
+            model:
+              type: string
+        agents:
+          type: object
+          required: [mode, bullModel, bearModel, judgeModel]
+          properties:
+            mode:
+              type: string
+              enum: [live, mock]
+            bullModel:
+              type: string
+            bearModel:
+              type: string
+            judgeModel:
+              type: string
+        hybrid:
+          type: object
+          required: [mode, model]
+          properties:
+            mode:
+              type: string
+              enum: [live, mock]
+            model:
+              type: string
+
     RAGExplanation:
       type: object
       properties:
@@ -828,9 +1140,15 @@ components:
     DebateResult:
       type: object
       properties:
+        schemaVersion:
+          type: integer
+          enum: [2]
         skinId:
           type: string
         mode:
+          type: string
+          enum: [pre_recorded, live, structured_mock]
+        requestedMode:
           type: string
         rounds:
           type: array
@@ -843,6 +1161,12 @@ components:
                 type: string
               bear:
                 type: string
+              bullOpinion:
+                $ref: '#/components/schemas/BullOpinion'
+              bearOpinion:
+                $ref: '#/components/schemas/BearOpinion'
+        judge:
+          $ref: '#/components/schemas/JudgeDecision'
         consensus:
           type: object
           properties:
@@ -862,6 +1186,388 @@ components:
               type: array
               items:
                 type: string
+        prediction:
+          type: object
+        marketSnapshot:
+          type: object
+        agentMeta:
+          type: object
+          properties:
+            isolated:
+              type: boolean
+            rounds:
+              type: integer
+            bullHistoryMessages:
+              type: integer
+            bearHistoryMessages:
+              type: integer
+            judgeHistoryMessages:
+              type: integer
+
+    AgentArgument:
+      type: object
+      required: [claim, evidence_ids, importance]
+      properties:
+        claim:
+          type: string
+        evidence_ids:
+          type: array
+          items:
+            type: string
+        importance:
+          type: number
+          minimum: 0
+          maximum: 1
+        explanation:
+          type: string
+        decision_impact:
+          type: string
+
+    BullOpinion:
+      type: object
+      required: [position, arguments, confidence]
+      properties:
+        position:
+          type: string
+          enum: [buy, watch]
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentArgument'
+        target_price:
+          type: number
+          nullable: true
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+        assumptions:
+          type: array
+          items:
+            type: string
+
+    BearOpinion:
+      type: object
+      required: [position, arguments, confidence]
+      properties:
+        position:
+          type: string
+          enum: [avoid, watch]
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentArgument'
+        stop_loss:
+          type: number
+          nullable: true
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+        risks:
+          type: array
+          items:
+            type: string
+
+    JudgeDecision:
+      type: object
+      required: [decision, winner, reasoning, confidence, evidence_used]
+      properties:
+        decision:
+          type: string
+          enum: [buy, watch, avoid, insufficient_evidence]
+        winner:
+          type: string
+          enum: [bull, bear, draw]
+        reasoning:
+          type: array
+          items:
+            type: string
+        entry_low:
+          type: number
+          nullable: true
+        entry_high:
+          type: number
+          nullable: true
+        target_price:
+          type: number
+          nullable: true
+        stop_loss:
+          type: number
+          nullable: true
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+        evidence_used:
+          type: array
+          items:
+            type: string
+        changed_from_previous:
+          type: boolean
+        change_summary:
+          type: string
+        user_view_considered:
+          type: string
+        summary:
+          type: string
+        recommendation:
+          type: string
+        key_conflict:
+          type: string
+        confidence_basis:
+          type: array
+          items:
+            type: string
+        confidence_components:
+          type: object
+          additionalProperties:
+            type: number
+        profile_fit:
+          type: string
+        conditions_to_buy:
+          type: array
+          items:
+            type: string
+        conditions_to_wait:
+          type: array
+          items:
+            type: string
+        risk_warning:
+          type: string
+        strategy_action:
+          type: string
+          enum: [buy_now, scale_in, wait_for_trigger, avoid, insufficient]
+        agreed_facts:
+          type: array
+          items:
+            type: string
+        complementary_views:
+          type: array
+          items:
+            type: string
+        true_conflicts:
+          type: array
+          items:
+            type: string
+        evidence_verdicts:
+          type: array
+          items:
+            type: string
+        position_size_pct:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 100
+        entry_strategy:
+          type: array
+          items:
+            type: string
+        buy_triggers:
+          type: array
+          items:
+            type: string
+        exit_triggers:
+          type: array
+          items:
+            type: string
+        recheck_after_days:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 90
+        alternative_action:
+          type: string
+        opportunity_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        decision_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        policy_risk_level:
+          type: string
+          enum: [low, medium, high]
+        policy_threshold:
+          type: string
+        policy_explanation:
+          type: array
+          items:
+            type: string
+
+    AgentUserProfile:
+      type: object
+      properties:
+        budget:
+          type: number
+          nullable: true
+        horizon_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+        risk_level:
+          type: string
+          enum: [low, medium, high]
+        preferred_categories:
+          type: array
+          items:
+            type: string
+        purpose:
+          type: string
+          enum: [unspecified, use, investment, collection, mixed]
+        liquidity_priority:
+          type: string
+          enum: [low, medium, high]
+        loss_tolerance_pct:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 100
+        purchase_timing:
+          type: string
+          enum: [flexible, now, wait]
+        decision_priorities:
+          type: array
+          items:
+            type: string
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+
+    AgentSessionCreateRequest:
+      type: object
+      required: [skinId]
+      properties:
+        skinId:
+          type: string
+        budget:
+          type: number
+          nullable: true
+          exclusiveMinimum: 0
+        horizonDays:
+          type: integer
+          enum: [7]
+          default: 7
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        rounds:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+
+    AgentSessionMessageRequest:
+      type: object
+      required: [message, targetAgent]
+      properties:
+        message:
+          type: string
+          minLength: 1
+        targetAgent:
+          type: string
+          enum: [bull, bear, judge]
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+
+    AgentSessionRoundRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+
+    DebateConversationRound:
+      type: object
+      properties:
+        roundNo:
+          type: integer
+        userMessage:
+          type: string
+          nullable: true
+        bull:
+          allOf:
+            - $ref: '#/components/schemas/BullOpinion'
+          nullable: true
+        bear:
+          allOf:
+            - $ref: '#/components/schemas/BearOpinion'
+          nullable: true
+        judge:
+          allOf:
+            - $ref: '#/components/schemas/JudgeDecision'
+          nullable: true
+
+    AgentSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        skinId:
+          type: string
+        status:
+          type: string
+        userProfile:
+          $ref: '#/components/schemas/AgentUserProfile'
+        marketSnapshot:
+          type: object
+        bullHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/BullOpinion'
+        bearHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/BearOpinion'
+        judgeHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/JudgeDecision'
+        messages:
+          type: array
+          items:
+            type: object
+        debateRounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateConversationRound'
+        evidenceGuide:
+          type: array
+          items:
+            type: object
+            properties:
+              evidenceId:
+                type: string
+              value:
+                type: string
+              meaning:
+                type: string
+              decisionImpact:
+                type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     NewsItem:
       type: object

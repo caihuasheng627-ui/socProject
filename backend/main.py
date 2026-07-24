@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
@@ -22,7 +22,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import (
-    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, ensure_dirs,
+    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, DEEPSEEK_MODEL,
+    BULL_MODEL, BEAR_MODEL, JUDGE_MODEL, ensure_dirs,
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
@@ -33,11 +34,45 @@ import rag
 import agent_debate
 import portfolio_diagnose
 import llm
+from agents import AIOrchestrator, AgentSessionService, SessionNotFoundError, UserProfile
 
 # ---------- 启动初始化 ----------
 ensure_dirs()
 run_init()
 _loader = get_loader()
+
+
+def _ai_runtime_metadata(
+    execution: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Expose configuration separately from the outcome of the current call."""
+
+    execution = execution or llm.get_execution_status()
+    llm_mode = execution["mode"]
+    hybrid_mode = "live" if _loader.tf_available else "mock"
+    return {
+        "llm": {
+            "mode": llm_mode,
+            "enabled": LLM_ENABLED,
+            "configured": LLM_ENABLED,
+            "provider": "DeepSeek" if LLM_ENABLED else "Local",
+            "model": DEEPSEEK_MODEL if LLM_ENABLED else "template-fallback",
+            "calls": execution.get("calls", 0),
+            "liveCalls": execution.get("liveCalls", 0),
+            "fallbackCalls": execution.get("fallbackCalls", 0),
+            "lastError": execution.get("lastError"),
+        },
+        "agents": {
+            "mode": llm_mode,
+            "bullModel": BULL_MODEL if LLM_ENABLED else "bull-rule-fallback",
+            "bearModel": BEAR_MODEL if LLM_ENABLED else "bear-rule-fallback",
+            "judgeModel": JUDGE_MODEL if LLM_ENABLED else "judge-rule-fallback",
+        },
+        "hybrid": {
+            "mode": hybrid_mode,
+            "model": "trained-hybrid" if _loader.tf_available else "trend-fallback",
+        },
+    }
 
 app = FastAPI(title="SkinVision AI API", version="1.1.0",
               description="CS2 饰品 AI 智能分析平台后端(组员 3)")
@@ -69,6 +104,20 @@ class ChatReq(BaseModel):
     message: str
     sessionId: str | None = None
     context: dict | None = None
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AIOrchestratorReq(BaseModel):
+    message: str
+    action: Literal["auto", "recommend", "predict", "debate", "chat"] = "auto"
+    skinId: str | None = None
+    sessionId: str | None = None
+    targetAgent: Literal["bull", "bear", "judge"] | None = None
+    budget: float | None = None
+    horizonDays: Literal[7, 30] = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    history: list[dict[str, str]] | None = None
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
 
 
 class PortfolioReq(BaseModel):
@@ -84,6 +133,26 @@ class AlertReq(BaseModel):
     type: str = "above"
     targetPrice: float
     note: str | None = None
+
+
+class AgentSessionCreateReq(BaseModel):
+    skinId: str
+    budget: float | None = None
+    horizonDays: int = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    rounds: int = 1
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionMessageReq(BaseModel):
+    message: str
+    targetAgent: Literal["bull", "bear", "judge"]
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionRoundReq(BaseModel):
+    message: str
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
 
 
 # ============================================================
@@ -145,6 +214,7 @@ def health():
                         "portfolio": n_portfolio, "news": n_news,
                         "buff_live": False},
         "models": models_status,
+        "aiRuntime": _ai_runtime_metadata(),
         "timestamp": _utcnow().isoformat(),
     }
 
@@ -339,11 +409,48 @@ def entry_range(req: EntryRangeReq):
 @app.post("/api/chat")
 async def chat(req: ChatReq):
     def gen():
-        messages = [{"role": "user", "content": req.message}]
+        language = "English" if req.locale == "en-US" else "Simplified Chinese"
+        messages = [
+            {"role": "system", "content": f"Always answer in {language}."},
+            {"role": "user", "content": req.message},
+        ]
         for ch in llm.chat_stream(messages):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'mock'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.post("/api/ai/orchestrate")
+def orchestrate_ai(req: AIOrchestratorReq):
+    """Single AI Chat entry point for recommendation, prediction and debate."""
+
+    llm.reset_execution_status()
+    service = AIOrchestrator(
+        prediction_loader=lambda skin_id, horizon: predict(
+            PredictReq(skinId=skin_id, horizon=horizon)
+        )
+    )
+    try:
+        result = service.handle(
+            req.message,
+            action=req.action,
+            skin_id=req.skinId,
+            session_id=req.sessionId,
+            target_agent=req.targetAgent,
+            budget=req.budget,
+            horizon_days=req.horizonDays,
+            risk_level=req.riskLevel,
+            history=req.history,
+            locale=req.locale,
+        )
+        result["runtime"] = _ai_runtime_metadata(llm.get_execution_status())
+        return result
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 # ============================================================
@@ -479,11 +586,87 @@ def daily_report(date: str | None = None):
 
 
 # ============================================================
-# P2:双 Agent 辩论(双模式)
+# P2:Bull / Bear / Judge 多 Agent 辩论(双模式)
 # ============================================================
 @app.post("/api/debate/{skin_id}")
-def debate(skin_id: str, mode: str = "bull_bear", live: bool = False):
-    return agent_debate.debate(skin_id, live=live, mode=mode)
+def debate(
+    skin_id: str,
+    mode: str = "bull_bear",
+    live: bool = False,
+    budget: float | None = Query(default=None, gt=0),
+    riskLevel: str = Query(default="medium", pattern="^(low|medium|high)$"),
+    horizon: int = Query(default=7, ge=7, le=7),
+    rounds: int | None = Query(default=None, ge=1, le=5),
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+):
+    return agent_debate.debate(
+        skin_id,
+        live=live,
+        mode=mode,
+        budget=budget,
+        risk_level=riskLevel,
+        horizon_days=horizon,
+        rounds=rounds,
+        locale=locale,
+    )
+
+
+# ============================================================
+# 用户参与式 Agent 会话
+# ============================================================
+@app.post("/api/agent/sessions")
+def create_agent_session(req: AgentSessionCreateReq):
+    try:
+        profile = UserProfile(
+            budget=req.budget,
+            horizon_days=req.horizonDays,
+            risk_level=req.riskLevel,
+            locale=req.locale,
+        )
+        return AgentSessionService().create(
+            req.skinId,
+            user_profile=profile,
+            rounds=req.rounds,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/agent/sessions/{session_id}")
+def get_agent_session(session_id: str):
+    try:
+        return AgentSessionService().get(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/agent/sessions/{session_id}/message")
+def send_agent_session_message(session_id: str, req: AgentSessionMessageReq):
+    try:
+        return AgentSessionService().send_message(
+            session_id,
+            message=req.message,
+            target_agent=req.targetAgent,
+            locale=req.locale,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/agent/sessions/{session_id}/round")
+def run_agent_session_round(session_id: str, req: AgentSessionRoundReq):
+    try:
+        return AgentSessionService().run_round(
+            session_id, message=req.message, locale=req.locale
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 # ============================================================

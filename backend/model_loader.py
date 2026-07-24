@@ -48,6 +48,7 @@ sys.path.insert(0, str(ML_DIR))
 _PANEL_LOCK = threading.Lock()
 _PANEL_CACHE: pd.DataFrame | None = None
 _PANEL_FEATURE_COLS: list[str] | None = None
+_RAW_PRICE_CACHE: pd.DataFrame | None = None
 
 
 def _load_panel() -> tuple[pd.DataFrame, list[str]]:
@@ -237,13 +238,16 @@ class ModelLoader:
         返回 {current_price, predicted_price(7天), model, date, change_pct} 或 None。
         Hybrid 路由默认: low→C, mid/high→D(可被 lstm_hybrid_route.json 覆盖)。
         """
+        # Do not import the TensorFlow training module before checking the
+        # fallback. Otherwise a machine without TensorFlow gets a 500 instead
+        # of the advertised trend-based mock prediction.
+        if not self.tf_available:
+            return self._mock_trend(market_hash_name)
+
         win = _skin_window(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
-
-        if not self.tf_available:
-            return self._mock_trend(market_hash_name, cur_price, cur_date)
 
         grp = self.group_map.get(market_hash_name, "mid")
         prefer = self.hybrid_route.get(grp, "LSTM-D")
@@ -274,12 +278,12 @@ class ModelLoader:
         }
 
     def predict_gru_for(self, market_hash_name: str) -> dict | None:
+        if not self.tf_available or market_hash_name not in self.gru_items:
+            return None
         win = _skin_window(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
-        if not self.tf_available or market_hash_name not in self.gru_items:
-            return None
         pred = self._predict_gru(X, market_hash_name)
         if pred is None:
             return None
@@ -393,15 +397,46 @@ class ModelLoader:
         }.get(model_name, 10.0)
         return round(max(35.0, min(95.0, 100.0 - mape * 2.2)), 1)
 
-    def _mock_trend(self, market_hash_name: str, cur_price: float, cur_date: str) -> dict:
+    def _mock_trend(
+        self,
+        market_hash_name: str,
+        cur_price: float | None = None,
+        cur_date: str | None = None,
+    ) -> dict | None:
         """TF 不可用时的趋势外推(近 7 日收益率 ×7)。"""
-        panel, _ = _load_panel()
-        g = panel[panel["market_hash_name"] == market_hash_name].sort_values("date")
+        global _RAW_PRICE_CACHE
+        if _RAW_PRICE_CACHE is None:
+            frames = []
+            for split in ("train", "val", "test"):
+                path = DATA_DIR / f"{split}.csv"
+                if path.exists():
+                    frames.append(
+                        pd.read_csv(
+                            path,
+                            usecols=["date", "market_hash_name", "price"],
+                            parse_dates=["date"],
+                        )
+                    )
+            if not frames:
+                return None
+            _RAW_PRICE_CACHE = pd.concat(frames, ignore_index=True)
+        g = _RAW_PRICE_CACHE[
+            _RAW_PRICE_CACHE["market_hash_name"] == market_hash_name
+        ].sort_values("date")
+        if g.empty:
+            return None
+        cur_price = float(cur_price if cur_price is not None else g["price"].iloc[-1])
+        cur_date = cur_date or str(pd.Timestamp(g["date"].iloc[-1]).strftime("%Y-%m-%d"))
         if len(g) < 8:
             return {"current_price": round(cur_price, 2), "predicted_price": round(cur_price, 2),
                     "model": "Mock(趋势)", "date": cur_date, "change_pct": 0.0, "confidence": 40.0}
         ret7 = (g["price"].iloc[-1] - g["price"].iloc[-8]) / g["price"].iloc[-8]
-        pred = max(cur_price * (1 + ret7), 0.01)
+        if abs(ret7) < 0.0001 and len(g) >= 31:
+            ret30 = (g["price"].iloc[-1] - g["price"].iloc[-31]) / g["price"].iloc[-31]
+            ret = ret30 if abs(ret30) > 0.0001 else ret7
+        else:
+            ret = ret7
+        pred = max(cur_price * (1 + ret), 0.01)
         return {"current_price": round(cur_price, 2), "predicted_price": round(pred, 2),
                 "model": "Mock(趋势)", "date": cur_date,
                 "change_pct": round((pred - cur_price) / cur_price * 100, 2), "confidence": 45.0}
