@@ -155,6 +155,9 @@ CREATE TABLE IF NOT EXISTS predictions (
     generated_at    TEXT,
     expires_at      TEXT,
     daily_json      TEXT,               -- v5: 7 天逐日预测路径(JSON 数组)
+    decision_date   TEXT,               -- 在线推理使用的最后观测日期
+    model_version   TEXT,               -- 模型产物身份,变更后缓存失效
+    data_through    TEXT,               -- 特征数据截止日期
     FOREIGN KEY (skin_id) REFERENCES skins(id)
 );
 CREATE INDEX IF NOT EXISTS idx_pred_skin ON predictions(skin_id, horizon, model);
@@ -408,6 +411,28 @@ def migrate_add_user_columns() -> None:
         if not _column_exists(conn, "predictions", "daily_json"):
             conn.execute("ALTER TABLE predictions ADD COLUMN daily_json TEXT")
         conn.commit()
+
+
+def migrate_prediction_cache_contract(
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Add data/model identity to prediction cache and drop unverifiable rows."""
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        for name in ("decision_date", "model_version", "data_through"):
+            if not _column_exists(db, "predictions", name):
+                db.execute(f"ALTER TABLE predictions ADD COLUMN {name} TEXT")
+        db.execute(
+            """DELETE FROM predictions
+               WHERE decision_date IS NULL
+                  OR model_version IS NULL
+                  OR data_through IS NULL"""
+        )
+        db.commit()
+    finally:
+        if owns_connection:
+            db.close()
 
 
 def ensure_demo_user() -> int:
@@ -813,6 +838,7 @@ def clear_fake_daily_volumes() -> int:
 def run_init() -> None:
     ensure_dirs()
     init_schema()
+    migrate_prediction_cache_contract()
     import_skins_and_prices()
     import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
     quality = migrate_price_history_quality()

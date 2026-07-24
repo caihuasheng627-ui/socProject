@@ -139,3 +139,57 @@ def test_repair_endpoint_price_outliers_fixes_latest_spike_and_clears_prediction
     assert repair_endpoint_price_outliers(conn) == {
         "items": 0, "rows": 0, "outliers": 0
     }
+
+
+def test_prediction_cache_migration_adds_identity_and_drops_legacy_rows():
+    from database import migrate_prediction_cache_contract
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE predictions (
+            id INTEGER PRIMARY KEY,
+            skin_id INTEGER,
+            horizon INTEGER,
+            model TEXT,
+            current_price REAL,
+            generated_at TEXT,
+            expires_at TEXT
+        );
+        INSERT INTO predictions VALUES (
+            1, 1, 7, 'LSTM', 100.0,
+            '2026-07-24T00:00:00+00:00',
+            '2026-07-24T06:00:00+00:00'
+        );
+        """
+    )
+
+    migrate_prediction_cache_contract(conn)
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(predictions)")}
+    assert {"decision_date", "model_version", "data_through"} <= columns
+    assert conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == 0
+
+
+def test_prediction_cache_migration_is_idempotent():
+    from database import migrate_prediction_cache_contract
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """CREATE TABLE predictions (
+               id INTEGER PRIMARY KEY,
+               decision_date TEXT,
+               model_version TEXT,
+               data_through TEXT
+           )"""
+    )
+
+    migrate_prediction_cache_contract(conn)
+    migrate_prediction_cache_contract(conn)
+
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(predictions)")]
+    assert columns.count("decision_date") == 1
+    assert columns.count("model_version") == 1
+    assert columns.count("data_through") == 1
