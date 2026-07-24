@@ -30,7 +30,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import (
-    PRED_CACHE_TTL_HOURS, OUTPUT_DIR, LLM_ENABLED, USE_BUFF_LIVE, ensure_dirs,
+    PRED_CACHE_TTL_HOURS, PREDICTION_CIRCUIT_BREAKER_ENABLED,
+    OUTPUT_DIR, LLM_ENABLED, USE_BUFF_LIVE, ensure_dirs,
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
@@ -319,6 +320,7 @@ def predict(req: PredictReq):
             loader=_loader,
             now=_utcnow(),
             ttl_hours=PRED_CACHE_TTL_HOURS,
+            circuit_breaker_enabled=PREDICTION_CIRCUIT_BREAKER_ENABLED,
         )
 
 

@@ -55,6 +55,7 @@ def _unavailable(base: dict[str, Any], reason: str) -> dict[str, Any]:
         **base,
         "status": "unavailable",
         "reason": reason,
+        "warnings": [],
         "predictions": [],
         "consensus": None,
         "entryRange": None,
@@ -63,7 +64,7 @@ def _unavailable(base: dict[str, Any], reason: str) -> dict[str, Any]:
 
 
 def _available(
-    base: dict[str, Any], prediction: dict[str, Any]
+    base: dict[str, Any], prediction: dict[str, Any], warnings: list[str] | None = None
 ) -> dict[str, Any]:
     current = float(base["currentPrice"])
     change = float(prediction["change"])
@@ -76,6 +77,7 @@ def _available(
         **base,
         "status": "available",
         "reason": None,
+        "warnings": warnings or [],
         "predictions": [prediction],
         "consensus": {"score": score, "level": level},
         "entryRange": {
@@ -94,6 +96,7 @@ def predict_for_skin(
     loader: Any,
     now: datetime,
     ttl_hours: int,
+    circuit_breaker_enabled: bool = True,
 ) -> dict[str, Any]:
     """Return one fresh database-anchored LSTM prediction or an explicit failure."""
     latest = conn.execute(
@@ -146,7 +149,14 @@ def predict_for_skin(
                 "dailyPrices": daily,
             }
             base["generatedAt"] = cached["generated_at"]
-            return _available(base, prediction)
+            out_of_range = any(
+                abs(float(value) / current_price - 1.0) > 0.30
+                for value in [cached["predicted_price"], *daily]
+            )
+            if out_of_range and circuit_breaker_enabled:
+                return _unavailable(base, "PREDICTION_OUT_OF_RANGE")
+            warnings = ["PREDICTION_OUT_OF_RANGE"] if out_of_range else []
+            return _available(base, prediction, warnings)
 
     raw = loader.predict_live_lstm(skin["market_hash_name"])
     if raw is None:
@@ -166,7 +176,10 @@ def predict_for_skin(
         or not all(math.isfinite(value) and value > 0 for value in [predicted, *daily])
     ):
         return _unavailable(base, "INVALID_PREDICTION")
-    if any(abs(value / current_price - 1.0) > 0.30 for value in [predicted, *daily]):
+    out_of_range = any(
+        abs(value / current_price - 1.0) > 0.30 for value in [predicted, *daily]
+    )
+    if out_of_range and circuit_breaker_enabled:
         return _unavailable(base, "PREDICTION_OUT_OF_RANGE")
 
     change = round((predicted - current_price) / current_price * 100.0, 2)
@@ -196,4 +209,5 @@ def predict_for_skin(
         ),
     )
     conn.commit()
-    return _available(base, prediction)
+    warnings = ["PREDICTION_OUT_OF_RANGE"] if out_of_range else []
+    return _available(base, prediction, warnings)

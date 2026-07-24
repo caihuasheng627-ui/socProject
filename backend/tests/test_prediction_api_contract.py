@@ -59,7 +59,7 @@ def test_predict_route_exposes_live_provenance_without_future_truth(monkeypatch)
 
     for field in (
         "status", "reason", "decisionDate", "dataThrough", "modelVersion",
-        "priceSource", "volumeCoverage",
+        "priceSource", "volumeCoverage", "warnings",
     ):
         assert field in result
     assert result["status"] == "available"

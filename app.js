@@ -669,6 +669,7 @@ const app = createApp({
         const res = await client.predict(skinId, 7);
         predictionStatus.value = res.status || 'demo';
         predictionReason.value = res.reason || '';
+        predictionWarnings.value = Array.isArray(res.warnings) ? res.warnings : [];
         if (predictionStatus.value === 'unavailable') {
           modelPredictions.value = [];
           predictionDaily.value = null;
@@ -724,6 +725,7 @@ const app = createApp({
         console.warn('[CSVest] predict failed', err);
         predictionStatus.value = 'error';
         predictionReason.value = 'REQUEST_FAILED';
+        predictionWarnings.value = [];
         modelPredictions.value = [];
         predictionDaily.value = null;
         return null;
@@ -1427,6 +1429,7 @@ const app = createApp({
     const modelPredictions = ref([]);
     const predictionStatus = ref('idle');
     const predictionReason = ref('');
+    const predictionWarnings = ref([]);
     // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
     const predictionDaily = ref(null);
     const predictionMeta = ref({
@@ -3469,6 +3472,7 @@ const app = createApp({
       explainSummary.value = '';
       predictionStatus.value = 'idle';
       predictionReason.value = '';
+      predictionWarnings.value = [];
       predictionDaily.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
@@ -3506,7 +3510,7 @@ const app = createApp({
       apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionStatus, predictionReason,
+      modelPredictions, predictionStatus, predictionReason, predictionWarnings,
       predictionMeta, predictionDaily, predictionDailyRows,
       relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,

@@ -1104,6 +1104,14 @@
               <div class="card-header">
                 <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
               </div>
+              <div
+                v-if="predictionWarnings.includes('PREDICTION_OUT_OF_RANGE')"
+                class="text-muted"
+                style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); color: var(--accent-orange);"
+              >
+                <i class="ph ph-warning" aria-hidden="true"></i>
+                {{ t('prediction.outOfRangeWarning') }}
+              </div>
               <table class="data-table">
                 <thead>
                   <tr>

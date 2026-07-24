@@ -82,6 +82,9 @@ RSS_MAX_AGE_DAYS = int(os.getenv("RSS_MAX_AGE_DAYS", "14"))
 
 # ---------- 业务参数 ----------
 PRED_CACHE_TTL_HOURS = int(os.getenv("PRED_CACHE_TTL_HOURS", "6"))   # predictions 缓存有效期
+PREDICTION_CIRCUIT_BREAKER_ENABLED = (
+    os.getenv("PREDICTION_CIRCUIT_BREAKER_ENABLED", "0") == "1"
+)
 LOOKBACK = 60                       # LSTM 滑动窗口(与 train_lstm_c.py 一致)
 FORECAST_HORIZON = 7                # 训练目标 = 7 天后 log_price
 PORTFLOTTO_BATCH = 20               # 库存 >20 件时分批诊断

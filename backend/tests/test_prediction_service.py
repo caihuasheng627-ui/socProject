@@ -66,9 +66,18 @@ def live_result(price=105.0, date="2026-07-22", current=100.0):
     }
 
 
-def call(conn, loader, horizon=7, models=None):
+def call(conn, loader, horizon=7, models=None, circuit_breaker_enabled=True):
     skin = conn.execute("SELECT * FROM skins WHERE id=1").fetchone()
-    return predict_for_skin(conn, skin, horizon, models, loader, NOW, ttl_hours=6)
+    return predict_for_skin(
+        conn,
+        skin,
+        horizon,
+        models,
+        loader,
+        NOW,
+        ttl_hours=6,
+        circuit_breaker_enabled=circuit_breaker_enabled,
+    )
 
 
 def test_service_returns_fresh_live_prediction():
@@ -96,6 +105,17 @@ def test_service_rejects_move_over_thirty_percent():
     result = call(make_conn(), FakeLoader(live_result(price=131.0)))
     assert result["status"] == "unavailable"
     assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+
+
+def test_service_returns_out_of_range_prediction_in_observation_mode():
+    result = call(
+        make_conn(),
+        FakeLoader(live_result(price=131.0)),
+        circuit_breaker_enabled=False,
+    )
+    assert result["status"] == "available"
+    assert result["predictions"][0]["price"] == 131.0
+    assert result["warnings"] == ["PREDICTION_OUT_OF_RANGE"]
 
 
 def test_service_returns_unavailable_when_tensorflow_is_missing():
@@ -160,3 +180,30 @@ def test_expired_cache_is_not_reused():
     loader = FakeLoader(live_result())
     call(conn, loader)
     assert loader.live_calls == 1
+
+
+def test_enabled_breaker_rejects_out_of_range_observation_mode_cache():
+    conn = make_conn()
+    daily = [101, 105, 110, 115, 120, 126, 131]
+    conn.execute(
+        """INSERT INTO predictions(
+               skin_id, horizon, model, type, predicted_price, current_price,
+               change_pct, confidence, generated_at, expires_at, daily_json,
+               decision_date, model_version, data_through
+           ) VALUES (1, 7, 'LSTM', 'DL', 131, 100, 31, 73.6, ?, ?, ?, ?, ?, ?)""",
+        (
+            "2026-07-24T11:00:00+00:00",
+            "2026-07-24T18:00:00+00:00",
+            json.dumps(daily),
+            "2026-07-22",
+            "lstm-test-v1",
+            "2026-07-22",
+        ),
+    )
+    loader = FakeLoader(live_result(price=131.0))
+
+    result = call(conn, loader, circuit_breaker_enabled=True)
+
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+    assert loader.live_calls == 0

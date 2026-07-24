@@ -1012,6 +1012,7 @@ components:
         - skinId
         - horizon
         - status
+        - warnings
         - predictions
         - decisionDate
         - dataThrough
@@ -1039,6 +1040,12 @@ components:
             - PRICE_ANCHOR_MISMATCH
             - INVALID_PREDICTION
             - PREDICTION_OUT_OF_RANGE
+        warnings:
+          type: array
+          description: 观察模式下返回但不拦截的异常标记
+          items:
+            type: string
+            enum: [PREDICTION_OUT_OF_RANGE]
         currency:
           type: string
           enum: [USD]
