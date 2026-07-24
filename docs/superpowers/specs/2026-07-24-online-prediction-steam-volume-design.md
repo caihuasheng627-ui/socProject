@@ -104,7 +104,7 @@ Any price or volume update for a skin invalidates that skin's cached predictions
 
 ## API and Frontend Behavior
 
-Update OpenAPI to document availability, provenance, and nullable prediction fields. Existing frontend prediction code may continue rendering valid predictions. When `status=unavailable`, the response contains an empty prediction list and null decision aids, allowing the current empty/failure path to avoid drawing a fabricated forecast.
+Update OpenAPI to document availability, provenance, and nullable prediction fields. Existing frontend prediction code continues rendering valid predictions, but must retain the backend `status`. When `status=unavailable`, the response contains an empty prediction list and null decision aids; the frontend must suppress its current synthetic model fallback and draw no forecast line. Static/Mock mode may still return explicitly labelled demo predictions.
 
 Volume charts, liquidity sorting, and volume labels are not restored in this change. A later frontend change must require acceptable backend coverage and display `Steam 24h volume` rather than presenting the metric as BUFF volume.
 
