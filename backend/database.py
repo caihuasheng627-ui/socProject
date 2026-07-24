@@ -9,7 +9,7 @@ SQLite 建表 + 导入 + 种子(组员 3 主线第 1 步)。
 数据来源(课程演示,策划书 §13.2 降级口径):
   - skins        : train.csv 去重导入(weapon_type/rarity/wear/is_stattrak)
   - price_history: train+val+test 回填(BUFF 实时爬虫关闭,训练 CSV 兜底)
-  - portfolio    : Expo 种子 3-5 件预置持仓(real/sim 混合)
+  - portfolio    : 默认空(不再预置 Expo 演示持仓)
   - news         : 几条种子资讯(RSS 采集由 scheduler 增量补充)
   - model_registry: 8 模型指标(读 ml/outputs/*.json)
 
@@ -134,6 +134,9 @@ CREATE TABLE IF NOT EXISTS price_history (
     date          TEXT NOT NULL,
     price         REAL NOT NULL,        -- USD 原价(与训练同口径)
     daily_volume  INTEGER DEFAULT 0,
+    raw_price     REAL,                 -- 清洗前的原始价格
+    is_outlier    INTEGER DEFAULT 0,    -- 1=price 已替换为稳健价格
+    outlier_reason TEXT,
     FOREIGN KEY (skin_id) REFERENCES skins(id),
     UNIQUE (skin_id, date)
 );
@@ -221,6 +224,168 @@ CREATE TABLE IF NOT EXISTS users (
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
     return column in cols
+
+
+def migrate_price_history_quality(
+    conn: sqlite3.Connection | None = None,
+    *,
+    force: bool = False,
+) -> dict[str, int]:
+    """Add price-quality fields and clean legacy rows once per affected item."""
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            db.execute("ALTER TABLE price_history ADD COLUMN raw_price REAL")
+        if not _column_exists(db, "price_history", "is_outlier"):
+            db.execute(
+                "ALTER TABLE price_history ADD COLUMN is_outlier INTEGER DEFAULT 0"
+            )
+        if not _column_exists(db, "price_history", "outlier_reason"):
+            db.execute("ALTER TABLE price_history ADD COLUMN outlier_reason TEXT")
+
+        affected_query = (
+            "SELECT DISTINCT skin_id FROM price_history"
+            if force
+            else "SELECT DISTINCT skin_id FROM price_history WHERE raw_price IS NULL"
+        )
+        affected_ids = [row[0] for row in db.execute(affected_query).fetchall()]
+        if not affected_ids:
+            db.commit()
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        updated_rows = 0
+        outlier_count = 0
+        for skin_id in affected_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            updates = []
+            for row, point in zip(history, cleaned):
+                updates.append(
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    )
+                )
+                outlier_count += int(point.is_outlier)
+            db.executemany(
+                """UPDATE price_history
+                   SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                   WHERE id=?""",
+                updates,
+            )
+            updated_rows += len(updates)
+        db.commit()
+        return {
+            "items": len(affected_ids),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
+
+
+def repair_endpoint_price_outliers(
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, int]:
+    """Re-check first/last prices against the updated endpoint cleaner.
+
+    Idempotent: only writes rows whose effective price / outlier flags change.
+    Clears prediction cache for skins whose latest price was repaired, so the
+    next /predict call does not reuse a poisoned current_price.
+    """
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        skin_ids = [
+            row[0]
+            for row in db.execute("SELECT DISTINCT skin_id FROM price_history")
+        ]
+        updated_rows = 0
+        outlier_count = 0
+        touched_skins: list[int] = []
+        for skin_id in skin_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price,
+                          price, is_outlier, outlier_reason
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            if len(history) < 4:
+                continue
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            skin_changed = False
+            for row, point in zip(history, cleaned):
+                old_price = float(row[3])
+                old_outlier = int(row[4] or 0)
+                old_reason = row[5]
+                if (
+                    abs(old_price - point.price) < 1e-9
+                    and old_outlier == int(point.is_outlier)
+                    and (old_reason or None) == point.outlier_reason
+                ):
+                    continue
+                db.execute(
+                    """UPDATE price_history
+                       SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                       WHERE id=?""",
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    ),
+                )
+                updated_rows += 1
+                outlier_count += int(point.is_outlier)
+                skin_changed = True
+            if skin_changed:
+                touched_skins.append(skin_id)
+
+        if touched_skins:
+            db.executemany(
+                "DELETE FROM predictions WHERE skin_id=?",
+                [(sid,) for sid in touched_skins],
+            )
+        db.commit()
+        return {
+            "items": len(touched_skins),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
 
 
 def migrate_add_user_columns() -> None:
@@ -489,40 +654,23 @@ SEED_NEWS = [
 
 
 def seed_portfolio() -> None:
-    """Expo 预置 3-5 件持仓(real/sim 混合),归 demo 用户。仅在空库时执行。"""
-    from config import DEMO_USERNAME
+    """默认空库存:不再写入 Expo 演示持仓。"""
+    print("[db] 种子 portfolio=跳过(默认空库存)")
+
+
+def clear_demo_seed_portfolio() -> int:
+    """清除内置演示持仓(按种子备注匹配),用户自建持仓保留。"""
+    notes = tuple(item[-1] for item in SEED_PORTFOLIO_NAMES)
+    if not notes:
+        return 0
+    placeholders = ",".join("?" * len(notes))
     with get_connection() as conn:
-        if conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0] > 0:
-            return
-        demo_row = conn.execute("SELECT id FROM users WHERE username=?", (DEMO_USERNAME,)).fetchone()
-        if demo_row is None:
-            return  # ensure_demo_user 应已创建;兜底跳过
-        demo_id = demo_row["id"]
-        today = _utcnow().strftime("%Y-%m-%d")
-        for frag, htype, buy_mult, qty, note in SEED_PORTFOLIO_NAMES:
-            row = conn.execute(
-                "SELECT id, market_hash_name FROM skins WHERE market_hash_name LIKE ? LIMIT 1",
-                (f"{frag}%",),
-            ).fetchone()
-            if not row:
-                continue
-            skin_id = row["id"]
-            # 最新价
-            p = conn.execute(
-                "SELECT price FROM price_history WHERE skin_id=? ORDER BY date DESC LIMIT 1",
-                (skin_id,),
-            ).fetchone()
-            cur = p["price"] if p else None
-            buy_price = round(cur * buy_mult, 2) if (buy_mult and cur) else None
-            buy_date = (_utcnow() - timedelta(days=45)).strftime("%Y-%m-%d")
-            conn.execute(
-                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at, user_id)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (skin_id, htype, buy_price, buy_date, qty, note, today, demo_id),
-            )
-        n = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        print(f"[db] 种子 portfolio={n} 件(归 demo 用户)")
+        cur = conn.execute(
+            f"DELETE FROM portfolio WHERE note IN ({placeholders})",
+            notes,
+        )
         conn.commit()
+        return int(cur.rowcount)
 
 
 def seed_news() -> None:
@@ -652,13 +800,41 @@ def change_pct(conn: sqlite3.Connection, skin_id: int, days: int) -> float | Non
 # ============================================================
 # 启动入口
 # ============================================================
+def clear_fake_daily_volumes() -> int:
+    """清空由挂单数 sell_num 污染的假 daily_volume(恒为常数、非真成交量)。"""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE price_history SET daily_volume=0 WHERE daily_volume != 0"
+        )
+        conn.commit()
+        return int(cur.rowcount)
+
+
 def run_init() -> None:
     ensure_dirs()
     init_schema()
     import_skins_and_prices()
     import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
+    quality = migrate_price_history_quality()
+    if quality["rows"]:
+        print(
+            f"[db] 价格质量迁移: {quality['items']} 件 / {quality['rows']} 行 / "
+            f"{quality['outliers']} 个异常点"
+        )
+    endpoint = repair_endpoint_price_outliers()
+    if endpoint["rows"]:
+        print(
+            f"[db] 末端价格修复: {endpoint['items']} 件 / {endpoint['rows']} 行 / "
+            f"{endpoint['outliers']} 个异常点"
+        )
+    cleared = clear_fake_daily_volumes()
+    if cleared:
+        print(f"[db] 已清空假成交量 daily_volume: {cleared} 行")
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
+    cleared = clear_demo_seed_portfolio()
+    if cleared:
+        print(f"[db] 已清除演示持仓 {cleared} 件")
     seed_portfolio()
     seed_news()
     seed_model_registry()

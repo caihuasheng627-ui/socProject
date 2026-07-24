@@ -144,14 +144,9 @@ def _skin_to_dict(conn, row) -> dict:
     cur, cur_date = latest_price(conn, row["id"])
     ch24 = change_pct(conn, row["id"], 1)
     ch7 = change_pct(conn, row["id"], 7)
-    # 流动性:由近 7 日均成交量映射 0-100
-    vol_row = conn.execute(
-        "SELECT AVG(daily_volume) v FROM price_history WHERE skin_id=? "
-        "AND date >= (SELECT MAX(date) FROM price_history WHERE skin_id=?)",
-        (row["id"], row["id"]),
-    ).fetchone()
-    vol24 = int(vol_row["v"] or 0) if vol_row else 0
-    liquidity = min(100, int(vol24 / 50))
+    # BUFF 未提供真日成交量;旧 sell_num 代理已停用,不再伪造 volume/liquidity
+    vol24 = None
+    liquidity = None
     # 数据来源与新鲜度: BUFF 爬取(滚动实时更新) vs 训练 CSV(历史静态)
     src = (row["source"] or "csv") if "source" in row.keys() else "csv"
     is_live = False
@@ -213,9 +208,12 @@ def list_skins(category: str | None = None, sort: str = "volume_desc",
         "price_asc": lambda x: x["priceUsd"] or 0,
         "change7d_desc": lambda x: -(x["change7d"] or 0),
         "change7d_asc": lambda x: x["change7d"] or 0,
-        "volume_desc": lambda x: -(x["volume24h"] or 0),
+        "change24h_desc": lambda x: -(x["change24h"] or 0),
+        "rarity_desc": lambda x: -(x["rarity"] or 0),
+        # volume_desc 保留兼容旧前端,但已无真实成交量,回退到 7 日涨跌
+        "volume_desc": lambda x: -(x["change7d"] or 0),
     }
-    items.sort(key=sort_map.get(sort, sort_map["volume_desc"]))
+    items.sort(key=sort_map.get(sort, sort_map["change7d_desc"]))
     items = items[:limit]
     return {"total": len(rows), "items": items}
 

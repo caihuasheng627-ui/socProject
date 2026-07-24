@@ -13,7 +13,7 @@ python main.py                # 或:uvicorn main:app --reload --port 8000
 
 启动时会自动:
 1. 建表(7 表 + portfolio 转正含 holding_type)
-2. 从 `ml/data/{train,val,test}.csv` 导入 154 件 skins + 23 万行 price_history
+2. 从 `ml/data/{train,val,test}.csv` 导入 154 件 CSV skins + 从 `docs/catalog_800_buff_target.csv` 导入 769 件 BUFF 目录；共 923 件 skins + 10.7 万行 price_history
 3. 写入 6 件 Expo 种子持仓 + 4 条资讯 + 8 模型 registry
 4. 加载 LSTM-C/D×3/GRU + scaler(TensorFlow 缺失则 Hybrid 降级趋势外推)
 5. 开 APScheduler(RSS 6h / 日报 09:00 / 增量训练默认禁用)

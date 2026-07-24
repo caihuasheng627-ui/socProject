@@ -37,7 +37,6 @@ for i, it in enumerate(items, 1):
             failed += 1
             time.sleep(BUFF_REQUEST_DELAY)
             continue
-        sell_num = int(info.get("sell_num") or 0) if info else 0
         time.sleep(BUFF_REQUEST_DELAY)
         rows_data = fetch_price_history(client, gid, BUFF_HISTORY_DAYS)
         if not rows_data:
@@ -45,7 +44,7 @@ for i, it in enumerate(items, 1):
             failed += 1
             time.sleep(BUFF_REQUEST_DELAY)
             continue
-        n = upsert_price_history(it["id"], rows_data, sell_num, BUFF_HISTORY_DAYS)
+        n = upsert_price_history(it["id"], rows_data, BUFF_HISTORY_DAYS)
         scraped += 1
         if i % 10 == 0 or i == len(items):
             print(f"[{i}/{len(items)}] OK {name[:40]} → {n}天 | 已采{scraped} 败{failed} | {time.time()-t0:.0f}s")

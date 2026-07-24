@@ -192,20 +192,10 @@ const DEBATE_SAMPLE = {
   }
 };
 
-// 模拟持仓（默认数据）
-const DEFAULT_PORTFOLIO = [
-  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 52.78, quantity: 5, buyDate: '2026-06-15', holdingType: 'sim' },
-  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 118.06, quantity: 2, buyDate: '2026-06-28', holdingType: 'sim' },
-  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 166.67, quantity: 1, buyDate: '2026-07-05', holdingType: 'sim' },
-];
+// 模拟持仓 / 我的库存默认均为空,由用户自行添加或 Steam 导入
+const DEFAULT_PORTFOLIO = [];
 
-// 我的库存（真实库存：手动添加 / Steam 导入；Steam 待对接）
-const DEFAULT_INVENTORY = [
-  { id: 101, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', acquirePrice: 48.50, quantity: 3, acquireDate: '2026-05-20', source: 'manual' },
-  { id: 102, skinId: 'deagle-printstream-ft', name: 'Desert Eagle | Printstream (FT)', acquirePrice: 41.20, quantity: 4, acquireDate: '2026-06-02', source: 'manual' },
-  { id: 103, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', acquirePrice: 170.00, quantity: 1, acquireDate: '2026-06-18', source: 'manual' },
-  { id: 104, skinId: 'usps-killconfirmed-ft', name: 'USP-S | Kill Confirmed (FT)', acquirePrice: 18.90, quantity: 6, acquireDate: '2026-07-01', source: 'manual' },
-];
+const DEFAULT_INVENTORY = [];
 
 /** 根据库存与饰品现价，生成库存总价值历史 + 预测曲线（前端 mock，后端对接后走 API） */
 function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {

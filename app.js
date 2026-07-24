@@ -602,7 +602,9 @@ const app = createApp({
         .filter((s) => (s.change7d || 0) < 0)
         .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
         .slice(0, 8);
-      hotVolume.value = [...pool].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
+      hotVolume.value = [...pool]
+        .sort((a, b) => Math.abs(Number(b.change24h) || 0) - Math.abs(Number(a.change24h) || 0))
+        .slice(0, 8);
     };
 
     const loadSkinsFromApi = async () => {
@@ -611,7 +613,7 @@ const app = createApp({
       // 后端全集 681 件(132 csv + 549 buff); limit 调大到 1000 以全量展示
       // 连真实后端时禁止静默退回 Mock，避免行情中心“看起来在线实则演示”
       const res = await client.getSkins(
-        { limit: 1000, sort: 'volume_desc' },
+        { limit: 1000, sort: 'change7d_desc' },
         { fallback: false }
       );
       const items = res?.items || [];
@@ -1291,7 +1293,8 @@ const app = createApp({
 
     const formatVolume = (num) => {
       const v = Number(num);
-      if (!Number.isFinite(v) || v <= 0) return '0';
+      // 无真实日成交量时不展示伪造数字
+      if (!Number.isFinite(v) || v <= 0) return '—';
       if (v >= 1000000) return `${(v / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
       if (v >= 10000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}k`;
       return Math.round(v).toLocaleString('en-US');
@@ -1344,8 +1347,9 @@ const app = createApp({
       sorted.sort((a, b) => {
         if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'en');
         if (sort === 'price') return (Number(b.price) || 0) - (Number(a.price) || 0);
-        if (sort === 'volume') return (Number(b.volume24h) || 0) - (Number(a.volume24h) || 0);
-        if (sort === 'liquidity') return (Number(b.liquidity) || 0) - (Number(a.liquidity) || 0);
+        if (sort === 'change24h') return (Number(b.change24h) || 0) - (Number(a.change24h) || 0);
+        if (sort === 'rarity') return (Number(b.rarity) || 0) - (Number(a.rarity) || 0);
+        // default: change7d
         return (Number(b.change7d) || 0) - (Number(a.change7d) || 0);
       });
       return sorted;
@@ -1633,7 +1637,6 @@ const app = createApp({
 
       const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value] || 90;
       let kline = [];
-      let volumes = [];
       let ma7 = [];
       let ma30 = [];
       let predChange = 0.02;
@@ -1653,7 +1656,6 @@ const app = createApp({
             +(+d.low).toFixed(2),
             +(+d.high).toFixed(2),
           ]);
-          volumes = (kl.volumes || []).map((v, i) => [i, v.volume, v.direction]);
           ma7 = (kl.ma7 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
           ma30 = (kl.ma30 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
           // 用全模型涨跌幅中位数，抗单模型（如 LSTM）离群值
@@ -1680,7 +1682,6 @@ const app = createApp({
           selectedSkin.value.category === '箱子' ? 0.02 : 0.035
         );
         kline = mock.kline;
-        volumes = mock.volumes;
         ma7 = window.CSVestData.calculateMA(kline, 7);
         ma30 = window.CSVestData.calculateMA(kline, 30);
         if (!modelPredictions.value.length) {
@@ -1712,11 +1713,20 @@ const app = createApp({
         const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
       }
+      // 预测线与最后一根 K 线在 x 轴上衔接,避免视觉断层。
+      // 桥接点取值:正常用 lastClose;若 lastClose 相对首日预测偏离过大
+      // (末端脏价),改用首日预测价,既不断层也不把异常收盘画成 AI 预测尖峰。
+      let bridgeValue = lastClose;
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
-        // v5 契约: LSTM 逐日精确预测。按决策日价 → 最后收盘价的比例锚定,
-        // 保持模型给出的逐日相对涨跌形状(决策日与最新 K 线可能相差数日)
+        const firstPred = Number(dailyPath.prices[0]);
+        const dirtyAnchor = firstPred > 0
+          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5;
+        if (dirtyAnchor) bridgeValue = firstPred;
         for (const p of dailyPath.prices) {
-          predictedValues.push((lastClose * (p / dailyPath.base)).toFixed(2));
+          const value = dirtyAnchor
+            ? Number(p)
+            : lastClose * (Number(p) / dailyPath.base);
+          predictedValues.push(value.toFixed(2));
         }
       } else {
         // 无逐日数据(旧模型/树模型)时退回合成路径:
@@ -1736,21 +1746,11 @@ const app = createApp({
           predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
         }
       }
+      const bridgePoint = Number(bridgeValue).toFixed(2);
 
-      // 成交量按类目轴对齐：历史有值，预测区间留空，避免 [index,vol,dir] 与日期类目错位
+      // 无真实日成交量:只画主图,不再渲染量能副图
       const forecastPad = predictedDates.map(() => '-');
-      const volumeBars = volumes.map((v) => {
-        const vol = Array.isArray(v) ? v[1] : v;
-        const dir = Array.isArray(v) ? v[2] : 0;
-        return {
-          value: vol,
-          itemStyle: {
-            color: dir > 0 ? '#ef4444' : '#10b981',
-            opacity: 0.6,
-          },
-        };
-      }).concat(forecastPad);
-
+      const categoryDates = kline.map(d => d[0]).concat(predictedDates);
       const option = {
         backgroundColor: 'transparent',
         animation: false,
@@ -1766,59 +1766,29 @@ const app = createApp({
           borderColor: '#374151',
           textStyle: { color: '#f3f4f6' },
         },
-        axisPointer: {
-          link: [{ xAxisIndex: 'all' }],
-          label: { backgroundColor: '#ff6b00' },
+        grid: { left: 52, right: 16, top: 40, bottom: 36 },
+        xAxis: {
+          type: 'category',
+          data: categoryDates,
+          boundaryGap: true,
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          splitLine: { show: false },
         },
-        grid: [
-          { left: 52, right: 16, top: 40, height: '58%' },
-          { left: 52, right: 16, top: '76%', height: '14%' },
-        ],
-        xAxis: [
-          {
-            type: 'category',
-            data: kline.map(d => d[0]).concat(predictedDates),
-            // 与成交量轴保持同一 boundaryGap，否则 K 线与 Volume 会左右错位
-            boundaryGap: true,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-          {
-            type: 'category',
-            gridIndex: 1,
-            data: kline.map(d => d[0]).concat(predictedDates),
-            boundaryGap: true,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { show: false },
-            splitLine: { show: false },
-          },
-        ],
-        yAxis: [
-          {
-            scale: true,
-            splitArea: { show: false },
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
-          },
-          {
-            scale: true,
-            gridIndex: 1,
-            splitNumber: 2,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-        ],
+        yAxis: {
+          scale: true,
+          splitArea: { show: false },
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+        },
         dataZoom: [
-          { type: 'inside', xAxisIndex: [0, 1], start: 50, end: 100 },
+          { type: 'inside', start: 50, end: 100 },
         ],
         series: [
           {
             name: 'K线',
             type: 'candlestick',
-            // ECharts candlestick: [open, close, low, high]
             data: kline.map(d => [d[1], d[2], d[3], d[4]]),
             itemStyle: {
               color: '#ef4444',
@@ -1846,7 +1816,7 @@ const app = createApp({
           {
             name: 'AI 预测',
             type: 'line',
-            data: new Array(kline.length - 1).fill('-').concat([kline[kline.length - 1][2]]).concat(predictedValues),
+            data: new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
@@ -1866,14 +1836,6 @@ const app = createApp({
                 { xAxis: predictedDates[predictedDates.length - 1] },
               ]],
             },
-          },
-          {
-            name: 'Volume',
-            type: 'bar',
-            xAxisIndex: 1,
-            yAxisIndex: 1,
-            data: volumeBars,
-            barMaxWidth: 10,
           },
         ],
       };
