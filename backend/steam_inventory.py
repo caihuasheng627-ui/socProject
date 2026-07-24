@@ -78,7 +78,7 @@ def parse_steamid(url: str) -> str | None:
 def fetch_cs2_inventory(steamid: str, cookie: str | None = None) -> list[dict]:
     """返回 [{market_hash_name, quantity}, ...]。
     cookie: steamLoginSecure 值(私有库存必填)。"""
-    client = httpx.Client(timeout=25, follow_redirects=True)
+    client = httpx.Client(timeout=15, follow_redirects=True)
     if cookie:
         client.cookies.set("steamLoginSecure", cookie, domain="steamcommunity.com")
 
@@ -139,9 +139,7 @@ def fetch_cs2_inventory(steamid: str, cookie: str | None = None) -> list[dict]:
     finally:
         client.close()
 
-    if total_seen == 0:
-        raise SteamNotFound("未取到任何 CS2 物品:账号可能无 CS2 库存或被限流")
-
+    # 空库存(账号确实没有 CS2 物品)不是错误,返回空列表让端点报 imported=0
     return [{"market_hash_name": n, "quantity": q} for n, q in aggregated.items()]
 
 
@@ -175,9 +173,15 @@ def _get_with_retry(client: httpx.Client, url: str, params: dict) -> dict:
                     time.sleep(3 * (attempt + 1))
                     continue
                 raise last_exc
+        except httpx.TransportError as e:
+            # Steam 对匿名访问会断连(10054)/SSL 握手超时/读超时——都是 2026 年 Steam
+            # 限制匿名库存访问的表现。重试无意义 → 立即提示需 steamLoginSecure cookie。
+            raise SteamPrivate(
+                f"Steam 拒绝访问或超时(匿名受限),请填写 steamLoginSecure cookie 后重试 ({e.__class__.__name__})"
+            )
         except httpx.HTTPError as e:
             last_exc = SteamError(f"网络错误: {e}")
-            if attempt < 3:
+            if attempt < 2:
                 time.sleep(3 * (attempt + 1))
                 continue
             raise last_exc

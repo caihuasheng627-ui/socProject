@@ -706,10 +706,11 @@ class CSVestAPI {
         body: JSON.stringify(payload),
       }),
       () => {
-        const err = new Error('Steam 导入功能开发中');
+        const err = new Error('Steam 导入需连接后端,当前为演示模式');
         err.code = 'STEAM_IMPORT_PENDING';
         throw err;
-      }
+      },
+      { fallback: false }   // 真实错误(403私有/429限流/404空)必须上抛,不能被 mock 兜底掩盖
     );
   }
 
