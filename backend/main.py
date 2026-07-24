@@ -743,13 +743,17 @@ def get_news(limit: int = 20, sentiment: str | None = None, source: str | None =
 
 @app.get("/api/daily-report")
 def daily_report(date: str | None = None):
-    # 优先读 Expo 预生成日报(兜底),否则现场生成
+    # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致
+    # （否则云端仅 CSV≈154 有行情时，仍会显示本地爬全量后写入的 681）
+    import scheduler
+    live_metrics = scheduler.market_metrics_from_db()
+
     from config import SEED_DIR
     seed = SEED_DIR / "seed_daily_report.json"
     if seed.exists():
         try:
             rep = json.loads(seed.read_text(encoding="utf-8"))
-            # 兜底日报可能缺少 RAG 检索来源(旧种子): 现补一份(仅检索, 不调 LLM)
+            rep["metrics"] = live_metrics
             if not rep.get("sources"):
                 try:
                     rep["sources"] = rag.retrieve_daily_sources(limit=6)
@@ -758,7 +762,6 @@ def daily_report(date: str | None = None):
             return rep
         except Exception:
             pass
-    import scheduler
     return scheduler.generate_daily_report()
 
 

@@ -125,11 +125,10 @@ def fetch_rss_news() -> int:
 # ============================================================
 # 任务 2:每日日报(拼持仓段)
 # ============================================================
-def generate_daily_report() -> dict:
-    """生成日报并写一份到 docs/expo/seed_daily_report.json(Expo 兜底)。"""
+def market_metrics_from_db() -> dict:
+    """与看板一致:有 price_history 的饰品数 + 近 7 日涨跌统计。"""
     with get_connection() as conn:
         total = conn.execute("SELECT COUNT(DISTINCT skin_id) FROM price_history").fetchone()[0]
-        # 近 1 日涨跌统计(简化:取最新价 vs 7 天前)
         gainers = conn.execute(
             """SELECT COUNT(*) FROM (
                SELECT skin_id, (SELECT price FROM price_history p2 WHERE p2.skin_id=p.skin_id
@@ -148,6 +147,14 @@ def generate_daily_report() -> dict:
                FROM price_history p GROUP BY skin_id)
                WHERE old IS NOT NULL AND cur < old"""
         ).fetchone()[0]
+    return {"monitored": int(total), "gainers": int(gainers), "losers": int(losers)}
+
+
+def generate_daily_report() -> dict:
+    """生成日报并写一份到 docs/expo/seed_daily_report.json(Expo 兜底)。"""
+    metrics = market_metrics_from_db()
+    total, gainers, losers = metrics["monitored"], metrics["gainers"], metrics["losers"]
+    with get_connection() as conn:
         news = conn.execute("SELECT * FROM news ORDER BY published_at DESC LIMIT 5").fetchall()
         # 持仓段
         positions = conn.execute(
@@ -182,7 +189,7 @@ def generate_daily_report() -> dict:
     report = {
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "metrics": {"monitored": total, "gainers": gainers, "losers": losers},
+        "metrics": metrics,
         "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
                        "holdingType": r["holding_type"]} for r in positions],
         "aiSummary": summary,
