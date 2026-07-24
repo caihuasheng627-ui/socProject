@@ -76,7 +76,7 @@ def align_common_prediction_frames(frames):
             ["date", "market_hash_name"]
         ).reset_index(drop=True)
 
-    # Drop rows where contract values (current_price, actual_future_price) differ
+    # Drop rows where shared contract values differ between models.
     reference_name, reference = next(iter(aligned.items()))
     keep = np.ones(len(reference), dtype=bool)
     for name, frame in aligned.items():
@@ -91,7 +91,13 @@ def align_common_prediction_frames(frames):
             & np.isclose(frame["actual_future_price"].to_numpy(dtype=float),
                          reference["actual_future_price"].to_numpy(dtype=float),
                          rtol=0, atol=1e-4)
+            & (
+                pd.to_datetime(frame["target_date"]).to_numpy()
+                == pd.to_datetime(reference["target_date"]).to_numpy()
+            )
         )
+    if not keep.any():
+        raise ValueError("no common rows with matching contract values")
     dropped = int((~keep).sum())
     if dropped:
         print(f"  dropped {dropped} mismatched-truth rows for fair backtest", flush=True)

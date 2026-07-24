@@ -134,6 +134,9 @@ CREATE TABLE IF NOT EXISTS price_history (
     date          TEXT NOT NULL,
     price         REAL NOT NULL,        -- USD 原价(与训练同口径)
     daily_volume  INTEGER DEFAULT 0,
+    raw_price     REAL,                 -- 清洗前的原始价格
+    is_outlier    INTEGER DEFAULT 0,    -- 1=price 已替换为稳健价格
+    outlier_reason TEXT,
     FOREIGN KEY (skin_id) REFERENCES skins(id),
     UNIQUE (skin_id, date)
 );
@@ -221,6 +224,82 @@ CREATE TABLE IF NOT EXISTS users (
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
     return column in cols
+
+
+def migrate_price_history_quality(
+    conn: sqlite3.Connection | None = None,
+    *,
+    force: bool = False,
+) -> dict[str, int]:
+    """Add price-quality fields and clean legacy rows once per affected item."""
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            db.execute("ALTER TABLE price_history ADD COLUMN raw_price REAL")
+        if not _column_exists(db, "price_history", "is_outlier"):
+            db.execute(
+                "ALTER TABLE price_history ADD COLUMN is_outlier INTEGER DEFAULT 0"
+            )
+        if not _column_exists(db, "price_history", "outlier_reason"):
+            db.execute("ALTER TABLE price_history ADD COLUMN outlier_reason TEXT")
+
+        affected_query = (
+            "SELECT DISTINCT skin_id FROM price_history"
+            if force
+            else "SELECT DISTINCT skin_id FROM price_history WHERE raw_price IS NULL"
+        )
+        affected_ids = [row[0] for row in db.execute(affected_query).fetchall()]
+        if not affected_ids:
+            db.commit()
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        updated_rows = 0
+        outlier_count = 0
+        for skin_id in affected_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            updates = []
+            for row, point in zip(history, cleaned):
+                updates.append(
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    )
+                )
+                outlier_count += int(point.is_outlier)
+            db.executemany(
+                """UPDATE price_history
+                   SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                   WHERE id=?""",
+                updates,
+            )
+            updated_rows += len(updates)
+        db.commit()
+        return {
+            "items": len(affected_ids),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
 
 
 def migrate_add_user_columns() -> None:
@@ -657,6 +736,12 @@ def run_init() -> None:
     init_schema()
     import_skins_and_prices()
     import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
+    quality = migrate_price_history_quality()
+    if quality["rows"]:
+        print(
+            f"[db] 价格质量迁移: {quality['items']} 件 / {quality['rows']} 行 / "
+            f"{quality['outliers']} 个异常点"
+        )
     ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
     ensure_admin_user()     # 管理员账号 / demo 提权
     seed_portfolio()

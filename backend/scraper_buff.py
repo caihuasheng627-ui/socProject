@@ -7,7 +7,7 @@ SkinVision AI — BUFF 实时价格爬虫(组员 3)
 设计:
   - 分批(BUFF_BATCH_SIZE,默认 50)+ 断点续传(跳过近 BUFF_REFRESH_HOURS 内已采集的)
   - 礼貌限速(BUFF_REQUEST_DELAY,默认 1.5s)+ 3 次重试 + 指数退避
-  - 搜索 goods_id → 拉 price_history(days=180)→ 按 天 聚合(每天取最后一条)→ upsert
+  - 搜索 goods_id → 拉 price_history(days=180)→ 按天取中位数 → upsert
   - daily_volume 用搜索结果里的 sell_num(挂单数)作流动性代理
   - Cookie 从 .env 读(BUFF_COOKIE),不进仓库
 
@@ -42,6 +42,7 @@ from config import (
     BUFF_REQUEST_DELAY, BUFF_BATCH_SIZE,
 )
 from database import get_connection, _utcnow
+from price_cleaning import aggregate_daily_prices, clean_price_points
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -121,7 +122,7 @@ def search_goods_id(client: httpx.Client, name: str) -> tuple[int | None, dict |
 # BUFF 单步:拉 180 天价格历史
 # ============================================================
 def fetch_price_history(client: httpx.Client, goods_id: int, days: int) -> list[tuple[str, float]]:
-    """返回 [(date_str, price), ...]。按天聚合(每天取最后一条)。"""
+    """返回 [(date_str, price), ...]。同一天多个价格取中位数。"""
     for attempt in range(3):
         try:
             r = client.get(
@@ -135,12 +136,14 @@ def fetch_price_history(client: httpx.Client, goods_id: int, days: int) -> list[
                 history = data["data"]["price_history"]
                 if not history:
                     return []
-                # history = [[ts_ms, price], ...];按天聚合
-                day_map: dict[str, float] = {}
-                for ts, price in history:
-                    d = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
-                    day_map[d] = float(price)
-                return sorted(day_map.items())
+                dated_rows = [
+                    (
+                        datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d"),
+                        float(price),
+                    )
+                    for ts, price in history
+                ]
+                return aggregate_daily_prices(dated_rows)
             if kind == "rate_limited":
                 raise RateLimited(f"历史接口限流 code={code}(goods_id={goods_id})")
             if kind == "auth_failed":
@@ -160,16 +163,36 @@ def fetch_price_history(client: httpx.Client, goods_id: int, days: int) -> list[
 # ============================================================
 def upsert_price_history(skin_id: int, rows: list[tuple[str, float]],
                          sell_num: int, window_days: int) -> int:
-    """upsert 价格;删超过 window_days 的旧数据。返回写入条数。"""
+    """保存原价和清洗价;删超过 window_days 的旧数据。"""
     if not rows:
         return 0
     with get_connection() as conn:
-        for date_str, price in rows:
+        skin = conn.execute(
+            "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+        ).fetchone()
+        name = skin[0] if skin else ""
+        cleaned_rows = clean_price_points(name, rows)
+        for point in cleaned_rows:
             conn.execute(
-                """INSERT INTO price_history(skin_id, date, price, daily_volume)
-                   VALUES (?,?,?,?)
-                   ON CONFLICT(skin_id, date) DO UPDATE SET price=excluded.price, daily_volume=excluded.daily_volume""",
-                (skin_id, date_str, round(price, 4), sell_num),
+                """INSERT INTO price_history(
+                       skin_id, date, price, daily_volume,
+                       raw_price, is_outlier, outlier_reason
+                   ) VALUES (?,?,?,?,?,?,?)
+                   ON CONFLICT(skin_id, date) DO UPDATE SET
+                       price=excluded.price,
+                       daily_volume=excluded.daily_volume,
+                       raw_price=excluded.raw_price,
+                       is_outlier=excluded.is_outlier,
+                       outlier_reason=excluded.outlier_reason""",
+                (
+                    skin_id,
+                    point.date,
+                    round(point.price, 4),
+                    sell_num,
+                    round(point.raw_price, 4),
+                    int(point.is_outlier),
+                    point.outlier_reason,
+                ),
             )
         # 滚动:删超过 window_days 的旧数据
         conn.execute(
@@ -221,7 +244,7 @@ def scrape_buff(force: bool = False, limit: int | None = None,
     if limit:
         items = items[:limit]
 
-    print(f"[scraper] 待采: {len(items)} 件 | cookie: {BUFF_COOKIE[:20]}... | 窗口: {BUFF_HISTORY_DAYS}天")
+    print(f"[scraper] 待采: {len(items)} 件 | 窗口: {BUFF_HISTORY_DAYS}天")
     if not items:
         print("[scraper] 无待采物品(全部近期已采)。--force 可强制重采。")
         return {"scraped": 0, "skipped": 0, "failed": 0}
