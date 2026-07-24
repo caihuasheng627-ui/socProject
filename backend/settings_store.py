@@ -22,6 +22,20 @@ SETTING_KEYS = (
 )
 
 
+def _sanitize_api_key(raw: str | None) -> str:
+    """HTTP Authorization 头只能是 ASCII。去掉空白/零宽/非 ASCII 字符。"""
+    if not raw:
+        return ""
+    s = (
+        str(raw)
+        .replace("\u200b", "")
+        .replace("\ufeff", "")
+        .replace("\u00a0", "")
+        .strip()
+    )
+    return "".join(ch for ch in s if ch.isascii() and not ch.isspace())
+
+
 def ensure_settings_table() -> None:
     with get_connection() as conn:
         conn.execute(
@@ -54,6 +68,14 @@ def set_settings(updates: dict[str, Any]) -> dict[str, str]:
             if v is None:
                 continue
             s = str(v).strip()
+            # API Key 只允许 ASCII(httpx Authorization 头强制 ascii);去掉空白与零宽字符
+            if k.endswith("_API_KEY") and s:
+                cleaned = _sanitize_api_key(s)
+                if not cleaned:
+                    raise ValueError(
+                        f"{k} 无效:粘贴内容清理后为空。请只粘贴纯 ASCII 的 Key(不要带中文说明或空格)。"
+                    )
+                s = cleaned
             if s == "":
                 conn.execute("DELETE FROM app_settings WHERE key=?", (k,))
             else:
@@ -104,6 +126,24 @@ def public_config() -> dict[str, Any]:
     }
 
 
+def _is_dashscope_llm(base_url: str) -> bool:
+    return "dashscope" in (base_url or "").lower()
+
+
+def _normalize_llm_model(model: str, base_url: str) -> str:
+    """官方 deepseek-chat 等名称在百炼上需换成 deepseek-v3。"""
+    m = (model or "").strip() or "deepseek-v3"
+    if not _is_dashscope_llm(base_url):
+        return m
+    alias = {
+        "deepseek-chat": "deepseek-v3",
+        "deepseek-reasoner": "deepseek-r1",
+        "deepseek-V3": "deepseek-v3",
+        "deepseek-v3.0": "deepseek-v3",
+    }
+    return alias.get(m, m)
+
+
 def apply_runtime_settings() -> None:
     """把 DB 覆盖写回 config 模块,并同步到 llm / rag 已 import 的属性。"""
     import os
@@ -117,14 +157,15 @@ def apply_runtime_settings() -> None:
     def _env(name: str, default: str = "") -> str:
         return (os.getenv(name) or file_vals.get(name) or default or "").strip()
 
+    dash_default = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     base = {
         "DEEPSEEK_API_KEY": _env("DEEPSEEK_API_KEY"),
-        "DEEPSEEK_BASE_URL": _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        "DEEPSEEK_MODEL": _env("DEEPSEEK_MODEL", "deepseek-chat"),
+        "DEEPSEEK_BASE_URL": _env("DEEPSEEK_BASE_URL", dash_default),
+        "DEEPSEEK_MODEL": _env("DEEPSEEK_MODEL", "deepseek-v3"),
         "DASHSCOPE_API_KEY": _env("DASHSCOPE_API_KEY"),
         "DASHSCOPE_BASE_URL": _env(
             "DASHSCOPE_BASE_URL",
-            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            dash_default,
         ).rstrip("/"),
         "RAG_EMBED_MODEL": _env("RAG_EMBED_MODEL", "text-embedding-v3"),
         "RAG_EMBED_DIM": _env("RAG_EMBED_DIM", "1024"),
@@ -133,12 +174,20 @@ def apply_runtime_settings() -> None:
     overrides = get_all_settings()
     merged = {**base, **overrides}
 
-    cfg.DEEPSEEK_API_KEY = merged["DEEPSEEK_API_KEY"]
-    cfg.DEEPSEEK_BASE_URL = merged["DEEPSEEK_BASE_URL"].rstrip("/")
-    cfg.DEEPSEEK_MODEL = merged["DEEPSEEK_MODEL"]
+    llm_base = (merged["DEEPSEEK_BASE_URL"] or dash_default).rstrip("/")
+    llm_key = _sanitize_api_key(merged["DEEPSEEK_API_KEY"])
+    dash_key = _sanitize_api_key(merged["DASHSCOPE_API_KEY"])
+    # 阿里云 DeepSeek:无独立 LLM Key 时复用百炼 Key;坏 Key(非 sk- 开头)也回退
+    if _is_dashscope_llm(llm_base) and dash_key:
+        if not llm_key or not llm_key.startswith("sk-"):
+            llm_key = dash_key
+
+    cfg.DEEPSEEK_API_KEY = llm_key
+    cfg.DEEPSEEK_BASE_URL = llm_base
+    cfg.DEEPSEEK_MODEL = _normalize_llm_model(merged["DEEPSEEK_MODEL"], llm_base)
     cfg.LLM_ENABLED = bool(cfg.DEEPSEEK_API_KEY)
 
-    cfg.DASHSCOPE_API_KEY = merged["DASHSCOPE_API_KEY"]
+    cfg.DASHSCOPE_API_KEY = dash_key
     cfg.DASHSCOPE_BASE_URL = merged["DASHSCOPE_BASE_URL"].rstrip("/")
     cfg.RAG_EMBED_MODEL = merged["RAG_EMBED_MODEL"]
     try:

@@ -31,11 +31,20 @@ DATA_RUNTIME_DIR = BACKEND_DIR / "data"
 DB_PATH = DATA_RUNTIME_DIR / "skinvision.db"
 SEED_DIR = REPO_ROOT / "docs" / "expo"   # Expo 种子数据(预录辩论 JSON 等)
 
-# ---------- DeepSeek ----------
+# ---------- DeepSeek / 通义兼容 LLM ----------
+# 默认走阿里云百炼 OpenAI 兼容接口上的 DeepSeek(与 Embedding 共用 DASHSCOPE_API_KEY)。
+# 若要用官方 DeepSeek,在 .env / 管理页改:
+#   DEEPSEEK_BASE_URL=https://api.deepseek.com
+#   DEEPSEEK_MODEL=deepseek-chat
+#   DEEPSEEK_API_KEY=<官方 Key>
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-LLM_ENABLED = bool(DEEPSEEK_API_KEY)   # 无 Key → 全部走 Mock/预录回放
+DEEPSEEK_BASE_URL = os.getenv(
+    "DEEPSEEK_BASE_URL",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+).rstrip("/")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v3")
+# 无独立 DeepSeek Key 时,可回退到 DASHSCOPE_API_KEY(见 settings_store.apply_runtime_settings)
+LLM_ENABLED = bool(DEEPSEEK_API_KEY)   # 启动后再由 apply_runtime_settings 校正
 
 # ---------- JWT / 认证 ----------
 JWT_SECRET = os.getenv("JWT_SECRET", "skinvision-dev-secret-change-me")

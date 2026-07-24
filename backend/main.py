@@ -11,9 +11,17 @@ SkinVision AI — FastAPI 主应用(组员 3 主线第 2 步)
 from __future__ import annotations
 
 import json
+import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
+
+# Windows 控制台/管道默认可能是 ascii/GBK;强制 UTF-8,避免中文 prompt/日志 UnicodeEncodeError
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -470,7 +478,10 @@ def admin_put_config(req: AdminConfigReq, _: dict = Depends(get_admin_user)):
         updates["RAG_EMBED_DIM"] = str(req.ragEmbedDim)
     if req.ragUseVector is not None:
         updates["RAG_USE_VECTOR"] = "1" if req.ragUseVector else "0"
-    settings_store.set_settings(updates)
+    try:
+        settings_store.set_settings(updates)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True, "config": settings_store.public_config()}
 
 
@@ -491,20 +502,32 @@ def admin_probe_llm(_: dict = Depends(get_admin_user)):
     import time
     t0 = time.time()
     try:
+        # 探测前先同步运行时配置,避免管理页刚保存后读到旧 Key
+        settings_store.apply_runtime_settings()
+        from config import LLM_ENABLED as llm_on
+        if not llm_on:
+            return {"ok": False, "provider": "deepseek", "latencyMs": 0,
+                    "error": "未配置 DEEPSEEK_API_KEY", "sample": ""}
         text = llm.chat_sync(
             [{"role": "user", "content": "请只回复两个字:正常"}],
             temperature=0.1,
             timeout=20.0,
         )
         ms = int((time.time() - t0) * 1000)
-        ok = bool(text) and "Mock" not in (text[:40] if text else "")
-        # 无 Key 时 llm 返回 Mock,视为失败
-        from config import LLM_ENABLED
-        if not LLM_ENABLED:
+        sample = (text or "")[:160]
+        # chat_sync 失败时不会抛异常,而是返回带 Mock/[error:] 的文本
+        failed = (
+            not text
+            or "Mock" in text
+            or "调用失败" in text
+            or "[error:" in text
+            or "401" in text
+            or "Unauthorized" in text
+        )
+        if failed:
             return {"ok": False, "provider": "deepseek", "latencyMs": ms,
-                    "error": "未配置 DEEPSEEK_API_KEY", "sample": (text or "")[:120]}
-        return {"ok": True, "provider": "deepseek", "latencyMs": ms,
-                "sample": (text or "")[:120]}
+                    "error": "LLM 返回失败/Mock,请检查 API Key 是否有效", "sample": sample}
+        return {"ok": True, "provider": "deepseek", "latencyMs": ms, "sample": sample}
     except Exception as e:
         return {"ok": False, "provider": "deepseek",
                 "latencyMs": int((time.time() - t0) * 1000),

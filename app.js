@@ -1010,8 +1010,8 @@ const app = createApp({
     const adminLoading = ref(false);
     const adminConfigForm = ref({
       deepseekApiKey: '',
-      deepseekBaseUrl: 'https://api.deepseek.com',
-      deepseekModel: 'deepseek-chat',
+      deepseekBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      deepseekModel: 'deepseek-v3',
       dashscopeApiKey: '',
       dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       ragEmbedModel: 'text-embedding-v3',
@@ -1080,8 +1080,8 @@ const app = createApp({
       if (!cfg) return;
       adminConfigForm.value = {
         deepseekApiKey: '',
-        deepseekBaseUrl: cfg.deepseek?.baseUrl || 'https://api.deepseek.com',
-        deepseekModel: cfg.deepseek?.model || 'deepseek-chat',
+        deepseekBaseUrl: cfg.deepseek?.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        deepseekModel: cfg.deepseek?.model || 'deepseek-v3',
         dashscopeApiKey: '',
         dashscopeBaseUrl: cfg.dashscope?.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
         ragEmbedModel: cfg.dashscope?.embedModel || 'text-embedding-v3',

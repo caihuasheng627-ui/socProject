@@ -440,7 +440,7 @@
               <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
               <div class="admin-config-grid">
                 <div>
-                  <h4 class="admin-section-label">DeepSeek (LLM)</h4>
+                  <h4 class="admin-section-label">DeepSeek (LLM · 阿里云百炼)</h4>
                   <div class="form-group">
                     <label class="form-label">API Key
                       <span class="text-muted" v-if="adminConfig?.deepseek?.keyMasked">
@@ -449,6 +449,7 @@
                     </label>
                     <input class="form-input" type="password" v-model="adminConfigForm.deepseekApiKey"
                            :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
+                    <p class="text-muted text-sm mt-1">可留空，自动复用右侧 DashScope Key</p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Base URL</label>
@@ -456,7 +457,8 @@
                   </div>
                   <div class="form-group">
                     <label class="form-label">Model</label>
-                    <input class="form-input" v-model="adminConfigForm.deepseekModel" />
+                    <input class="form-input" v-model="adminConfigForm.deepseekModel"
+                           placeholder="deepseek-v3" />
                   </div>
                 </div>
                 <div>
