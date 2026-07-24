@@ -1712,14 +1712,15 @@ const app = createApp({
         const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
       }
+      // 预测线与最后一根 K 线在 x 轴上衔接,避免视觉断层。
+      // 桥接点取值:正常用 lastClose;若 lastClose 相对首日预测偏离过大
+      // (末端脏价),改用首日预测价,既不断层也不把异常收盘画成 AI 预测尖峰。
+      let bridgeValue = lastClose;
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
-        // v5 契约: LSTM 逐日精确预测。
-        // 正常情况按「决策日价 → 最后收盘价」比例锚定,保持模型相对涨跌形状;
-        // 若最后收盘价相对首日预测偏离过大(末端脏数据),改画模型绝对价,
-        // 避免把异常收盘价画成「AI 预测尖峰」。
         const firstPred = Number(dailyPath.prices[0]);
         const dirtyAnchor = firstPred > 0
           && Math.max(lastClose / firstPred, firstPred / lastClose) > 1.5;
+        if (dirtyAnchor) bridgeValue = firstPred;
         for (const p of dailyPath.prices) {
           const value = dirtyAnchor
             ? Number(p)
@@ -1744,6 +1745,7 @@ const app = createApp({
           predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
         }
       }
+      const bridgePoint = Number(bridgeValue).toFixed(2);
 
       // 成交量按类目轴对齐：历史有值，预测区间留空，避免 [index,vol,dir] 与日期类目错位
       const forecastPad = predictedDates.map(() => '-');
@@ -1854,9 +1856,8 @@ const app = createApp({
           {
             name: 'AI 预测',
             type: 'line',
-            // 预测线只画在未来区间,不用最后一根 K 线收盘价做伪锚点
-            // (末端异常价会在 tooltip 里伪装成「AI 预测」)
-            data: new Array(kline.length).fill('-').concat(predictedValues),
+            // 与最后一根 K 线衔接(bridgePoint);脏收盘时 bridge 用首日预测价
+            data: new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
