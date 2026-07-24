@@ -37,6 +37,7 @@ from database import (
     weapon_to_category,
 )
 from model_loader import get_loader
+from prediction_service import predict_for_skin
 from auth import (
     get_current_user, get_current_user_optional, get_admin_user,
     register_user, authenticate_user, list_users,
@@ -300,7 +301,7 @@ def get_kline(skin_id: str, days: int = 90, interval: str = "1d"):
 
 
 # ============================================================
-# P0:预测(走缓存)
+# P0:数据库实时预测
 # ============================================================
 @app.post("/api/predict")
 def predict(req: PredictReq):
@@ -310,108 +311,15 @@ def predict(req: PredictReq):
         skin = resolve_skin(conn, req.skinId)
         if not skin:
             raise HTTPException(404, "skin not found")
-        skin_id = skin["id"]
-        name = skin["market_hash_name"]
-        live_cur, _ = latest_price(conn, skin_id)
-
-        # 缓存命中?
-        exp = (_utcnow() - timedelta(hours=PRED_CACHE_TTL_HOURS)).isoformat()
-        cached = conn.execute(
-            "SELECT * FROM predictions WHERE skin_id=? AND horizon=? AND expires_at>?",
-            (skin_id, req.horizon, exp),
-        ).fetchall()
-        # v5 上线前的缓存没有 daily_json；继续命中会让 LSTM 退回旧单点展示。
-        # 发现整批缓存都不含逐日路径时主动失效并按新契约重算一次。
-        if cached and not any(
-            ("daily_json" in c.keys() and c["daily_json"]) for c in cached
-        ):
-            conn.execute(
-                "DELETE FROM predictions WHERE skin_id=? AND horizon=?",
-                (skin_id, req.horizon),
-            )
-            conn.commit()
-            cached = []
-        decision_cur = live_cur
-        decision_date = None
-        if cached:
-            preds = []
-            for c in cached:
-                daily = None
-                try:
-                    if "daily_json" in c.keys() and c["daily_json"]:
-                        daily = json.loads(c["daily_json"])
-                except Exception:
-                    daily = None
-                preds.append({"model": c["model"], "type": c["type"],
-                              "price": c["predicted_price"],
-                              "priceUsd": c["predicted_price"],
-                              "change": c["change_pct"], "confidence": c["confidence"],
-                              "dailyPrices": daily})
-            # 缓存里 current_price 是决策日 USD
-            if cached[0]["current_price"]:
-                decision_cur = float(cached[0]["current_price"])
-        else:
-            raw = _loader.predict_all_models(name, req.horizon)
-            preds = []
-            now_iso = _utcnow().isoformat()
-            exp_iso = (_utcnow() + timedelta(hours=PRED_CACHE_TTL_HOURS)).isoformat()
-            # 用各模型决策日 current_price 的中位数作统一基准(通常相同)
-            raw_curs = [float(r["current_price"]) for r in raw if r.get("current_price")]
-            if raw_curs:
-                decision_cur = sorted(raw_curs)[len(raw_curs) // 2]
-            for r in raw:
-                if r.get("date"):
-                    decision_date = r["date"]
-                daily = r.get("daily_prices") or None
-                preds.append({
-                    "model": r["model"], "type": r.get("type", "ML"),
-                    "price": r["predicted_price"],
-                    "priceUsd": r["predicted_price"],
-                    "change": r["change_pct"],
-                    "confidence": r["confidence"],
-                    "decisionDate": r.get("date"),
-                    "dailyPrices": daily,
-                })
-                conn.execute(
-                    """INSERT INTO predictions(skin_id, horizon, model, type, predicted_price,
-                       current_price, change_pct, confidence, generated_at, expires_at, daily_json)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (skin_id, req.horizon, r["model"], r.get("type", "ML"),
-                     r["predicted_price"], r["current_price"], r["change_pct"],
-                     r["confidence"], now_iso, exp_iso,
-                     json.dumps(daily) if daily else None),
-                )
-            conn.commit()
-
-    # 过滤指定模型
-    if req.models:
-        ml = {m.lower() for m in req.models}
-        preds = [p for p in preds if any(t in p["model"].lower() for t in ml)] or preds
-
-    # 共识
-    changes = [p["change"] for p in preds if p["change"] is not None]
-    avg_chg = sum(changes) / len(changes) if changes else 0
-    consensus_score = round(min(100, max(0, 50 + avg_chg * 8)), 1)
-    level = ("very_high" if consensus_score >= 80 else "high" if consensus_score >= 65
-             else "medium" if consensus_score >= 45 else "low")
-
-    cur = decision_cur if decision_cur else live_cur
-    return {
-        "skinId": skin["slug"],
-        "horizon": req.horizon,
-        "currency": "USD",
-        "currentPrice": round(cur, 2) if cur else None,
-        "currentPriceUsd": round(cur, 2) if cur else None,
-        "livePriceUsd": round(live_cur, 2) if live_cur else None,
-        "decisionDate": decision_date,
-        "predictions": preds,
-        "consensus": {"score": consensus_score, "level": level},
-        "entryRange": {"low": round((cur or 0) * 0.97, 2),
-                       "high": round((cur or 0) * 0.99, 2)},
-        # 7 天目标:按共识涨跌幅,而非写死 +5%
-        "targetPrice": round((cur or 0) * (1 + avg_chg / 100), 2) if cur else None,
-        "generatedAt": _utcnow().isoformat(),
-    }
+        return predict_for_skin(
+            conn=conn,
+            skin=skin,
+            horizon=req.horizon,
+            requested_models=req.models,
+            loader=_loader,
+            now=_utcnow(),
+            ttl_hours=PRED_CACHE_TTL_HOURS,
+        )
 
 
 @app.post("/api/predict/entry-range")

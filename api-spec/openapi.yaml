@@ -205,10 +205,10 @@ paths:
   /api/predict:
     post:
       tags: [Prediction]
-      summary: 多模型价格预测
+      summary: 在线 LSTM 价格预测
       description: |
-        6 回归模型 + 4 分类模型综合预测。
-        训练方法见策划书 5.5 节: TimeSeriesSplit + Walk-Forward。
+        仅使用当前数据库最新 60 个观测构建输入并调用已部署 LSTM。
+        不读取离线 val/test 预测 CSV；无法生成可信结果时返回 status=unavailable。
       requestBody:
         required: true
         content:
@@ -228,8 +228,8 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [arima, xgboost, lightgbm, randomforest, lstm, gru]
-                  description: 指定模型,默认全部
+                    enum: [lstm]
+                  description: 在线接口仅支持 LSTM
       responses:
         '200':
           description: 成功
@@ -1008,13 +1008,77 @@ components:
 
     PredictionResult:
       type: object
+      required:
+        - skinId
+        - horizon
+        - status
+        - predictions
+        - decisionDate
+        - dataThrough
+        - modelVersion
+        - priceSource
+        - volumeCoverage
+        - generatedAt
       properties:
         skinId:
           type: string
         horizon:
           type: integer
+        status:
+          type: string
+          enum: [available, unavailable]
+        reason:
+          type: string
+          nullable: true
+          enum:
+            - NO_PRICE_HISTORY
+            - UNSUPPORTED_HORIZON
+            - REQUESTED_MODEL_UNAVAILABLE
+            - MODEL_UNAVAILABLE
+            - STALE_INPUT
+            - PRICE_ANCHOR_MISMATCH
+            - INVALID_PREDICTION
+            - PREDICTION_OUT_OF_RANGE
+        currency:
+          type: string
+          enum: [USD]
         currentPrice:
           type: number
+          nullable: true
+        currentPriceUsd:
+          type: number
+          nullable: true
+        livePriceUsd:
+          type: number
+          nullable: true
+        decisionDate:
+          type: string
+          format: date
+          nullable: true
+        dataThrough:
+          type: string
+          format: date
+          nullable: true
+        modelVersion:
+          type: string
+        priceSource:
+          type: string
+          nullable: true
+        volumeSource:
+          type: string
+          nullable: true
+        volumeCoverage:
+          type: object
+          required: [windowObservations, observed, ratio]
+          properties:
+            windowObservations:
+              type: integer
+            observed:
+              type: integer
+            ratio:
+              type: number
+              minimum: 0
+              maximum: 1
         predictions:
           type: array
           items:
@@ -1024,7 +1088,7 @@ components:
                 type: string
               type:
                 type: string
-                enum: [统计, ML, DL]
+                enum: [DL]
               price:
                 type: number
                 description: 预测周期末价格；7 天模型为第 7 天价格
@@ -1034,6 +1098,9 @@ components:
                 type: number
                 minimum: 0
                 maximum: 100
+              decisionDate:
+                type: string
+                format: date
               dailyPrices:
                 type: array
                 nullable: true
@@ -1044,6 +1111,7 @@ components:
                   type: number
         consensus:
           type: object
+          nullable: true
           properties:
             score:
               type: number
@@ -1054,6 +1122,7 @@ components:
               enum: [low, medium, high, very_high]
         entryRange:
           type: object
+          nullable: true
           properties:
             low:
               type: number
@@ -1061,6 +1130,7 @@ components:
               type: number
         targetPrice:
           type: number
+          nullable: true
         generatedAt:
           type: string
           format: date-time
