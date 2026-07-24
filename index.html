@@ -1829,7 +1829,7 @@
                 <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
               <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline">
-                组合诊断
+                {{ t('portfolio.diagnose') }}
               </button>
               <button class="btn btn-secondary" @click="goToPage('alerts')">
                 <span>🔔</span> {{ t('portfolio.alertsEntry') }}
@@ -1839,10 +1839,10 @@
 
           <div v-if="portfolioDiagnose" class="card mb-4">
             <div class="card-header">
-              <div class="card-title">组合诊断</div>
-              <span class="tag tag-orange" v-if="apiOnline">API</span>
+              <div class="card-title">{{ t('portfolio.diagnose') }}</div>
+              <span class="tag tag-orange" v-if="apiOnline && !portfolioDiagnose.empty">API</span>
             </div>
-            <p class="text-sm" style="line-height: 1.7; white-space: pre-wrap;">{{ portfolioDiagnose.summary || portfolioDiagnose.aiSummary || JSON.stringify(portfolioDiagnose).slice(0, 400) }}</p>
+            <p class="text-sm" :class="portfolioDiagnose.empty ? 'text-muted' : ''" style="line-height: 1.7; white-space: pre-wrap;">{{ portfolioDiagnose.summary || portfolioDiagnose.aiSummary || t('portfolio.emptyDiagnose') }}</p>
           </div>
 
           <div class="portfolio-summary mb-4">
@@ -1866,16 +1866,20 @@
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.sharpe') }}</div>
               <div class="summary-value">{{ portfolioMetrics.sharpeRatio }}</div>
-              <div class="summary-delta text-muted">{{ t('portfolio.sharpeUnit') }}</div>
+              <div class="summary-delta text-muted" v-if="portfolioMetrics.sharpeRatio !== '—'">{{ t('portfolio.sharpeUnit') }}</div>
             </div>
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.maxDrawdown') }}</div>
-              <div class="summary-value text-down">{{ portfolioMetrics.maxDrawdown }}%</div>
+              <div class="summary-value" :class="portfolioMetrics.maxDrawdown === '—' ? '' : 'text-down'">
+                {{ portfolioMetrics.maxDrawdown === '—' ? '—' : portfolioMetrics.maxDrawdown + '%' }}
+              </div>
             </div>
             <div class="summary-card">
               <div class="summary-label">{{ t('portfolio.volatility') }}</div>
-              <div class="summary-value">{{ portfolioMetrics.volatility }}%</div>
-              <div class="summary-delta text-muted">{{ t('portfolio.volatilityUnit') }}</div>
+              <div class="summary-value">
+                {{ portfolioMetrics.volatility === '—' ? '—' : portfolioMetrics.volatility + '%' }}
+              </div>
+              <div class="summary-delta text-muted" v-if="portfolioMetrics.volatility !== '—'">{{ t('portfolio.volatilityUnit') }}</div>
             </div>
           </div>
 
@@ -1884,7 +1888,10 @@
               <div class="card-title">{{ t('portfolio.holdingsList') }}</div>
               <span class="tag">{{ t('portfolio.holdingsCount', { count: portfolio.length }) }}</span>
             </div>
-            <table class="data-table">
+            <div v-if="!portfolio.length" class="inventory-empty text-muted text-sm">
+              {{ t('portfolio.empty') }}
+            </div>
+            <table v-else class="data-table">
               <thead>
                 <tr>
                   <th>{{ t('alerts.skin') }}</th>
