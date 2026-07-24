@@ -743,8 +743,8 @@ def get_news(limit: int = 20, sentiment: str | None = None, source: str | None =
 
 @app.get("/api/daily-report")
 def daily_report(date: str | None = None):
-    # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致
-    # （否则云端仅 CSV≈154 有行情时，仍会显示本地爬全量后写入的 681）
+    # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；
+    # aiSummary 若是旧的 Mock/调用失败文案，则现场刷新（LLM 可用则重生成）。
     import scheduler
     live_metrics = scheduler.market_metrics_from_db()
 
@@ -759,6 +759,23 @@ def daily_report(date: str | None = None):
                     rep["sources"] = rag.retrieve_daily_sources(limit=6)
                 except Exception:
                     rep["sources"] = []
+            if scheduler.summary_is_degraded(rep.get("aiSummary")):
+                portfolio = rep.get("portfolio") or []
+                portfolio_text = "无持仓" if not portfolio else "; ".join(
+                    f"{p.get('name')} {p.get('quantity', 1)}件" for p in portfolio
+                )
+                rep["aiSummary"] = scheduler.refresh_ai_summary(
+                    live_metrics,
+                    portfolio_text=portfolio_text,
+                    sources=rep.get("sources") or [],
+                )
+                try:
+                    seed.write_text(
+                        json.dumps(rep, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    pass
             return rep
         except Exception:
             pass

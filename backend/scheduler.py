@@ -150,6 +150,69 @@ def market_metrics_from_db() -> dict:
     return {"monitored": int(total), "gainers": int(gainers), "losers": int(losers)}
 
 
+def summary_is_degraded(text: str | None) -> bool:
+    """种子/降级文案是否应对外隐藏（Mock、未配置 Key、显式 error）。"""
+    t = text or ""
+    markers = (
+        "Mock 模式",
+        "(Mock",
+        "调用失败",
+        "未配置 DEEPSEEK",
+        "DEEPSEEK_API_KEY missing",
+        "[error:",
+        "LLM 调用失败",
+        "LLM call failed",
+    )
+    return any(m in t for m in markers)
+
+
+def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str:
+    """无 LLM 时的干净市场总结（不含 Mock/错误头）。"""
+    m = metrics or {}
+    total = int(m.get("monitored") or 0)
+    gainers = int(m.get("gainers") or 0)
+    losers = int(m.get("losers") or 0)
+    cite = " [1]" if sources else ""
+    bias = "偏强" if gainers > losers else ("偏弱" if losers > gainers else "震荡分化")
+    return (
+        f"今日监控 {total} 件饰品，近 7 日上涨 {gainers} 件、下跌 {losers} 件，"
+        f"市场整体{bias}{cite}。建议结合成交量与赛事日历观察高波动标的，"
+        f"控制仓位并设置止损。\n\n"
+        f"⚠ 饰品市场高波动，以上不构成投资建议。"
+    )
+
+
+def refresh_ai_summary(
+    metrics: dict,
+    *,
+    portfolio_text: str = "无持仓",
+    sources: list | None = None,
+) -> str:
+    """优先 LLM；失败或降级则回落到规则摘要。"""
+    from config import LLM_ENABLED
+
+    sources = sources or []
+    context_text = "\n".join(
+        f"[{s.get('id')}] ({s.get('source')}) {s.get('snippet')}" for s in sources
+    ) or "(无检索结果)"
+    total = metrics.get("monitored", 0)
+    gainers = metrics.get("gainers", 0)
+    losers = metrics.get("losers", 0)
+    prompt = (
+        f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
+        f"你的持仓:{portfolio_text}。\n"
+        f"以下是检索到的市场知识库/资讯:\n{context_text}\n\n"
+        f"请据此生成一段中文市场日报(3-4 句),在相关处用 [编号] 标注引用来源,"
+        f"含持仓提示与风险。不要输出 Mock、错误码或系统提示。"
+    )
+    if LLM_ENABLED:
+        text = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
+        if text and not summary_is_degraded(text):
+            return text
+        print("[scheduler] LLM 摘要不可用，改用规则摘要")
+    return rule_based_market_summary(metrics, sources)
+
+
 def generate_daily_report() -> dict:
     """生成日报并写一份到 docs/expo/seed_daily_report.json(Expo 兜底)。"""
     metrics = market_metrics_from_db()
@@ -173,18 +236,10 @@ def generate_daily_report() -> dict:
     except Exception as e:
         print(f"[scheduler] RAG 检索失败: {e}")
         sources = []
-    context_text = "\n".join(
-        f"[{s['id']}] ({s['source']}) {s['snippet']}" for s in sources
-    ) or "(无检索结果)"
 
-    prompt = (
-        f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
-        f"你的持仓:{portfolio_text}。\n"
-        f"以下是检索到的市场知识库/资讯:\n{context_text}\n\n"
-        f"请据此生成一段中文市场日报(3-4 句),在相关处用 [编号] 标注引用来源,"
-        f"含持仓提示与风险。"
+    summary = refresh_ai_summary(
+        metrics, portfolio_text=portfolio_text, sources=sources
     )
-    summary = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
 
     report = {
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
