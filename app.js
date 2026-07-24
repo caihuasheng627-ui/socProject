@@ -217,8 +217,9 @@ const app = createApp({
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
-        nextTick(() => {
+        nextTick(async () => {
           renderKline();
+          await hydrateCurrentPage(currentPage.value);
           setTimeout(() => {
             klineChartInstance?.resize();
             radarInstance?.resize();
@@ -795,7 +796,7 @@ const app = createApp({
       const client = api();
       if (!client) return;
       try {
-        const news = await client.getNews({ limit: 20 });
+        const news = await client.getNews({ limit: 40 });
         const items = Array.isArray(news) ? news : (news?.items || []);
         if (items.length) newsFeed.value = items;
       } catch (_) { /* keep mock */ }
@@ -898,6 +899,16 @@ const app = createApp({
       sources: [],
     });
     const dailyReportLoading = ref(false);
+    const dailyBreadth = computed(() => {
+      const g = Number(dailyReport.value?.metrics?.gainers) || 0;
+      const l = Number(dailyReport.value?.metrics?.losers) || 0;
+      const total = g + l;
+      if (!total) return { upPct: 0, downPct: 0 };
+      return {
+        upPct: Math.round((g / total) * 100),
+        downPct: Math.round((l / total) * 100),
+      };
+    });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
     const portfolioValueHistory = ref({ dates: [], values: [] });
@@ -1036,6 +1047,40 @@ const app = createApp({
         ragAnswer.value = t('daily.rag.error');
       } finally {
         ragLoading.value = false;
+      }
+    };
+
+    const newsFetchLoading = ref(false);
+    const fetchNewsNow = async () => {
+      if (newsFetchLoading.value) return;
+      const client = api();
+      if (!client || !apiOnline.value) {
+        showToast({ title: t('daily.rag.fetchOffline'), type: 'warning' });
+        return;
+      }
+      newsFetchLoading.value = true;
+      showToast({ title: t('daily.rag.fetching'), type: 'info' });
+      try {
+        const res = await client.fetchNews({ aggressive: true });
+        await loadNewsFromApi();
+        const inserted = res?.inserted ?? 0;
+        showToast({
+          title: t('daily.rag.fetchDone'),
+          subtitle: t('daily.rag.fetchDoneSub', {
+            n: inserted,
+            scanned: res?.scanned ?? 0,
+            feeds: res?.feeds ?? 0,
+          }),
+          type: 'success',
+        });
+      } catch (e) {
+        showToast({
+          title: t('daily.rag.fetchFail'),
+          subtitle: e?.message || String(e),
+          type: 'error',
+        });
+      } finally {
+        newsFetchLoading.value = false;
       }
     };
 
@@ -3213,6 +3258,60 @@ const app = createApp({
       }
     };
 
+    // 按当前页拉取专属数据。注意：watch(currentPage) 不会在「刷新后停在原页」时触发，
+    // 必须在 onMounted / 进入系统后再主动 hydrate，否则日报/持仓等会一直停在初始 Mock。
+    const hydrateCurrentPage = async (pageId) => {
+      const page = pageId || currentPage.value;
+      await nextTick();
+      window.processPhIcons && window.processPhIcons();
+
+      if (page === 'prediction') {
+        renderKline();
+        if (selectedSkin.value?.id) {
+          loadPlatformQuotes(selectedSkin.value.id, { live: true });
+          loadPredictions(selectedSkin.value.id);
+          loadExplanation(selectedSkin.value.id);
+        }
+      } else if (page === 'models') {
+        await loadModelsFromApi();
+        setTimeout(() => {
+          renderRadar();
+          renderBacktest();
+          renderShap();
+          renderPerDay();
+          radarInstance?.resize();
+          backtestInstance?.resize();
+          shapInstance?.resize();
+          perDayInstance?.resize();
+        }, 100);
+      } else if (page === 'daily') {
+        await loadDailyReport();
+      } else if (page === 'admin') {
+        if (adminIsAuthed.value) await loadAdminPanel();
+      } else if (page === 'alerts') {
+        await loadAlertsFromApi();
+      } else if (page === 'portfolio') {
+        if (portfolioTab.value === 'inventory') {
+          if (currentUser.value) {
+            await loadInventoryFromApi();
+            await refreshInventoryCharts();
+          }
+        } else {
+          await loadPortfolioFromApi();
+          await loadPortfolioExtras();
+        }
+      } else if (page === 'chat') {
+        setTimeout(scrollChatBottom, 100);
+      } else if (page === 'dashboard') {
+        // 行情页：确保列表已是后端数据；connect 失败时允许再试一次
+        if (!apiOnline.value) {
+          await reconnectBackend();
+        } else if (!skins.value?.length || skins.value.length < 50) {
+          try { await loadSkinsFromApi(); } catch (_) { /* ignore */ }
+        }
+      }
+    };
+
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
@@ -3228,6 +3327,7 @@ const app = createApp({
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
       if (!showLanding.value) {
         renderKline();
+        await hydrateCurrentPage(currentPage.value);
       }
       window.addEventListener('keydown', handleGlobalKeydown);
       window.addEventListener('resize', () => {
@@ -3269,21 +3369,6 @@ const app = createApp({
       // (Phosphor 字体 404,这些图标原本不可见)
       window.processPhIcons && window.processPhIcons();
 
-      // 刷新后若仍停在模型页，需主动渲染图表（watch 不会在初始值触发）
-      if (!showLanding.value && currentPage.value === 'models') {
-        await loadModelsFromApi();
-        setTimeout(() => {
-          renderRadar();
-          renderBacktest();
-          renderShap();
-          renderPerDay();
-          radarInstance?.resize();
-          backtestInstance?.resize();
-          shapInstance?.resize();
-          perDayInstance?.resize();
-        }, 120);
-      }
-
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
     });
 
@@ -3311,42 +3396,7 @@ const app = createApp({
         perDayInstance = null;
       }
 
-      if (newPage === 'prediction') {
-        renderKline();
-        if (selectedSkin.value?.id) {
-          loadPlatformQuotes(selectedSkin.value.id, { live: true });
-        }
-      } else if (newPage === 'models') {
-        await loadModelsFromApi();
-        setTimeout(() => {
-          renderRadar();
-          renderBacktest();
-          renderShap();
-          renderPerDay();
-          radarInstance?.resize();
-          backtestInstance?.resize();
-          shapInstance?.resize();
-          perDayInstance?.resize();
-        }, 100);
-      } else if (newPage === 'daily') {
-        await loadDailyReport();
-      } else if (newPage === 'admin') {
-        if (adminIsAuthed.value) await loadAdminPanel();
-      } else if (newPage === 'alerts') {
-        await loadAlertsFromApi();
-      } else if (newPage === 'portfolio') {
-        if (portfolioTab.value === 'inventory') {
-          if (currentUser.value) {
-            await loadInventoryFromApi();
-            await refreshInventoryCharts();
-          }
-        } else {
-          await loadPortfolioFromApi();
-          await loadPortfolioExtras();
-        }
-      } else if (newPage === 'chat') {
-        setTimeout(scrollChatBottom, 100);
-      }
+      await hydrateCurrentPage(newPage);
     });
 
     // 登录后若正停留在「我的库存」，自动加载数据与图表
@@ -3408,8 +3458,9 @@ const app = createApp({
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
       chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
-      newsFeed, dailyReport, loadDailyReport, dailyReportLoading,
+      newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
       regenerateDailyReport, exportDailyReport,
+      newsFetchLoading, fetchNewsNow,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
       adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,

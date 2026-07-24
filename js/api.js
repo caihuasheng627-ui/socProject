@@ -459,6 +459,11 @@ class CSVestAPI {
     );
   }
 
+  async fetchNews({ aggressive = true } = {}) {
+    const qs = new URLSearchParams({ aggressive: aggressive ? '1' : '0' });
+    return this._fetch(`/api/news/fetch?${qs}`, { method: 'POST', body: '{}' });
+  }
+
   async getDailyReport(date, { refresh = false } = {}) {
     const params = new URLSearchParams();
     if (date) params.set('date', date);

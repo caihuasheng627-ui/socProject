@@ -878,6 +878,15 @@ def get_news(limit: int = 20, sentiment: str | None = None, source: str | None =
             for r in rows]
 
 
+@app.post("/api/news/fetch")
+def fetch_news(aggressive: bool = Query(default=True)):
+    """手动触发 RSS 抓取。默认 aggressive=强化力度(更多源条目+更长窗口)。"""
+    import scheduler
+    result = scheduler.fetch_rss_news(aggressive=aggressive)
+    if result.get("error"):
+        raise HTTPException(status_code=503, detail=result["error"])
+    return {"ok": True, **result}
+
 @app.get("/api/daily-report")
 def daily_report(date: str | None = None, refresh: bool = False):
     # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；

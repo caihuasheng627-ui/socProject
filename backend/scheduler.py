@@ -22,7 +22,15 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 import llm
-from config import RSS_FEEDS, RSS_MAX_AGE_DAYS, ML_DIR, REPO_ROOT
+from config import (
+    RSS_FEEDS,
+    RSS_MAX_AGE_DAYS,
+    RSS_PER_FEED_LIMIT,
+    RSS_AGGRESSIVE_MAX_AGE_DAYS,
+    RSS_AGGRESSIVE_PER_FEED,
+    ML_DIR,
+    REPO_ROOT,
+)
 from database import get_connection, _utcnow
 
 _scheduler: BackgroundScheduler | None = None
@@ -59,20 +67,40 @@ def _entry_published(entry) -> datetime | None:
 # ============================================================
 # 任务 1:RSS 采集
 # ============================================================
-def fetch_rss_news() -> int:
+def _rss_source_tag(url: str) -> str:
+    if "hltv.org" in url:
+        return "hltv"
+    if "counter-strike.net" in url:
+        return "valve"
+    if "reddit.com" in url:
+        return "reddit"
+    return "rss"
+
+
+def fetch_rss_news(aggressive: bool = False) -> dict:
+    """拉取 RSS 写入 news 表。aggressive=True 时加大窗口与每源条数。"""
     try:
         import feedparser
     except Exception as e:
         print(f"[scheduler] feedparser 不可用: {e}")
-        return 0
+        return {"inserted": 0, "skipped_old": 0, "scanned": 0, "feeds": 0, "error": str(e)}
+
+    # Reddit 等源常拦截缺省 UA
+    feedparser.USER_AGENT = "CSVest/1.1 (+rss; course-demo)"
+
+    max_age = RSS_AGGRESSIVE_MAX_AGE_DAYS if aggressive else RSS_MAX_AGE_DAYS
+    per_feed = RSS_AGGRESSIVE_PER_FEED if aggressive else RSS_PER_FEED_LIMIT
     inserted = 0
-    cutoff = _utcnow() - timedelta(days=max(1, RSS_MAX_AGE_DAYS))
+    scanned = 0
+    feed_ok = 0
+    cutoff = _utcnow() - timedelta(days=max(1, max_age))
     skipped_old = 0
+    headers = {"User-Agent": feedparser.USER_AGENT, "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"}
     with get_connection() as conn:
         for url in RSS_FEEDS:
             try:
-                feed = feedparser.parse(url)
-                # 按发布时间新→旧处理,每源最多看 20 条
+                feed = feedparser.parse(url, request_headers=headers)
+                # 按发布时间新→旧处理
                 entries = list(feed.entries or [])
 
                 def _sort_key(e):
@@ -80,7 +108,9 @@ def fetch_rss_news() -> int:
                     return dt or datetime(1970, 1, 1, tzinfo=timezone.utc)
 
                 entries.sort(key=_sort_key, reverse=True)
-                for entry in entries[:20]:
+                feed_ok += 1
+                for entry in entries[: max(1, per_feed)]:
+                    scanned += 1
                     title = (entry.get("title") or "").strip()
                     if not title:
                         continue
@@ -98,9 +128,7 @@ def fetch_rss_news() -> int:
                         published = pub_dt.isoformat()
                     else:
                         published = _utcnow().isoformat()
-                    source = "hltv" if "hltv.org" in url else (
-                        "valve" if "counter-strike.net" in url else "rss"
-                    )
+                    source = _rss_source_tag(url)
                     conn.execute(
                         """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
                            VALUES (?,?,?,?,?,?,?,?)""",
@@ -111,16 +139,28 @@ def fetch_rss_news() -> int:
             except Exception as e:
                 print(f"[scheduler] RSS 采集失败 {url}: {e}")
         conn.commit()
+    mode = "aggressive" if aggressive else "normal"
     if inserted or skipped_old:
-        print(f"[scheduler] RSS 新增 {inserted} 条(跳过过期 {skipped_old},窗口 {RSS_MAX_AGE_DAYS} 天)")
+        print(
+            f"[scheduler] RSS[{mode}] 新增 {inserted} 条"
+            f"(扫描 {scanned},跳过过期 {skipped_old},窗口 {max_age} 天,每源≤{per_feed})"
+        )
     if inserted:
         try:
             import rag
             rag.invalidate_index()
         except Exception:
             pass
-    return inserted
-
+    return {
+        "inserted": inserted,
+        "skipped_old": skipped_old,
+        "scanned": scanned,
+        "feeds": feed_ok,
+        "feedsTotal": len(RSS_FEEDS),
+        "maxAgeDays": max_age,
+        "perFeedLimit": per_feed,
+        "aggressive": aggressive,
+    }
 
 # ============================================================
 # 任务 2:每日日报(拼持仓段)

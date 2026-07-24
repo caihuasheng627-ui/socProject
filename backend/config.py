@@ -73,12 +73,23 @@ BUFF_REQUEST_DELAY = float(os.getenv("BUFF_REQUEST_DELAY", "1.5"))  # 礼貌限�
 BUFF_BATCH_SIZE = int(os.getenv("BUFF_BATCH_SIZE", "50"))        # 分批每批件数
 CATALOG_800_CSV = REPO_ROOT / "docs" / "catalog_800_buff_target.csv"
 RSS_FEEDS = [
-    # 较活跃的公开源;失败不崩主进程(Valve 博客更新频率低属正常)
+    # 官方 / 电竞主源
     "https://blog.counter-strike.net/index.php/feed/",
     "https://www.hltv.org/rss/news",
+    # Reddit 公开 RSS(市场/赛事讨论,加大语料覆盖)
+    "https://www.reddit.com/r/GlobalOffensive/.rss",
+    "https://www.reddit.com/r/csgo/.rss",
+    "https://www.reddit.com/r/csgomarketforum/.rss",
+    "https://www.reddit.com/r/GlobalOffensiveTrade/.rss",
+    "https://www.reddit.com/r/CSGOMarket/.rss",
 ]
 # RSS 只入库近 N 天条目,避免旧闻刷屏
-RSS_MAX_AGE_DAYS = int(os.getenv("RSS_MAX_AGE_DAYS", "14"))
+RSS_MAX_AGE_DAYS = int(os.getenv("RSS_MAX_AGE_DAYS", "30"))
+# 每个源最多扫描条数(加大默认抓取力度)
+RSS_PER_FEED_LIMIT = int(os.getenv("RSS_PER_FEED_LIMIT", "50"))
+# 手动 Fetch 强化模式:更长窗口 + 每源更多条目
+RSS_AGGRESSIVE_MAX_AGE_DAYS = int(os.getenv("RSS_AGGRESSIVE_MAX_AGE_DAYS", "60"))
+RSS_AGGRESSIVE_PER_FEED = int(os.getenv("RSS_AGGRESSIVE_PER_FEED", "80"))
 
 # ---------- 业务参数 ----------
 PRED_CACHE_TTL_HOURS = int(os.getenv("PRED_CACHE_TTL_HOURS", "6"))   # predictions 缓存有效期

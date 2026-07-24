@@ -1,6 +1,6 @@
 {
   "date": "2026-07-24",
-  "generatedAt": "2026-07-24T02:31:33+00:00",
+  "generatedAt": "2026-07-24T12:14:00+00:00",
   "metrics": {
     "monitored": 681,
     "gainers": 304,
@@ -8,37 +8,17 @@
   },
   "portfolio": [
     {
-      "name": "AK-47 | Elite Build (Minimal Wear)",
-      "quantity": 1,
-      "holdingType": "real"
-    },
-    {
-      "name": "AWP | Asiimov (Field-Tested)",
-      "quantity": 1,
-      "holdingType": "real"
-    },
-    {
-      "name": "M4A1-S | Briefing (Factory New)",
-      "quantity": 2,
-      "holdingType": "sim"
-    },
-    {
-      "name": "USP-S | Cyrex (Factory New)",
-      "quantity": 1,
-      "holdingType": "real"
-    },
-    {
-      "name": "★ Karambit | Doppler (Factory New)",
+      "name": "M4A4 | Desert Storm (Field-Tested)",
       "quantity": 1,
       "holdingType": "sim"
     },
     {
-      "name": "★ Driver Gloves | Overtake (Field-Tested)",
+      "name": "M4A4 | Desert Storm (Field-Tested)",
       "quantity": 1,
-      "holdingType": "real"
+      "holdingType": "sim"
     }
   ],
-  "aiSummary": "今日监控 681 件饰品，近 7 日上涨 304 件、下跌 358 件，市场整体分化 [1]。建议结合成交量与赛事日历观察高波动标的，控制仓位并设置止损。\n\n⚠ 饰品市场高波动，以上不构成投资建议。",
+  "aiSummary": "今日监控 681 件饰品，近 7 日上涨 304 件、下跌 358 件，市场整体偏弱 [1]。建议结合成交量与赛事日历观察高波动标的，控制仓位并设置止损。\n\n⚠ 饰品市场高波动，以上不构成投资建议。",
   "sources": [
     {
       "type": "kb",
@@ -46,6 +26,7 @@
       "snippet": "Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。",
       "source": "内置知识库",
       "date": null,
+      "url": null,
       "score": 6.0,
       "method": "keyword",
       "id": 1,
@@ -57,6 +38,7 @@
       "snippet": "同款饰品中 Factory New(FN)磨损最稀有,价格显著高于 Field-Tested(FT);磨损越低流动性往往越弱。",
       "source": "内置知识库",
       "date": null,
+      "url": null,
       "score": 4.0,
       "method": "keyword",
       "id": 2,
@@ -68,6 +50,7 @@
       "snippet": "高价值低流动性饰品(刀/手套)日内波动大,买卖价差宽,不适合大额短线。",
       "source": "内置知识库",
       "date": null,
+      "url": null,
       "score": 4.0,
       "method": "keyword",
       "id": 3,
@@ -80,6 +63,7 @@
       "source": "valve",
       "date": "2026-07-21T15:49:03.589638+00:00",
       "sentiment": "positive",
+      "url": "https://blog.counter-strike.net/",
       "score": 9.0,
       "method": "keyword",
       "id": 4,
@@ -92,6 +76,7 @@
       "source": "internal",
       "date": "2026-07-19T15:49:03.589638+00:00",
       "sentiment": "neutral",
+      "url": null,
       "score": 3.0,
       "method": "keyword",
       "id": 5,
@@ -104,6 +89,7 @@
       "source": "hltv",
       "date": "2026-07-20T15:49:03.589638+00:00",
       "sentiment": "positive",
+      "url": "https://www.hltv.org/",
       "score": 2.0,
       "method": "keyword",
       "id": 6,
@@ -116,6 +102,7 @@
       "source": "reddit",
       "date": "2026-07-18T15:49:03.589638+00:00",
       "sentiment": "positive",
+      "url": "https://www.reddit.com/r/GlobalOffensive/",
       "score": 0.0,
       "method": "keyword",
       "id": 7,
