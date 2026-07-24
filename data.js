@@ -197,18 +197,29 @@ const DEFAULT_PORTFOLIO = [];
 
 const DEFAULT_INVENTORY = [];
 
-/** 根据库存与饰品现价，生成库存总价值历史 + 预测曲线（前端 mock，后端对接后走 API） */
+/** 根据库存与饰品现价，生成库存总价值历史 + 预测曲线（前端 mock / API 降级） */
 function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
+  const items = (inventory || []).filter((item) => (item.quantity || 0) > 0);
+  // 无库存:不伪造曲线(旧逻辑用 || 1000 会画出假走势)
+  if (!items.length) {
+    return {
+      dates: [],
+      values: [],
+      predictedDates: [],
+      predictedValues: [],
+      total: 0,
+    };
+  }
+
   const dates = [];
   const values = [];
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
-  const items = inventory || [];
   const baseTotal = items.reduce((sum, item) => {
     const skin = SKINS_POOL.find(s => s.id === item.skinId);
     const price = skin?.price ?? item.acquirePrice ?? 0;
     return sum + price * (item.quantity || 1);
-  }, 0) || 1000;
+  }, 0);
 
   // 按市值加权的 24h 涨跌，用于预测段斜率（日均变化率）
   let weightSum = 0;
@@ -221,10 +232,10 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
     weightedChange += w * ((skin?.change24h ?? 0) / 100);
   });
   // 将 24h 涨跌摊到预测区间，并限制幅度，避免曲线失真
-  const avgChange = weightSum > 0 ? weightedChange / weightSum : 0.002;
+  const avgChange = weightSum > 0 ? weightedChange / weightSum : 0;
   const horizonMove = Math.max(-0.08, Math.min(0.08, avgChange * 0.85));
 
-  let cursor = baseTotal * 0.88;
+  let cursor = Math.max(baseTotal * 0.88, 0);
   for (let i = days; i >= 0; i--) {
     const d = new Date(now - i * dayMs);
     dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
@@ -263,13 +274,27 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
 
 // 风险指标生成
 function calculateRiskMetrics(portfolio, currentPrices) {
+  const empty = {
+    totalCost: '0.00',
+    totalValue: '0.00',
+    pnl: '0.00',
+    pnlPct: '0.00',
+    sharpeRatio: '—',
+    maxDrawdown: '—',
+    volatility: '—',
+  };
+  if (!portfolio || !portfolio.length) return empty;
+
   let totalCost = 0, totalValue = 0;
   portfolio.forEach(item => {
-    totalCost += item.buyPrice * item.quantity;
-    totalValue += (currentPrices[item.skinId] || item.buyPrice) * item.quantity;
+    const qty = item.quantity || 1;
+    const buy = Number(item.buyPrice) || 0;
+    const cur = Number(currentPrices[item.skinId] ?? item.buyPrice) || 0;
+    totalCost += buy * qty;
+    totalValue += cur * qty;
   });
   const pnl = totalValue - totalCost;
-  const pnlPct = (pnl / totalCost) * 100;
+  const pnlPct = totalCost ? (pnl / totalCost) * 100 : 0;
   return {
     totalCost: totalCost.toFixed(2),
     totalValue: totalValue.toFixed(2),
