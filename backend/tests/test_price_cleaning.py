@@ -102,9 +102,32 @@ def test_endpoint_spike_is_replaced_against_recent_median():
     assert all(not point.is_outlier for point in cleaned[:-1])
 
 
+def test_endpoint_catches_black_laminate_style_near_threshold_spike():
+    # 实测漏网: 前收 87.57 → 194.95(vs_prev=2.23), 窗口中位约 100(vs_median≈1.9)
+    # 旧 2.0 中位阈值漏检;现应被 prev_day 或 1.8 中位规则捕获
+    rows = [
+        ("2026-07-07", 102.44),
+        ("2026-07-09", 138.25),
+        ("2026-07-12", 88.05),
+        ("2026-07-13", 97.54),
+        ("2026-07-16", 89.38),
+        ("2026-07-17", 104.49),
+        ("2026-07-18", 90.4),
+        ("2026-07-19", 80.83),
+        ("2026-07-20", 87.57),
+        ("2026-07-21", 194.95),
+    ]
+    cleaned = clean_price_points("AK-47 | Black Laminate (Minimal Wear)", rows)
+
+    assert cleaned[-1].raw_price == 194.95
+    assert cleaned[-1].is_outlier is True
+    assert cleaned[-1].outlier_reason == "endpoint_price_spike"
+    assert cleaned[-1].price < 120
+
+
 def test_endpoint_keeps_mild_move_within_threshold():
     rows = [(f"2026-07-{day:02d}", 2.0) for day in range(1, 15)]
-    rows.append(("2026-07-15", 3.5))  # 1.75x < 2.0 末端阈值
+    rows.append(("2026-07-15", 3.5))  # 1.75x < 1.8 末端中位阈值,且 vs_prev=1.75<2.0
     cleaned = clean_price_points("AK-47 | Redline (Field-Tested)", rows)
 
     assert cleaned[-1].price == 3.5

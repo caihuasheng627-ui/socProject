@@ -62,8 +62,16 @@ def _repair_endpoint(
     window_prices: list[float],
     threshold: float,
     neighbour_ratio_limit: float,
+    prev_day_threshold: float = 2.0,
 ) -> None:
-    """Replace a first/last spike when the rest of the local window is stable."""
+    """Replace a first/last spike when the rest of the local window is stable.
+
+    触发条件(满足其一即可):
+      - 相对窗口中位数偏离 >= threshold(默认 1.8x)
+      - 相对相邻交易日偏离 >= prev_day_threshold(默认 2.0x)
+        且相对中位数仍至少 1.5x(排除中位数被更早噪声抬高时漏检,
+        如 Black Laminate MW 87→195: vs_prev=2.23 但 vs_median≈1.89)
+    """
     if len(window_prices) < ENDPOINT_MIN_WINDOW:
         return
     current = cleaned[index].raw_price
@@ -73,16 +81,20 @@ def _repair_endpoint(
     if ref <= 0:
         return
     deviation = max(current / ref, ref / current)
-    if deviation < threshold:
-        return
 
     neighbour_index = index - 1 if index == len(cleaned) - 1 else index + 1
     neighbour = cleaned[neighbour_index].price
     if neighbour <= 0:
         return
+    vs_prev = max(current / neighbour, neighbour / current)
     # 邻点应与窗口中位数同量级;否则更像趋势拐头,留给人工
     neighbour_ratio = max(neighbour / ref, ref / neighbour)
     if neighbour_ratio > neighbour_ratio_limit:
+        return
+
+    median_hit = deviation >= threshold
+    prev_hit = vs_prev >= prev_day_threshold and deviation >= 1.5
+    if not (median_hit or prev_hit):
         return
 
     cleaned[index] = CleanedPricePoint(
@@ -98,7 +110,7 @@ def clean_price_points(
     market_hash_name: str,
     rows: Iterable[tuple[str, float]],
     *,
-    ordinary_threshold: float = 2.0,
+    ordinary_threshold: float = 1.8,
     protected_threshold: float = 5.0,
     neighbour_ratio_limit: float = 1.25,
     endpoint_threshold: float | None = None,
@@ -106,10 +118,10 @@ def clean_price_points(
     """Replace clear isolated spikes; also repair first/last endpoint spikes.
 
     阈值设计（经验验证）：
-      - 普通饰品 2.0x：可捕获 Black Laminate MW $284→$132 类单日尖刺
+      - 普通饰品 1.8x：捕获 Black Laminate / Graphite 类邻点稳定的单日尖刺
       - 特殊图案/低价 5.0x：淬火/多普勒等真实图案溢价可达 3-4x
       - 邻点一致性 ≤1.25x：确保前后两点在同一量级，排除趋势转折误伤
-      - 末端点单独用 ordinary 阈值(默认 2.0x)对照近期中位数：
+      - 末端点默认 1.8x 对照近期中位数,或相对前收 ≥2.0x 且相对中位 ≥1.5x：
         单日冲高写入 current_price 会污染预测;真实图案溢价通常会连续多日留存,
         仍由序列中部的 5x 规则保护
     """
@@ -125,9 +137,8 @@ def clean_price_points(
         ordinary_threshold=ordinary_threshold,
         protected_threshold=protected_threshold,
     )
-    end_threshold = (
-        ordinary_threshold if endpoint_threshold is None else endpoint_threshold
-    )
+    # 末端默认比中部 ordinary 更紧一点,专门兜 Black Laminate 1.89x 这类漏网
+    end_threshold = 1.8 if endpoint_threshold is None else endpoint_threshold
 
     cleaned = [
         CleanedPricePoint(date=date_str, price=price, raw_price=price)

@@ -1719,7 +1719,7 @@ const app = createApp({
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
         const firstPred = Number(dailyPath.prices[0]);
         const dirtyAnchor = firstPred > 0
-          && Math.max(lastClose / firstPred, firstPred / lastClose) > 1.5;
+          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5;
         if (dirtyAnchor) bridgeValue = firstPred;
         for (const p of dailyPath.prices) {
           const value = dirtyAnchor
