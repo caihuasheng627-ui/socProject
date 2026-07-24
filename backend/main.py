@@ -416,7 +416,9 @@ async def chat(req: ChatReq):
         messages = [{"role": "user", "content": req.message}]
         for ch in llm.chat_stream(messages):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
-        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'mock'})}\n\n"
+        # 读 config 模块当前值（管理员面板可热更新 Key，勿用 import 时的快照）
+        from config import LLM_ENABLED as _llm_on
+        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if _llm_on else 'mock'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
