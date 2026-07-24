@@ -131,6 +131,16 @@
     const mapEl = options.mapEl || document.getElementById('landing-scene-map');
     const priceEl = options.priceEl || document.getElementById('landing-scene-price');
     const dotsEl = options.dotsEl || document.getElementById('landing-scene-dots');
+    const copyViewport =
+      options.copyViewportEl || document.getElementById('landing-hero-copy-viewport');
+    const copyTrack =
+      options.copyTrackEl || document.getElementById('landing-hero-copy-track');
+    const onSceneChange =
+      typeof options.onSceneChange === 'function' ? options.onSceneChange : null;
+    const onProgress =
+      typeof options.onProgress === 'function' ? options.onProgress : null;
+    const isNarrow =
+      typeof matchMedia === 'function' && matchMedia('(max-width: 720px)').matches;
 
     if (dotsEl) {
       dotsEl.innerHTML = '';
@@ -174,6 +184,34 @@
           dot.classList.toggle('is-active', i === idx);
         });
       }
+      if (copyTrack) {
+        copyTrack.querySelectorAll('.landing-hero-slide').forEach((slide, i) => {
+          slide.classList.toggle('is-active', i === idx);
+          slide.setAttribute('aria-hidden', i === idx ? 'false' : 'true');
+        });
+      }
+      try {
+        onSceneChange?.(idx);
+      } catch (_) { /* ignore */ }
+    }
+
+    function paintCopy(p) {
+      if (!copyTrack || !copyViewport) return;
+      const slideH = copyViewport.clientHeight || 0;
+      if (!slideH) return;
+      const y = reduceMotion ? -Math.round(p) * slideH : -p * slideH;
+      copyTrack.style.transform = `translate3d(0, ${y}px, 0)`;
+      const driftAmp = isNarrow ? 8 : 18;
+      const fade = isNarrow ? 1.15 : 0.92;
+      copyTrack.querySelectorAll('.landing-hero-slide').forEach((slide, i) => {
+        const dist = Math.abs(p - i);
+        const op = reduceMotion
+          ? (Math.round(p) === i ? 1 : 0)
+          : Math.max(0, 1 - dist * fade);
+        const drift = reduceMotion ? 0 : (p - i) * driftAmp;
+        slide.style.opacity = String(op);
+        slide.style.transform = `translate3d(0, ${drift}px, 0)`;
+      });
     }
 
     function paint(p) {
@@ -183,6 +221,7 @@
       const t = progress - i0;
       // Smoothstep for silkier crossfade
       const u = t * t * (3 - 2 * t);
+      const layerAmp = isNarrow ? 14 : 28;
 
       layers.forEach((el, i) => {
         let op = 0;
@@ -191,12 +230,16 @@
         if (i0 === i1 && i === i0) op = 1;
         el.style.opacity = String(op);
         el.classList.toggle('is-on', op > 0.02);
-        const y = (progress - i) * 28;
-        const scale = 1.04 + Math.abs(progress - i) * 0.02;
+        const y = (progress - i) * layerAmp;
+        const scale = 1.03 + Math.abs(progress - i) * (isNarrow ? 0.012 : 0.02);
         el.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
       });
 
+      paintCopy(progress);
       updateCaption(Math.round(progress));
+      try {
+        onProgress?.(progress);
+      } catch (_) { /* ignore */ }
     }
 
     function tick(ts) {
@@ -369,6 +412,9 @@
     bind(heroEl, 'touchmove', onTouchMove, { passive: false });
     bind(heroEl, 'touchend', onTouchEnd, { passive: true });
     bind(heroEl, 'touchcancel', onTouchEnd, { passive: true });
+    bind(window, 'resize', () => {
+      if (!destroyed) paint(progress);
+    }, { passive: true });
 
     paint(0);
 

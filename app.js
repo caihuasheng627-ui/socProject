@@ -33,13 +33,13 @@ function allowPageScrollOverChart(chart) {
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
 const detectBrowserLang = () => {
-  const browser = (navigator.language || 'zh-CN').toLowerCase();
-  if (browser.startsWith('en')) return 'en-US';
-  return 'zh-CN';
+  const browser = (navigator.language || 'en-US').toLowerCase();
+  if (browser.startsWith('zh')) return 'zh-CN';
+  return 'en-US';
 };
-const currentLang = ref(localStorage.getItem('sv_lang') || detectBrowserLang());
+const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
-  const dict = window.I18N[currentLang.value] || window.I18N['zh-CN'];
+  const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
   let str = dict[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
@@ -181,6 +181,16 @@ const app = createApp({
         : (!canEnter() || sessionStorage.getItem('sv_entered') !== '1')
     );
     const landingExiting = ref(false);
+    const landingHeroIndex = ref(0);
+    const landingHeroSlides = computed(() => {
+      // touch currentLang so language toggle refreshes slide copy
+      void currentLang.value;
+      return [0, 1, 2, 3].map((i) => ({
+        kicker: t(`landing.hero.s${i}.kicker`),
+        title: t(`landing.hero.s${i}.title`),
+        lead: t(`landing.hero.s${i}.lead`),
+      }));
+    });
     let landingScenesApi = null;
     let landingScrollApi = null;
 
@@ -210,6 +220,11 @@ const app = createApp({
           mapEl: document.getElementById('landing-scene-map'),
           priceEl: document.getElementById('landing-scene-price'),
           dotsEl: document.getElementById('landing-scene-dots'),
+          copyViewportEl: document.getElementById('landing-hero-copy-viewport'),
+          copyTrackEl: document.getElementById('landing-hero-copy-track'),
+          onSceneChange: (idx) => {
+            landingHeroIndex.value = idx;
+          },
         });
       }
       if (typeof window.initLandingScroll === 'function') {
@@ -3569,7 +3584,7 @@ const app = createApp({
       // 菜单
       menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
-      showLanding, landingExiting, enterSystem, showAdmin, leaveAdmin,
+      showLanding, landingExiting, landingHeroIndex, landingHeroSlides, enterSystem, showAdmin, leaveAdmin,
       // 用户认证
       currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,

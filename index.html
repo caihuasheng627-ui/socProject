@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>CSVest — CS2 饰品 AI 智能分析平台</title>
+  <title>CSVest — CS2 Skin AI Intelligence</title>
 
   <!-- 字体：展示衬线 + 正文无衬线（jsDelivr / Bunny，国内更稳） -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260724-lang" />
+  <link rel="stylesheet" href="style.css?v=20260724-en-mobile" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -121,9 +121,21 @@
         </div>
 
         <div class="landing-hero-copy">
-          <p class="landing-hero-eyebrow">CSVest</p>
-          <h1 class="landing-hero-title landing-title--motion">{{ t('landing.headline') }}</h1>
-          <p class="landing-hero-lead landing-desc--motion">{{ t('landing.lead') }}</p>
+          <div class="landing-hero-copy-viewport" id="landing-hero-copy-viewport">
+            <div class="landing-hero-copy-track" id="landing-hero-copy-track">
+              <div
+                v-for="(slide, si) in landingHeroSlides"
+                :key="'hero-s' + si"
+                class="landing-hero-slide"
+                :class="{ 'is-active': landingHeroIndex === si }"
+                :aria-hidden="landingHeroIndex === si ? 'false' : 'true'"
+              >
+                <p class="landing-hero-eyebrow">{{ slide.kicker }}</p>
+                <h1 class="landing-hero-title">{{ slide.title }}</h1>
+                <p class="landing-hero-lead">{{ slide.lead }}</p>
+              </div>
+            </div>
+          </div>
 
           <!-- 已登录 -->
           <div v-if="currentUser" class="landing-hero-cta" role="region" :aria-label="t('auth.region')">
@@ -2559,12 +2571,12 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260724-steam2"></script>
-  <script src="i18n.js?v=20260724-lang"></script>
+  <script src="i18n.js?v=20260724-en-mobile"></script>
   <script src="js/api.js?v=20260724-steam2"></script>
   <script src="js/auth.js?v=20260723v"></script>
   <script src="js/lucide-icons.js?v=20260724-ragnn"></script>
-  <script src="js/landing-scenes.js?v=20260724-lang"></script>
+  <script src="js/landing-scenes.js?v=20260724-en-mobile"></script>
   <script src="js/landing-scroll.js?v=20260724-lang"></script>
-  <script src="app.js?v=20260724-lang"></script>
+  <script src="app.js?v=20260724-en-mobile"></script>
 </body>
 </html>
