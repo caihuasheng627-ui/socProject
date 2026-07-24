@@ -667,6 +667,20 @@ const app = createApp({
       if (!client || !skinId) return;
       try {
         const res = await client.predict(skinId, 7);
+        predictionStatus.value = res.status || 'demo';
+        predictionReason.value = res.reason || '';
+        if (predictionStatus.value === 'unavailable') {
+          modelPredictions.value = [];
+          predictionDaily.value = null;
+          predictionMeta.value = {
+            consensusScore: 0,
+            consensusLevel: '',
+            entryLow: null,
+            entryHigh: null,
+            targetPrice: null,
+          };
+          return res;
+        }
         const curUsd = res.currentPrice
           ?? res.currentPriceUsd
           ?? selectedSkin.value?.price
@@ -708,6 +722,9 @@ const app = createApp({
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
+        predictionStatus.value = 'error';
+        predictionReason.value = 'REQUEST_FAILED';
+        modelPredictions.value = [];
         predictionDaily.value = null;
         return null;
       }
@@ -1408,6 +1425,8 @@ const app = createApp({
     const klineLoading = ref(false);
     let klineChartInstance = null;
     const modelPredictions = ref([]);
+    const predictionStatus = ref('idle');
+    const predictionReason = ref('');
     // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
     const predictionDaily = ref(null);
     const predictionMeta = ref({
@@ -1684,7 +1703,7 @@ const app = createApp({
         kline = mock.kline;
         ma7 = window.CSVestData.calculateMA(kline, 7);
         ma30 = window.CSVestData.calculateMA(kline, 30);
-        if (!modelPredictions.value.length) {
+        if (!modelPredictions.value.length && predictionStatus.value !== 'unavailable') {
           const base = selectedSkin.value.price;
           modelPredictions.value = [
             { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65 },
@@ -1702,7 +1721,8 @@ const app = createApp({
       const predictedDates = [];
       const predictedValues = [];
       const dailyPath = predictionDaily.value;
-      const horizon = (dailyPath?.prices?.length) || 7;
+      const predictionUnavailable = predictionStatus.value === 'unavailable';
+      const horizon = predictionUnavailable ? 0 : ((dailyPath?.prices?.length) || 7);
       // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
       const lastLabel = String(kline[kline.length - 1][0]);
       const [lm, ld] = lastLabel.split('/').map(Number);
@@ -1816,7 +1836,9 @@ const app = createApp({
           {
             name: 'AI 预测',
             type: 'line',
-            data: new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
+            data: predictionUnavailable
+              ? new Array(kline.length).fill('-')
+              : new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
@@ -1831,7 +1853,7 @@ const app = createApp({
             },
             markArea: {
               itemStyle: { color: 'rgba(255, 107, 0, 0.05)' },
-              data: [[
+              data: predictionUnavailable ? [] : [[
                 { xAxis: kline[kline.length - 1][0] },
                 { xAxis: predictedDates[predictedDates.length - 1] },
               ]],
@@ -3445,6 +3467,8 @@ const app = createApp({
     watch(selectedSkin, (skin) => {
       relatedNewsOverride.value = null;
       explainSummary.value = '';
+      predictionStatus.value = 'idle';
+      predictionReason.value = '';
       predictionDaily.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
@@ -3482,7 +3506,8 @@ const app = createApp({
       apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionMeta, predictionDaily, predictionDailyRows,
+      modelPredictions, predictionStatus, predictionReason,
+      predictionMeta, predictionDaily, predictionDailyRows,
       relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,

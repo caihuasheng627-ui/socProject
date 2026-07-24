@@ -352,6 +352,8 @@ class CSVestAPI {
     return {
       skinId,
       horizon,
+      status: 'demo',
+      reason: null,
       currentPrice: skin.price,
       predictions: [
         { model: 'ARIMA', type: '统计', price: skin.price * 1.012, change: 1.2, confidence: 65 },
