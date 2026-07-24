@@ -2398,14 +2398,35 @@ const app = createApp({
       const values = hist.values || [];
       const predictedDates = hist.predictedDates || [];
       const predictedValues = hist.predictedValues || [];
-      const lastValue = values.length ? values[values.length - 1] : null;
-      const forecastSeries = lastValue == null
-        ? []
-        : new Array(Math.max(dates.length - 1, 0)).fill('-').concat([lastValue], predictedValues);
+      const hasData = dates.length > 0 && values.length > 0;
+
+      if (!hasData) {
+        inventoryValueChartInstance.clear();
+        inventoryValueChartInstance.setOption({
+          backgroundColor: 'transparent',
+          title: {
+            text: t('inventory.valueTrendEmpty'),
+            left: 'center',
+            top: 'middle',
+            textStyle: { color: '#6b7280', fontSize: 13, fontWeight: 400 },
+          },
+          xAxis: { show: false },
+          yAxis: { show: false },
+          series: [],
+        }, true);
+        allowPageScrollOverChart(inventoryValueChartInstance);
+        return;
+      }
+
+      const lastValue = values[values.length - 1];
+      const forecastSeries = new Array(Math.max(dates.length - 1, 0))
+        .fill('-')
+        .concat([lastValue], predictedValues);
 
       inventoryValueChartInstance.setOption({
         backgroundColor: 'transparent',
         animation: true,
+        title: { show: false },
         legend: {
           data: [t('inventory.valueTrend'), 'AI 预测'],
           textStyle: { color: '#9ca3af', fontSize: 11 },
@@ -2468,17 +2489,31 @@ const app = createApp({
 
     const refreshInventoryCharts = async () => {
       if (!currentUser.value) return;
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+      // 本地库存为空:直接空态,不走会伪造曲线的 mock
+      if (!myInventory.value.length) {
+        inventoryValueHistory.value = emptyHist;
+        nextTick(() => {
+          renderInventoryValueChart();
+          inventoryValueChartInstance?.resize();
+        });
+        return;
+      }
       const client = api();
       try {
         if (client) {
           const hist = await client.getInventoryValueHistory(90);
-          inventoryValueHistory.value = hist || { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+          inventoryValueHistory.value = hist || emptyHist;
         } else if (window.CSVestData.generateInventoryValueHistory) {
           inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        } else {
+          inventoryValueHistory.value = emptyHist;
         }
       } catch (_) {
         if (window.CSVestData.generateInventoryValueHistory) {
           inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        } else {
+          inventoryValueHistory.value = emptyHist;
         }
       }
       nextTick(() => {

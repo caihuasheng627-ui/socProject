@@ -692,9 +692,10 @@ class CSVestAPI {
       () => this._fetch(`/api/inventory/value_history?days=${days}`),
       () => {
         const gen = window.CSVestData.generateInventoryValueHistory;
+        const inv = this._mockInventory ? this._mockInventory() : [];
         return gen
-          ? gen(this._mockInventory(), days)
-          : { dates: [], values: [], total: 0 };
+          ? gen(inv, days)
+          : { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
       }
     );
   }

@@ -1722,7 +1722,9 @@
                 <div class="card-header">
                   <div>
                     <div class="card-title">{{ t('inventory.valueTrend') }}</div>
-                    <div class="card-subtitle">{{ t('inventory.valueTrendDesc') }}</div>
+                    <div class="card-subtitle">
+                      {{ myInventory.length ? t('inventory.valueTrendDesc') : t('inventory.valueTrendEmptyHint') }}
+                    </div>
                   </div>
                 </div>
                 <div ref="inventoryValueChart" class="inventory-chart"></div>

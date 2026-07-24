@@ -798,8 +798,14 @@ def import_steam_inventory(req: SteamImportReq, current_user: dict = Depends(get
 # ============================================================
 @app.get("/api/portfolio/value_history")
 def portfolio_value_history(days: int = 90, current_user: dict = Depends(get_current_user_optional)):
-    """portfolio JOIN price_history GROUP BY date → 总市值曲线。"""
+    """portfolio JOIN price_history GROUP BY date → 总市值曲线(模拟持仓,含全部 holding_type)。"""
     with get_connection() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM portfolio WHERE user_id=?",
+            (current_user["id"],),
+        ).fetchone()[0]
+        if not n:
+            return {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
         rows = conn.execute(
             """SELECT p.date AS date, SUM(p.price * po.quantity) AS value
                FROM price_history p
@@ -809,11 +815,60 @@ def portfolio_value_history(days: int = 90, current_user: dict = Depends(get_cur
             (current_user["id"], f"-{days} days"),
         ).fetchall()
     if not rows:
-        # 兜底:用各持仓最新价 × 数量 单点
-        return {"dates": [], "values": [], "total": 0}
+        return {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
     dates = [r["date"] for r in rows]
     values = [round(r["value"], 2) for r in rows]
-    return {"dates": dates, "values": values, "total": values[-1] if values else 0}
+    return {
+        "dates": dates,
+        "values": values,
+        "predictedDates": [],
+        "predictedValues": [],
+        "total": values[-1] if values else 0,
+    }
+
+
+@app.get("/api/inventory/value_history")
+def inventory_value_history(days: int = 90, current_user: dict = Depends(get_current_user_optional)):
+    """真实库存(holding_type=real)总市值走势。无库存时返回空曲线,不伪造数据。"""
+    empty = {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
+    with get_connection() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM portfolio WHERE user_id=? AND holding_type='real'",
+            (current_user["id"],),
+        ).fetchone()[0]
+        if not n:
+            return empty
+        rows = conn.execute(
+            """SELECT p.date AS date, SUM(p.price * po.quantity) AS value
+               FROM price_history p
+               JOIN portfolio po ON po.skin_id = p.skin_id
+               WHERE po.user_id=? AND po.holding_type='real'
+                 AND p.date >= date((SELECT MAX(date) FROM price_history), ?)
+               GROUP BY p.date ORDER BY p.date""",
+            (current_user["id"], f"-{days} days"),
+        ).fetchall()
+    if not rows:
+        return empty
+    dates = [r["date"] for r in rows]
+    values = [round(r["value"], 2) for r in rows]
+    # 简单外推 7 日:用近 7 个点的线性斜率,无足够历史则持平
+    predicted_dates: list[str] = []
+    predicted_values: list[float] = []
+    if len(values) >= 2:
+        window = values[-7:]
+        slope = (window[-1] - window[0]) / max(len(window) - 1, 1)
+        last = values[-1]
+        last_date = pd.Timestamp(dates[-1])
+        for i in range(1, 8):
+            predicted_dates.append((last_date + pd.Timedelta(days=i)).strftime("%Y-%m-%d"))
+            predicted_values.append(round(max(last + slope * i, 0), 2))
+    return {
+        "dates": dates,
+        "values": values,
+        "predictedDates": predicted_dates,
+        "predictedValues": predicted_values,
+        "total": values[-1] if values else 0,
+    }
 
 
 # ============================================================
