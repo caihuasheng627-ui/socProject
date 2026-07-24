@@ -91,7 +91,7 @@ class PortfolioReq(BaseModel):
     buyPrice: float | None = None
     quantity: int = 1
     buyDate: str | None = None
-    holdingType: str = "real"
+    holdingType: str = "sim"
 
 
 class InventoryReq(BaseModel):
@@ -798,24 +798,26 @@ def import_steam_inventory(req: SteamImportReq, current_user: dict = Depends(get
 # ============================================================
 @app.get("/api/portfolio/value_history")
 def portfolio_value_history(days: int = 90, current_user: dict = Depends(get_current_user_optional)):
-    """portfolio JOIN price_history GROUP BY date → 总市值曲线(模拟持仓,含全部 holding_type)。"""
+    """模拟持仓(holding_type=sim)总市值走势。无模拟仓时返回空曲线,不混入真实库存。"""
+    empty = {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
     with get_connection() as conn:
         n = conn.execute(
-            "SELECT COUNT(*) FROM portfolio WHERE user_id=?",
+            "SELECT COUNT(*) FROM portfolio WHERE user_id=? AND holding_type='sim'",
             (current_user["id"],),
         ).fetchone()[0]
         if not n:
-            return {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
+            return empty
         rows = conn.execute(
             """SELECT p.date AS date, SUM(p.price * po.quantity) AS value
                FROM price_history p
                JOIN portfolio po ON po.skin_id = p.skin_id
-               WHERE po.user_id=? AND p.date >= date((SELECT MAX(date) FROM price_history), ?)
+               WHERE po.user_id=? AND po.holding_type='sim'
+                 AND p.date >= date((SELECT MAX(date) FROM price_history), ?)
                GROUP BY p.date ORDER BY p.date""",
             (current_user["id"], f"-{days} days"),
         ).fetchall()
     if not rows:
-        return {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
+        return empty
     dates = [r["date"] for r in rows]
     values = [round(r["value"], 2) for r in rows]
     return {
@@ -876,9 +878,19 @@ def inventory_value_history(days: int = 90, current_user: dict = Depends(get_cur
 # ============================================================
 @app.post("/api/portfolio/diagnose")
 def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
-    result = portfolio_diagnose.diagnose(user_id=current_user["id"])
-    if "error" in result:
-        raise HTTPException(400, result["error"])
+    """只诊断模拟持仓(sim)。空仓返回 empty 标记,不抛 400。"""
+    result = portfolio_diagnose.diagnose(user_id=current_user["id"], holding_type="sim")
+    if result.get("empty") or "error" in result:
+        msg = result.get("error") or "模拟持仓为空,请先添加持仓"
+        return {
+            "empty": True,
+            "summary": msg,
+            "aiSummary": msg,
+            "totalItems": 0,
+            "valueRange": None,
+            "adjustments": [],
+            "riskTopN": [],
+        }
     return result
 
 

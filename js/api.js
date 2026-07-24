@@ -584,7 +584,7 @@ class CSVestAPI {
       buyPrice: data.buyPrice,
       buyDate: data.buyDate,
       quantity: data.quantity || 1,
-      holdingType: data.holdingType || 'real',
+      holdingType: data.holdingType || 'sim',
     };
     return this._safeCall(
       () => this._fetch('/api/portfolio', {
@@ -617,7 +617,7 @@ class CSVestAPI {
   async getPortfolioValueHistory(days = 90) {
     return this._safeCall(
       () => this._fetch(`/api/portfolio/value_history?days=${days}`),
-      () => ({ dates: [], values: [], total: 0 })
+      () => ({ dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 })
     );
   }
 
@@ -625,10 +625,12 @@ class CSVestAPI {
     return this._safeCall(
       () => this._fetch('/api/portfolio/diagnose', { method: 'POST' }),
       () => ({
+        empty: true,
         summary: '离线演示：请连接后端以获取组合诊断。',
-        valueForecast: null,
-        actions: [],
-        riskTop: [],
+        aiSummary: '离线演示：请连接后端以获取组合诊断。',
+        valueRange: null,
+        adjustments: [],
+        riskTopN: [],
       })
     );
   }

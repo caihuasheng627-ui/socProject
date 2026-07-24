@@ -817,8 +817,8 @@ const app = createApp({
       try {
         const res = await client.getPortfolio();
         const items = Array.isArray(res) ? res : (res?.items || []);
+        // 在线时以服务端为准(含空列表);模拟持仓页只展示 sim,绝不回退成真实库存
         if (items.length || apiOnline.value) {
-          // 模拟持仓页：优先展示 holdingType=sim；无标记时兼容旧数据
           const mapped = items.map(p => ({
             id: p.id,
             skinId: p.skinId,
@@ -826,15 +826,15 @@ const app = createApp({
             buyPrice: p.buyPrice,
             quantity: p.quantity || 1,
             buyDate: p.buyDate,
-            holdingType: p.holdingType || 'sim',
+            // 无标记视为 real,避免真实库存误入模拟持仓页
+            holdingType: p.holdingType || 'real',
             currentPrice: p.currentPrice,
             pnl: p.pnl,
             pnlPct: p.pnlPct,
           }));
-          const simOnly = mapped.filter(p => p.holdingType === 'sim');
-          portfolio.value = simOnly.length ? simOnly : mapped;
+          portfolio.value = mapped.filter(p => p.holdingType === 'sim');
         }
-      } catch (_) { /* keep mock */ }
+      } catch (_) { /* keep local */ }
     };
 
     const loadInventoryFromApi = async () => {
@@ -2334,23 +2334,47 @@ const app = createApp({
 
     const getItemPnl = (item) => {
       if (item.pnl != null) return item.pnl;
+      const buy = Number(item.buyPrice);
+      if (!Number.isFinite(buy)) return 0;
       const current = getCurrentPrice(item.skinId);
-      return (current - item.buyPrice) * item.quantity;
+      return (current - buy) * (item.quantity || 1);
     };
 
     const getItemPnlPct = (item) => {
       if (item.pnlPct != null) return item.pnlPct;
-      return ((getCurrentPrice(item.skinId) - item.buyPrice) / item.buyPrice) * 100;
+      const buy = Number(item.buyPrice);
+      if (!Number.isFinite(buy) || buy === 0) return 0;
+      return ((getCurrentPrice(item.skinId) - buy) / buy) * 100;
     };
 
     const portfolioMetrics = computed(() => {
       const prices = {};
       portfolio.value.forEach(p => prices[p.skinId] = getCurrentPrice(p.skinId));
-      if (window.CSVestData?.calculateRiskMetrics) {
-        return window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+      if (!portfolio.value.length) {
+        return {
+          totalCost: 0,
+          totalValue: 0,
+          pnl: 0,
+          pnlPct: 0,
+          sharpeRatio: '—',
+          maxDrawdown: '—',
+          volatility: '—',
+        };
       }
-      const totalCost = portfolio.value.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
-      const totalValue = portfolio.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * p.quantity, 0);
+      if (window.CSVestData?.calculateRiskMetrics) {
+        const m = window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+        return {
+          totalCost: Number(m.totalCost) || 0,
+          totalValue: Number(m.totalValue) || 0,
+          pnl: Number(m.pnl) || 0,
+          pnlPct: Number(m.pnlPct) || 0,
+          sharpeRatio: m.sharpeRatio ?? '—',
+          maxDrawdown: m.maxDrawdown ?? '—',
+          volatility: m.volatility ?? '—',
+        };
+      }
+      const totalCost = portfolio.value.reduce((s, p) => s + (Number(p.buyPrice) || 0) * (p.quantity || 1), 0);
+      const totalValue = portfolio.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0);
       const pnl = totalValue - totalCost;
       return {
         totalCost: +totalCost.toFixed(2),
@@ -2592,11 +2616,13 @@ const app = createApp({
         if (client && apiOnline.value) {
           await client.addPortfolioItem(payload);
           await loadPortfolioFromApi();
+          await loadPortfolioExtras();
         } else {
           portfolio.value.push({
             id: Date.now(),
             ...payload,
             name: skin?.name || '',
+            holdingType: 'sim',
           });
         }
         showToast({ title: t('portfolio.addHolding'), subtitle: skin?.name || '', type: 'success' });
@@ -2615,6 +2641,7 @@ const app = createApp({
         }
         portfolio.value = portfolio.value.filter(p => p.id !== id);
         showToast({ title: t('portfolio.close'), type: 'success' });
+        await loadPortfolioExtras();
       } catch (e) {
         showToast({ title: '平仓失败', subtitle: e.message || '', type: 'error' });
       }
@@ -2731,15 +2758,37 @@ const app = createApp({
     const loadPortfolioExtras = async () => {
       const client = api();
       if (!client || !apiOnline.value) return;
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+      // 无模拟持仓:不请求诊断/走势,避免空仓报错或混入真实库存曲线
+      if (!portfolio.value.length) {
+        portfolioValueHistory.value = emptyHist;
+        portfolioDiagnose.value = {
+          empty: true,
+          summary: t('portfolio.emptyDiagnose'),
+        };
+        return;
+      }
       try {
         const [hist, diag] = await Promise.all([
           client.getPortfolioValueHistory(90),
           client.diagnosePortfolio(),
         ]);
-        portfolioValueHistory.value = hist || { dates: [], values: [] };
-        portfolioDiagnose.value = diag;
+        portfolioValueHistory.value = hist || emptyHist;
+        if (diag?.error || diag?.empty) {
+          portfolioDiagnose.value = {
+            empty: true,
+            summary: diag.error || t('portfolio.emptyDiagnose'),
+          };
+        } else {
+          portfolioDiagnose.value = diag;
+        }
       } catch (e) {
         console.warn('[CSVest] portfolio extras failed', e);
+        showToast({
+          title: t('portfolio.diagnoseFailed'),
+          subtitle: e?.message || '',
+          type: 'error',
+        });
       }
     };
 

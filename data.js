@@ -274,13 +274,27 @@ function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
 
 // 风险指标生成
 function calculateRiskMetrics(portfolio, currentPrices) {
+  const empty = {
+    totalCost: '0.00',
+    totalValue: '0.00',
+    pnl: '0.00',
+    pnlPct: '0.00',
+    sharpeRatio: '—',
+    maxDrawdown: '—',
+    volatility: '—',
+  };
+  if (!portfolio || !portfolio.length) return empty;
+
   let totalCost = 0, totalValue = 0;
   portfolio.forEach(item => {
-    totalCost += item.buyPrice * item.quantity;
-    totalValue += (currentPrices[item.skinId] || item.buyPrice) * item.quantity;
+    const qty = item.quantity || 1;
+    const buy = Number(item.buyPrice) || 0;
+    const cur = Number(currentPrices[item.skinId] ?? item.buyPrice) || 0;
+    totalCost += buy * qty;
+    totalValue += cur * qty;
   });
   const pnl = totalValue - totalCost;
-  const pnlPct = (pnl / totalCost) * 100;
+  const pnlPct = totalCost ? (pnl / totalCost) * 100 : 0;
   return {
     totalCost: totalCost.toFixed(2),
     totalValue: totalValue.toFixed(2),
