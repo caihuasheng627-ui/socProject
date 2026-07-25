@@ -2765,6 +2765,9 @@ const app = createApp({
 
     const getSkinImage = (skinId) => getSkinMeta(skinId)?.image || '🎯';
 
+    // Steam 真图 URL(无尺寸后缀);前端拼 /360fx360f 显示。无图返回 null,模板回落 emoji。
+    const getSkinImageUrl = (skinId) => getSkinMeta(skinId)?.imageUrl || null;
+
     const getSkinChange24h = (skinId) => {
       const ch = Number(getSkinMeta(skinId)?.change24h);
       return Number.isFinite(ch) ? ch : 0;
@@ -4197,7 +4200,7 @@ const app = createApp({
       inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
       showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
       inventoryItemCount, inventoryTotalValue, inventoryTotalChange24h, inventorySourceLabel,
-      getSkinImage, getSkinChange24h, getSkinMeta,
+      getSkinImage, getSkinImageUrl, getSkinChange24h, getSkinMeta,
       inventoryValueChart, inventoryValueHistory,
       refreshInventoryCharts,
       // 模型

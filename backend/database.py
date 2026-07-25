@@ -125,7 +125,8 @@ CREATE TABLE IF NOT EXISTS skins (
     is_floor_price   INTEGER DEFAULT 0,
     category         TEXT,
     price_tier       TEXT,             -- 🆕 高价/中价/低价(800 目录;LSTM-D 路由用)
-    source           TEXT DEFAULT 'csv'  -- 🆕 csv=训练数据 / buff=BUFF 目录
+    source           TEXT DEFAULT 'csv',  -- 🆕 csv=训练数据 / buff=BUFF 目录
+    image_url        TEXT              -- 🆕 Steam CDN 饰品主图 base URL(无尺寸后缀,前端拼 /360fx360f)
 );
 
 CREATE TABLE IF NOT EXISTS price_history (
@@ -402,6 +403,8 @@ def migrate_add_user_columns() -> None:
             conn.execute("ALTER TABLE skins ADD COLUMN price_tier TEXT")
         if not _column_exists(conn, "skins", "source"):
             conn.execute("ALTER TABLE skins ADD COLUMN source TEXT DEFAULT 'csv'")
+        if not _column_exists(conn, "skins", "image_url"):
+            conn.execute("ALTER TABLE skins ADD COLUMN image_url TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)")
         # 管理员标记

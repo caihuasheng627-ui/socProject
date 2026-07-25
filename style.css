@@ -3168,6 +3168,55 @@ i.ph-duotone {
   flex-shrink: 0;
 }
 
+/* Steam 真图:填满对应 emoji 徽章的方框,保持比例 */
+.mb-row__img,
+.mb-skin__img {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.prediction-img {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.daily-mover__img {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.inv-item__img {
+  width: 100%;
+  height: 72px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  object-fit: contain;
+}
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
 .mb-row__main,
 .mb-skin__info {
   min-width: 0;

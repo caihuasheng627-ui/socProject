@@ -787,7 +787,8 @@
                     @click="viewSkin(skin.id)"
                   >
                     <span class="mb-row__rank">{{ idx + 1 }}</span>
-                    <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
+                    <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-row__img" alt="" loading="lazy">
+                    <span v-else class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
                       <div class="mb-row__name">{{ skin.name }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
@@ -820,7 +821,8 @@
                     @click="viewSkin(skin.id)"
                   >
                     <span class="mb-row__rank">{{ idx + 1 }}</span>
-                    <span class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
+                    <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-row__img" alt="" loading="lazy">
+                    <span v-else class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
                       <div class="mb-row__name">{{ skin.name }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
@@ -889,7 +891,8 @@
                   :style="{ '--mb-delay': Math.min(idx, 12) * 28 + 'ms' }"
                   @click="viewSkin(skin.id)"
                 >
-                  <span class="mb-skin__mark" aria-hidden="true">{{ skin.image }}</span>
+                  <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-skin__img" alt="" loading="lazy">
+                  <span v-else class="mb-skin__mark" aria-hidden="true">{{ skin.image }}</span>
                   <div class="mb-skin__info">
                     <div class="mb-skin__name">{{ skin.name }}</div>
                     <div class="mb-skin__sub">
@@ -945,7 +948,8 @@
           </button>
           <div class="prediction-hero" v-if="selectedSkin">
             <div class="prediction-target">
-              <div class="prediction-emoji">{{ selectedSkin.image }}</div>
+              <img v-if="selectedSkin.imageUrl" :src="selectedSkin.imageUrl + '/512fx512f'" class="prediction-img" alt="">
+              <div v-else class="prediction-emoji">{{ selectedSkin.image }}</div>
               <div style="flex: 1;">
                 <div class="prediction-title">{{ selectedSkin.name }}</div>
                 <div class="text-muted text-sm mt-2">
@@ -1693,7 +1697,8 @@
                   @click="viewSkin(skin.id)"
                 >
                   <div class="daily-mover__rank">{{ idx + 1 }}</div>
-                  <div class="daily-mover__emoji" aria-hidden="true">{{ skin.image }}</div>
+                  <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="daily-mover__img" alt="" loading="lazy">
+                  <div v-else class="daily-mover__emoji" aria-hidden="true">{{ skin.image }}</div>
                   <div class="daily-mover__info">
                     <div class="daily-mover__name">{{ skin.name }}</div>
                     <div class="daily-mover__cat">{{ categoryLabel(skin.category) }}</div>
@@ -1981,7 +1986,8 @@
                     @keydown.enter.prevent="openInventoryItem(item)"
                     @keydown.space.prevent="openInventoryItem(item)"
                   >
-                    <div class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</div>
+                    <img v-if="getSkinImageUrl(item.skinId)" :src="getSkinImageUrl(item.skinId) + '/360fx360f'" class="inv-item__img" alt="" loading="lazy">
+                    <div v-else class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</div>
                     <div class="inv-item__body">
                       <div class="inv-item__name" :title="item.name">{{ item.name }}</div>
                       <div class="inv-item__meta-row">
