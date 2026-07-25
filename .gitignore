@@ -55,6 +55,8 @@ restyle_ppt.py
 gen_poster*.py
 integrate_maintenance_pkg.py
 assets/
+!assets/landing/
+!assets/landing/**
 
 # WorkBuddy 缓存目录 (项目数据,非源代码)
 .workbuddy/

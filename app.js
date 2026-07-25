@@ -33,13 +33,13 @@ function allowPageScrollOverChart(chart) {
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
 const detectBrowserLang = () => {
-  const browser = (navigator.language || 'zh-CN').toLowerCase();
-  if (browser.startsWith('en')) return 'en-US';
-  return 'zh-CN';
+  const browser = (navigator.language || 'en-US').toLowerCase();
+  if (browser.startsWith('zh')) return 'zh-CN';
+  return 'en-US';
 };
-const currentLang = ref(localStorage.getItem('sv_lang') || detectBrowserLang());
+const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
-  const dict = window.I18N[currentLang.value] || window.I18N['zh-CN'];
+  const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
   let str = dict[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
@@ -181,6 +181,78 @@ const app = createApp({
         : (!canEnter() || sessionStorage.getItem('sv_entered') !== '1')
     );
     const landingExiting = ref(false);
+    const landingHeroIndex = ref(0);
+    const landingHeroSlides = computed(() => {
+      // touch currentLang so language toggle refreshes slide copy
+      void currentLang.value;
+      return [0, 1, 2, 3].map((i) => ({
+        kicker: t(`landing.hero.s${i}.kicker`),
+        title: t(`landing.hero.s${i}.title`),
+        lead: t(`landing.hero.s${i}.lead`),
+      }));
+    });
+    const landingCoarsePointer =
+      typeof matchMedia === 'function' &&
+      (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 720px)').matches);
+    const landingSceneHint = computed(() => {
+      void currentLang.value;
+      return t(landingCoarsePointer ? 'landing.sceneHintTouch' : 'landing.sceneHint');
+    });
+    let landingScenesApi = null;
+    let landingScrollApi = null;
+
+    const destroyLandingCanvas = () => {
+      try {
+        landingScenesApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScenesApi = null;
+      try {
+        landingScrollApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScrollApi = null;
+    };
+
+    const mountLandingCanvas = async () => {
+      await nextTick();
+      destroyLandingCanvas();
+      if (!showLanding.value) return;
+      const sceneRoot = document.getElementById('landing-scene-root');
+      if (typeof window.initLandingScenes === 'function' && sceneRoot) {
+        const landingRoot = document.querySelector('.landing');
+        const hero = document.querySelector('.landing-hero');
+        landingScenesApi = window.initLandingScenes(sceneRoot, {
+          wheelHost: landingRoot || hero || window,
+          captionEl: document.getElementById('landing-scene-caption'),
+          nameEl: document.getElementById('landing-scene-name'),
+          mapEl: document.getElementById('landing-scene-map'),
+          priceEl: document.getElementById('landing-scene-price'),
+          dotsEl: document.getElementById('landing-scene-dots'),
+          copyViewportEl: document.getElementById('landing-hero-copy-viewport'),
+          copyTrackEl: document.getElementById('landing-hero-copy-track'),
+          onSceneChange: (idx) => {
+            landingHeroIndex.value = idx;
+          },
+        });
+      }
+      if (typeof window.initLandingScroll === 'function') {
+        const landingRoot = document.querySelector('.landing');
+        if (landingRoot) {
+          landingScrollApi = window.initLandingScroll(landingRoot);
+        }
+      }
+    };
+
+    watch(showLanding, (on) => {
+      if (on) mountLandingCanvas();
+      else destroyLandingCanvas();
+    });
+
+    watch(currentLang, async () => {
+      await nextTick();
+      try {
+        landingScenesApi?.refreshLang?.();
+      } catch (_) { /* ignore */ }
+    });
 
     // 无登录且非游客时，强制停留在启动页（管理端除外）
     if (!canEnter() && currentPage.value !== 'admin') {
@@ -214,11 +286,13 @@ const app = createApp({
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
       showAuthPanel.value = false;
+      destroyLandingCanvas();
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
-        nextTick(() => {
+        nextTick(async () => {
           renderKline();
+          await hydrateCurrentPage(currentPage.value);
           setTimeout(() => {
             klineChartInstance?.resize();
             radarInstance?.resize();
@@ -837,7 +911,7 @@ const app = createApp({
       const client = api();
       if (!client) return;
       try {
-        const news = await client.getNews({ limit: 20 });
+        const news = await client.getNews({ limit: 40 });
         const items = Array.isArray(news) ? news : (news?.items || []);
         if (items.length) newsFeed.value = items;
       } catch (_) { /* keep mock */ }
@@ -902,15 +976,21 @@ const app = createApp({
 
     const loadModelsFromApi = async () => {
       const client = api();
-      if (!client) return;
+      modelsLoading.value = true;
       try {
+        if (!client) {
+          modelsDataSource.value = 'demo';
+          return;
+        }
         const cmp = await client.getModelComparison();
         const courseByName = Object.fromEntries(
           (modelComparison.regression || []).map((r) => [r.name, r.course || ''])
         );
+        let usedLive = false;
         if (cmp?.tracks) {
           modelTracks.value = cmp.tracks;
           applyModelTrack(modelTrack.value);
+          usedLive = true;
         } else if (cmp?.regression?.length) {
           regressionModels.value = cmp.regression.map((r) => {
             const course = r.course && r.course !== r.type
@@ -918,9 +998,11 @@ const app = createApp({
               : (courseByName[r.name] || r.course || '');
             return { ...r, course };
           });
+          usedLive = true;
         }
         if (!cmp?.tracks && cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
+          usedLive = true;
         }
         if (cmp?.buyAndHold && typeof cmp.buyAndHold === 'object') {
           modelComparison.buyAndHold = {
@@ -928,11 +1010,19 @@ const app = createApp({
             ...cmp.buyAndHold,
           };
         }
+        if (cmp?.nItems != null) {
+          modelsNItems.value = Number(cmp.nItems) || modelsNItems.value;
+        }
         // v5 契约: Seq2Seq 多步模型带 perDay 逐日指标(D1..D7)
         if (!cmp?.tracks) modelsPerDay.value = (cmp?.regression || [])
           .filter((r) => Array.isArray(r.perDay) && r.perDay.length)
           .map((r) => ({ name: r.name, perDay: r.perDay }));
-      } catch (_) { /* keep mock */ }
+        modelsDataSource.value = (usedLive && apiOnline.value) ? 'live' : 'demo';
+      } catch (_) {
+        modelsDataSource.value = 'demo';
+      } finally {
+        modelsLoading.value = false;
+      }
     };
 
     const dailyReport = ref({
@@ -943,8 +1033,19 @@ const app = createApp({
       sources: [],
     });
     const dailyReportLoading = ref(false);
+    const dailyBreadth = computed(() => {
+      const g = Number(dailyReport.value?.metrics?.gainers) || 0;
+      const l = Number(dailyReport.value?.metrics?.losers) || 0;
+      const total = g + l;
+      if (!total) return { upPct: 0, downPct: 0 };
+      return {
+        upPct: Math.round((g / total) * 100),
+        downPct: Math.round((l / total) * 100),
+      };
+    });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
+    const portfolioDiagnoseLoading = ref(false);
     const portfolioValueHistory = ref({ dates: [], values: [] });
 
     const applyDailyReport = (rep) => {
@@ -1081,6 +1182,40 @@ const app = createApp({
         ragAnswer.value = t('daily.rag.error');
       } finally {
         ragLoading.value = false;
+      }
+    };
+
+    const newsFetchLoading = ref(false);
+    const fetchNewsNow = async () => {
+      if (newsFetchLoading.value) return;
+      const client = api();
+      if (!client || !apiOnline.value) {
+        showToast({ title: t('daily.rag.fetchOffline'), type: 'warning' });
+        return;
+      }
+      newsFetchLoading.value = true;
+      showToast({ title: t('daily.rag.fetching'), type: 'info' });
+      try {
+        const res = await client.fetchNews({ aggressive: true });
+        await loadNewsFromApi();
+        const inserted = res?.inserted ?? 0;
+        showToast({
+          title: t('daily.rag.fetchDone'),
+          subtitle: t('daily.rag.fetchDoneSub', {
+            n: inserted,
+            scanned: res?.scanned ?? 0,
+            feeds: res?.feeds ?? 0,
+          }),
+          type: 'success',
+        });
+      } catch (e) {
+        showToast({
+          title: t('daily.rag.fetchFail'),
+          subtitle: e?.message || String(e),
+          type: 'error',
+        });
+      } finally {
+        newsFetchLoading.value = false;
       }
     };
 
@@ -1294,6 +1429,19 @@ const app = createApp({
     const trend30Metrics = ref(null);
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
+    const modelsLoading = ref(false);
+    const modelsDataSource = ref('demo');
+    const modelsNItems = ref(Number(modelComparison.nItems) || 113);
+    const selectedRadarModel = ref('LSTM-C');
+    const shapModel = ref('xgboost');
+    const shapEmpty = ref(false);
+    const backtestEmpty = ref(false);
+    const shapModelOptions = [
+      { id: 'xgboost', label: 'XGBoost' },
+      { id: 'lightgbm', label: 'LightGBM' },
+      { id: 'average', label: 'Avg' },
+    ];
+
     const applyModelTrack = (track) => {
       const selected = modelTracks.value?.[track];
       if (!selected) return;
@@ -1313,6 +1461,79 @@ const app = createApp({
       renderRadar();
       renderPerDay();
       renderBacktest();
+    };
+
+    const modelsBest = computed(() => {
+      const rows = regressionModels.value || [];
+      let bestRmse = null;
+      let bestMape = null;
+      let bestReturn = null;
+      for (const r of rows) {
+        if (r.rmse != null && (bestRmse == null || r.rmse < bestRmse.rmse)) bestRmse = r;
+        if (r.mape != null && (bestMape == null || r.mape < bestMape.mape)) bestMape = r;
+        if (r.returnPct != null && (bestReturn == null || r.returnPct > bestReturn.returnPct)) bestReturn = r;
+      }
+      return {
+        rmse: bestRmse?.name || '',
+        mape: bestMape?.name || '',
+        returnName: bestReturn?.name || '',
+        returnPct: bestReturn?.returnPct ?? null,
+        rmseVal: bestRmse?.rmse ?? null,
+        mapeVal: bestMape?.mape ?? null,
+      };
+    });
+
+    const modelsFindingsPct = computed(() => {
+      const rows = (regressionModels.value || [])
+        .filter((r) => r.rmse != null)
+        .slice()
+        .sort((a, b) => a.rmse - b.rmse);
+      if (rows.length < 2 || !rows[0].rmse) return '—';
+      const lead = ((rows[1].rmse - rows[0].rmse) / rows[0].rmse) * 100;
+      return `${lead.toFixed(1)}%`;
+    });
+
+    const modelsKpis = computed(() => {
+      void currentLang.value;
+      const b = modelsBest.value;
+      const route = hybridRoute || {};
+      const routeText = `low→${route.low || 'C'} · mid/high→${route.mid || route.high || 'D'}`;
+      return [
+        {
+          id: 'rmse',
+          label: t('models.kpi.bestRmse'),
+          value: b.rmseVal != null ? b.rmseVal.toFixed(2) : '—',
+          meta: b.rmse || '',
+        },
+        {
+          id: 'mape',
+          label: t('models.kpi.bestMape'),
+          value: b.mapeVal != null ? `${b.mapeVal.toFixed(2)}%` : '—',
+          meta: b.mape || '',
+        },
+        {
+          id: 'ret',
+          label: t('models.kpi.bestReturn'),
+          value: b.returnPct != null ? `${b.returnPct >= 0 ? '+' : ''}${b.returnPct.toFixed(1)}%` : '—',
+          meta: b.returnName || '',
+        },
+        {
+          id: 'route',
+          label: t('models.kpi.route'),
+          value: routeText,
+          meta: '',
+        },
+      ];
+    });
+
+    const selectRadarModel = (name) => {
+      selectedRadarModel.value = name;
+      try { renderRadar(); } catch (_) { /* charts may not be ready */ }
+    };
+
+    const setShapModel = async (id) => {
+      shapModel.value = id;
+      try { await renderShap(); } catch (_) { /* charts may not be ready */ }
     };
     const modelTypeLabel = (m) => {
       if (!m) return '—';
@@ -2918,6 +3139,36 @@ const app = createApp({
       }
     };
 
+    const diagnoseActionLabel = (action) => {
+      const a = String(action || '');
+      if (/卖出|sell/i.test(a)) return t('portfolio.diag.action.sell');
+      if (/加仓|add/i.test(a)) return t('portfolio.diag.action.add');
+      if (/减仓|trim|观察/i.test(a)) return t('portfolio.diag.action.trim');
+      if (/持有|hold/i.test(a)) return t('portfolio.diag.action.hold');
+      return a || '—';
+    };
+
+    const diagnoseActionClass = (action) => {
+      const a = String(action || '');
+      if (/卖出|sell/i.test(a)) return 'is-sell';
+      if (/加仓|add/i.test(a)) return 'is-add';
+      if (/减仓|trim|观察/i.test(a)) return 'is-trim';
+      return 'is-hold';
+    };
+
+    const formatDiagnoseTime = (iso) => {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso).slice(0, 19);
+        return d.toLocaleString(currentLang.value === 'zh-CN' ? 'zh-CN' : 'en-US', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+      } catch (_) {
+        return String(iso).slice(0, 19);
+      }
+    };
+
     const loadPortfolioExtras = async () => {
       const client = api();
       if (!client || !apiOnline.value) return;
@@ -2931,6 +3182,7 @@ const app = createApp({
         };
         return;
       }
+      portfolioDiagnoseLoading.value = true;
       try {
         const [hist, diag] = await Promise.all([
           client.getPortfolioValueHistory(90),
@@ -2952,6 +3204,8 @@ const app = createApp({
           subtitle: e?.message || '',
           type: 'error',
         });
+      } finally {
+        portfolioDiagnoseLoading.value = false;
       }
     };
 
@@ -2965,15 +3219,41 @@ const app = createApp({
     const perDayMetric = ref('rmse'); // rmse | mae | mape
     let radarInstance = null, backtestInstance = null, shapInstance = null, perDayInstance = null;
 
+    const modelsChartTheme = () => {
+      const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
+      return {
+        narrow,
+        tooltipBg: 'rgba(18, 18, 26, 0.94)',
+        tooltipBorder: 'rgba(255, 140, 64, 0.28)',
+        axis: '#9ca3af',
+        split: 'rgba(55, 65, 81, 0.55)',
+        axisLine: '#374151',
+        palette: ['#ff6b00', '#06b6d4', '#3b82f6', '#f59e0b', '#10b981', '#a78bfa', '#ec4899'],
+        tooltipBase: {
+          backgroundColor: 'rgba(18, 18, 26, 0.94)',
+          borderColor: 'rgba(255, 140, 64, 0.28)',
+          borderWidth: 1,
+          textStyle: { color: '#f3f4f6', fontSize: 12 },
+          extraCssText: 'backdrop-filter:blur(8px);box-shadow:0 12px 32px rgba(0,0,0,0.35);',
+        },
+      };
+    };
+
     const renderRadar = () => {
       if (!radarChart.value) return;
       radarInstance = getOrCreateChart(radarInstance, radarChart.value);
-      const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
 
       // 从当前 ML 输出动态计算雷达分数，避免硬编码指标与重训结果脱节
       const rows = regressionModels.value.slice(0, 4);
+      if (!rows.length) {
+        radarInstance.clear();
+        return;
+      }
       const maxRmse = Math.max(...rows.map(r => Number(r.rmse) || 0), 1);
-      const maxReturn = Math.max(...rows.map(r => Math.abs(Number(r.returnPct) || 0)), 1);
+      const posReturns = rows.map((r) => Math.max(0, Number(r.returnPct) || 0));
+      const maxPosReturn = Math.max(...posReturns, 1);
       const speedScore = (speed) => {
         const s = String(speed || '').toLowerCase();
         if (/极快|very fast/.test(s)) return 100;
@@ -2982,17 +3262,20 @@ const app = createApp({
         return 30;
       };
       const colors = [
-        ['#ff6b00', 'rgba(255, 107, 0, 0.18)'],
-        ['#06b6d4', 'rgba(6, 182, 212, 0.15)'],
-        ['#8b5cf6', 'rgba(139, 92, 246, 0.15)'],
-        ['#3b82f6', 'rgba(59, 130, 246, 0.15)'],
+        ['#ff6b00', 'rgba(255, 107, 0, 0.22)'],
+        ['#06b6d4', 'rgba(6, 182, 212, 0.18)'],
+        ['#3b82f6', 'rgba(59, 130, 246, 0.16)'],
+        ['#f59e0b', 'rgba(245, 158, 11, 0.16)'],
       ];
+      const selected = selectedRadarModel.value;
       const radarData = rows.map((r, i) => {
-        const rmseScore = Math.max(0, 100 - (Number(r.rmse) || maxRmse) / maxRmse * 55);
+        const rmseScore = Math.max(0, 100 - ((Number(r.rmse) || maxRmse) / maxRmse) * 55);
         const r2Score = Math.max(0, Math.min(100, (Number(r.r2) || 0) * 100));
-        const explainScore = Math.max(20, Math.min(100, (Number(r.interpretability) || 1) / 3 * 100));
-        const returnScore = Math.max(0, Math.min(100, Math.abs(Number(r.returnPct) || 0) / maxReturn * 100));
+        const explainScore = Math.max(20, Math.min(100, ((Number(r.interpretability) || 1) / 3) * 100));
+        const ret = Number(r.returnPct) || 0;
+        const returnScore = Math.max(0, Math.min(100, (Math.max(0, ret) / maxPosReturn) * 100));
         const generalize = (rmseScore + r2Score) / 2;
+        const isSel = !selected || selected === r.name;
         return {
           value: [
             +rmseScore.toFixed(1),
@@ -3003,51 +3286,67 @@ const app = createApp({
             +generalize.toFixed(1),
           ],
           name: r.name,
-          areaStyle: { color: colors[i][1] },
-          lineStyle: { color: colors[i][0], width: 2 },
-          itemStyle: { color: colors[i][0] },
+          _raw: r,
+          areaStyle: { color: isSel ? colors[i][1] : 'rgba(148,163,184,0.04)' },
+          lineStyle: { color: colors[i][0], width: isSel ? 2.6 : 1.2, opacity: isSel ? 1 : 0.35 },
+          itemStyle: { color: colors[i][0], opacity: isSel ? 1 : 0.4 },
+          z: isSel ? 3 : 1,
         };
       });
 
-      const option = {
+      radarInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        animationDuration: 420,
+        tooltip: {
+          ...th.tooltipBase,
+          formatter: (params) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const row = radarData.find((d) => d.name === p.name);
+            const raw = row?._raw;
+            if (!raw) return p.name;
+            return [
+              `<strong>${raw.name}</strong>`,
+              `RMSE ${raw.rmse?.toFixed?.(2) ?? '—'} · R² ${raw.r2?.toFixed?.(2) ?? '—'}`,
+              `${t('models.col.returnPct')} ${raw.returnPct >= 0 ? '+' : ''}${(raw.returnPct ?? 0).toFixed(1)}%`,
+              `MAPE ${raw.mape?.toFixed?.(2) ?? '—'}%`,
+            ].join('<br/>');
+          },
+        },
         legend: {
-          data: rows.map(r => r.name),
-          textStyle: { color: '#9ca3af', fontSize: narrow ? 10 : 11 },
-          top: narrow ? undefined : 0,
+          data: rows.map((r) => r.name),
+          textStyle: { color: th.axis, fontSize: narrow ? 10 : 11 },
+          top: narrow ? undefined : 4,
           bottom: narrow ? 0 : undefined,
           type: 'scroll',
-          width: narrow ? '90%' : undefined,
+          width: narrow ? '92%' : undefined,
+          selectedMode: true,
         },
         radar: {
           indicator: [
-            { name: t('models.radar.rmse'), max: 100 },
+            { name: narrow ? t('models.radar.rmseShort') : t('models.radar.rmse'), max: 100 },
             { name: t('models.radar.speed'), max: 100 },
             { name: t('models.radar.explain'), max: 100 },
             { name: t('models.radar.return'), max: 100 },
             { name: t('models.radar.r2'), max: 100 },
             { name: t('models.radar.generalize'), max: 100 },
           ],
-          center: ['50%', narrow ? '52%' : '58%'],
-          radius: narrow ? '52%' : '58%',
-          axisName: { color: '#9ca3af', fontSize: narrow ? 10 : 11 },
-          splitLine: { lineStyle: { color: '#2a3447' } },
-          splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.05)'] } },
-          axisLine: { lineStyle: { color: '#374151' } },
+          center: ['50%', narrow ? '48%' : '55%'],
+          radius: narrow ? '48%' : '56%',
+          axisName: { color: th.axis, fontSize: narrow ? 10 : 11 },
+          splitLine: { lineStyle: { color: th.split } },
+          splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.055)'] } },
+          axisLine: { lineStyle: { color: th.axisLine } },
         },
-        series: [{
-          type: 'radar',
-          data: radarData,
-        }],
-      };
-      radarInstance.setOption(option, true);
+        series: [{ type: 'radar', data: radarData, symbol: 'circle', symbolSize: 5 }],
+      }, true);
       allowPageScrollOverChart(radarInstance);
     };
 
     const renderBacktest = async () => {
       if (!backtestChart.value) return;
       backtestInstance = getOrCreateChart(backtestInstance, backtestChart.value);
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
 
       let dates = [];
       let seriesMap = {};
@@ -3066,8 +3365,8 @@ const app = createApp({
           return `${d.getMonth() + 1}/${d.getDate()}`;
         });
       }
+      backtestEmpty.value = !dates.length;
 
-      // 展示窗口内各自归一到首日=100，放大模型间差异；Buy&Hold 走右轴，避免撑破左轴
       const toWindowIndex = (arr) => {
         if (!Array.isArray(arr) || !arr.length) return arr || [];
         const base = arr.find((v) => v != null && Number(v) !== 0);
@@ -3075,28 +3374,41 @@ const app = createApp({
         return arr.map((v) => (v == null ? null : +((Number(v) / b) * 100).toFixed(2)));
       };
 
-      const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899', '#10b981'];
       const names = Object.keys(seriesMap);
       const strategyNames = names.filter((n) => !/buy|hold|持有/i.test(n));
       const benchNames = names.filter((n) => /buy|hold|持有/i.test(n));
       const hasBench = benchNames.length > 0;
 
+      const preferOn = new Set(['Hybrid', 'LSTM-C', 'Buy&Hold', '买入持有']);
+      const selected = Object.fromEntries(
+        [...strategyNames, ...benchNames].map((n) => {
+          if (!narrow) return [n, true];
+          return [n, preferOn.has(n) || /hybrid|lstm-c|buy|hold|持有/i.test(n)];
+        })
+      );
+
       let colorIdx = 0;
       const series = [];
       for (const name of strategyNames) {
-        const color = palette[colorIdx++ % palette.length];
+        const color = th.palette[colorIdx++ % th.palette.length];
+        const isHero = /hybrid|lstm-c/i.test(name);
         series.push({
           name,
           type: 'line',
           yAxisIndex: 0,
           data: toWindowIndex(seriesMap[name]),
-          smooth: false,
+          smooth: 0.15,
           showSymbol: false,
-          lineStyle: {
-            color,
-            width: /hybrid/i.test(name) ? 3 : 2,
-          },
+          lineStyle: { color, width: isHero ? 2.8 : 1.8 },
           itemStyle: { color },
+          areaStyle: isHero
+            ? {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: color + '33' },
+                  { offset: 1, color: color + '00' },
+                ]),
+              }
+            : undefined,
           emphasis: { focus: 'series' },
         });
       }
@@ -3114,84 +3426,72 @@ const app = createApp({
         });
       }
 
-      const note = hasBench
-        ? (typeof t === 'function' ? t('models.backtestNote') : '')
-        : '';
-
-      const option = {
+      backtestInstance.setOption({
         backgroundColor: 'transparent',
+        animationDuration: 480,
         tooltip: {
+          ...th.tooltipBase,
           trigger: 'axis',
-          backgroundColor: '#1f2937',
-          borderColor: '#374151',
-          textStyle: { color: '#f3f4f6' },
+          axisPointer: { type: 'cross', crossStyle: { color: 'rgba(255,140,64,0.45)' } },
+          order: 'valueDesc',
           valueFormatter: (v) => (v == null ? '-' : Number(v).toFixed(2)),
         },
         legend: {
           data: [...strategyNames, ...benchNames],
-          textStyle: { color: '#9ca3af', fontSize: 11 },
+          textStyle: { color: th.axis, fontSize: 11 },
           top: 0,
           type: 'scroll',
-          selected: Object.fromEntries(
-            [...strategyNames, ...benchNames].map((n) => [n, true])
-          ),
+          selected,
         },
-        grid: { left: 56, right: hasBench ? 56 : 30, top: 40, bottom: note ? 52 : 30 },
+        grid: { left: narrow ? 44 : 56, right: hasBench ? (narrow ? 44 : 56) : 24, top: 42, bottom: narrow ? 36 : 48 },
+        dataZoom: narrow
+          ? [{ type: 'inside', start: 0, end: 100 }]
+          : [
+              { type: 'inside', start: 0, end: 100 },
+              { type: 'slider', height: 18, bottom: 8, borderColor: 'transparent', fillerColor: 'rgba(255,107,0,0.18)', handleSize: 14 },
+            ],
         xAxis: {
           type: 'category',
           data: dates,
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10, hideOverlap: true },
         },
         yAxis: hasBench
           ? [
               {
                 type: 'value',
-                name: typeof t === 'function' ? t('models.backtestAxisModels') : '模型',
+                name: t('models.backtestAxisModels'),
                 scale: true,
                 nameTextStyle: { color: '#6b7280', fontSize: 10 },
-                axisLine: { lineStyle: { color: '#374151' } },
-                axisLabel: { color: '#9ca3af', fontSize: 10 },
-                splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+                axisLine: { lineStyle: { color: th.axisLine } },
+                axisLabel: { color: th.axis, fontSize: 10 },
+                splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
               },
               {
                 type: 'value',
                 name: 'Buy&Hold',
                 scale: true,
                 nameTextStyle: { color: '#6b7280', fontSize: 10 },
-                axisLine: { lineStyle: { color: '#374151' } },
-                axisLabel: { color: '#9ca3af', fontSize: 10 },
+                axisLine: { lineStyle: { color: th.axisLine } },
+                axisLabel: { color: th.axis, fontSize: 10 },
                 splitLine: { show: false },
               },
             ]
           : {
               type: 'value',
-              name: typeof t === 'function' ? t('models.backtestAxisModels') : '模型',
+              name: t('models.backtestAxisModels'),
               scale: true,
               nameTextStyle: { color: '#6b7280', fontSize: 10 },
-              axisLine: { lineStyle: { color: '#374151' } },
-              axisLabel: { color: '#9ca3af', fontSize: 10 },
-              splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+              axisLine: { lineStyle: { color: th.axisLine } },
+              axisLabel: { color: th.axis, fontSize: 10 },
+              splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
             },
         series,
-        graphic: note ? [{
-          type: 'text',
-          left: 56,
-          bottom: 8,
-          style: {
-            text: note,
-            fill: '#6b7280',
-            fontSize: 11,
-            width: 560,
-            overflow: 'break',
-          },
-        }] : [],
-      };
-      backtestInstance.setOption(option, true);
+      }, true);
       allowPageScrollOverChart(backtestInstance);
     };
 
-    // Seq2Seq Dense(7) 逐日误差曲线: 展示 LSTM 系列 D1→D7 的误差递增趋势
     const renderPerDay = () => {
       if (!perDayChart.value) return;
       if (!modelsPerDay.value.length) {
@@ -3200,43 +3500,62 @@ const app = createApp({
         return;
       }
       perDayInstance = getOrCreateChart(perDayInstance, perDayChart.value);
+      const th = modelsChartTheme();
       const metric = perDayMetric.value;
-      const days = modelsPerDay.value[0].perDay.map(d => `D${d.day}`);
-      const palette = ['#ff6b00', '#06b6d4', '#8b5cf6', '#3b82f6', '#10b981'];
-      const series = modelsPerDay.value.map((m, i) => ({
-        name: m.name,
-        type: 'line',
-        data: m.perDay.map(d => (d[metric] != null ? +Number(d[metric]).toFixed(4) : null)),
-        smooth: true,
-        symbolSize: 6,
-        lineStyle: { color: palette[i % palette.length], width: 2 },
-        itemStyle: { color: palette[i % palette.length] },
-        emphasis: { focus: 'series' },
-      }));
+      const days = modelsPerDay.value[0].perDay.map((d) => `D${d.day}`);
+      const series = modelsPerDay.value.map((m, i) => {
+        const color = th.palette[i % th.palette.length];
+        return {
+          name: m.name,
+          type: 'line',
+          data: m.perDay.map((d) => (d[metric] != null ? +Number(d[metric]).toFixed(4) : null)),
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 7,
+          lineStyle: { color, width: 2.2 },
+          itemStyle: { color },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: color + '30' },
+              { offset: 1, color: color + '00' },
+            ]),
+          },
+          emphasis: { focus: 'series' },
+        };
+      });
       perDayInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { trigger: 'axis', backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        animationDuration: 360,
+        tooltip: {
+          ...th.tooltipBase,
+          trigger: 'axis',
+          valueFormatter: (v) => {
+            if (v == null) return '-';
+            return metric === 'mape' ? `${Number(v).toFixed(2)}%` : Number(v).toFixed(3);
+          },
+        },
         legend: {
-          data: modelsPerDay.value.map(m => m.name),
-          textStyle: { color: '#9ca3af', fontSize: 11 },
+          data: modelsPerDay.value.map((m) => m.name),
+          textStyle: { color: th.axis, fontSize: 11 },
           top: 0,
           type: 'scroll',
         },
-        grid: { left: 56, right: 24, top: 40, bottom: 30 },
+        grid: { left: th.narrow ? 44 : 56, right: 20, top: 40, bottom: 28 },
         xAxis: {
           type: 'category',
           data: days,
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10 },
         },
         yAxis: {
           type: 'value',
           scale: true,
-          name: metric.toUpperCase(),
+          name: metric === 'mape' ? 'MAPE %' : metric.toUpperCase(),
           nameTextStyle: { color: '#6b7280', fontSize: 10 },
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10 },
+          splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
         },
         series,
       }, true);
@@ -3251,49 +3570,77 @@ const app = createApp({
     const renderShap = async () => {
       if (!shapChart.value) return;
       shapInstance = getOrCreateChart(shapInstance, shapChart.value);
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
 
       let rows = [];
       try {
         const client = api();
         if (client && apiOnline.value) {
-          const shap = await client.getShap('xgboost');
-          rows = (Array.isArray(shap) ? shap : []).map(d => ({
+          const shap = await client.getShap(shapModel.value);
+          rows = (Array.isArray(shap) ? shap : []).map((d) => ({
             name: d.feature || d.name,
             value: d.importance ?? d.value ?? 0,
           }));
         }
       } catch (_) { /* mock */ }
       if (!rows.length) {
-        rows = (window.CSVestData.SHAP_FEATURES || []).map(d => ({ name: d.name, value: d.value }));
+        rows = (window.CSVestData.SHAP_FEATURES || []).map((d) => ({ name: d.name, value: d.value }));
       }
+      shapEmpty.value = !rows.length;
       const data = rows.slice().sort((a, b) => a.value - b.value);
+      const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 0.001);
 
-      const option = {
+      shapInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
-        grid: { left: 130, right: 30, top: 20, bottom: 30 },
+        animationDuration: 420,
+        tooltip: {
+          ...th.tooltipBase,
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: (params) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            return `<strong>${p.name}</strong><br/>${t('models.shapUnit')}: ${Number(p.value).toFixed(4)}`;
+          },
+        },
+        grid: { left: narrow ? 88 : 128, right: narrow ? 36 : 48, top: 16, bottom: 24 },
         xAxis: {
           type: 'value',
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+          name: t('models.shapUnit'),
+          nameLocation: 'end',
+          nameTextStyle: { color: '#6b7280', fontSize: 10 },
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10 },
+          splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
         },
         yAxis: {
           type: 'category',
-          data: data.map(d => d.name),
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 11 },
+          data: data.map((d) => d.name),
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: {
+            color: th.axis,
+            fontSize: narrow ? 10 : 11,
+            width: narrow ? 72 : 110,
+            overflow: 'truncate',
+            ellipsis: '…',
+          },
         },
         series: [{
           type: 'bar',
-          data: data.map((d, i) => ({
-            value: d.value,
-            itemStyle: {
-              color: i % 2 === 0 ? '#ff6b00' : '#ff8c3a',
-              borderRadius: [0, 4, 4, 0],
-            },
-          })),
-          barWidth: 18,
+          data: data.map((d) => {
+            const ratio = Math.max(0.25, (Number(d.value) || 0) / maxV);
+            return {
+              value: d.value,
+              itemStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                  { offset: 0, color: `rgba(255, 107, 0, ${0.35 + ratio * 0.25})` },
+                  { offset: 1, color: `rgba(255, 140, 64, ${0.55 + ratio * 0.45})` },
+                ]),
+                borderRadius: [0, 5, 5, 0],
+              },
+            };
+          }),
+          barWidth: narrow ? 14 : 18,
           label: {
             show: true,
             position: 'right',
@@ -3302,10 +3649,20 @@ const app = createApp({
             formatter: (p) => Number(p.value).toFixed(3),
           },
         }],
-      };
-      shapInstance.setOption(option, true);
+      }, true);
       allowPageScrollOverChart(shapInstance);
     };
+
+    watch(currentLang, async () => {
+      if (currentPage.value !== 'models') return;
+      await nextTick();
+      try {
+        renderRadar();
+        renderBacktest();
+        renderPerDay();
+        renderShap();
+      } catch (_) { /* ignore */ }
+    });
 
     // ============ 工具函数 ============
     const formatPrice = (num) => {
@@ -3457,6 +3814,60 @@ const app = createApp({
       }
     };
 
+    // 按当前页拉取专属数据。注意：watch(currentPage) 不会在「刷新后停在原页」时触发，
+    // 必须在 onMounted / 进入系统后再主动 hydrate，否则日报/持仓等会一直停在初始 Mock。
+    const hydrateCurrentPage = async (pageId) => {
+      const page = pageId || currentPage.value;
+      await nextTick();
+      window.processPhIcons && window.processPhIcons();
+
+      if (page === 'prediction') {
+        renderKline();
+        if (selectedSkin.value?.id) {
+          loadPlatformQuotes(selectedSkin.value.id, { live: true });
+          loadPredictions(selectedSkin.value.id);
+          loadExplanation(selectedSkin.value.id);
+        }
+      } else if (page === 'models') {
+        await loadModelsFromApi();
+        setTimeout(() => {
+          renderRadar();
+          renderBacktest();
+          renderShap();
+          renderPerDay();
+          radarInstance?.resize();
+          backtestInstance?.resize();
+          shapInstance?.resize();
+          perDayInstance?.resize();
+        }, 100);
+      } else if (page === 'daily') {
+        await loadDailyReport();
+      } else if (page === 'admin') {
+        if (adminIsAuthed.value) await loadAdminPanel();
+      } else if (page === 'alerts') {
+        await loadAlertsFromApi();
+      } else if (page === 'portfolio') {
+        if (portfolioTab.value === 'inventory') {
+          if (currentUser.value) {
+            await loadInventoryFromApi();
+            await refreshInventoryCharts();
+          }
+        } else {
+          await loadPortfolioFromApi();
+          await loadPortfolioExtras();
+        }
+      } else if (page === 'chat') {
+        setTimeout(scrollChatBottom, 100);
+      } else if (page === 'dashboard') {
+        // 行情页：确保列表已是后端数据；connect 失败时允许再试一次
+        if (!apiOnline.value) {
+          await reconnectBackend();
+        } else if (!skins.value?.length || skins.value.length < 50) {
+          try { await loadSkinsFromApi(); } catch (_) { /* ignore */ }
+        }
+      }
+    };
+
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
@@ -3470,8 +3881,11 @@ const app = createApp({
       await connectBackend();
 
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
-      if (!showLanding.value) {
+      if (showLanding.value) {
+        await mountLandingCanvas();
+      } else {
         renderKline();
+        await hydrateCurrentPage(currentPage.value);
       }
       window.addEventListener('keydown', handleGlobalKeydown);
       window.addEventListener('resize', () => {
@@ -3513,21 +3927,6 @@ const app = createApp({
       // (Phosphor 字体 404,这些图标原本不可见)
       window.processPhIcons && window.processPhIcons();
 
-      // 刷新后若仍停在模型页，需主动渲染图表（watch 不会在初始值触发）
-      if (!showLanding.value && currentPage.value === 'models') {
-        await loadModelsFromApi();
-        setTimeout(() => {
-          renderRadar();
-          renderBacktest();
-          renderShap();
-          renderPerDay();
-          radarInstance?.resize();
-          backtestInstance?.resize();
-          shapInstance?.resize();
-          perDayInstance?.resize();
-        }, 120);
-      }
-
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
     });
 
@@ -3555,42 +3954,7 @@ const app = createApp({
         perDayInstance = null;
       }
 
-      if (newPage === 'prediction') {
-        renderKline();
-        if (selectedSkin.value?.id) {
-          loadPlatformQuotes(selectedSkin.value.id, { live: true });
-        }
-      } else if (newPage === 'models') {
-        await loadModelsFromApi();
-        setTimeout(() => {
-          renderRadar();
-          renderBacktest();
-          renderShap();
-          renderPerDay();
-          radarInstance?.resize();
-          backtestInstance?.resize();
-          shapInstance?.resize();
-          perDayInstance?.resize();
-        }, 100);
-      } else if (newPage === 'daily') {
-        await loadDailyReport();
-      } else if (newPage === 'admin') {
-        if (adminIsAuthed.value) await loadAdminPanel();
-      } else if (newPage === 'alerts') {
-        await loadAlertsFromApi();
-      } else if (newPage === 'portfolio') {
-        if (portfolioTab.value === 'inventory') {
-          if (currentUser.value) {
-            await loadInventoryFromApi();
-            await refreshInventoryCharts();
-          }
-        } else {
-          await loadPortfolioFromApi();
-          await loadPortfolioExtras();
-        }
-      } else if (newPage === 'chat') {
-        setTimeout(scrollChatBottom, 100);
-      }
+      await hydrateCurrentPage(newPage);
     });
 
     // 登录后若正停留在「我的库存」，自动加载数据与图表
@@ -3630,7 +3994,8 @@ const app = createApp({
       // 菜单
       menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
-      showLanding, landingExiting, enterSystem, showAdmin, leaveAdmin,
+      showLanding, landingExiting, landingHeroIndex, landingHeroSlides, landingSceneHint,
+      enterSystem, showAdmin, leaveAdmin,
       // 用户认证
       currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,
@@ -3657,8 +4022,9 @@ const app = createApp({
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
       chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
-      newsFeed, dailyReport, loadDailyReport, dailyReportLoading,
+      newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
       regenerateDailyReport, exportDailyReport,
+      newsFetchLoading, fetchNewsNow,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
       adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,
@@ -3670,7 +4036,8 @@ const app = createApp({
       portfolioTab, setPortfolioTab,
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
-      portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
+      portfolioDiagnose, portfolioDiagnoseLoading, portfolioValueHistory, loadPortfolioExtras,
+      diagnoseActionLabel, diagnoseActionClass, formatDiagnoseTime,
       myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
       importSteamInventory, openInventoryItem,
       showSteamImportModal, steamImportLoading, steamImportForm, steamImportResult, submitSteamImport,
@@ -3683,6 +4050,9 @@ const app = createApp({
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
       modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
+      modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
+      selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
+      shapEmpty, backtestEmpty,
       radarChart, backtestChart, shapChart,
       perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具

@@ -23,7 +23,15 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 import llm
-from config import RSS_FEEDS, RSS_MAX_AGE_DAYS, ML_DIR, REPO_ROOT
+from config import (
+    RSS_FEEDS,
+    RSS_MAX_AGE_DAYS,
+    RSS_PER_FEED_LIMIT,
+    RSS_AGGRESSIVE_MAX_AGE_DAYS,
+    RSS_AGGRESSIVE_PER_FEED,
+    ML_DIR,
+    REPO_ROOT,
+)
 from database import get_connection, _utcnow
 
 _scheduler: BackgroundScheduler | None = None
@@ -60,20 +68,40 @@ def _entry_published(entry) -> datetime | None:
 # ============================================================
 # 任务 1:RSS 采集
 # ============================================================
-def fetch_rss_news() -> int:
+def _rss_source_tag(url: str) -> str:
+    if "hltv.org" in url:
+        return "hltv"
+    if "counter-strike.net" in url:
+        return "valve"
+    if "reddit.com" in url:
+        return "reddit"
+    return "rss"
+
+
+def fetch_rss_news(aggressive: bool = False) -> dict:
+    """拉取 RSS 写入 news 表。aggressive=True 时加大窗口与每源条数。"""
     try:
         import feedparser
     except Exception as e:
         print(f"[scheduler] feedparser 不可用: {e}")
-        return 0
+        return {"inserted": 0, "skipped_old": 0, "scanned": 0, "feeds": 0, "error": str(e)}
+
+    # Reddit 等源常拦截缺省 UA
+    feedparser.USER_AGENT = "CSVest/1.1 (+rss; course-demo)"
+
+    max_age = RSS_AGGRESSIVE_MAX_AGE_DAYS if aggressive else RSS_MAX_AGE_DAYS
+    per_feed = RSS_AGGRESSIVE_PER_FEED if aggressive else RSS_PER_FEED_LIMIT
     inserted = 0
-    cutoff = _utcnow() - timedelta(days=max(1, RSS_MAX_AGE_DAYS))
+    scanned = 0
+    feed_ok = 0
+    cutoff = _utcnow() - timedelta(days=max(1, max_age))
     skipped_old = 0
+    headers = {"User-Agent": feedparser.USER_AGENT, "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"}
     with get_connection() as conn:
         for url in RSS_FEEDS:
             try:
-                feed = feedparser.parse(url)
-                # 按发布时间新→旧处理,每源最多看 20 条
+                feed = feedparser.parse(url, request_headers=headers)
+                # 按发布时间新→旧处理
                 entries = list(feed.entries or [])
 
                 def _sort_key(e):
@@ -81,7 +109,9 @@ def fetch_rss_news() -> int:
                     return dt or datetime(1970, 1, 1, tzinfo=timezone.utc)
 
                 entries.sort(key=_sort_key, reverse=True)
-                for entry in entries[:20]:
+                feed_ok += 1
+                for entry in entries[: max(1, per_feed)]:
+                    scanned += 1
                     title = (entry.get("title") or "").strip()
                     if not title:
                         continue
@@ -99,9 +129,7 @@ def fetch_rss_news() -> int:
                         published = pub_dt.isoformat()
                     else:
                         published = _utcnow().isoformat()
-                    source = "hltv" if "hltv.org" in url else (
-                        "valve" if "counter-strike.net" in url else "rss"
-                    )
+                    source = _rss_source_tag(url)
                     conn.execute(
                         """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
                            VALUES (?,?,?,?,?,?,?,?)""",
@@ -112,16 +140,28 @@ def fetch_rss_news() -> int:
             except Exception as e:
                 print(f"[scheduler] RSS 采集失败 {url}: {e}")
         conn.commit()
+    mode = "aggressive" if aggressive else "normal"
     if inserted or skipped_old:
-        print(f"[scheduler] RSS 新增 {inserted} 条(跳过过期 {skipped_old},窗口 {RSS_MAX_AGE_DAYS} 天)")
+        print(
+            f"[scheduler] RSS[{mode}] 新增 {inserted} 条"
+            f"(扫描 {scanned},跳过过期 {skipped_old},窗口 {max_age} 天,每源≤{per_feed})"
+        )
     if inserted:
         try:
             import rag
             rag.invalidate_index()
         except Exception:
             pass
-    return inserted
-
+    return {
+        "inserted": inserted,
+        "skipped_old": skipped_old,
+        "scanned": scanned,
+        "feeds": feed_ok,
+        "feedsTotal": len(RSS_FEEDS),
+        "maxAgeDays": max_age,
+        "perFeedLimit": per_feed,
+        "aggressive": aggressive,
+    }
 
 # ============================================================
 # 任务 2:每日日报(拼持仓段)
@@ -153,7 +193,9 @@ def market_metrics_from_db() -> dict:
 
 def summary_is_degraded(text: str | None) -> bool:
     """种子/降级文案是否应对外隐藏（Mock、未配置 Key、显式 error）。"""
-    t = text or ""
+    t = (text or "").strip()
+    if not t:
+        return True
     markers = (
         "Mock 模式",
         "(Mock",
@@ -167,50 +209,88 @@ def summary_is_degraded(text: str | None) -> bool:
     return any(m in t for m in markers)
 
 
+def summary_is_non_english(text: str | None) -> bool:
+    """日报默认英文；含较多汉字的旧摘要视为需刷新。"""
+    t = (text or "").strip()
+    if not t:
+        return True
+    cjk = sum(1 for ch in t if "\u4e00" <= ch <= "\u9fff")
+    return cjk >= 8
+
+
 def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str:
-    """无 LLM 时的干净市场总结（不含 Mock/错误头）。"""
+    """No-LLM English market brief (clean, no Mock/error headers)."""
     m = metrics or {}
     total = int(m.get("monitored") or 0)
     gainers = int(m.get("gainers") or 0)
     losers = int(m.get("losers") or 0)
-    cite = " [1]" if sources else ""
-    bias = "偏强" if gainers > losers else ("偏弱" if losers > gainers else "震荡分化")
+    breadth = (gainers + losers) or 1
+    up_pct = round(100.0 * gainers / breadth, 1)
+    down_pct = round(100.0 * losers / breadth, 1)
+    if gainers > losers:
+        bias = "mildly constructive"
+        tilt = "more names are advancing than declining over the trailing week"
+    elif losers > gainers:
+        bias = "soft / risk-off"
+        tilt = "decliners outnumber advancers over the trailing week"
+    else:
+        bias = "two-way / rotational"
+        tilt = "advancers and decliners are roughly balanced"
+
+    cite1 = " [1]" if sources else ""
+    cite2 = " [2]" if len(sources or []) >= 2 else (cite1 if sources else "")
+    theme = ""
+    if sources:
+        snip = (sources[0].get("snippet") or sources[0].get("title") or "").strip()
+        if snip:
+            theme = f" Retrieved context highlights: {snip[:160].rstrip('.')}.{cite1}"
+
     return (
-        f"今日监控 {total} 件饰品，近 7 日上涨 {gainers} 件、下跌 {losers} 件，"
-        f"市场整体{bias}{cite}。建议结合成交量与赛事日历观察高波动标的，"
-        f"控制仓位并设置止损。\n\n"
-        f"⚠ 饰品市场高波动，以上不构成投资建议。"
+        f"CS2 skin market brief — monitored universe: {total} priced items. "
+        f"Over the last ~7 days, {gainers} rose ({up_pct}%) and {losers} fell ({down_pct}%), "
+        f"so breadth looks {bias}: {tilt}.{cite1}\n\n"
+        f"Trading implication: focus on liquid majors and event-linked stickers/skins when volume expands, "
+        f"and avoid chasing illiquid knives/gloves on thin books.{cite2}"
+        f"{theme}\n\n"
+        f"Positioning note: size risk carefully around tournament calendars and post-event mean reversion. "
+        f"Skin markets are highly volatile — this is not investment advice."
     )
 
 
 def refresh_ai_summary(
     metrics: dict,
     *,
-    portfolio_text: str = "无持仓",
+    portfolio_text: str = "No holdings",
     sources: list | None = None,
 ) -> str:
-    """优先 LLM；失败或降级则回落到规则摘要。"""
+    """Prefer LLM English brief; fall back to richer rule-based English summary."""
     from config import LLM_ENABLED
 
     sources = sources or []
     context_text = "\n".join(
         f"[{s.get('id')}] ({s.get('source')}) {s.get('snippet')}" for s in sources
-    ) or "(无检索结果)"
+    ) or "(no retrieval hits)"
     total = metrics.get("monitored", 0)
     gainers = metrics.get("gainers", 0)
     losers = metrics.get("losers", 0)
     prompt = (
-        f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
-        f"你的持仓:{portfolio_text}。\n"
-        f"以下是检索到的市场知识库/资讯:\n{context_text}\n\n"
-        f"请据此生成一段中文市场日报(3-4 句),在相关处用 [编号] 标注引用来源,"
-        f"含持仓提示与风险。不要输出 Mock、错误码或系统提示。"
+        f"You are writing the CSVest CS2 skin market daily brief.\n"
+        f"Market stats: monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
+        f"User portfolio: {portfolio_text}.\n"
+        f"Retrieved knowledge / news snippets:\n{context_text}\n\n"
+        f"Write the summary in English only (no Chinese).\n"
+        f"Length: 2–3 short paragraphs (about 6–9 sentences total).\n"
+        f"Cover: (1) market breadth & tone from the stats, "
+        f"(2) themes inferred from citations — cite with [n] where relevant, "
+        f"(3) practical watchlist / positioning hints for the portfolio, "
+        f"(4) clear risk disclaimer.\n"
+        f"Do not invent prices. Do not output Mock labels, error codes, or system prompts."
     )
     if LLM_ENABLED:
         text = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
-        if text and not summary_is_degraded(text):
+        if text and not summary_is_degraded(text) and not summary_is_non_english(text):
             return text
-        print("[scheduler] LLM 摘要不可用，改用规则摘要")
+        print("[scheduler] LLM summary unavailable/non-English, using rule-based English brief")
     return rule_based_market_summary(metrics, sources)
 
 
@@ -226,8 +306,8 @@ def generate_daily_report() -> dict:
                FROM portfolio p JOIN skins s ON s.id=p.skin_id"""
         ).fetchall()
 
-    portfolio_text = "无持仓" if not positions else "; ".join(
-        f"{r['market_hash_name']} {r['quantity']}件" for r in positions
+    portfolio_text = "No holdings" if not positions else "; ".join(
+        f"{r['market_hash_name']} x{r['quantity']}" for r in positions
     )
 
     # RAG 检索: 拉取市场级知识库/资讯来源, 供日报引用(展示检索→生成)

@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>CSVest — CS2 饰品 AI 智能分析平台</title>
+  <title>CSVest — CS2 Skin AI Intelligence</title>
 
-  <!-- 字体：系统中文优先；Outfit/Noto 非阻塞加载（国内 Google 常失败也不挡首屏） -->
+  <!-- 字体：展示衬线 + 正文无衬线（jsDelivr / Bunny，国内更稳） -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect" href="https://fonts.bunny.net" crossorigin />
+  <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-serif:400,500,600,700|sora:300,400,500,600|noto-serif-sc:500,600,700&display=swap" media="print" onload="this.media='all'" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.2.5/index.min.css" media="print" onload="this.media='all'" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.2.5/chinese-simplified-400.min.css" media="print" onload="this.media='all'" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.2.5/chinese-simplified-700.min.css" media="print" onload="this.media='all'" />
   <noscript>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.2.5/index.min.css" />
+    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-serif:400,500,600,700|sora:300,400,500,600|noto-serif-sc:500,600,700&display=swap" />
   </noscript>
 
   <!-- Tailwind CDN（失败时样式仍可由 style.css 兜底） -->
@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260724-steam2" />
+  <link rel="stylesheet" href="style.css?v=20260725-diag" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -99,137 +99,160 @@
             <a href="#landing-debate">{{ t('landing.nav.debate') }}</a>
             <a href="#landing-portfolio">{{ t('landing.nav.portfolio') }}</a>
           </div>
-          <button v-if="currentUser" type="button" class="landing-nav-cta" @click="enterSystem()">{{ t('landing.nav.enter') }}</button>
-          <button v-else type="button" class="landing-nav-cta" @click="openAuthPanel('login')">{{ t('landing.nav.login') }}</button>
+          <div class="landing-nav-actions">
+            <button
+              type="button"
+              class="landing-nav-lang"
+              @click="toggleLang"
+              :title="t('topbar.lang.switch')"
+              :aria-label="t('topbar.lang.switch')"
+            >{{ currentLang === 'zh-CN' ? 'EN' : '中文' }}</button>
+            <button v-if="currentUser" type="button" class="landing-nav-cta" @click="enterSystem()">{{ t('landing.nav.enter') }}</button>
+            <button v-else type="button" class="landing-nav-cta" @click="openAuthPanel('login')">{{ t('landing.nav.login') }}</button>
+          </div>
         </div>
       </nav>
 
-      <!-- Hero -->
+      <!-- Hero：全屏枪皮场景 · 滚轮切换 -->
       <header class="landing-hero">
-        <div class="landing-hero-glow" aria-hidden="true"></div>
-        <p class="landing-hero-eyebrow">CSVest</p>
-        <h1 class="landing-hero-title">{{ t('landing.headline') }}</h1>
-        <p class="landing-hero-lead">{{ t('landing.lead') }}</p>
-
-        <!-- 已登录 -->
-        <div v-if="currentUser" class="landing-hero-cta" role="region" :aria-label="t('auth.region')">
-          <p class="landing-hero-welcome">{{ t('auth.welcomeBack', { name: currentUser.name }) }} · {{ currentUser.email }}</p>
-          <div class="landing-cta-row">
-            <button type="button" class="landing-btn landing-btn--primary" @click="enterSystem()">{{ t('landing.cta') }}</button>
-            <button type="button" class="landing-link-btn" @click="logoutUser">{{ t('auth.logout') }}</button>
-          </div>
+        <div class="landing-hero-stage" id="landing-scene-root" aria-hidden="true">
+          <div class="landing-hero-scenes"></div>
+          <div class="landing-hero-veil"></div>
         </div>
 
-        <!-- 未登录 -->
-        <div v-else class="landing-hero-cta" role="group" :aria-label="t('auth.region')">
-          <div class="landing-cta-row">
-            <button type="button" class="landing-btn landing-btn--primary" @click="openAuthPanel('login')">{{ t('auth.loginEnter') }}</button>
-            <button type="button" class="landing-btn landing-btn--ghost" @click="enterAsGuest">{{ t('auth.guestEnter') }}</button>
-          </div>
-          <p class="landing-hero-hint">{{ t('auth.demoHint') }}</p>
-        </div>
-
-        <!-- Hero 视觉：模拟行情窗口 -->
-        <div class="landing-hero-visual" aria-hidden="true">
-          <div class="landing-window">
-            <div class="landing-window-bar">
-              <span class="landing-window-dot" style="background:#ff5f57"></span>
-              <span class="landing-window-dot" style="background:#febc2e"></span>
-              <span class="landing-window-dot" style="background:#28c840"></span>
+        <div class="landing-hero-copy">
+          <div class="landing-hero-copy-viewport" id="landing-hero-copy-viewport">
+            <div class="landing-hero-copy-track" id="landing-hero-copy-track">
+              <div
+                v-for="(slide, si) in landingHeroSlides"
+                :key="'hero-s' + si"
+                class="landing-hero-slide"
+                :class="{ 'is-active': landingHeroIndex === si }"
+                :aria-hidden="landingHeroIndex === si ? 'false' : 'true'"
+              >
+                <p class="landing-hero-eyebrow">{{ slide.kicker }}</p>
+                <h1 class="landing-hero-title">{{ slide.title }}</h1>
+                <p class="landing-hero-lead">{{ slide.lead }}</p>
+              </div>
             </div>
-            <svg viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg">
+          </div>
+
+          <!-- 已登录 -->
+          <div v-if="currentUser" class="landing-hero-cta" role="region" :aria-label="t('auth.region')">
+            <p class="landing-hero-welcome">{{ t('auth.welcomeBack', { name: currentUser.name }) }} · {{ currentUser.email }}</p>
+            <div class="landing-cta-row">
+              <button type="button" class="landing-btn landing-btn--primary" @click="enterSystem()">{{ t('landing.cta') }}</button>
+              <button type="button" class="landing-link-btn" @click="logoutUser">{{ t('auth.logout') }}</button>
+            </div>
+          </div>
+
+          <!-- 未登录 -->
+          <div v-else class="landing-hero-cta" role="group" :aria-label="t('auth.region')">
+            <div class="landing-cta-row">
+              <button type="button" class="landing-btn landing-btn--primary" @click="openAuthPanel('login')">{{ t('auth.loginEnter') }}</button>
+              <button type="button" class="landing-btn landing-btn--ghost" @click="enterAsGuest">{{ t('auth.guestEnter') }}</button>
+            </div>
+            <p class="landing-hero-hint">{{ t('auth.demoHint') }}</p>
+          </div>
+        </div>
+
+        <div class="landing-scene-caption" id="landing-scene-caption" aria-live="polite">
+          <span class="landing-scene-caption-map" id="landing-scene-map"></span>
+          <strong class="landing-scene-caption-name" id="landing-scene-name"></strong>
+          <span class="landing-scene-caption-price" id="landing-scene-price"></span>
+          <div class="landing-scene-dots" id="landing-scene-dots" aria-hidden="true"></div>
+          <p class="landing-scene-caption-hint">{{ landingSceneHint }}</p>
+        </div>
+      </header>
+
+      <!-- 板块一：价格预测 · M4A1-S Printstream -->
+      <section id="landing-forecast" class="landing-section landing-section--stage" data-skin="M4A1-S | Printstream">
+        <div class="landing-section-bg" style="background-image:url('assets/landing/section-m4-printstream.png')" aria-hidden="true"></div>
+        <div class="landing-section-veil" aria-hidden="true"></div>
+        <div class="landing-section-inner">
+          <p class="landing-skin-badge">M4A1-S | Printstream · FT</p>
+          <p class="landing-kicker">{{ t('landing.nav.forecast') }}</p>
+          <h2 class="landing-title landing-title--motion">{{ t('landing.f1.title') }}</h2>
+          <p class="landing-desc landing-desc--motion">{{ t('landing.f1.desc') }}</p>
+          <button type="button" class="landing-link landing-link--motion" @click="currentUser ? enterSystem() : enterAsGuest()">
+            {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
+          </button>
+          <div class="landing-visual-card landing-visual--motion" aria-hidden="true">
+            <svg viewBox="0 0 1000 320" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <linearGradient id="lgHeroLine" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0" stop-color="#ff8c40"/>
-                  <stop offset="1" stop-color="#ff6b00"/>
-                </linearGradient>
-                <linearGradient id="lgHeroFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stop-color="rgba(255,107,0,0.32)"/>
+                <linearGradient id="lgDarkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="rgba(255,107,0,0.28)"/>
                   <stop offset="1" stop-color="rgba(255,107,0,0)"/>
                 </linearGradient>
               </defs>
               <g stroke="rgba(255,255,255,0.06)" stroke-width="1">
-                <line x1="0" y1="90" x2="1200" y2="90"/>
-                <line x1="0" y1="180" x2="1200" y2="180"/>
-                <line x1="0" y1="270" x2="1200" y2="270"/>
+                <line x1="0" y1="80" x2="1000" y2="80"/>
+                <line x1="0" y1="160" x2="1000" y2="160"/>
+                <line x1="0" y1="240" x2="1000" y2="240"/>
               </g>
-              <path class="landing-chart-fill" d="M0,318 C90,300 150,330 230,306 C310,282 350,244 440,252 C530,260 570,222 660,212 C720,205 760,182 820,176 L820,400 L0,400 Z" fill="url(#lgHeroFill)"/>
-              <path class="landing-chart-line" d="M0,318 C90,300 150,330 230,306 C310,282 350,244 440,252 C530,260 570,222 660,212 C720,205 760,182 820,176" fill="none" stroke="url(#lgHeroLine)" stroke-width="4" stroke-linecap="round"/>
-              <path class="landing-chart-forecast" d="M820,176 C900,168 960,132 1030,114 C1090,98 1130,92 1180,86" fill="none" stroke="#22c792" stroke-width="4" stroke-dasharray="2 11" stroke-linecap="round"/>
-              <circle class="landing-chart-pulse" cx="820" cy="176" r="14" fill="rgba(255,107,0,0.28)"/>
-              <circle cx="820" cy="176" r="6" fill="#ff6b00"/>
+              <path d="M640,150 C720,138 790,104 860,88 C910,77 950,72 990,66 L990,132 C950,136 910,142 860,152 C790,166 720,180 640,186 Z" fill="rgba(34,199,146,0.14)"/>
+              <path d="M0,252 C70,238 120,262 190,244 C260,226 300,196 380,202 C460,208 500,178 570,168 C610,162 625,155 640,150 L640,320 L0,320 Z" fill="url(#lgDarkFill)"/>
+              <path d="M0,252 C70,238 120,262 190,244 C260,226 300,196 380,202 C460,208 500,178 570,168 C610,162 625,155 640,150" fill="none" stroke="#ff6b00" stroke-width="4" stroke-linecap="round"/>
+              <path d="M640,150 C720,140 790,120 860,108 C910,99 950,96 990,92" fill="none" stroke="#22c792" stroke-width="4" stroke-dasharray="2 11" stroke-linecap="round"/>
+              <circle cx="640" cy="150" r="12" fill="rgba(255,107,0,0.22)"/>
+              <circle cx="640" cy="150" r="5" fill="#ff6b00"/>
             </svg>
           </div>
-        </div>
-      </header>
-
-      <!-- 板块一：价格预测 -->
-      <section id="landing-forecast" class="landing-section landing-section--light">
-        <p class="landing-kicker">{{ t('landing.nav.forecast') }}</p>
-        <h2 class="landing-title">{{ t('landing.f1.title') }}</h2>
-        <p class="landing-desc">{{ t('landing.f1.desc') }}</p>
-        <button type="button" class="landing-link" @click="currentUser ? enterSystem() : enterAsGuest()">
-          {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
-        </button>
-        <div class="landing-visual-card" aria-hidden="true">
-          <svg viewBox="0 0 1000 320" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="lgLightFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(255,107,0,0.18)"/>
-                <stop offset="1" stop-color="rgba(255,107,0,0)"/>
-              </linearGradient>
-            </defs>
-            <g stroke="rgba(20,21,26,0.08)" stroke-width="1">
-              <line x1="0" y1="80" x2="1000" y2="80"/>
-              <line x1="0" y1="160" x2="1000" y2="160"/>
-              <line x1="0" y1="240" x2="1000" y2="240"/>
-            </g>
-            <path d="M640,150 C720,138 790,104 860,88 C910,77 950,72 990,66 L990,132 C950,136 910,142 860,152 C790,166 720,180 640,186 Z" fill="rgba(34,199,146,0.12)"/>
-            <path d="M0,252 C70,238 120,262 190,244 C260,226 300,196 380,202 C460,208 500,178 570,168 C610,162 625,155 640,150 L640,320 L0,320 Z" fill="url(#lgLightFill)"/>
-            <path d="M0,252 C70,238 120,262 190,244 C260,226 300,196 380,202 C460,208 500,178 570,168 C610,162 625,155 640,150" fill="none" stroke="#ff6b00" stroke-width="4" stroke-linecap="round"/>
-            <path d="M640,150 C720,140 790,120 860,108 C910,99 950,96 990,92" fill="none" stroke="#22c792" stroke-width="4" stroke-dasharray="2 11" stroke-linecap="round"/>
-            <circle cx="640" cy="150" r="12" fill="rgba(255,107,0,0.2)"/>
-            <circle cx="640" cy="150" r="5" fill="#ff6b00"/>
-          </svg>
         </div>
       </section>
 
-      <!-- 板块二 + 三：双拼磁贴 -->
-      <section class="landing-grid">
-        <div id="landing-debate" class="landing-tile landing-tile--dark">
+      <!-- 板块二：双 Agent 辩论 · Deagle Printstream -->
+      <section id="landing-debate" class="landing-section landing-section--stage" data-skin="Desert Eagle | Printstream">
+        <div class="landing-section-bg" style="background-image:url('assets/landing/section-deagle-printstream.png')" aria-hidden="true"></div>
+        <div class="landing-section-veil" aria-hidden="true"></div>
+        <div class="landing-section-inner">
+          <p class="landing-skin-badge">Desert Eagle | Printstream · FT</p>
           <p class="landing-kicker">{{ t('landing.nav.debate') }}</p>
-          <h2 class="landing-title landing-title--tile">{{ t('landing.f2.title') }}</h2>
-          <p class="landing-desc">{{ t('landing.f2.desc') }}</p>
-          <button type="button" class="landing-link" @click="currentUser ? enterSystem() : enterAsGuest()">
+          <h2 class="landing-title landing-title--motion">{{ t('landing.f2.title') }}</h2>
+          <p class="landing-desc landing-desc--motion">{{ t('landing.f2.desc') }}</p>
+          <button type="button" class="landing-link landing-link--motion" @click="currentUser ? enterSystem() : enterAsGuest()">
             {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
           </button>
-          <div class="landing-bubbles" aria-hidden="true">
-            <div class="landing-bubble landing-bubble--bull">{{ t('landing.demo.bull') }}</div>
-            <div class="landing-bubble landing-bubble--bear">{{ t('landing.demo.bear') }}</div>
+          <div class="landing-debate-cards landing-visual--motion" aria-hidden="true">
+            <div class="landing-debate-card landing-debate-card--bull">
+              <span class="landing-debate-tag">Bull</span>
+              <p>{{ t('landing.demo.bull') }}</p>
+            </div>
+            <div class="landing-debate-card landing-debate-card--bear">
+              <span class="landing-debate-tag">Bear</span>
+              <p>{{ t('landing.demo.bear') }}</p>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div id="landing-portfolio" class="landing-tile landing-tile--light">
+      <!-- 板块三：持仓组合 · Butterfly Northern Forest -->
+      <section id="landing-portfolio" class="landing-section landing-section--stage" data-skin="Butterfly Knife | Northern Forest">
+        <div class="landing-section-bg" style="background-image:url('assets/landing/section-butterfly-forest.png')" aria-hidden="true"></div>
+        <div class="landing-section-veil" aria-hidden="true"></div>
+        <div class="landing-section-inner">
+          <p class="landing-skin-badge">Butterfly Knife | Northern Forest · FN</p>
           <p class="landing-kicker">{{ t('landing.nav.portfolio') }}</p>
-          <h2 class="landing-title landing-title--tile">{{ t('landing.f3.title') }}</h2>
-          <p class="landing-desc">{{ t('landing.f3.desc') }}</p>
-          <button type="button" class="landing-link" @click="currentUser ? enterSystem() : enterAsGuest()">
+          <h2 class="landing-title landing-title--motion">{{ t('landing.f3.title') }}</h2>
+          <p class="landing-desc landing-desc--motion">{{ t('landing.f3.desc') }}</p>
+          <button type="button" class="landing-link landing-link--motion" @click="currentUser ? enterSystem() : enterAsGuest()">
             {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
           </button>
-          <div class="landing-donut-wrap" aria-hidden="true">
+          <div class="landing-donut-wrap landing-visual--motion" aria-hidden="true">
             <svg viewBox="0 0 200 200" class="landing-donut" xmlns="http://www.w3.org/2000/svg">
               <g transform="rotate(-90 100 100)">
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#ff6b00" stroke-width="26" stroke-dasharray="184.7 255.1"/>
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#22c792" stroke-width="26" stroke-dasharray="136.3 303.5" stroke-dashoffset="-184.7"/>
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#4d8cf7" stroke-width="26" stroke-dasharray="118.8 321" stroke-dashoffset="-321"/>
+                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#ff6b00" stroke-width="22" stroke-dasharray="184.7 255.1"/>
+                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#22c792" stroke-width="22" stroke-dasharray="136.3 303.5" stroke-dashoffset="-184.7"/>
+                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#eb4b4b" stroke-width="22" stroke-dasharray="118.8 321" stroke-dashoffset="-321"/>
               </g>
-              <text x="100" y="96" text-anchor="middle" font-size="24" font-weight="700" fill="#14151a">$12,480</text>
-              <text x="100" y="118" text-anchor="middle" font-size="11" letter-spacing="1.5" fill="#6b7080">TOTAL</text>
+              <circle cx="100" cy="100" r="48" fill="rgba(8,8,12,0.72)"/>
+              <text x="100" y="96" text-anchor="middle" font-size="20" font-weight="700" fill="#f6f3ee">$12,480</text>
+              <text x="100" y="116" text-anchor="middle" font-size="10" letter-spacing="1.5" fill="rgba(242,239,233,0.45)">TOTAL</text>
             </svg>
             <div class="landing-legend">
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#ff6b00"></span>AK-47 | Asiimov<b>42%</b></div>
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#22c792"></span>★ Butterfly Knife<b>31%</b></div>
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#4d8cf7"></span>AWP | Redline<b>27%</b></div>
+              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#ff6b00"></span>M4A1-S | Printstream<b>42%</b></div>
+              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#22c792"></span>Butterfly Knife | Northern Forest<b>31%</b></div>
+              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#eb4b4b"></span>Desert Eagle | Printstream<b>27%</b></div>
             </div>
           </div>
         </div>
@@ -1370,165 +1393,369 @@
         </div>
 
         <!-- AI 市场日报 -->
-        <div v-if="currentPage === 'daily'" class="fade-in">
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                <i class="ph-duotone ph-newspaper-clipping icon-primary" aria-hidden="true"></i>
-                {{ t('daily.title') }}
-              </h2>
-              <p class="text-muted text-sm mt-2">{{ t('daily.date') }}</p>
+        <div v-if="currentPage === 'daily'" class="fade-in daily-page">
+          <header class="daily-hero">
+            <div class="daily-hero__copy">
+              <div class="daily-hero__eyebrow">
+                <span class="daily-hero__dot" aria-hidden="true"></span>
+                {{ t('daily.heroLive') }}
+              </div>
+              <h2 class="daily-hero__title">{{ t('daily.titleClean') }}</h2>
+              <p class="daily-hero__sub">
+                {{ dailyReport.date || t('daily.dateFallback') }}
+                <span class="daily-hero__sep">·</span>
+                {{ t('daily.heroHint') }}
+              </p>
             </div>
-            <div class="flex gap-2">
+            <div class="daily-hero__actions">
               <button class="btn btn-secondary btn-sm" type="button" @click="exportDailyReport" :disabled="dailyReportLoading">
-                <i class="ph ph-file-pdf" aria-hidden="true"></i> {{ t('daily.exportPdf') }}
+                <i class="ph ph-download-simple" aria-hidden="true"></i> {{ t('daily.exportPdf') }}
               </button>
               <button class="btn btn-primary btn-sm" type="button" @click="regenerateDailyReport" :disabled="dailyReportLoading">
-                <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+                <i class="ph ph-arrows-clockwise" :class="{ 'spin-slow': dailyReportLoading }" aria-hidden="true"></i>
                 {{ dailyReportLoading ? t('daily.regenerating') : t('daily.regenerate') }}
               </button>
             </div>
-          </div>
+          </header>
 
-          <div class="daily-report-grid mb-6">
-            <div class="metric-card">
-              <div class="metric-card-label">{{ t('daily.metricMonitor') }}</div>
-              <div class="metric-card-value">{{ dailyReport.metrics.monitored }}</div>
-              <div class="metric-card-delta text-muted">{{ t('daily.monitorRange') }}</div>
+          <!-- AI 总结：主视觉 -->
+          <section class="daily-feature card">
+            <div class="daily-feature__head">
+              <div>
+                <div class="daily-feature__label">{{ t('daily.aiSummary') }}</div>
+                <p class="daily-feature__caption">{{ t('daily.aiSummaryLead') }}</p>
+              </div>
+              <span class="tag tag-orange">{{ t('daily.aiSummaryModel') }}</span>
             </div>
-            <div class="metric-card">
-              <div class="metric-card-label">{{ t('daily.metricGainers') }}</div>
-              <div class="metric-card-value text-up">{{ dailyReport.metrics.gainers }}</div>
-              <div class="metric-card-delta text-up">{{ t('daily.metricGainersDesc') }}</div>
+            <div class="daily-feature__body">
+              <p v-if="dailyReport.aiSummary" class="daily-feature__text" v-html="renderCitations(dailyReport.aiSummary)"></p>
+              <template v-else>
+                <p class="daily-feature__text">
+                  {{ t('daily.summaryText1') }}<strong class="text-up">{{ t('daily.summaryStrong') }}</strong>{{ t('daily.summaryText2') }}
+                </p>
+                <div class="daily-feature__bullets">
+                  <div class="daily-feature__bullet"><span>01</span>{{ t('daily.driver1') }}</div>
+                  <div class="daily-feature__bullet"><span>02</span>{{ t('daily.driver2') }}</div>
+                  <div class="daily-feature__bullet"><span>03</span>{{ t('daily.driver3') }}</div>
+                </div>
+              </template>
             </div>
-            <div class="metric-card">
-              <div class="metric-card-label">{{ t('daily.metricLosers') }}</div>
-              <div class="metric-card-value text-down">{{ dailyReport.metrics.losers }}</div>
-              <div class="metric-card-delta text-down">{{ t('daily.metricLosersDesc') }}</div>
-            </div>
-          </div>
+            <p class="daily-feature__disclaimer">{{ t('daily.aiDisclaimer') }}</p>
+          </section>
 
-          <div class="grid grid-2 mb-4">
-            <div class="card">
+          <!-- 市场广度指标 -->
+          <section class="daily-kpis">
+            <article class="daily-kpi daily-kpi--monitor">
+              <div class="daily-kpi__icon"><i class="ph-duotone ph-binoculars" aria-hidden="true"></i></div>
+              <div class="daily-kpi__meta">
+                <div class="daily-kpi__label">{{ t('daily.metricMonitor') }}</div>
+                <div class="daily-kpi__value">{{ dailyReport.metrics.monitored }}</div>
+                <div class="daily-kpi__hint">{{ t('daily.monitorRange') }}</div>
+              </div>
+            </article>
+            <article class="daily-kpi daily-kpi--up">
+              <div class="daily-kpi__icon"><i class="ph-duotone ph-trend-up" aria-hidden="true"></i></div>
+              <div class="daily-kpi__meta">
+                <div class="daily-kpi__label">{{ t('daily.metricGainers') }}</div>
+                <div class="daily-kpi__value text-up">{{ dailyReport.metrics.gainers }}</div>
+                <div class="daily-kpi__bar"><span :style="{ width: dailyBreadth.upPct + '%' }"></span></div>
+                <div class="daily-kpi__hint text-up">{{ dailyBreadth.upPct }}% · {{ t('daily.metricGainersDesc') }}</div>
+              </div>
+            </article>
+            <article class="daily-kpi daily-kpi--down">
+              <div class="daily-kpi__icon"><i class="ph-duotone ph-trend-down" aria-hidden="true"></i></div>
+              <div class="daily-kpi__meta">
+                <div class="daily-kpi__label">{{ t('daily.metricLosers') }}</div>
+                <div class="daily-kpi__value text-down">{{ dailyReport.metrics.losers }}</div>
+                <div class="daily-kpi__bar daily-kpi__bar--down"><span :style="{ width: dailyBreadth.downPct + '%' }"></span></div>
+                <div class="daily-kpi__hint text-down">{{ dailyBreadth.downPct }}% · {{ t('daily.metricLosersDesc') }}</div>
+              </div>
+            </article>
+          </section>
+
+          <!-- RAG 核心：神经网络 + 流程 + 问答 -->
+          <section class="card daily-rag-core" :class="{ 'daily-rag-core--fetching': newsFetchLoading, 'daily-rag-core--asking': ragLoading }">
+            <div class="daily-rag-nn" aria-hidden="true">
+              <svg class="daily-rag-nn__svg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid slice">
+                <defs>
+                  <linearGradient id="nnEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#ff6b00" stop-opacity="0.08"/>
+                    <stop offset="45%" stop-color="#4d8cf7" stop-opacity="0.42"/>
+                    <stop offset="100%" stop-color="#ff6b00" stop-opacity="0.12"/>
+                  </linearGradient>
+                  <filter id="nnSoftGlow" x="-120%" y="-120%" width="340%" height="340%">
+                    <feGaussianBlur stdDeviation="1.6" result="b"/>
+                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                  <filter id="nnSoftGlowLg" x="-200%" y="-200%" width="500%" height="500%">
+                    <feGaussianBlur stdDeviation="2.8" result="b"/>
+                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <g class="daily-rag-nn__edges" fill="none" stroke="url(#nnEdge)" stroke-width="0.85">
+                  <line class="nn-edge" x1="90" y1="60" x2="280" y2="40"/><line class="nn-edge nn-edge--d2" x1="90" y1="60" x2="280" y2="100"/>
+                  <line class="nn-edge nn-edge--d1" x1="90" y1="120" x2="280" y2="40"/><line class="nn-edge" x1="90" y1="120" x2="280" y2="160"/>
+                  <line class="nn-edge nn-edge--d3" x1="90" y1="180" x2="280" y2="100"/><line class="nn-edge nn-edge--d1" x1="90" y1="180" x2="280" y2="220"/>
+                  <line class="nn-edge" x1="90" y1="240" x2="280" y2="160"/><line class="nn-edge nn-edge--d2" x1="90" y1="240" x2="280" y2="280"/>
+                  <line class="nn-edge nn-edge--d1" x1="90" y1="300" x2="280" y2="220"/><line class="nn-edge" x1="90" y1="300" x2="280" y2="320"/>
+                  <line class="nn-edge nn-edge--d2" x1="280" y1="40" x2="500" y2="70"/><line class="nn-edge" x1="280" y1="100" x2="500" y2="70"/>
+                  <line class="nn-edge nn-edge--d1" x1="280" y1="100" x2="500" y2="145"/><line class="nn-edge nn-edge--d3" x1="280" y1="160" x2="500" y2="145"/>
+                  <line class="nn-edge" x1="280" y1="160" x2="500" y2="215"/><line class="nn-edge nn-edge--d2" x1="280" y1="220" x2="500" y2="215"/>
+                  <line class="nn-edge nn-edge--d1" x1="280" y1="280" x2="500" y2="280"/><line class="nn-edge" x1="280" y1="320" x2="500" y2="280"/>
+                  <line class="nn-edge nn-edge--d3" x1="280" y1="220" x2="500" y2="70"/><line class="nn-edge nn-edge--d2" x1="280" y1="40" x2="500" y2="215"/>
+                  <line class="nn-edge" x1="500" y1="70" x2="720" y2="100"/><line class="nn-edge nn-edge--d1" x1="500" y1="145" x2="720" y2="100"/>
+                  <line class="nn-edge nn-edge--d2" x1="500" y1="145" x2="720" y2="180"/><line class="nn-edge" x1="500" y1="215" x2="720" y2="180"/>
+                  <line class="nn-edge nn-edge--d3" x1="500" y1="215" x2="720" y2="260"/><line class="nn-edge nn-edge--d1" x1="500" y1="280" x2="720" y2="260"/>
+                  <line class="nn-edge nn-edge--d2" x1="500" y1="70" x2="720" y2="180"/><line class="nn-edge" x1="500" y1="280" x2="720" y2="100"/>
+                  <line class="nn-edge nn-edge--d1" x1="720" y1="100" x2="910" y2="180"/><line class="nn-edge" x1="720" y1="180" x2="910" y2="180"/>
+                  <line class="nn-edge nn-edge--d2" x1="720" y1="260" x2="910" y2="180"/>
+                </g>
+                <g filter="url(#nnSoftGlowLg)">
+                  <circle class="nn-packet" r="2.2" fill="#ff6b00"><animateMotion dur="4.8s" repeatCount="indefinite" path="M90 120 L280 160 L500 145 L720 180 L910 180"/></circle>
+                  <circle class="nn-packet" r="1.8" fill="#4d8cf7"><animateMotion dur="5.6s" begin="0.8s" repeatCount="indefinite" path="M90 60 L280 40 L500 70 L720 100 L910 180"/></circle>
+                  <circle class="nn-packet" r="1.7" fill="#ff6b00"><animateMotion dur="6.2s" begin="1.6s" repeatCount="indefinite" path="M90 240 L280 280 L500 215 L720 260 L910 180"/></circle>
+                  <circle class="nn-packet" r="1.6" fill="#4d8cf7"><animateMotion dur="5.2s" begin="2.4s" repeatCount="indefinite" path="M90 300 L280 220 L500 280 L720 180 L910 180"/></circle>
+                  <circle class="nn-packet" r="1.5" fill="#ff9a4d"><animateMotion dur="7s" begin="1.1s" repeatCount="indefinite" path="M90 180 L280 100 L500 145 L720 100 L910 180"/></circle>
+                </g>
+                <!-- tiny light points -->
+                <g class="daily-rag-nn__dots" filter="url(#nnSoftGlow)">
+                  <circle class="nn-dot nn-dot--orange" cx="90" cy="60" r="1.8"/><circle class="nn-dot nn-dot--orange" cx="90" cy="120" r="1.6"/>
+                  <circle class="nn-dot nn-dot--orange nn-dot--bright" cx="90" cy="180" r="2"/><circle class="nn-dot nn-dot--orange" cx="90" cy="240" r="1.6"/>
+                  <circle class="nn-dot nn-dot--orange" cx="90" cy="300" r="1.7"/>
+                  <circle class="nn-dot" cx="280" cy="40" r="1.4"/><circle class="nn-dot nn-dot--bright" cx="280" cy="100" r="1.8"/>
+                  <circle class="nn-dot" cx="280" cy="160" r="1.5"/><circle class="nn-dot nn-dot--bright" cx="280" cy="220" r="1.7"/>
+                  <circle class="nn-dot" cx="280" cy="280" r="1.4"/><circle class="nn-dot" cx="280" cy="320" r="1.3"/>
+                  <circle class="nn-dot nn-dot--orange" cx="500" cy="70" r="1.6"/><circle class="nn-dot nn-dot--orange nn-dot--bright" cx="500" cy="145" r="2.1"/>
+                  <circle class="nn-dot nn-dot--orange" cx="500" cy="215" r="1.8"/><circle class="nn-dot nn-dot--orange" cx="500" cy="280" r="1.5"/>
+                  <circle class="nn-dot nn-dot--bright" cx="720" cy="100" r="1.7"/><circle class="nn-dot nn-dot--orange nn-dot--bright" cx="720" cy="180" r="2.2"/>
+                  <circle class="nn-dot" cx="720" cy="260" r="1.6"/>
+                  <circle class="nn-dot nn-dot--orange nn-dot--core" cx="910" cy="180" r="2.6"/>
+                  <!-- ambient scatter -->
+                  <circle class="nn-dot nn-dot--dim" cx="170" cy="90" r="1"/><circle class="nn-dot nn-dot--dim" cx="200" cy="200" r="0.9"/>
+                  <circle class="nn-dot nn-dot--dim" cx="360" cy="80" r="1"/><circle class="nn-dot nn-dot--dim" cx="390" cy="250" r="0.9"/>
+                  <circle class="nn-dot nn-dot--dim" cx="610" cy="120" r="1"/><circle class="nn-dot nn-dot--dim" cx="640" cy="240" r="0.9"/>
+                  <circle class="nn-dot nn-dot--dim" cx="800" cy="90" r="1"/><circle class="nn-dot nn-dot--dim" cx="830" cy="230" r="1"/>
+                  <circle class="nn-dot nn-dot--dim" cx="450" cy="40" r="0.8"/><circle class="nn-dot nn-dot--dim" cx="150" cy="320" r="0.8"/>
+                </g>
+                <g class="daily-rag-nn__labels" fill="currentColor" font-size="10" font-family="ui-sans-serif,system-ui,sans-serif" opacity="0.38">
+                  <text x="90" y="28" text-anchor="middle">News</text>
+                  <text x="280" y="22" text-anchor="middle">Embed</text>
+                  <text x="500" y="28" text-anchor="middle">Retrieve</text>
+                  <text x="720" y="28" text-anchor="middle">Context</text>
+                  <text x="910" y="28" text-anchor="middle">LLM</text>
+                </g>
+              </svg>
+            </div>
+
+            <div class="daily-rag-core__content">
+              <div class="daily-rag-core__head">
+                <div>
+                  <div class="daily-rag-core__eyebrow">
+                    <span class="daily-rag-intro__live"></span>
+                    {{ t('daily.rag.coreEyebrow') }}
+                  </div>
+                  <h3 class="daily-rag-core__title">
+                    <i class="ph-duotone ph-graph" aria-hidden="true"></i>
+                    {{ t('daily.rag.flowTitle') }}
+                  </h3>
+                  <p class="daily-rag-core__lead">{{ t('daily.rag.flowLead') }}</p>
+                </div>
+                <button type="button" class="btn btn-primary daily-rag-fetch-btn" @click="fetchNewsNow" :disabled="newsFetchLoading">
+                  <i class="ph-duotone ph-cloud-arrow-down" :class="{ 'spin-slow': newsFetchLoading }" aria-hidden="true"></i>
+                  {{ newsFetchLoading ? t('daily.rag.fetching') : t('daily.rag.fetch') }}
+                </button>
+              </div>
+
+              <div class="daily-rag-flow-wrap">
+                <div class="daily-rag-flow">
+                  <article class="daily-rag-step" style="--rag-i: 0">
+                    <div class="daily-rag-step__top">
+                      <span class="daily-rag-step__num">1</span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-rss" aria-hidden="true"></i></span>
+                    </div>
+                    <div class="daily-rag-step__name">{{ t('daily.rag.flow1Title') }}</div>
+                    <p class="daily-rag-step__desc">{{ t('daily.rag.flow1Desc') }}</p>
+                  </article>
+                  <div class="daily-rag-connector" aria-hidden="true"><span class="daily-rag-connector__line"></span><span class="daily-rag-connector__dot"></span></div>
+                  <article class="daily-rag-step" style="--rag-i: 1">
+                    <div class="daily-rag-step__top">
+                      <span class="daily-rag-step__num">2</span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-magnifying-glass" aria-hidden="true"></i></span>
+                    </div>
+                    <div class="daily-rag-step__name">{{ t('daily.rag.flow2Title') }}</div>
+                    <p class="daily-rag-step__desc">{{ t('daily.rag.flow2Desc') }}</p>
+                  </article>
+                  <div class="daily-rag-connector" aria-hidden="true"><span class="daily-rag-connector__line"></span><span class="daily-rag-connector__dot"></span></div>
+                  <article class="daily-rag-step" style="--rag-i: 2">
+                    <div class="daily-rag-step__top">
+                      <span class="daily-rag-step__num">3</span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-brain" aria-hidden="true"></i></span>
+                    </div>
+                    <div class="daily-rag-step__name">{{ t('daily.rag.flow3Title') }}</div>
+                    <p class="daily-rag-step__desc">{{ t('daily.rag.flow3Desc') }}</p>
+                  </article>
+                </div>
+              </div>
+
+              <div class="daily-rag-workspace" :class="{ 'daily-rag-workspace--asking': ragLoading, 'daily-rag-workspace--ready': ragAsked && !ragLoading }">
+                <section class="daily-rag-ask-panel">
+                  <div class="daily-rag-ask-panel__head">
+                    <div class="card-title">
+                      <i class="ph-duotone ph-chat-circle-dots" aria-hidden="true"></i>
+                      {{ t('daily.rag.qaTitle') }}
+                    </div>
+                    <span class="tag tag-orange">
+                      {{ ragRetrieval.mode === 'vector' ? t('daily.rag.qaBadgeVector') : t('daily.rag.qaBadge') }}
+                    </span>
+                  </div>
+                  <p class="daily-rag-ask-panel__desc">{{ t('daily.rag.qaDesc') }}</p>
+                  <div class="rag-ask">
+                    <input v-model.trim="ragQuery" type="text" class="rag-ask__input"
+                           :placeholder="t('daily.rag.placeholder')"
+                           @keyup.enter="askRag()" :disabled="ragLoading" />
+                    <button class="btn btn-primary" @click="askRag()" :disabled="ragLoading || !ragQuery">
+                      <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                      {{ ragLoading ? t('daily.rag.asking') : t('daily.rag.ask') }}
+                    </button>
+                  </div>
+                  <div class="rag-suggestions">
+                    <button v-for="(sug, i) in ragSuggestions" :key="i" type="button"
+                            class="rag-chip" @click="askRag(sug)" :disabled="ragLoading">{{ sug }}</button>
+                  </div>
+                </section>
+
+                <section class="daily-rag-out-panel" :class="{ 'is-loading': ragLoading, 'has-answer': ragAsked && !ragLoading }">
+                  <div class="daily-rag-out-panel__scan" aria-hidden="true"></div>
+                  <div class="daily-rag-out-panel__head">
+                    <div class="card-title">
+                      <i class="ph-duotone ph-cpu" aria-hidden="true"></i>
+                      {{ t('daily.rag.outTitle') }}
+                    </div>
+                    <span v-if="ragLoading" class="tag tag-orange daily-rag-out-panel__status">
+                      <span class="daily-rag-out-panel__pulse"></span>
+                      {{ t('daily.rag.asking') }}
+                    </span>
+                    <span v-else-if="ragAsked" class="tag tag-green">{{ t('daily.rag.outReady') }}</span>
+                    <span v-else class="tag">{{ t('daily.rag.outIdle') }}</span>
+                  </div>
+
+                  <div v-if="!ragAsked" class="daily-rag-out-empty">
+                    <div class="daily-rag-out-empty__ring" aria-hidden="true"></div>
+                    <p>{{ t('daily.rag.outEmpty') }}</p>
+                  </div>
+
+                  <div v-else-if="ragLoading" class="daily-rag-out-loading">
+                    <div class="daily-rag-out-loading__bars" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <p>{{ t('daily.rag.outStreaming') }}</p>
+                  </div>
+
+                  <div v-else class="daily-rag-out-body">
+                    <div class="rag-answer" v-html="renderCitations(ragAnswer)"></div>
+                    <div v-if="ragAnswerSources.length" class="rag-answer-sources">
+                      <div class="rag-answer-sources__label">{{ t('daily.rag.citedSources') }}</div>
+                      <div v-for="s in ragAnswerSources" :key="'qs'+s.id" class="rag-source rag-source--sm"
+                           :class="{ 'rag-source--link': !!s.url }">
+                        <span class="rag-source__id">[{{ s.id }}]</span>
+                        <span class="tag" :class="s.type === 'kb' ? 'tag-orange' : 'tag-blue'">
+                          {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
+                        </span>
+                        <div class="rag-source__body">
+                          <a v-if="s.url" class="rag-source__title rag-source__title--a"
+                             :href="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a>
+                          <div v-else class="rag-source__title">{{ s.title }}</div>
+                          <div class="rag-source__snippet">{{ s.snippet }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <div class="daily-secondary-grid">
+            <!-- 热点榜 -->
+            <section class="card daily-panel">
               <div class="card-header">
                 <div class="card-title">{{ t('daily.hotVolume') }}</div>
                 <span class="tag tag-orange">{{ t('daily.hotVolume.badge') }}</span>
               </div>
-              <div v-for="(skin, idx) in hotVolume.slice(0, 5)" :key="skin.id"
-                class="flex items-center gap-3 mb-3" style="padding: 8px; background: var(--bg-tertiary); border-radius: 6px;">
-                <div style="font-size: 16px; font-weight: 700; color: var(--accent-orange); width: 24px;">{{ idx + 1 }}</div>
-                <div style="font-size: 22px;">{{ skin.image }}</div>
-                <div style="flex: 1;">
-                  <div class="text-sm font-bold">{{ skin.name }}</div>
-                  <div class="text-muted" style="font-size: 11px;">{{ categoryLabel(skin.category) }}</div>
-                </div>
-                <div style="text-align: right;">
-                  <div class="font-bold">${{ formatPrice(skin.price) }}</div>
-                  <div class="text-muted" style="font-size: 11px;">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">{{ t('daily.aiSummary') }}</div>
-                <span class="tag tag-purple">{{ t('daily.aiSummaryModel') }}</span>
-              </div>
-              <div style="line-height: 1.8; font-size: 13px;">
-                <p v-if="dailyReport.aiSummary" style="white-space: pre-wrap;" v-html="renderCitations(dailyReport.aiSummary)"></p>
-                <template v-else>
-                <p>{{ t('daily.summaryText1') }}<span style="color: var(--accent-red); font-weight: 600;">{{ t('daily.summaryStrong') }}</span>{{ t('daily.summaryText2') }}</p>
-                <br>
-                <p><strong style="color: var(--accent-orange);">{{ t('daily.coreDriver') }}</strong></p>
-                <ol style="padding-left: 20px; margin-top: 8px;">
-                  <li>{{ t('daily.driver1') }}</li>
-                  <li>{{ t('daily.driver2') }}</li>
-                  <li>{{ t('daily.driver3') }}</li>
-                </ol>
-                <br>
-                <p><strong style="color: var(--accent-red);">{{ t('daily.opportunity') }}</strong> {{ t('daily.opportunityText') }}</p>
-                <br>
-                <p><strong style="color: var(--accent-green);">{{ t('daily.risk') }}</strong> {{ t('daily.riskText') }}</p>
-                </template>
-                <br>
-                <p class="text-muted text-sm">{{ t('daily.aiDisclaimer') }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- RAG 智能问答 -->
-          <div class="card mb-4">
-            <div class="card-header">
-              <div class="card-title">
-                <i class="ph-duotone ph-chat-circle-dots" aria-hidden="true"></i>
-                {{ t('daily.rag.qaTitle') }}
-              </div>
-              <span class="tag tag-purple">
-                {{ ragRetrieval.mode === 'vector' ? t('daily.rag.qaBadgeVector') : t('daily.rag.qaBadge') }}
-              </span>
-            </div>
-            <p class="text-muted text-sm mb-3">{{ t('daily.rag.qaDesc') }}</p>
-            <div class="rag-ask">
-              <input v-model.trim="ragQuery" type="text" class="rag-ask__input"
-                     :placeholder="t('daily.rag.placeholder')"
-                     @keyup.enter="askRag()" :disabled="ragLoading" />
-              <button class="btn btn-primary" @click="askRag()" :disabled="ragLoading || !ragQuery">
-                <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-                {{ ragLoading ? t('daily.rag.asking') : t('daily.rag.ask') }}
-              </button>
-            </div>
-            <div class="rag-suggestions">
-              <button v-for="(sug, i) in ragSuggestions" :key="i" type="button"
-                      class="rag-chip" @click="askRag(sug)" :disabled="ragLoading">{{ sug }}</button>
-            </div>
-
-            <div v-if="ragAsked" class="rag-result">
-              <div v-if="ragLoading" class="rag-loading">
-                <div class="skeleton skeleton-line medium"></div>
-                <div class="skeleton skeleton-line medium" style="margin-top: 8px;"></div>
-              </div>
-              <template v-else>
-                <div class="rag-answer" v-html="renderCitations(ragAnswer)"></div>
-                <div v-if="ragAnswerSources.length" class="rag-answer-sources">
-                  <div class="rag-answer-sources__label">{{ t('daily.rag.citedSources') }}</div>
-                <div v-for="s in ragAnswerSources" :key="'qs'+s.id" class="rag-source rag-source--sm"
-                     :class="{ 'rag-source--link': !!s.url }">
-                    <span class="rag-source__id">[{{ s.id }}]</span>
-                    <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
-                      {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
-                    </span>
-                    <div class="rag-source__body">
-                      <a v-if="s.url" class="rag-source__title rag-source__title--a"
-                         :href="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a>
-                      <div v-else class="rag-source__title">{{ s.title }}</div>
-                      <div class="rag-source__snippet">{{ s.snippet }}</div>
-                      <div class="rag-source__meta">{{ s.source }}<template v-if="s.date"> · {{ s.date }}</template></div>
+              <div class="daily-movers">
+                <button
+                  v-for="(skin, idx) in hotVolume.slice(0, 5)"
+                  :key="skin.id"
+                  type="button"
+                  class="daily-mover"
+                  @click="viewSkin(skin.id)"
+                >
+                  <div class="daily-mover__rank">{{ idx + 1 }}</div>
+                  <div class="daily-mover__emoji" aria-hidden="true">{{ skin.image }}</div>
+                  <div class="daily-mover__info">
+                    <div class="daily-mover__name">{{ skin.name }}</div>
+                    <div class="daily-mover__cat">{{ categoryLabel(skin.category) }}</div>
+                  </div>
+                  <div class="daily-mover__stats">
+                    <div class="daily-mover__price">${{ formatPrice(skin.price) }}</div>
+                    <div class="daily-mover__chg" :class="(skin.change24h||0) >= 0 ? 'text-up' : 'text-down'">
+                      {{ formatChange(skin.change24h) }}
                     </div>
-                    <div class="rag-source__rel">
-                      <div class="rag-rel-bar"><div class="rag-rel-bar__fill" :style="{ width: Math.round((s.relevance||0)*100) + '%' }"></div></div>
-                      <span>{{ Math.round((s.relevance||0)*100) }}%</span>
+                  </div>
+                </button>
+              </div>
+            </section>
+
+            <!-- 资讯流 -->
+            <section class="card daily-panel">
+              <div class="card-header">
+                <div class="card-title">{{ t('daily.newsStream') }}</div>
+                <div class="daily-rag-intro__actions">
+                  <button type="button" class="btn btn-secondary btn-sm" @click="fetchNewsNow" :disabled="newsFetchLoading">
+                    <i class="ph ph-arrows-clockwise" :class="{ 'spin-slow': newsFetchLoading }" aria-hidden="true"></i>
+                    {{ newsFetchLoading ? t('daily.rag.fetching') : t('daily.rag.fetch') }}
+                  </button>
+                  <span class="tag tag-blue">{{ t('daily.newsBadge') }}</span>
+                </div>
+              </div>
+              <div class="news-list news-list--compact">
+                <div v-for="news in newsFeed.slice(0, 6)" :key="news.id"
+                     class="news-item"
+                     :class="{ 'news-item--link': !!news.url }">
+                  <div class="news-icon">{{ newsIcon(news.sentiment) }}</div>
+                  <div class="news-body">
+                    <a v-if="news.url" class="news-title news-title--a"
+                       :href="news.url" target="_blank" rel="noopener noreferrer">{{ news.title }}</a>
+                    <div v-else class="news-title">{{ news.title }}</div>
+                    <div class="news-summary">{{ news.summary }}</div>
+                    <div class="news-meta">
+                      <span class="tag">{{ news.source }}</span>
+                      <span>{{ news.time }}</span>
+                      <span :class="news.sentiment === 'positive' ? 'tag tag-green' : news.sentiment === 'negative' ? 'tag tag-red' : 'tag tag-blue'" style="margin-left: auto;">
+                        {{ news.impact }}
+                      </span>
                     </div>
                   </div>
                 </div>
-              </template>
-            </div>
+              </div>
+            </section>
           </div>
 
-          <!-- RAG 检索来源: 本日报引用的知识库/资讯 -->
-          <div class="card mb-4" v-if="dailyReport.sources && dailyReport.sources.length">
+          <!-- 日报引用来源 -->
+          <section class="card daily-panel" v-if="dailyReport.sources && dailyReport.sources.length">
             <div class="card-header">
               <div class="card-title">
-                <i class="ph-duotone ph-database" aria-hidden="true"></i>
+                <i class="ph-duotone ph-books" aria-hidden="true"></i>
                 {{ t('daily.rag.sourcesTitle') }}
               </div>
-              <span class="tag tag-purple">{{ t('daily.rag.sourcesBadge') }}</span>
+              <span class="tag tag-orange">{{ t('daily.rag.sourcesBadge') }}</span>
             </div>
             <p class="text-muted text-sm mb-3">{{ t('daily.rag.sourcesDesc') }}</p>
             <div class="rag-sources">
               <div v-for="s in dailyReport.sources" :key="'ds'+s.id" class="rag-source"
                    :class="{ 'rag-source--link': !!s.url }">
                 <span class="rag-source__id">[{{ s.id }}]</span>
-                <span class="tag" :class="s.type === 'kb' ? 'tag-purple' : 'tag-blue'">
+                <span class="tag" :class="s.type === 'kb' ? 'tag-orange' : 'tag-blue'">
                   {{ s.type === 'kb' ? t('daily.rag.typeKb') : t('daily.rag.typeNews') }}
                 </span>
                 <div class="rag-source__body">
@@ -1544,34 +1771,7 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">{{ t('daily.newsStream') }}</div>
-              <span class="tag tag-blue">{{ t('daily.newsBadge') }}</span>
-            </div>
-            <div class="news-list">
-              <div v-for="news in newsFeed" :key="news.id"
-                   class="news-item"
-                   :class="{ 'news-item--link': !!news.url }">
-                <div class="news-icon">{{ newsIcon(news.sentiment) }}</div>
-                <div class="news-body">
-                  <a v-if="news.url" class="news-title news-title--a"
-                     :href="news.url" target="_blank" rel="noopener noreferrer">{{ news.title }}</a>
-                  <div v-else class="news-title">{{ news.title }}</div>
-                  <div class="news-summary">{{ news.summary }}</div>
-                  <div class="news-meta">
-                    <span class="tag">{{ news.source }}</span>
-                    <span>{{ news.time }}</span>
-                    <span :class="news.sentiment === 'positive' ? 'tag tag-green' : news.sentiment === 'negative' ? 'tag tag-red' : 'tag tag-blue'" style="margin-left: auto;">
-                      {{ news.impact }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
 
         <!-- 价格预警(二级视图:物品详情 / 我的库存 入口) -->
@@ -1857,8 +2057,9 @@
               <button class="btn btn-primary" @click="showPortfolioModal = true">
                 <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
-              <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline">
-                {{ t('portfolio.diagnose') }}
+              <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline || portfolioDiagnoseLoading">
+                <i class="ph ph-heartbeat" :class="{ 'spin-slow': portfolioDiagnoseLoading }" aria-hidden="true"></i>
+                {{ portfolioDiagnoseLoading ? t('portfolio.diag.loading') : t('portfolio.diagnose') }}
               </button>
               <button class="btn btn-secondary" @click="goToPage('alerts')">
                 <span>🔔</span> {{ t('portfolio.alertsEntry') }}
@@ -1866,12 +2067,133 @@
             </div>
           </div>
 
-          <div v-if="portfolioDiagnose" class="card mb-4">
+          <div v-if="portfolioDiagnose" class="card mb-4 diag-panel">
             <div class="card-header">
-              <div class="card-title">{{ t('portfolio.diagnose') }}</div>
-              <span class="tag tag-orange" v-if="apiOnline && !portfolioDiagnose.empty">API</span>
+              <div class="card-title">
+                <i class="ph-duotone ph-heartbeat icon-primary" aria-hidden="true"></i>
+                {{ t('portfolio.diagnose') }}
+              </div>
+              <div class="diag-panel__head-meta">
+                <span class="tag tag-orange" v-if="apiOnline && !portfolioDiagnose.empty">API</span>
+                <span class="text-muted text-xs" v-if="portfolioDiagnose.generatedAt">{{ formatDiagnoseTime(portfolioDiagnose.generatedAt) }}</span>
+                <span class="tag tag-blue" v-if="portfolioDiagnose.totalItems">{{ t('portfolio.diag.items', { n: portfolioDiagnose.totalItems }) }}</span>
+              </div>
             </div>
-            <p class="text-sm" :class="portfolioDiagnose.empty ? 'text-muted' : ''" style="line-height: 1.7; white-space: pre-wrap;">{{ portfolioDiagnose.summary || portfolioDiagnose.aiSummary || t('portfolio.emptyDiagnose') }}</p>
+
+            <template v-if="portfolioDiagnose.empty">
+              <p class="text-sm text-muted" style="line-height: 1.7;">{{ portfolioDiagnose.summary || portfolioDiagnose.error || t('portfolio.emptyDiagnose') }}</p>
+            </template>
+
+            <template v-else>
+              <section class="diag-block">
+                <div class="diag-block__label">{{ t('portfolio.diag.summary') }}</div>
+                <p class="diag-summary">{{ portfolioDiagnose.aiSummary || portfolioDiagnose.summary || '—' }}</p>
+              </section>
+
+              <section class="diag-block" v-if="portfolioDiagnose.valueRange">
+                <div class="diag-block__label">{{ t('portfolio.diag.valueRange') }}</div>
+                <div class="diag-kpis">
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.current') }}</span>
+                    <strong class="diag-kpi__value">${{ formatPrice(portfolioDiagnose.valueRange.current) }}</strong>
+                  </article>
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.pred7') }}</span>
+                    <strong class="diag-kpi__value diag-kpi__value--range">
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred7d_low) }}
+                      <span class="diag-kpi__sep">~</span>
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred7d_high) }}
+                    </strong>
+                    <span
+                      class="diag-kpi__hint"
+                      :class="(portfolioDiagnose.valueRange.expected7d_change_pct || 0) >= 0 ? 'text-up' : 'text-down'"
+                    >
+                      {{ (portfolioDiagnose.valueRange.expected7d_change_pct || 0) >= 0 ? '+' : '' }}{{ Number(portfolioDiagnose.valueRange.expected7d_change_pct || 0).toFixed(1) }}%
+                    </span>
+                  </article>
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.pred30') }}</span>
+                    <strong class="diag-kpi__value diag-kpi__value--range">
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred30d_low) }}
+                      <span class="diag-kpi__sep">~</span>
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred30d_high) }}
+                    </strong>
+                  </article>
+                </div>
+              </section>
+
+              <section class="diag-block" v-if="(portfolioDiagnose.adjustments || []).length">
+                <div class="diag-block__label">{{ t('portfolio.diag.adjustments') }}</div>
+                <div class="diag-table-wrap">
+                  <table class="diag-table">
+                    <thead>
+                      <tr>
+                        <th>{{ t('portfolio.diag.col.skin') }}</th>
+                        <th>{{ t('portfolio.diag.col.action') }}</th>
+                        <th>{{ t('portfolio.diag.col.pred') }}</th>
+                        <th>{{ t('portfolio.diag.col.pnl') }}</th>
+                        <th>{{ t('portfolio.diag.col.reason') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in portfolioDiagnose.adjustments" :key="'adj-' + (row.id || row.skinId || row.name)">
+                        <td>
+                          <div class="diag-skin">
+                            <strong>{{ row.name }}</strong>
+                            <span class="text-muted text-xs">${{ formatPrice(row.currentPrice) }} × {{ row.quantity }}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span class="diag-action" :class="diagnoseActionClass(row.action)">{{ diagnoseActionLabel(row.action) }}</span>
+                        </td>
+                        <td>
+                          <div :class="(row.predChange7d || 0) >= 0 ? 'text-up' : 'text-down'">
+                            {{ (row.predChange7d || 0) >= 0 ? '+' : '' }}{{ Number(row.predChange7d || 0).toFixed(1) }}%
+                          </div>
+                          <div class="text-muted text-xs">7d ${{ formatPrice(row.pred7d) }}</div>
+                        </td>
+                        <td>
+                          <span v-if="row.pnlPct != null" :class="row.pnlPct >= 0 ? 'text-up' : 'text-down'">
+                            {{ row.pnlPct >= 0 ? '+' : '' }}{{ Number(row.pnlPct).toFixed(1) }}%
+                          </span>
+                          <span v-else class="text-muted">—</span>
+                        </td>
+                        <td class="diag-reason">{{ row.reason || '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="diag-block diag-block--last" v-if="(portfolioDiagnose.riskTopN || []).length">
+                <div class="diag-block__label">{{ t('portfolio.diag.riskTop') }}</div>
+                <div class="diag-risk-list">
+                  <article
+                    v-for="(r, idx) in portfolioDiagnose.riskTopN"
+                    :key="'risk-' + idx + r.name"
+                    class="diag-risk"
+                  >
+                    <div class="diag-risk__rank">{{ idx + 1 }}</div>
+                    <div class="diag-risk__body">
+                      <div class="diag-risk__top">
+                        <strong>{{ r.name }}</strong>
+                        <span class="diag-risk__share">{{ Number(r.riskSharePct || 0).toFixed(1) }}%</span>
+                      </div>
+                      <div class="diag-risk__bar" aria-hidden="true">
+                        <span :style="{ width: Math.min(100, Number(r.riskSharePct || 0)) + '%' }"></span>
+                      </div>
+                      <div class="diag-risk__meta text-muted text-xs">
+                        {{ t('portfolio.diag.mv') }} ${{ formatPrice(r.marketValue) }}
+                        · Vol {{ ((r.vol30 || 0) * 100).toFixed(1) }}%
+                        · DD {{ ((r.maxDrawdown30 || 0) * 100).toFixed(1) }}%
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <p class="diag-disclaimer">{{ t('portfolio.diag.disclaimer') }}</p>
+            </template>
           </div>
 
           <div class="portfolio-summary mb-4">
@@ -1960,15 +2282,23 @@
           </div>
         </div>
 
-        <!-- 模型实验室：独立滚动壳，避免被外层/图表抢走触摸 -->
+        <!-- 模型实验室：分析台布局 -->
         <div v-if="currentPage === 'models'" class="models-lab">
           <header class="models-lab__bar">
             <div class="models-lab__heading">
               <h2 class="models-lab__title">
                 <i class="ph-duotone ph-cpu icon-primary" aria-hidden="true"></i>
                 {{ t('models.title') }}
+                <span
+                  class="models-lab__source"
+                  :class="{
+                    'is-live': modelsDataSource === 'live',
+                    'is-demo': modelsDataSource === 'demo',
+                    'is-loading': modelsLoading,
+                  }"
+                >{{ modelsLoading ? t('models.source.loading') : (modelsDataSource === 'live' ? t('models.source.live') : t('models.source.demo')) }}</span>
               </h2>
-              <p class="models-lab__sub">{{ modelTrack === 'online' ? t('models.subtitleOnline') : t('models.subtitleShort') }}</p>
+              <p class="models-lab__sub">{{ modelTrack === 'online' ? t('models.subtitleOnline') : t('models.subtitleShort', { n: modelsNItems }) }}</p>
             </div>
             <div class="models-lab__actions">
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
@@ -1994,155 +2324,228 @@
             <div class="models-lab__hint models-track-meta">
               {{ modelTrack === 'online' ? t('models.trackOnlineDesc') : t('models.trackHistoricalDesc') }}
               <span v-if="modelTrackMetadata.dateRange">
-                · {{ modelTrackMetadata.dateRange.start }} – {{ modelTrackMetadata.dateRange.end }}
+                · {{ modelTrackMetadata.dateRange.start }} — {{ modelTrackMetadata.dateRange.end }}
                 · {{ modelTrackMetadata.items }} items · {{ modelTrackMetadata.decisions }} decisions
               </span>
             </div>
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.regressionTable') }}</h3>
-                <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
+            <div class="models-lab__kpi" aria-label="KPI">
+              <div class="models-lab__kpi-item" v-for="k in modelsKpis" :key="k.id">
+                <span class="models-lab__kpi-label">{{ k.label }}</span>
+                <strong class="models-lab__kpi-value">{{ k.value }}</strong>
+                <span class="models-lab__kpi-meta" v-if="k.meta">{{ k.meta }}</span>
               </div>
-              <div class="models-lab__hint">{{ modelTrack === 'online' ? t('models.onlineNote') : t('models.routeNote') }}</div>
-              <div class="models-lab__list" role="list">
-                <article v-for="m in regressionModels" :key="'r-' + m.name" class="ml-card" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name">
-                      <strong>{{ m.name === 'Hybrid' ? t('models.hybridHistoricalName') : m.name }}</strong>
-                      <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
-                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.historicalBadge') }}</span>
-                      <span v-else-if="m.name === 'Hybrid-V2-Calibrated'" class="tag tag-green">Online</span>
-                      <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
+            </div>
+
+            <div class="models-lab__bento" :class="{ 'is-loading': modelsLoading }">
+              <section class="models-lab__section models-lab__section--reg">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.regressionEyebrow') }}</p>
+                    <h3>{{ t('models.regressionTable') }}</h3>
+                  </div>
+                  <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
+                </div>
+                <div class="models-lab__hint">{{ modelTrack === 'online' ? t('models.onlineNote') : t('models.routeNote') }}</div>
+                <div class="models-lab__list" role="list">
+                  <article
+                    v-for="m in regressionModels"
+                    :key="'r-' + m.name"
+                    class="ml-card"
+                    :class="{
+                      'ml-card--star': m.name === 'LSTM-C',
+                      'ml-card--hybrid': m.name === 'Hybrid',
+                      'ml-card--active': selectedRadarModel === m.name,
+                    }"
+                    role="listitem"
+                    tabindex="0"
+                    @click="selectRadarModel(m.name)"
+                    @keydown.enter.prevent="selectRadarModel(m.name)"
+                  >
+                    <div class="ml-card__top">
+                      <div class="ml-card__name">
+                        <strong>{{ m.name === 'Hybrid' ? t('models.hybridHistoricalName') : m.name }}</strong>
+                        <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
+                        <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.historicalBadge') }}</span>
+                        <span v-else-if="m.name === 'Hybrid-V2-Calibrated'" class="tag tag-green">Online</span>
+                        <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">{{ t('models.badge.mape') }}</span>
+                        <span v-if="m.name === modelsBest.rmse" class="tag tag-orange">{{ t('models.badge.best') }} RMSE</span>
+                        <span v-if="m.name === modelsBest.mape" class="tag tag-green">{{ t('models.badge.best') }} MAPE</span>
+                      </div>
+                      <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
                     </div>
-                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+                    <div class="ml-card__metrics">
+                      <div :class="{ 'is-best': m.name === modelsBest.rmse }"><span>RMSE</span><b>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</b></div>
+                      <div><span>MAE</span><b>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</b></div>
+                      <div :class="{ 'is-best': m.name === modelsBest.mape }"><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
+                      <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
+                    </div>
+                    <div class="ml-card__return" :class="(m.returnPct ?? 0) >= 0 ? 'text-up' : 'text-down'">
+                      <span>{{ t('models.col.returnPct') }}</span>
+                      <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section v-if="modelTrack === 'historical'" class="models-lab__section models-lab__section--clf">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.classificationEyebrow') }}</p>
+                    <h3>{{ t('models.classificationTable') }}</h3>
+                  </div>
+                  <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
+                </div>
+                <div class="models-lab__list" role="list">
+                  <article v-for="m in classificationModels" :key="'c-' + m.name" class="ml-card" role="listitem">
+                    <div class="ml-card__top">
+                      <div class="ml-card__name"><strong>{{ m.name }}</strong></div>
+                      <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+                    </div>
+                    <div class="ml-card__metrics ml-card__metrics--3">
+                      <div><span>ACC</span><b>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</b></div>
+                      <div><span>AUC</span><b>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</b></div>
+                      <div>
+                        <span>{{ t('models.col.returnPct') }}</span>
+                        <b :class="(m.returnPct ?? 0) >= 0 ? 'text-up' : 'text-down'">
+                          {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
+                        </b>
+                      </div>
+                    </div>
+                  </article>
+                  <article class="ml-card ml-card--muted" role="listitem">
+                    <div class="ml-card__top">
+                      <div class="ml-card__name"><strong>{{ t('models.buyHold') }}</strong></div>
+                      <span class="ml-card__type">{{ t('models.buyHoldHint') }}</span>
+                    </div>
+                    <div class="ml-card__return">
+                      <span>{{ t('models.col.returnPct') }}</span>
+                      <strong class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</strong>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section v-if="modelTrack === 'online' && trend30Metrics" class="models-lab__section models-lab__section--clf">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.trend30Desc') }}</p>
+                    <h3>{{ t('models.trend30Title') }}</h3>
+                  </div>
+                  <span class="tag tag-green">Keras · 30D</span>
+                </div>
+                <article class="ml-card ml-card--trend">
+                  <div class="ml-card__top">
+                    <div class="ml-card__name"><strong>{{ trend30Metrics.name }}</strong></div>
+                    <span class="ml-card__type">{{ trend30Metrics.items }} items</span>
                   </div>
                   <div class="ml-card__metrics">
-                    <div><span>RMSE</span><b>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</b></div>
-                    <div><span>MAE</span><b>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</b></div>
-                    <div><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
-                    <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
-                  </div>
-                  <div v-if="m.returnPct != null" class="ml-card__return" :class="m.returnPct >= 15 ? 'text-up' : 'text-down'">
-                    <span>{{ t('models.col.returnPct') }}</span>
-                    <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
+                    <div><span>RMSE</span><b>{{ trend30Metrics.rmse != null ? trend30Metrics.rmse.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAE</span><b>{{ trend30Metrics.mae != null ? trend30Metrics.mae.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAPE</span><b>{{ trend30Metrics.mape != null ? trend30Metrics.mape.toFixed(2) + '%' : '—' }}</b></div>
+                    <div><span>R²</span><b>{{ trend30Metrics.r2 != null ? trend30Metrics.r2.toFixed(2) : '—' }}</b></div>
                   </div>
                 </article>
-              </div>
-            </section>
+              </section>
 
-            <section v-if="modelTrack === 'online' && trend30Metrics" class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.trend30Title') }}</h3>
-                <span class="tag tag-green">Keras · 30D</span>
-              </div>
-              <div class="models-lab__hint">{{ t('models.trend30Desc') }}</div>
-              <article class="ml-card ml-card--trend">
-                <div class="ml-card__top">
-                  <div class="ml-card__name"><strong>{{ trend30Metrics.name }}</strong></div>
-                  <span class="ml-card__type">{{ trend30Metrics.items }} items</span>
+              <section class="models-lab__section models-lab__section--radar">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.radarEyebrow') }}</p>
+                    <h3>{{ t('models.radar') }}</h3>
+                  </div>
+                  <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
                 </div>
-                <div class="ml-card__metrics">
-                  <div><span>RMSE</span><b>{{ trend30Metrics.rmse != null ? trend30Metrics.rmse.toFixed(2) : '—' }}</b></div>
-                  <div><span>MAE</span><b>{{ trend30Metrics.mae != null ? trend30Metrics.mae.toFixed(2) : '—' }}</b></div>
-                  <div><span>MAPE</span><b>{{ trend30Metrics.mape != null ? trend30Metrics.mape.toFixed(2) + '%' : '—' }}</b></div>
-                  <div><span>R²</span><b>{{ trend30Metrics.r2 != null ? trend30Metrics.r2.toFixed(2) : '—' }}</b></div>
+                <div class="models-lab__chart-wrap">
+                  <div ref="radarChart" class="models-lab__chart"></div>
+                  <div v-if="!regressionModels.length" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
                 </div>
-              </article>
-            </section>
+              </section>
 
-            <section v-if="modelTrack === 'historical'" class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.classificationTable') }}</h3>
-                <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
-              </div>
-              <div class="models-lab__list" role="list">
-                <article v-for="m in classificationModels" :key="'c-' + m.name" class="ml-card" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name"><strong>{{ m.name }}</strong></div>
-                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+              <section class="models-lab__section models-lab__section--shap">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.shapEyebrow') }}</p>
+                    <h3>{{ t('models.shap') }}</h3>
                   </div>
-                  <div class="ml-card__metrics ml-card__metrics--3">
-                    <div><span>ACC</span><b>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</b></div>
-                    <div><span>AUC</span><b>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</b></div>
-                    <div>
-                      <span>{{ t('models.col.returnPct') }}</span>
-                      <b :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                        {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                      </b>
-                    </div>
+                  <div class="models-lab__section-tools">
+                    <button
+                      v-for="sm in shapModelOptions"
+                      :key="'shap-' + sm.id"
+                      type="button"
+                      class="timeframe-btn"
+                      :class="{ active: shapModel === sm.id }"
+                      @click="setShapModel(sm.id)"
+                    >{{ sm.label }}</button>
                   </div>
-                </article>
-                <article class="ml-card ml-card--muted" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name"><strong>{{ t('models.buyHold') }}</strong></div>
-                  </div>
-                  <div class="ml-card__return">
-                    <span>{{ t('models.col.returnPct') }}</span>
-                    <strong class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</strong>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.radar') }}</h3>
-                <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
-              </div>
-              <div ref="radarChart" class="models-lab__chart"></div>
-            </section>
-
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.backtest') }}</h3>
-                <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
-              </div>
-              <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
-            </section>
-
-            <!-- v5 契约: Seq2Seq Dense(7) 逐日误差 -->
-            <section v-if="modelsPerDay.length" class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.perDay') }}</h3>
-                <div class="models-lab__section-tools">
-                  <button
-                    v-for="m in ['rmse', 'mae', 'mape']"
-                    :key="'pd-' + m"
-                    type="button"
-                    class="timeframe-btn"
-                    :class="{ active: perDayMetric === m }"
-                    @click="setPerDayMetric(m)"
-                  >{{ m.toUpperCase() }}</button>
-                  <span class="tag tag-purple">{{ t('models.perDayBadge') }}</span>
                 </div>
-              </div>
-              <div class="models-lab__hint">{{ t('models.perDayDesc') }}</div>
-              <div ref="perDayChart" class="models-lab__chart"></div>
-            </section>
+                <div class="models-lab__chart-wrap">
+                  <div ref="shapChart" class="models-lab__chart"></div>
+                  <div v-if="shapEmpty" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
+                </div>
+              </section>
 
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.shap') }} · XGBoost</h3>
-                <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
-              </div>
-              <div ref="shapChart" class="models-lab__chart"></div>
-            </section>
+              <section class="models-lab__section models-lab__section--backtest">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.backtestEyebrow') }}</p>
+                    <h3>{{ t('models.backtest') }}</h3>
+                  </div>
+                  <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
+                </div>
+                <div class="models-lab__chart-wrap">
+                  <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
+                  <div v-if="backtestEmpty" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
+                </div>
+                <p class="models-lab__hint models-lab__hint--below">{{ t('models.backtestNote') }}</p>
+              </section>
 
-            <section class="models-lab__section models-lab__section--last">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.trainStrategy') }}</h3>
-              </div>
-              <ul class="models-lab__bullets">
-                <li><strong>TimeSeriesSplit</strong> 70/15/15</li>
-                <li><strong>Walk-Forward</strong> rolling validation</li>
-                <li><strong>SMOTE</strong> · <strong>StandardScaler</strong> · <strong>GridSearch</strong></li>
-                <li><strong>Backtest</strong> vs Buy&Hold · Sharpe / Drawdown</li>
-              </ul>
-              <div class="models-lab__findings">
-                <div class="models-lab__findings-label">{{ t('models.findings') }}</div>
-                <p>{{ t('models.findingsText', { pct: '14.3%' }) }}</p>
-              </div>
-            </section>
+              <section class="models-lab__section models-lab__section--perday">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.perDayEyebrow') }}</p>
+                    <h3>{{ t('models.perDay') }}</h3>
+                  </div>
+                  <div class="models-lab__section-tools" v-if="modelsPerDay.length">
+                    <button
+                      v-for="m in ['rmse', 'mae', 'mape']"
+                      :key="'pd-' + m"
+                      type="button"
+                      class="timeframe-btn"
+                      :class="{ active: perDayMetric === m }"
+                      @click="setPerDayMetric(m)"
+                    >{{ m.toUpperCase() }}</button>
+                    <span class="tag tag-purple">{{ t('models.perDayBadge') }}</span>
+                  </div>
+                </div>
+                <template v-if="modelsPerDay.length">
+                  <div class="models-lab__hint">{{ t('models.perDayDesc') }}</div>
+                  <div class="models-lab__chart-wrap">
+                    <div ref="perDayChart" class="models-lab__chart"></div>
+                  </div>
+                  <p class="models-lab__hint models-lab__hint--below">{{ t('models.perDayHint') }}</p>
+                </template>
+                <p v-else class="models-lab__empty-note">{{ t('models.empty.perDay') }}</p>
+              </section>
+
+              <section class="models-lab__section models-lab__section--insight models-lab__section--last">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.trainEyebrow') }}</p>
+                    <h3>{{ t('models.trainStrategy') }}</h3>
+                  </div>
+                </div>
+                <ul class="models-lab__bullets">
+                  <li>{{ t('models.train.b1') }}</li>
+                  <li>{{ t('models.train.b2') }}</li>
+                  <li>{{ t('models.train.b3') }}</li>
+                  <li>{{ t('models.train.b4') }}</li>
+                </ul>
+                <div class="models-lab__findings">
+                  <div class="models-lab__findings-label">{{ t('models.findings') }}</div>
+                  <p>{{ t('models.findingsText', { pct: modelsFindingsPct }) }}</p>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
 
@@ -2438,10 +2841,12 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260724-steam2"></script>
-  <script src="i18n.js?v=20260724-steam2"></script>
+  <script src="i18n.js?v=20260725-diag"></script>
   <script src="js/api.js?v=20260724-steam2"></script>
   <script src="js/auth.js?v=20260723v"></script>
-  <script src="js/lucide-icons.js?v=20260723v"></script>
-  <script src="app.js?v=20260724-steam2"></script>
+  <script src="js/lucide-icons.js?v=20260724-ragnn"></script>
+  <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
+  <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
+  <script src="app.js?v=20260725-diag"></script>
 </body>
 </html>
