@@ -58,6 +58,53 @@ def test_online_backtest_never_falls_back_to_historical_hybrid(monkeypatch, tmp_
     assert "Hybrid" not in result["series"]
 
 
+def test_models_shap_prefers_current_held_out_shap_contract(monkeypatch, tmp_path):
+    write_json(tmp_path / "shap_features.json", {
+        "contractVersion": "tree-shap-v2",
+        "models": {
+            "xgboost": {
+                "modelFitSplit": "train+val",
+                "explanationSplit": "test",
+                "features": [
+                    {"feature": "MA_90", "importance": 0.75},
+                    {"feature": "log_price", "importance": 0.25},
+                ],
+            },
+        },
+    })
+    monkeypatch.setattr(main, "OUTPUT_DIR", tmp_path)
+
+    result = main.models_shap("xgboost")
+
+    assert result == [
+        {"feature": "MA_90", "importance": 0.75},
+        {"feature": "log_price", "importance": 0.25},
+    ]
+
+
+def test_models_shap_adapts_regression_shap_result_before_legacy_fallback(monkeypatch, tmp_path):
+    write_json(tmp_path / "shap_results.json", {
+        "model": "XGBoost Regression",
+        "model_fit_split": "train+val",
+        "explanation_split": "test",
+        "feature_importance": [
+            {"rank": 1, "feature": "MA_90", "mean_abs_shap": 2.0},
+            {"rank": 2, "feature": "log_price", "mean_abs_shap": 1.0},
+        ],
+    })
+    write_json(tmp_path / "shap_features.json", {
+        "xgboost": [{"feature": "stale", "importance": 1.0}],
+    })
+    monkeypatch.setattr(main, "OUTPUT_DIR", tmp_path)
+
+    result = main.models_shap("xgboost")
+
+    assert result == [
+        {"feature": "MA_90", "importance": 2.0 / 3.0},
+        {"feature": "log_price", "importance": 1.0 / 3.0},
+    ]
+
+
 def test_frontend_labels_legacy_hybrid_as_historical_only():
     root = __import__("pathlib").Path(__file__).resolve().parents[2]
     markup = (root / "index.html").read_text(encoding="utf-8")

@@ -1275,10 +1275,42 @@ def models_backtest(
 @app.get("/api/models/shap")
 def models_shap(model: str = "xgboost"):
     p = OUTPUT_DIR / "shap_features.json"
+    if p.exists():
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            models = data.get("models") if isinstance(data, dict) else None
+            if isinstance(models, dict):
+                block = models.get(model) or models.get("xgboost") or {}
+                features = block.get("features") if isinstance(block, dict) else None
+                if isinstance(features, list):
+                    return features
+        except Exception:
+            pass
+
+    if model == "xgboost":
+        current = OUTPUT_DIR / "shap_results.json"
+        if current.exists():
+            try:
+                payload = json.loads(current.read_text(encoding="utf-8"))
+                rows = payload.get("feature_importance") or []
+                values = [max(0.0, float(row.get("mean_abs_shap", 0))) for row in rows]
+                total = sum(values)
+                if total > 0:
+                    return [
+                        {"feature": row.get("feature"), "importance": value / total}
+                        for row, value in zip(rows, values)
+                        if row.get("feature")
+                    ]
+            except Exception:
+                pass
+
     if not p.exists():
         return []
-    data = json.loads(p.read_text(encoding="utf-8"))
-    return data.get(model, data.get("xgboost", []))
+    try:
+        legacy = json.loads(p.read_text(encoding="utf-8"))
+        return legacy.get(model, legacy.get("xgboost", []))
+    except Exception:
+        return []
 
 
 # ============================================================

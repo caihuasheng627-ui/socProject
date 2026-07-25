@@ -1,104 +1,279 @@
 {
-  "xgboost": [
-    {
-      "feature": "steam_ccu",
-      "importance": 0.1525
+  "contractVersion": "tree-shap-v2",
+  "method": "mean-absolute-shap",
+  "models": {
+    "xgboost": {
+      "modelFitSplit": "train+val",
+      "explanationSplit": "test",
+      "samples": 2000,
+      "features": [
+        {
+          "feature": "log_price",
+          "importance": 0.45474495
+        },
+        {
+          "feature": "MA_7",
+          "importance": 0.29034895
+        },
+        {
+          "feature": "MA_30",
+          "importance": 0.1829114
+        },
+        {
+          "feature": "MA_90",
+          "importance": 0.05201419
+        },
+        {
+          "feature": "rarity_enc",
+          "importance": 0.00340771
+        },
+        {
+          "feature": "days_since_cs2_announce",
+          "importance": 0.00309018
+        },
+        {
+          "feature": "weapon_type_enc",
+          "importance": 0.00286031
+        },
+        {
+          "feature": "MACD",
+          "importance": 0.00210135
+        },
+        {
+          "feature": "RSI_14",
+          "importance": 0.00150907
+        },
+        {
+          "feature": "Volatility_30",
+          "importance": 0.00131161
+        },
+        {
+          "feature": "BB_position",
+          "importance": 0.00100031
+        },
+        {
+          "feature": "wear_enc",
+          "importance": 0.0008479
+        },
+        {
+          "feature": "MA_30_dev",
+          "importance": 0.00072974
+        },
+        {
+          "feature": "days_since_last_major",
+          "importance": 0.00067263
+        },
+        {
+          "feature": "Return_7d",
+          "importance": 0.00066835
+        },
+        {
+          "feature": "Return_1d",
+          "importance": 0.00055544
+        },
+        {
+          "feature": "days_to_next_major",
+          "importance": 0.00054386
+        },
+        {
+          "feature": "steam_ccu",
+          "importance": 0.00048752
+        },
+        {
+          "feature": "is_floor_price",
+          "importance": 0.00011394
+        },
+        {
+          "feature": "is_stattrak",
+          "importance": 8.058e-05
+        },
+        {
+          "feature": "is_major_active",
+          "importance": 0.0
+        }
+      ]
     },
-    {
-      "feature": "RSI_14",
-      "importance": 0.1479
+    "lightgbm": {
+      "modelFitSplit": "train+val",
+      "explanationSplit": "test",
+      "samples": 2000,
+      "features": [
+        {
+          "feature": "log_price",
+          "importance": 0.43064581
+        },
+        {
+          "feature": "MA_7",
+          "importance": 0.2283269
+        },
+        {
+          "feature": "MA_90",
+          "importance": 0.19447554
+        },
+        {
+          "feature": "MA_30",
+          "importance": 0.13216296
+        },
+        {
+          "feature": "weapon_type_enc",
+          "importance": 0.00232528
+        },
+        {
+          "feature": "days_since_cs2_announce",
+          "importance": 0.00225676
+        },
+        {
+          "feature": "RSI_14",
+          "importance": 0.00181948
+        },
+        {
+          "feature": "MACD",
+          "importance": 0.00171954
+        },
+        {
+          "feature": "Volatility_30",
+          "importance": 0.00119122
+        },
+        {
+          "feature": "BB_position",
+          "importance": 0.0011306
+        },
+        {
+          "feature": "MA_30_dev",
+          "importance": 0.00075674
+        },
+        {
+          "feature": "days_since_last_major",
+          "importance": 0.00063642
+        },
+        {
+          "feature": "Return_7d",
+          "importance": 0.00058523
+        },
+        {
+          "feature": "days_to_next_major",
+          "importance": 0.00050742
+        },
+        {
+          "feature": "rarity_enc",
+          "importance": 0.00047083
+        },
+        {
+          "feature": "Return_1d",
+          "importance": 0.00034497
+        },
+        {
+          "feature": "wear_enc",
+          "importance": 0.00030235
+        },
+        {
+          "feature": "steam_ccu",
+          "importance": 0.00017135
+        },
+        {
+          "feature": "is_floor_price",
+          "importance": 0.00017059
+        },
+        {
+          "feature": "is_stattrak",
+          "importance": 0.0
+        },
+        {
+          "feature": "is_major_active",
+          "importance": 0.0
+        }
+      ]
     },
-    {
-      "feature": "days_to_next_major",
-      "importance": 0.1444
-    },
-    {
-      "feature": "MACD",
-      "importance": 0.1305
-    },
-    {
-      "feature": "Return_7d",
-      "importance": 0.1198
-    },
-    {
-      "feature": "MA_30_dev",
-      "importance": 0.109
-    },
-    {
-      "feature": "BB_position",
-      "importance": 0.1013
-    },
-    {
-      "feature": "Volume_Change_Ratio",
-      "importance": 0.0946
+    "average": {
+      "modelFitSplit": "train+val",
+      "explanationSplit": "test",
+      "samples": 2000,
+      "features": [
+        {
+          "feature": "log_price",
+          "importance": 0.44269538
+        },
+        {
+          "feature": "MA_7",
+          "importance": 0.25933792
+        },
+        {
+          "feature": "MA_30",
+          "importance": 0.15753718
+        },
+        {
+          "feature": "MA_90",
+          "importance": 0.12324487
+        },
+        {
+          "feature": "days_since_cs2_announce",
+          "importance": 0.00267347
+        },
+        {
+          "feature": "weapon_type_enc",
+          "importance": 0.0025928
+        },
+        {
+          "feature": "rarity_enc",
+          "importance": 0.00193927
+        },
+        {
+          "feature": "MACD",
+          "importance": 0.00191045
+        },
+        {
+          "feature": "RSI_14",
+          "importance": 0.00166427
+        },
+        {
+          "feature": "Volatility_30",
+          "importance": 0.00125142
+        },
+        {
+          "feature": "BB_position",
+          "importance": 0.00106545
+        },
+        {
+          "feature": "MA_30_dev",
+          "importance": 0.00074324
+        },
+        {
+          "feature": "days_since_last_major",
+          "importance": 0.00065452
+        },
+        {
+          "feature": "Return_7d",
+          "importance": 0.00062679
+        },
+        {
+          "feature": "wear_enc",
+          "importance": 0.00057513
+        },
+        {
+          "feature": "days_to_next_major",
+          "importance": 0.00052564
+        },
+        {
+          "feature": "Return_1d",
+          "importance": 0.00045021
+        },
+        {
+          "feature": "steam_ccu",
+          "importance": 0.00032943
+        },
+        {
+          "feature": "is_floor_price",
+          "importance": 0.00014227
+        },
+        {
+          "feature": "is_stattrak",
+          "importance": 4.029e-05
+        },
+        {
+          "feature": "is_major_active",
+          "importance": 0.0
+        }
+      ]
     }
-  ],
-  "lightgbm": [
-    {
-      "feature": "days_to_next_major",
-      "importance": 0.2616
-    },
-    {
-      "feature": "MACD",
-      "importance": 0.2045
-    },
-    {
-      "feature": "Return_7d",
-      "importance": 0.1152
-    },
-    {
-      "feature": "MA_30_dev",
-      "importance": 0.1123
-    },
-    {
-      "feature": "RSI_14",
-      "importance": 0.1013
-    },
-    {
-      "feature": "steam_ccu",
-      "importance": 0.0763
-    },
-    {
-      "feature": "Volume_Change_Ratio",
-      "importance": 0.0706
-    },
-    {
-      "feature": "BB_position",
-      "importance": 0.0581
-    }
-  ],
-  "average": [
-    {
-      "feature": "days_to_next_major",
-      "importance": 0.203
-    },
-    {
-      "feature": "MACD",
-      "importance": 0.1675
-    },
-    {
-      "feature": "RSI_14",
-      "importance": 0.1246
-    },
-    {
-      "feature": "Return_7d",
-      "importance": 0.1175
-    },
-    {
-      "feature": "steam_ccu",
-      "importance": 0.1144
-    },
-    {
-      "feature": "MA_30_dev",
-      "importance": 0.1106
-    },
-    {
-      "feature": "Volume_Change_Ratio",
-      "importance": 0.0826
-    },
-    {
-      "feature": "BB_position",
-      "importance": 0.0797
-    }
-  ]
+  }
 }
