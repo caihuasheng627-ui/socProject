@@ -339,6 +339,13 @@
       return el;
     }
 
+    function navOffset() {
+      if (!landingRoot) return 48;
+      const raw = getComputedStyle(landingRoot).getPropertyValue('--lp-nav-h');
+      const n = parseFloat(raw);
+      return Number.isFinite(n) ? n : 48;
+    }
+
     function scrollLandingTo(top) {
       if (!landingRoot) return false;
       const y = Math.max(0, top);
@@ -347,6 +354,32 @@
       } catch (_) {
         landingRoot.scrollTop = y;
       }
+      return true;
+    }
+
+    let exitLock = false;
+    let exitTimer = 0;
+
+    // Mandatory scroll snapping swallows small native scrolls while the hero is
+    // the active snap point, so leaving the first screen is driven from here.
+    function exitHero(dir) {
+      if (exitLock || destroyed) return false;
+      let top;
+      if (dir > 0) {
+        const panel = nextPanel();
+        if (!panel) return false;
+        top = panel.offsetTop - navOffset();
+      } else {
+        if (!landingRoot || landingRoot.scrollTop <= 4) return false;
+        top = 0;
+      }
+      if (!scrollLandingTo(top)) return false;
+      exitLock = true;
+      if (exitTimer) clearTimeout(exitTimer);
+      exitTimer = setTimeout(() => {
+        exitLock = false;
+        exitTimer = 0;
+      }, 700);
       return true;
     }
 
@@ -385,11 +418,13 @@
       if (atEnd) {
         velocity = 0;
         wheelAcc = 0;
+        if ((exitHero(1) || exitLock) && e.cancelable) e.preventDefault();
         return;
       }
       if (atStart && scrollTop > 4) {
         velocity = 0;
         wheelAcc = 0;
+        if ((exitHero(-1) || exitLock) && e.cancelable) e.preventDefault();
         return;
       }
 
@@ -470,15 +505,14 @@
       if (committed && dir > 0 && dragBase >= maxIndex) {
         target = maxIndex;
         kick();
-        const panel = nextPanel();
-        if (panel) scrollLandingTo(panel.offsetTop - 48);
+        exitHero(1);
         return;
       }
 
       if (committed && dir < 0 && dragBase <= 0) {
         target = 0;
         kick();
-        if (landingRoot && landingRoot.scrollTop > 4) scrollLandingTo(0);
+        exitHero(-1);
         return;
       }
 
@@ -522,6 +556,9 @@
         sceneLockTimer = 0;
         sceneLock = false;
         clearTimeout(lockSyncTimer);
+        if (exitTimer) clearTimeout(exitTimer);
+        exitTimer = 0;
+        exitLock = false;
         touchLockOn = false;
         heroEl.classList.remove('is-scene-lock');
         listeners.forEach(([el, type, fn, opts]) => {

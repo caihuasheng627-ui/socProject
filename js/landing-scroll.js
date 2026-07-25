@@ -76,10 +76,16 @@
       return best;
     }
 
+    function navOffset() {
+      const raw = getComputedStyle(root).getPropertyValue('--lp-nav-h');
+      const n = parseFloat(raw);
+      return Number.isFinite(n) ? n : 48;
+    }
+
     function scrollToPanel(index) {
       const el = panels[clamp(index, 0, panels.length - 1)];
       if (!el) return;
-      const top = el.offsetTop - 48;
+      const top = el.offsetTop - navOffset();
       root.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? 'auto' : 'smooth' });
     }
 
