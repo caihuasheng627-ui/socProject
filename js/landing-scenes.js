@@ -280,10 +280,41 @@
       }
     }
 
+    const landingRoot = root.closest('.landing');
+    const heroEl = root.closest('.landing-hero') || root;
+
+    const touchCapable =
+      (typeof window !== 'undefined' && 'ontouchstart' in window) ||
+      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+      (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
+
     function heroInView() {
-      const hero = root.closest('.landing-hero') || root;
-      const rect = hero.getBoundingClientRect();
+      const rect = heroEl.getBoundingClientRect();
       return rect.top < window.innerHeight * 0.4 && rect.bottom > window.innerHeight * 0.28;
+    }
+
+    // How much of the screen the hero currently owns (0..1)
+    function heroCoverage() {
+      const rect = heroEl.getBoundingClientRect();
+      const vh = window.innerHeight || 1;
+      const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
+      const ref = Math.min(rect.height || vh, vh);
+      return ref > 0 ? clamp(visible / ref, 0, 1) : 0;
+    }
+
+    let touchLockOn = false;
+
+    function syncTouchLock() {
+      if (destroyed) return;
+      const rect = heroEl.getBoundingClientRect();
+      const vh = window.innerHeight || 1;
+      // A hero taller than the screen must stay natively scrollable, otherwise
+      // the overflowing copy would be unreachable on small phones.
+      const fits = rect.height <= vh * 1.08;
+      const on = touchCapable && fits && heroCoverage() > 0.82;
+      if (on === touchLockOn) return;
+      touchLockOn = on;
+      heroEl.classList.toggle('is-scene-lock', on);
     }
 
     let sceneLock = false;
@@ -291,7 +322,33 @@
     let wheelAcc = 0;
     let touchStartY = 0;
     let touchStartX = 0;
+    let touchStartTs = 0;
     let touchActive = false;
+    let touchAxis = '';
+    let dragBase = 0;
+
+    function swipeSpan() {
+      return clamp((window.innerHeight || 600) * 0.34, 150, 420);
+    }
+
+    function nextPanel() {
+      let el = heroEl.nextElementSibling;
+      while (el && !el.matches('.landing-section, .landing-footer, section')) {
+        el = el.nextElementSibling;
+      }
+      return el;
+    }
+
+    function scrollLandingTo(top) {
+      if (!landingRoot) return false;
+      const y = Math.max(0, top);
+      try {
+        landingRoot.scrollTo({ top: y, behavior: reduceMotion ? 'auto' : 'smooth' });
+      } catch (_) {
+        landingRoot.scrollTop = y;
+      }
+      return true;
+    }
 
     function stepScene(dir) {
       const current = Math.round(target);
@@ -321,9 +378,8 @@
       const current = Math.round(target);
       const atEnd = current >= maxIndex && dy > 0;
       const atStart = current <= 0 && dy < 0;
-      const landing = root.closest('.landing');
-      const scrollTop = landing
-        ? landing.scrollTop
+      const scrollTop = landingRoot
+        ? landingRoot.scrollTop
         : (window.scrollY || document.documentElement.scrollTop || 0);
 
       if (atEnd) {
@@ -350,29 +406,49 @@
     }
 
     function onTouchStart(e) {
-      if (destroyed || !heroInView() || !e.touches || !e.touches[0]) return;
+      touchActive = false;
+      touchAxis = '';
+      if (destroyed || !touchLockOn) return;
+      if (!e.touches || e.touches.length !== 1) return;
       touchActive = true;
       touchStartY = e.touches[0].clientY;
       touchStartX = e.touches[0].clientX;
+      touchStartTs = e.timeStamp || Date.now();
+      dragBase = clamp(Math.round(target), 0, maxIndex);
+      velocity = 0;
+      sceneLock = false;
+      if (sceneLockTimer) {
+        clearTimeout(sceneLockTimer);
+        sceneLockTimer = 0;
+      }
     }
 
     function onTouchMove(e) {
-      if (!touchActive || destroyed || !heroInView()) return;
-      if (!e.touches || !e.touches[0]) return;
-      const dy = e.touches[0].clientY - touchStartY;
-      const dx = e.touches[0].clientX - touchStartX;
-      if (Math.abs(dy) < 12 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
+      if (!touchActive || destroyed) return;
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      const dy = t.clientY - touchStartY;
+      const dx = t.clientX - touchStartX;
 
-      const current = Math.round(target);
-      const atEnd = current >= maxIndex && dy < 0; // finger up => next
-      const atStart = current <= 0 && dy > 0;
-      const landing = root.closest('.landing');
-      const scrollTop = landing ? landing.scrollTop : 0;
+      if (!touchAxis) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+          touchActive = false;
+          return;
+        }
+        if (Math.abs(dy) < 4) return;
+        touchAxis = 'y';
+      }
 
-      if (atEnd || (atStart && scrollTop > 4)) return;
+      // The hero owns the whole vertical gesture, so the page cannot slip away
+      // before every scene has been shown.
+      if (e.cancelable) e.preventDefault();
 
-      // Keep vertical swipe on hero for scene change
-      if (Math.abs(dy) > 18) e.preventDefault();
+      const span = swipeSpan();
+      let raw = dragBase - dy / span;
+      if (raw < 0) raw *= 0.35;
+      else if (raw > maxIndex) raw = maxIndex + (raw - maxIndex) * 0.35;
+      target = clamp(raw, 0, maxIndex);
+      kick();
     }
 
     function onTouchEnd(e) {
@@ -381,22 +457,36 @@
         return;
       }
       touchActive = false;
-      if (!heroInView()) return;
+      if (touchAxis !== 'y') return;
+      touchAxis = '';
+
       const t = (e.changedTouches && e.changedTouches[0]) || null;
-      if (!t) return;
-      const dy = t.clientY - touchStartY;
-      const dx = t.clientX - touchStartX;
-      if (Math.abs(dy) < 42 || Math.abs(dy) < Math.abs(dx) * 1.15) return;
+      const dy = t ? t.clientY - touchStartY : 0;
+      const dt = Math.max(1, (e.timeStamp || Date.now()) - touchStartTs);
+      const span = swipeSpan();
+      const dir = dy < 0 ? 1 : -1; // finger up => next scene
+      const committed = Math.abs(dy) > span * 0.22 || Math.abs(dy) / dt > 0.45;
 
-      const current = Math.round(target);
-      const dir = dy < 0 ? 1 : -1; // swipe up => next scene
-      const atEnd = current >= maxIndex && dir > 0;
-      const atStart = current <= 0 && dir < 0;
-      const landing = root.closest('.landing');
-      const scrollTop = landing ? landing.scrollTop : 0;
-      if (atEnd || (atStart && scrollTop > 4)) return;
+      if (committed && dir > 0 && dragBase >= maxIndex) {
+        target = maxIndex;
+        kick();
+        const panel = nextPanel();
+        if (panel) scrollLandingTo(panel.offsetTop - 48);
+        return;
+      }
 
-      stepScene(dir);
+      if (committed && dir < 0 && dragBase <= 0) {
+        target = 0;
+        kick();
+        if (landingRoot && landingRoot.scrollTop > 4) scrollLandingTo(0);
+        return;
+      }
+
+      target = committed
+        ? clamp(dragBase + dir, 0, maxIndex)
+        : clamp(Math.round(dragBase - dy / span), 0, maxIndex);
+      velocity = 0;
+      kick();
     }
 
     function bind(el, type, fn, opts) {
@@ -405,18 +495,23 @@
       listeners.push([el, type, fn, opts]);
     }
 
-    const wheelHost = options.wheelHost || root.closest('.landing') || root.closest('.landing-hero') || window;
-    const heroEl = root.closest('.landing-hero') || root;
+    const wheelHost = options.wheelHost || landingRoot || heroEl || window;
     bind(wheelHost, 'wheel', onWheel, { passive: false });
     bind(heroEl, 'touchstart', onTouchStart, { passive: true });
     bind(heroEl, 'touchmove', onTouchMove, { passive: false });
     bind(heroEl, 'touchend', onTouchEnd, { passive: true });
     bind(heroEl, 'touchcancel', onTouchEnd, { passive: true });
+    bind(landingRoot || window, 'scroll', syncTouchLock, { passive: true });
+    bind(window, 'orientationchange', syncTouchLock, { passive: true });
     bind(window, 'resize', () => {
-      if (!destroyed) paint(progress);
+      if (destroyed) return;
+      syncTouchLock();
+      paint(progress);
     }, { passive: true });
 
     paint(0);
+    syncTouchLock();
+    const lockSyncTimer = setTimeout(syncTouchLock, 320);
 
     return {
       destroy() {
@@ -426,6 +521,9 @@
         if (sceneLockTimer) clearTimeout(sceneLockTimer);
         sceneLockTimer = 0;
         sceneLock = false;
+        clearTimeout(lockSyncTimer);
+        touchLockOn = false;
+        heroEl.classList.remove('is-scene-lock');
         listeners.forEach(([el, type, fn, opts]) => {
           try { el.removeEventListener(type, fn, opts); } catch (_) { /* ignore */ }
         });
