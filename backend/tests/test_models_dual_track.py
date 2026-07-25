@@ -56,3 +56,13 @@ def test_online_backtest_never_falls_back_to_historical_hybrid(monkeypatch, tmp_
     assert result["track"] == "online"
     assert "Hybrid-V2-Calibrated" in result["series"]
     assert "Hybrid" not in result["series"]
+
+
+def test_frontend_labels_legacy_hybrid_as_historical_only():
+    root = __import__("pathlib").Path(__file__).resolve().parents[2]
+    markup = (root / "index.html").read_text(encoding="utf-8")
+    messages = (root / "i18n.js").read_text(encoding="utf-8")
+
+    assert "models.hybridHistoricalName" in markup
+    assert "Hybrid V1（历史）" in messages
+    assert "当前部署请查看“当前线上模型”中的 Hybrid V2" in messages

@@ -2008,9 +2008,9 @@
                 <article v-for="m in regressionModels" :key="'r-' + m.name" class="ml-card" role="listitem">
                   <div class="ml-card__top">
                     <div class="ml-card__name">
-                      <strong>{{ m.name }}</strong>
+                      <strong>{{ m.name === 'Hybrid' ? t('models.hybridHistoricalName') : m.name }}</strong>
                       <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
-                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">Route</span>
+                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.historicalBadge') }}</span>
                       <span v-else-if="m.name === 'Hybrid-V2-Calibrated'" class="tag tag-green">Online</span>
                       <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
                     </div>
