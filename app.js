@@ -328,44 +328,74 @@ const app = createApp({
         EMAIL: 'auth.err.email',
         WEAK: 'auth.err.weak',
         EXISTS: 'auth.err.exists',
+        GENERIC: 'auth.err.generic',
       };
       return t(map[code] || 'auth.err.generic');
     };
 
-    const submitLogin = () => {
-      if (!Auth || authSubmitting.value) return;
-      authSubmitting.value = true;
-      authError.value = '';
-      const result = Auth.login(authForm.value.email, authForm.value.password);
-      authSubmitting.value = false;
-      if (!result.ok) {
-        authError.value = authErrorMessage(result.code);
-        return;
-      }
-      currentUser.value = result.user;
-      isGuest.value = false;
-      sessionStorage.removeItem('sv_guest');
-      authForm.value.password = '';
-      showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
-      enterSystem();
+    const refreshPersonalDataAfterAuth = async () => {
+      if (!currentUser.value || !apiOnline.value) return;
+      try {
+        await Promise.all([
+          loadAlertsFromApi(),
+          loadPortfolioFromApi(),
+          loadInventoryFromApi().catch(() => null),
+        ]);
+      } catch (_) { /* ignore */ }
     };
 
-    const submitRegister = () => {
+    const submitLogin = async () => {
       if (!Auth || authSubmitting.value) return;
       authSubmitting.value = true;
       authError.value = '';
-      const result = Auth.register(authForm.value.name, authForm.value.email, authForm.value.password);
-      authSubmitting.value = false;
-      if (!result.ok) {
-        authError.value = authErrorMessage(result.code);
-        return;
+      try {
+        const result = await Auth.login(authForm.value.email, authForm.value.password);
+        if (!result.ok) {
+          authError.value = authErrorMessage(result.code);
+          return;
+        }
+        currentUser.value = result.user;
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
+        authForm.value.password = '';
+        showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
+        await refreshPersonalDataAfterAuth();
+        enterSystem();
+      } catch (err) {
+        authError.value = authErrorMessage('GENERIC');
+        console.warn('[Auth] login error:', err);
+      } finally {
+        authSubmitting.value = false;
       }
-      currentUser.value = result.user;
-      isGuest.value = false;
-      sessionStorage.removeItem('sv_guest');
-      authForm.value.password = '';
-      showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
-      enterSystem();
+    };
+
+    const submitRegister = async () => {
+      if (!Auth || authSubmitting.value) return;
+      authSubmitting.value = true;
+      authError.value = '';
+      try {
+        const result = await Auth.register(
+          authForm.value.name,
+          authForm.value.email,
+          authForm.value.password
+        );
+        if (!result.ok) {
+          authError.value = authErrorMessage(result.code);
+          return;
+        }
+        currentUser.value = result.user;
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
+        authForm.value.password = '';
+        showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
+        await refreshPersonalDataAfterAuth();
+        enterSystem();
+      } catch (err) {
+        authError.value = authErrorMessage('GENERIC');
+        console.warn('[Auth] register error:', err);
+      } finally {
+        authSubmitting.value = false;
+      }
     };
 
     const enterAsGuest = () => {
@@ -375,6 +405,7 @@ const app = createApp({
 
     const logoutUser = () => {
       Auth?.logout?.();
+      try { api()?.clearToken?.(); } catch (_) { /* ignore */ }
       currentUser.value = null;
       isGuest.value = false;
       userMenuOpen.value = false;
@@ -3717,6 +3748,21 @@ const app = createApp({
 
       // 自动探测后端；通了就切真实 API
       await connectBackend();
+
+      // 用 /api/me 恢复 JWT 会话（库存/持仓按用户隔离）
+      if (apiOnline.value && Auth?.restoreFromApi) {
+        try {
+          const restored = await Auth.restoreFromApi();
+          currentUser.value = restored || Auth.getCurrentUser?.() || null;
+          if (currentUser.value) {
+            isGuest.value = false;
+            sessionStorage.removeItem('sv_guest');
+            await refreshPersonalDataAfterAuth();
+          }
+        } catch (_) { /* ignore */ }
+      } else if (Auth?.getCurrentUser) {
+        currentUser.value = Auth.getCurrentUser() || null;
+      }
 
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
       if (showLanding.value) {
