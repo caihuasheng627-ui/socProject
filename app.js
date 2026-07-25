@@ -1927,10 +1927,26 @@ const app = createApp({
             name: trendMedianName,
             type: 'line',
             data: trendSeries(compositeTrend),
-            smooth: 0.18,
+            smooth: true,
             showSymbol: false,
             connectNulls: false,
-            lineStyle: { color: '#22c55e', width: 2.5 },
+            lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+                  { offset: 1, color: 'rgba(34, 197, 94, 0)' },
+                ],
+              },
+            },
+            markArea: {
+              itemStyle: { color: 'rgba(34, 197, 94, 0.05)' },
+              data: !hasTrend || !predictedDates.length ? [] : [[
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
+                { xAxis: predictedDates[Math.min(29, predictedDates.length - 1)] },
+              ]],
+            },
             emphasis: { focus: 'series' },
           },
         ],
