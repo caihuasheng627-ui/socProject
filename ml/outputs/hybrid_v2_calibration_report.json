@@ -1,0 +1,77 @@
+{
+  "contractVersion": "hybrid-v2-calibration-evaluation-v1",
+  "dataSource": "sqlite-price-history-rolling-180d",
+  "split": "test",
+  "dateRange": {
+    "start": "2026-06-28",
+    "end": "2026-07-15"
+  },
+  "items": 665,
+  "decisions": 9967,
+  "metrics": {
+    "LSTM-C": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 8.47420365619352,
+      "rmse": 42.89933493022198,
+      "mapePct": 15.003424776336619,
+      "p95ApePct": 36.077204058295386,
+      "directionAccuracy": 0.5149421662916195,
+      "over30Count": 5646,
+      "over30Rate": 0.08092419269302986,
+      "d7Mae": 8.858593419213761,
+      "d7P95ApePct": 37.01664263556571
+    },
+    "LSTM-D": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 12.688874614725247,
+      "rmse": 48.146235715666855,
+      "mapePct": 15.559315992280041,
+      "p95ApePct": 61.70233496932645,
+      "directionAccuracy": 0.5012971376972581,
+      "over30Count": 6372,
+      "over30Rate": 0.09132996029755336,
+      "d7Mae": 13.418767601514698,
+      "d7P95ApePct": 61.65744612064868
+    },
+    "Hybrid-V2-Raw": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 6.434928625959549,
+      "rmse": 27.62294100679998,
+      "mapePct": 6.87676652009769,
+      "p95ApePct": 21.645395864483387,
+      "directionAccuracy": 0.48279321761813987,
+      "over30Count": 94,
+      "over30Rate": 0.0013473032435608939,
+      "d7Mae": 6.921100188739588,
+      "d7P95ApePct": 24.89884368767641
+    },
+    "Hybrid-V2-Calibrated": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 6.452013094706414,
+      "rmse": 27.73944010415362,
+      "mapePct": 6.885365574192352,
+      "p95ApePct": 21.679151515151496,
+      "directionAccuracy": 0.4818185727185426,
+      "over30Count": 0,
+      "over30Rate": 0.0,
+      "d7Mae": 6.927385550433177,
+      "d7P95ApePct": 24.938477951635818
+    }
+  },
+  "calibrationReasonCounts": {
+    "RECENT_TREND_ADJUSTMENT": 9515,
+    "MODEL_DISAGREEMENT": 3528,
+    "SMOOTH_DEVIATION_COMPRESSION": 1342,
+    "PRICE_LEVEL_REBASE": 61
+  },
+  "acceptance": {
+    "zeroDisplayedOver30": true,
+    "maeImprovedVsC": true,
+    "maeImprovedVsD": true,
+    "p95ImprovedVsRaw": false
+  }
+}

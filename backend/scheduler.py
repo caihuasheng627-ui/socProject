@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
@@ -303,6 +304,24 @@ def refresh_buff_prices() -> None:
         print(f"[scheduler] BUFF 刷新失败(不影响主服务): {e}")
 
 
+def refresh_hybrid_v2_adapter() -> None:
+    """Refresh the rolling CS2 adapter; validation failure preserves deployment."""
+    script = ML_DIR / "train_hybrid_v2.py"
+    if not script.exists():
+        return
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(script), "--days", "180", "--batch-size", "512"],
+            cwd=str(REPO_ROOT),
+            timeout=1800,
+            check=False,
+        )
+        if completed.returncode != 0:
+            print("[scheduler] Hybrid V2 refresh rejected; deployed adapter preserved")
+    except Exception as error:
+        print(f"[scheduler] Hybrid V2 refresh failed; deployed adapter preserved: {error}")
+
+
 # ============================================================
 # 启动
 # ============================================================
@@ -318,6 +337,12 @@ def start_scheduler() -> BackgroundScheduler:
                        misfire_grace_time=3600)   # UTC 01:00 ≈ 北京 09:00
     _scheduler.add_job(trigger_incremental_training, CronTrigger(hour=18, minute=0), id="train",
                        misfire_grace_time=3600)
+    _scheduler.add_job(
+        refresh_hybrid_v2_adapter,
+        CronTrigger(day=1, hour=18, minute=30),
+        id="hybrid_v2_refresh",
+        misfire_grace_time=21600,
+    )
     # BUFF 实时刷新(默认每 6h;需 USE_BUFF_LIVE=1 才真正执行)
     from config import BUFF_REFRESH_HOURS
     _scheduler.add_job(refresh_buff_prices, IntervalTrigger(hours=BUFF_REFRESH_HOURS),

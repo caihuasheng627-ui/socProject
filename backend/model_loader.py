@@ -22,6 +22,7 @@ CSVest — 模型加载 + 推理(组员 3 主线第 3 步)
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sys
 import threading
@@ -41,6 +42,18 @@ warnings.filterwarnings("ignore")
 
 # 让 import 能找到 ml/ 下的 feature_engineering / train_lstm_c
 sys.path.insert(0, str(ML_DIR))
+
+from hybrid_v2_contract import validate_hybrid_v2_adapter
+from hybrid_v2_transform import ULTRA_PRICE_THRESHOLD
+
+
+def _read_hybrid_v2_adapter(path: Path) -> dict[str, Any] | None:
+    """Read one validated adapter without affecting the loaded base models."""
+    try:
+        candidate = json.loads(path.read_text(encoding="utf-8"))
+        return validate_hybrid_v2_adapter(candidate)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
 
 
 # ============================================================
@@ -179,7 +192,10 @@ class ModelLoader:
         self.scalers: dict[str, Any] = {}
         self.item_map: dict[str, int] = {}
         self.group_map: dict[str, str] = {}
+        self.group_boundaries: tuple[float, float] = (20.0, 100.0)
         self.hybrid_route: dict[str, str] = {"low": "LSTM-C", "mid": "LSTM-D", "high": "LSTM-D"}
+        self.hybrid_v2_adapter: dict[str, Any] = {}
+        self._hybrid_v2_mtime_ns: int | None = None
         self.gru_items: set[str] = set()
         self._load()
 
@@ -218,11 +234,18 @@ class ModelLoader:
                 gm = _pkl("lstm_d_group_map.pkl")
                 # gm 结构: {"item_group": {name: "low"/"mid"/"high"}, ...}
                 self.group_map = gm.get("item_group", gm) if isinstance(gm, dict) else {}
+                if isinstance(gm, dict) and len(gm.get("boundaries", ())) == 2:
+                    self.group_boundaries = tuple(float(v) for v in gm["boundaries"])
+
+            adapter_path = MODEL_DIR / "hybrid_v2_adapter.json"
+            adapter = _read_hybrid_v2_adapter(adapter_path)
+            if adapter is not None:
+                self.hybrid_v2_adapter = adapter
+                self._hybrid_v2_mtime_ns = adapter_path.stat().st_mtime_ns
 
             # Hybrid 路由(val 冻结);缺失则默认 low→C mid/high→D
             route_path = MODEL_DIR / "lstm_hybrid_route.json"
             if route_path.exists():
-                import json
                 meta = json.loads(route_path.read_text(encoding="utf-8"))
                 route = meta.get("route") or {}
                 if isinstance(route, dict) and route:
@@ -289,7 +312,7 @@ class ModelLoader:
         digest = hashlib.sha256()
         artifacts = {
             artifact.name: artifact
-            for pattern in ("lstm*", "seq2seq_30d*")
+            for pattern in ("lstm*", "seq2seq_30d*", "hybrid_v2*")
             for artifact in MODEL_DIR.glob(pattern)
         }
         for artifact in sorted(artifacts.values(), key=lambda path: path.name):
@@ -342,16 +365,51 @@ class ModelLoader:
         ).ravel()
         return self._to_prices(p, sc["y_scaler"])
 
-    def _predict_lstm_d(self, X: np.ndarray, name: str) -> list[float] | None:
-        grp = self.group_map.get(name)
+    def _predict_lstm_d_for_group(self, X: np.ndarray, grp: str) -> list[float] | None:
         key = f"lstm_d_{grp}"
-        if key not in self.models or grp is None:
+        if key not in self.models:
             return None
         sc = self.scalers["lstm_d"].get(grp) if isinstance(self.scalers.get("lstm_d"), dict) else None
         if sc is None:
             return None
         p = self.models[key].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
         return self._to_prices(p, sc["y_scaler"])
+
+    def _route_lstm_d_group(self, name: str, current_price: float) -> str:
+        known = self.group_map.get(name)
+        if known in {"low", "mid", "high"}:
+            return known
+        lower, upper = self.group_boundaries
+        if current_price <= lower:
+            return "low"
+        if current_price <= upper:
+            return "mid"
+        return "high"
+
+    def _refresh_hybrid_v2_adapter(self) -> None:
+        """Hot reload an atomically published adapter without restarting FastAPI."""
+        path = MODEL_DIR / "hybrid_v2_adapter.json"
+        try:
+            mtime = path.stat().st_mtime_ns
+        except OSError:
+            return
+        if getattr(self, "_hybrid_v2_mtime_ns", None) == mtime:
+            return
+        candidate = _read_hybrid_v2_adapter(path)
+        if candidate is None:
+            return
+        self.hybrid_v2_adapter = candidate
+        self._hybrid_v2_mtime_ns = mtime
+
+    def _predict_lstm_d(
+        self, X: np.ndarray, name: str, current_price: float | None = None
+    ) -> list[float] | None:
+        group = self.group_map.get(name)
+        if group is None and current_price is not None:
+            group = self._route_lstm_d_group(name, current_price)
+        if group is None:
+            return None
+        return self._predict_lstm_d_for_group(X, group)
 
     def _predict_gru(self, X: np.ndarray, name: str) -> list[float] | None:
         if "gru" not in self.models or name not in self.gru_items:
@@ -409,6 +467,39 @@ class ModelLoader:
             "confidence": self._confidence(model_tag),
             "price_tier": grp,
             "route": prefer,
+        }
+
+    def predict_live_ensemble(self, market_hash_name: str) -> dict | None:
+        """Return simultaneous C/D paths for authoritative Hybrid V2 calibration."""
+        self._refresh_hybrid_v2_adapter()
+        win = _skin_window_from_db(market_hash_name)
+        if win is None or not self.tf_available:
+            return None
+        X, cur_price, cur_date = win
+        model_group = self._route_lstm_d_group(market_hash_name, cur_price)
+        price_tier = "ultra" if cur_price >= ULTRA_PRICE_THRESHOLD else model_group
+        c_path = self._predict_lstm_c(X, market_hash_name)
+        d_path = self._predict_lstm_d_for_group(X, model_group)
+        if c_path is None and d_path is None:
+            return None
+        fallback_models = []
+        if c_path is None:
+            c_path = list(d_path or [])
+            fallback_models.append("LSTM-C")
+        if d_path is None:
+            d_path = list(c_path or [])
+            fallback_models.append("LSTM-D")
+        return {
+            "current_price": round(cur_price, 2),
+            "date": cur_date,
+            "model": "Hybrid-V2",
+            "confidence": self._confidence("LSTM-Hybrid"),
+            "price_tier": price_tier,
+            "model_group": model_group,
+            "lstm_c_prices": c_path,
+            "lstm_d_prices": d_path,
+            "adapter": self.hybrid_v2_adapter,
+            "fallbackModels": fallback_models,
         }
 
     def predict_live_trend_30d(self, market_hash_name: str) -> dict | None:

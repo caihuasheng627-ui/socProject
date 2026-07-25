@@ -669,11 +669,12 @@ const app = createApp({
         const res = await client.predict(skinId, 7);
         predictionStatus.value = res.status || 'demo';
         predictionReason.value = res.reason || '';
-        predictionWarnings.value = Array.isArray(res.warnings) ? res.warnings : [];
+        predictionCalibration.value = res.calibration || null;
         if (predictionStatus.value === 'unavailable') {
           modelPredictions.value = [];
           predictionDaily.value = null;
           predictionTrend30d.value = null;
+          predictionCalibration.value = null;
           predictionMeta.value = {
             consensusScore: 0,
             consensusLevel: '',
@@ -697,12 +698,13 @@ const app = createApp({
             ? p.dailyPrices.map(v => +(+v).toFixed(4))
             : null;
           return {
-            name: p.model,
+            name: p.routeModel || p.model,
             type: p.type || 'ML',
             price,
             change: +change.toFixed(2),
             confidence: Math.round(p.confidence || 0),
             daily,
+            rawDaily: Array.isArray(p.rawDailyPrices) ? p.rawDailyPrices : null,
           };
         });
         const levelMap = {
@@ -718,8 +720,17 @@ const app = createApp({
         // 逐日预测主路径: 优先 LSTM(部署主力),否则任一带 daily 的模型
         const withDaily = modelPredictions.value.filter(p => p.daily && p.daily.length);
         const primary = withDaily.find(p => /lstm/i.test(p.name)) || withDaily[0] || null;
+        const forecastAnchor = Number(res.forecastAnchorPrice || curUsd);
         predictionDaily.value = primary
-          ? { model: primary.name, base: curUsd, prices: primary.daily }
+          ? {
+            model: primary.name,
+            base: Number.isFinite(forecastAnchor) && forecastAnchor > 0 ? forecastAnchor : curUsd,
+            prices: primary.daily,
+            anchorApplied: Boolean(
+              Array.isArray(res.calibration?.reasonCodes)
+              && res.calibration.reasonCodes.includes('UNCONFIRMED_PRICE_SHOCK')
+            ),
+          }
           : null;
         predictionTrend30d.value = null;
         if (
@@ -736,7 +747,7 @@ const app = createApp({
         console.warn('[CSVest] predict failed', err);
         predictionStatus.value = 'error';
         predictionReason.value = 'REQUEST_FAILED';
-        predictionWarnings.value = [];
+        predictionCalibration.value = null;
         modelPredictions.value = [];
         predictionDaily.value = null;
         predictionTrend30d.value = null;
@@ -1441,33 +1452,24 @@ const app = createApp({
     const modelPredictions = ref([]);
     const predictionStatus = ref('idle');
     const predictionReason = ref('');
-    const predictionWarnings = ref([]);
+    const predictionCalibration = ref(null);
     // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
     const predictionDaily = ref(null);
     // Optional Keras probability trend from the live API; never synthesized.
     const predictionTrend30d = ref(null);
-    const TREND_WEIGHTS = Object.freeze({ p10: 0.15, p50: 0.70, p90: 0.15 });
-    const buildCompositeTrendPath = (trend, exactEnd, exactHorizon = 7) => {
-      if (!trend || !Number.isFinite(exactEnd)) return [];
-      const base = trend.p50.map((median, index) => (
-        TREND_WEIGHTS.p10 * Number(trend.p10[index])
-        + TREND_WEIGHTS.p50 * Number(median)
-        + TREND_WEIGHTS.p90 * Number(trend.p90[index])
-      ));
-      const anchorIndex = Math.max(0, Math.min(exactHorizon - 1, base.length - 1));
-      const anchorOffset = exactEnd - base[anchorIndex];
-      return base.slice(anchorIndex).map((value, index) => {
-        const step = index;
-        if (step === 0) return +exactEnd.toFixed(2);
-        const fade = Math.min(1, step / 4);
-        const aligned = value + anchorOffset * (1 - fade);
-        const wave = fade * (
-          0.012 * Math.sin(step * 0.82)
-          + 0.006 * Math.sin(step * 0.33)
-        );
-        return +Math.max(0.01, aligned * (1 + wave)).toFixed(2);
-      });
-    };
+    const calibrationEvidence = computed(() => {
+      const calibration = predictionCalibration.value;
+      if (!calibration) return null;
+      const weights = calibration.weights?.d7 || {};
+      const reasons = Array.isArray(calibration.reasonCodes) ? calibration.reasonCodes : [];
+      return {
+        c: Math.round(Number(weights.c || 0) * 100),
+        d: Math.round(Number(weights.d || 0) * 100),
+        recent: Math.round(Number(weights.recent || 0) * 100),
+        disagreement: (Number(calibration.modelDisagreement || 0) * 100).toFixed(1),
+        compressed: reasons.includes('SMOOTH_DEVIATION_COMPRESSION'),
+      };
+    });
     const predictionMeta = ref({
       consensusScore: 76,
       consensusLevel: '',
@@ -1786,9 +1788,11 @@ const app = createApp({
       let dirtyAnchor = false;
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
         const firstPred = Number(dailyPath.prices[0]);
-        dirtyAnchor = firstPred > 0
-          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5;
-        if (dirtyAnchor) bridgeValue = firstPred;
+        dirtyAnchor = Boolean(dailyPath.anchorApplied) || (
+          firstPred > 0
+          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5
+        );
+        if (dirtyAnchor) bridgeValue = Number(dailyPath.base || firstPred);
         for (const p of dailyPath.prices) {
           const value = dirtyAnchor
             ? Number(p)
@@ -1828,9 +1832,8 @@ const app = createApp({
       const trendSeries = (values = []) => hasTrend
         ? trendPrefix.concat(values)
         : emptySeries();
-      const exactEnd = Number(predictedValues.at(-1));
-      const compositeTrend = hasTrend
-        ? buildCompositeTrendPath(trendPath, exactEnd, exactHorizon)
+      const authoritativeTrend = hasTrend
+        ? trendPath.p50.slice(Math.max(exactHorizon - 1, 0)).map(Number)
         : [];
       const forecast7Name = t('prediction.chart.forecast7d');
       const trendMedianName = t('prediction.chart.trend30d');
@@ -1926,7 +1929,7 @@ const app = createApp({
           {
             name: trendMedianName,
             type: 'line',
-            data: trendSeries(compositeTrend),
+            data: trendSeries(authoritativeTrend),
             smooth: true,
             showSymbol: false,
             connectNulls: false,
@@ -3559,7 +3562,7 @@ const app = createApp({
       explainSummary.value = '';
       predictionStatus.value = 'idle';
       predictionReason.value = '';
-      predictionWarnings.value = [];
+      predictionCalibration.value = null;
       predictionDaily.value = null;
       predictionTrend30d.value = null;
       if (currentPage.value === 'prediction') {
@@ -3598,7 +3601,7 @@ const app = createApp({
       apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionStatus, predictionReason, predictionWarnings,
+      modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
       predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
       relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,

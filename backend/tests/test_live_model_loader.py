@@ -1,4 +1,5 @@
 import numpy as np
+import json
 
 import model_loader
 from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
@@ -9,6 +10,8 @@ def make_loader():
     loader.tf_available = True
     loader.item_map = {"__UNK__": 0}
     loader.group_map = {}
+    loader.group_boundaries = (20.0, 100.0)
+    loader.hybrid_v2_adapter = {"contractVersion": "hybrid-v2-volume-free-v1"}
     loader.hybrid_route = {
         "low": "LSTM-C",
         "mid": "LSTM-D",
@@ -18,6 +21,7 @@ def make_loader():
     loader.scalers = {}
     loader._predict_lstm_c = lambda X, name: [101.0] * 7
     loader._predict_lstm_d = lambda X, name: None
+    loader._predict_lstm_d_for_group = lambda X, group: [99.0] * 7
     return loader
 
 
@@ -67,6 +71,44 @@ def test_live_lstm_does_not_use_mock_when_tensorflow_is_unavailable(monkeypatch)
     assert loader.predict_live_lstm("new item") is None
 
 
+def test_live_ensemble_returns_c_and_d_for_unknown_online_item(monkeypatch):
+    X = np.zeros((1, 60, 13), dtype=np.float32)
+    monkeypatch.setattr(
+        model_loader,
+        "_skin_window_from_db",
+        lambda name: (X, 55.0, "2026-07-22"),
+    )
+    loader = make_loader()
+    loader._predict_lstm_c = lambda X, name: [60.0] * 7
+    loader._predict_lstm_d_for_group = lambda X, group: [52.0] * 7
+
+    result = loader.predict_live_ensemble("unknown item")
+
+    assert result["model"] == "Hybrid-V2"
+    assert result["price_tier"] == "mid"
+    assert result["lstm_c_prices"] == [60.0] * 7
+    assert result["lstm_d_prices"] == [52.0] * 7
+    assert result["adapter"]["contractVersion"] == "hybrid-v2-volume-free-v1"
+
+
+def test_live_ensemble_uses_high_d_model_but_ultra_adapter_for_expensive_item(monkeypatch):
+    X = np.zeros((1, 60, 13), dtype=np.float32)
+    monkeypatch.setattr(
+        model_loader,
+        "_skin_window_from_db",
+        lambda name: (X, 1800.0, "2026-07-22"),
+    )
+    loader = make_loader()
+    seen_groups = []
+    loader._predict_lstm_d_for_group = lambda X, group: seen_groups.append(group) or [900.0] * 7
+
+    result = loader.predict_live_ensemble("expensive knife")
+
+    assert seen_groups == ["high"]
+    assert result["model_group"] == "high"
+    assert result["price_tier"] == "ultra"
+
+
 def test_live_model_version_changes_with_artifact_metadata(monkeypatch):
     class Artifact:
         name = "lstm_c.keras"
@@ -95,6 +137,88 @@ def test_live_model_version_changes_with_artifact_metadata(monkeypatch):
     assert version_v1.startswith("lstm-live-")
     assert version_v2.startswith("lstm-live-")
     assert version_v1 != version_v2
+
+
+def test_hybrid_v2_adapter_hot_reloads_when_artifact_changes(monkeypatch, tmp_path):
+    valid_weights = {
+        "global": {
+            str(day): {"c": 0.25, "d": 0.35, "recent": 0.40, "bias": 0.0}
+            for day in range(1, 8)
+        }
+    }
+    artifact = tmp_path / "hybrid_v2_adapter.json"
+    artifact.write_text(
+        json.dumps({
+            "contractVersion": "hybrid-v2-volume-free-v1",
+            "selectionSplit": "train",
+            "horizonSteps": 7,
+            "accepted": True,
+            "weights": valid_weights,
+            "dataThrough": "2026-07-01",
+        }),
+        encoding="utf-8",
+    )
+    loader = make_loader()
+    loader.hybrid_v2_adapter = {}
+    loader._hybrid_v2_mtime_ns = None
+    monkeypatch.setattr(model_loader, "MODEL_DIR", tmp_path)
+
+    loader._refresh_hybrid_v2_adapter()
+    assert loader.hybrid_v2_adapter["dataThrough"] == "2026-07-01"
+
+    artifact.write_text(
+        json.dumps({
+            "contractVersion": "hybrid-v2-volume-free-v1",
+            "selectionSplit": "train",
+            "horizonSteps": 7,
+            "accepted": True,
+            "weights": valid_weights,
+            "dataThrough": "2026-07-22",
+        }),
+        encoding="utf-8",
+    )
+    loader._hybrid_v2_mtime_ns = -1
+    loader._refresh_hybrid_v2_adapter()
+    assert loader.hybrid_v2_adapter["dataThrough"] == "2026-07-22"
+
+
+def test_hybrid_v2_hot_reload_preserves_previous_adapter_when_new_file_is_malformed(
+    monkeypatch, tmp_path
+):
+    previous = {
+        "contractVersion": "hybrid-v2-volume-free-v1",
+        "selectionSplit": "train",
+        "horizonSteps": 7,
+        "accepted": True,
+        "weights": {
+            "global": {
+                str(day): {"c": 0.25, "d": 0.35, "recent": 0.40, "bias": 0.0}
+                for day in range(1, 8)
+            }
+        },
+        "dataThrough": "2026-07-01",
+    }
+    artifact = tmp_path / "hybrid_v2_adapter.json"
+    artifact.write_text(
+        json.dumps({
+            "contractVersion": "hybrid-v2-volume-free-v1",
+            "selectionSplit": "train",
+            "horizonSteps": 7,
+            "accepted": True,
+            "weights": {"global": {"7": {"c": float("nan")}}},
+            "dataThrough": "2026-07-22",
+        }),
+        encoding="utf-8",
+    )
+    loader = make_loader()
+    loader.hybrid_v2_adapter = previous
+    loader._hybrid_v2_mtime_ns = None
+    monkeypatch.setattr(model_loader, "MODEL_DIR", tmp_path)
+
+    loader._refresh_hybrid_v2_adapter()
+
+    assert loader.hybrid_v2_adapter == previous
+    assert loader._hybrid_v2_mtime_ns is None
 
 
 def test_live_trend_uses_database_window_and_returns_ordered_quantiles(monkeypatch):

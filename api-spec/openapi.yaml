@@ -205,10 +205,11 @@ paths:
   /api/predict:
     post:
       tags: [Prediction]
-      summary: 在线 7 天 LSTM 预测与 30 天概率趋势
+      summary: 在线 7 天 Hybrid V2 预测与 30 天概率趋势
       description: |
-        仅使用当前数据库最新 60 个观测构建输入并调用已部署 LSTM。
-        有效的 7 天响应会附带可空的 Keras 30 天 P10/P50/P90 概率趋势。
+        仅使用当前数据库最新 60 个观测构建输入，同时调用 LSTM-C/D，
+        再由最近 180 天 CS2 数据拟合的 Hybrid V2 适配器融合并校准。
+        有效的 7 天响应会附带与 D7 自然衔接的 Keras 30 天 P10/P50/P90 趋势。
         不读取离线 val/test 预测 CSV；无法生成可信结果时返回 status=unavailable。
       requestBody:
         required: true
@@ -1041,6 +1042,55 @@ components:
           items:
             type: number
             exclusiveMinimum: 0
+        calibration:
+          $ref: '#/components/schemas/ForecastCalibration'
+
+    ForecastCalibration:
+      type: object
+      required: [applied, method, maxDeviation, reasonCodes]
+      properties:
+        applied:
+          type: boolean
+        method:
+          type: string
+          example: hybrid-v2-log-return-smooth-bound
+        maxDeviation:
+          type: number
+          enum: [0.3]
+        modelDisagreement:
+          type: number
+          minimum: 0
+        reasonCodes:
+          type: array
+          items:
+            type: string
+            enum:
+              - MODEL_DISAGREEMENT
+              - RECENT_TREND_ADJUSTMENT
+              - SMOOTH_DEVIATION_COMPRESSION
+              - D7_TREND_HANDOFF
+              - PRICE_LEVEL_REBASE
+              - UNCONFIRMED_PRICE_SHOCK
+        forecastAnchorPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 预测校准使用的稳健锚点；未确认单点跳价时为跳价前近期中位数
+        currentPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 当前真实市场价格，不因预测锚点调整而修改
+        weights:
+          type: object
+          description: D1-D7 的 LSTM-C、LSTM-D 与近期趋势融合权重
+          additionalProperties:
+            type: object
+            properties:
+              c:
+                type: number
+              d:
+                type: number
+              recent:
+                type: number
 
     PredictionResult:
       type: object
@@ -1076,19 +1126,21 @@ components:
             - STALE_INPUT
             - PRICE_ANCHOR_MISMATCH
             - INVALID_PREDICTION
-            - PREDICTION_OUT_OF_RANGE
         warnings:
           type: array
-          description: 观察模式下返回但不拦截的异常标记
+          description: 向后兼容字段；校准后的成功响应固定为空数组
           items:
             type: string
-            enum: [PREDICTION_OUT_OF_RANGE]
         currency:
           type: string
           enum: [USD]
         currentPrice:
           type: number
           nullable: true
+        forecastAnchorPrice:
+          type: number
+          nullable: true
+          description: 预测路径使用的稳健价格锚点；正常情况下等于 currentPrice
         currentPriceUsd:
           type: number
           nullable: true
@@ -1153,11 +1205,31 @@ components:
                 maxItems: 7
                 items:
                   type: number
+              rawDailyPrices:
+                type: array
+                minItems: 7
+                maxItems: 7
+                description: 校准前的 Hybrid V2 路径，仅用于解释和审计
+                items:
+                  type: number
+              routeModel:
+                type: string
+                enum: [Hybrid-V2]
+              forecastAnchorPrice:
+                type: number
+                description: 当前预测路径使用的价格锚点
+              marketChange:
+                type: number
+                description: 预测末值相对于真实 currentPrice 的百分比变化
         trend30d:
           allOf:
             - $ref: '#/components/schemas/Trend30D'
           nullable: true
           description: 基于同一决策日的 30 天概率趋势；模型不可用或校验失败时为 null
+        calibration:
+          allOf:
+            - $ref: '#/components/schemas/ForecastCalibration'
+          nullable: true
         consensus:
           type: object
           nullable: true

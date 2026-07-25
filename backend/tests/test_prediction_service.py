@@ -2,7 +2,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
-from prediction_service import predict_for_skin
+from prediction_service import FORECAST_CALIBRATION_CONTRACT, predict_for_skin
 
 
 NOW = datetime(2026, 7, 24, 12, 0, tzinfo=timezone.utc)
@@ -50,6 +50,26 @@ class FakeLoader:
     def predict_live_lstm(self, name):
         self.live_calls += 1
         return self.result
+
+    def predict_live_ensemble(self, name):
+        self.live_calls += 1
+        if self.result is None:
+            return None
+        return {
+            "current_price": self.result["current_price"],
+            "date": self.result["date"],
+            "model": "Hybrid-V2",
+            "confidence": self.result["confidence"],
+            "price_tier": "global",
+            "lstm_c_prices": self.result["daily_prices"],
+            "lstm_d_prices": self.result["daily_prices"],
+            "adapter": {
+                "global": {
+                    str(day): {"c": 0.5, "d": 0.5, "recent": 0.0, "bias": 0.0}
+                    for day in range(1, 8)
+                }
+            },
+        }
 
     def predict_live_trend_30d(self, name):
         self.trend_calls += 1
@@ -104,6 +124,8 @@ def test_service_returns_fresh_live_prediction():
     assert result["decisionDate"] == "2026-07-22"
     assert result["currentPrice"] == 100.0
     assert result["predictions"][0]["price"] == 105.0
+    assert result["predictions"][0]["routeModel"] == "Hybrid-V2"
+    assert result["calibration"]["maxDeviation"] == 0.30
     assert result["trend30d"] is None
 
 
@@ -116,7 +138,8 @@ def test_service_attaches_thirty_day_trend_without_seven_day_breaker():
     assert result["trend30d"]["decisionDate"] == "2026-07-22"
     assert result["trend30d"]["model"] == "Keras-Seq2Seq-30D"
     assert result["trend30d"]["horizon"] == 30
-    assert result["trend30d"]["p50"] == [180.0] * 30
+    assert result["trend30d"]["p50"][:7] == result["predictions"][0]["dailyPrices"]
+    assert max(result["trend30d"]["p90"]) <= 130.0
 
 
 def test_service_ignores_stale_thirty_day_trend_but_keeps_seven_day_result():
@@ -148,9 +171,14 @@ def test_service_clips_overwide_trend_edges_without_rejecting_median():
 
     result = call(make_conn(), loader)
 
-    assert result["trend30d"]["p10"] == [108.0] * 30
-    assert result["trend30d"]["p50"] == [180.0] * 30
-    assert result["trend30d"]["p90"] == [252.0] * 30
+    assert all(
+        70.0 <= low <= median <= high <= 130.0
+        for low, median, high in zip(
+            result["trend30d"]["p10"],
+            result["trend30d"]["p50"],
+            result["trend30d"]["p90"],
+        )
+    )
 
 
 def test_service_rejects_stale_decision_date():
@@ -166,25 +194,27 @@ def test_service_rejects_price_anchor_mismatch():
     assert result["reason"] == "PRICE_ANCHOR_MISMATCH"
 
 
-def test_service_rejects_move_over_thirty_percent():
+def test_service_calibrates_move_over_thirty_percent_without_warning():
     result = call(
         make_conn(),
         FakeLoader(live_result(price=131.0), trend_result(p50=180.0)),
     )
-    assert result["status"] == "unavailable"
-    assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+    assert result["status"] == "available"
+    assert 70.0 <= result["predictions"][0]["price"] <= 130.0
+    assert result["warnings"] == []
+    assert "SMOOTH_DEVIATION_COMPRESSION" in result["calibration"]["reasonCodes"]
     assert result["trend30d"]["horizon"] == 30
 
 
-def test_service_returns_out_of_range_prediction_in_observation_mode():
+def test_service_calibration_is_independent_of_legacy_breaker_flag():
     result = call(
         make_conn(),
         FakeLoader(live_result(price=131.0)),
         circuit_breaker_enabled=False,
     )
     assert result["status"] == "available"
-    assert result["predictions"][0]["price"] == 131.0
-    assert result["warnings"] == ["PREDICTION_OUT_OF_RANGE"]
+    assert result["predictions"][0]["price"] < 130.0
+    assert result["warnings"] == []
 
 
 def test_service_returns_unavailable_when_tensorflow_is_missing():
@@ -218,7 +248,7 @@ def test_cache_requires_unexpired_matching_date_price_and_version():
             "2026-07-24T18:00:00+00:00",
             json.dumps([100.5, 101, 102, 103, 104, 104.5, 105]),
             "2026-07-22",
-            "lstm-test-v1",
+            f"lstm-test-v1-{FORECAST_CALIBRATION_CONTRACT}",
             "2026-07-22",
         ),
     )
@@ -253,7 +283,7 @@ def test_expired_cache_is_not_reused():
     assert loader.live_calls == 1
 
 
-def test_enabled_breaker_rejects_out_of_range_observation_mode_cache():
+def test_legacy_out_of_range_cache_is_calibrated_instead_of_rejected():
     conn = make_conn()
     daily = [101, 105, 110, 115, 120, 126, 131]
     conn.execute(
@@ -278,7 +308,30 @@ def test_enabled_breaker_rejects_out_of_range_observation_mode_cache():
 
     result = call(conn, loader, circuit_breaker_enabled=True)
 
-    assert result["status"] == "unavailable"
-    assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+    assert result["status"] == "available"
+    assert result["predictions"][0]["price"] < 130.0
+    assert result["warnings"] == []
     assert result["trend30d"]["horizon"] == 30
-    assert loader.live_calls == 0
+    assert loader.live_calls == 1
+
+
+def test_service_uses_recent_median_for_unconfirmed_single_price_jump():
+    conn = make_conn()
+    conn.execute("DELETE FROM price_history")
+    prices = [67.0, 68.0, 66.5, 67.4, 67.2, 66.9, 67.3, 67.1,
+              67.5, 66.8, 67.2, 67.0, 70.34, 100.84]
+    conn.executemany(
+        "INSERT INTO price_history(skin_id, date, price, daily_volume) VALUES(1, ?, ?, 0)",
+        [(f"2026-07-{index + 9:02d}", price) for index, price in enumerate(prices)],
+    )
+    result = call(
+        conn,
+        FakeLoader(live_result(current=100.84, date="2026-07-22", price=68.0)),
+    )
+
+    assert result["currentPrice"] == 100.84
+    assert result["forecastAnchorPrice"] == 67.2
+    assert result["predictions"][0]["forecastAnchorPrice"] == 67.2
+    assert "UNCONFIRMED_PRICE_SHOCK" in result["calibration"]["reasonCodes"]
+    assert all(67.2 * 0.70 <= price <= 67.2 * 1.30
+               for price in result["predictions"][0]["dailyPrices"])
