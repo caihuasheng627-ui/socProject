@@ -82,8 +82,14 @@ class CSVestAPI {
   }
 
   setToken(token) {
-    this.token = token;
-    localStorage.setItem('sv_token', token);
+    this.token = token || null;
+    if (token) localStorage.setItem('sv_token', token);
+    else localStorage.removeItem('sv_token');
+  }
+
+  clearToken() {
+    this.token = null;
+    localStorage.removeItem('sv_token');
   }
 
   setUseMock(useMock) {
@@ -112,7 +118,13 @@ class CSVestAPI {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({ message: res.statusText }));
-        throw new APIError(error.message || res.statusText, res.status, error.code);
+        let detail = error.detail ?? error.message ?? res.statusText;
+        if (Array.isArray(detail)) {
+          detail = detail.map((d) => d?.msg || d?.message || String(d)).filter(Boolean).join('; ');
+        } else if (detail && typeof detail === 'object') {
+          detail = detail.message || detail.msg || JSON.stringify(detail);
+        }
+        throw new APIError(detail || res.statusText, res.status, error.code);
       }
 
       // 204 / 空 body：DELETE 等无内容响应
@@ -165,6 +177,13 @@ class CSVestAPI {
 
   async login(username, password) {
     return this._fetch('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  async register(username, password) {
+    return this._fetch('/api/register', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });

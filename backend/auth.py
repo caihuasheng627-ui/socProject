@@ -124,21 +124,21 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
 
 def get_current_user_optional(token: str | None = Depends(oauth2_scheme_optional)) -> dict:
-    """有 token → 本人;无 token / 失效 → 默认 demo 用户(不报错)。前端免登录也能用个人接口。"""
+    """无 token → demo(游客共享);有 token → 本人;失效 token → 401(避免静默串到 demo)。"""
     if not token:
         return _demo_user()
-    try:
-        payload = decode_token(token)
-    except HTTPException:
-        return _demo_user()
+    # 显式带了 Bearer：必须有效，否则 401，由前端清会话
+    payload = decode_token(token)
     try:
         user_id = int(payload.get("sub", 0))
     except (TypeError, ValueError):
         user_id = 0
     if not user_id:
-        return _demo_user()
+        raise HTTPException(401, "无效 token")
     user = _fetch_user(user_id)
-    return user or _demo_user()
+    if not user:
+        raise HTTPException(401, "用户不存在")
+    return user
 
 
 def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
