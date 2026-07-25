@@ -837,10 +837,10 @@ class CSVestAPI {
     };
   }
 
-  async getBacktest(days = 60) {
+  async getBacktest(days = 60, track = 'historical') {
     return this._safeCall(
       async () => {
-        const raw = await this._fetch(`/api/models/backtest?days=${days}`);
+        const raw = await this._fetch(`/api/models/backtest?days=${days}&track=${encodeURIComponent(track)}`);
         return this._normalizeBacktest(raw, days);
       },
       () => this._normalizeBacktest(null, days)

@@ -672,7 +672,8 @@ paths:
       tags: [Inventory]
       summary: 库存总价值历史曲线
       description: |
-        聚合库存饰品历史价 → 总市值曲线。用于「我的库存」页总值走势。
+        聚合库存饰品历史价 → 总市值曲线；逐件调用 Hybrid V2 生成 7 天预测，
+        并聚合 Keras 30 天 P50 趋势。无预测持仓按现价持平，避免低估总值。
       parameters:
         - name: days
           in: query
@@ -695,6 +696,35 @@ paths:
                     type: array
                     items:
                       type: number
+                  predicted7Dates:
+                    type: array
+                    items: {type: string}
+                  predicted7Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 7
+                    maxItems: 7
+                  trend30Dates:
+                    type: array
+                    items: {type: string}
+                  trend30Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 30
+                    maxItems: 30
+                  forecastAnchorTotal:
+                    type: number
+                  predictionCoverage:
+                    type: object
+                    properties:
+                      totalItems: {type: integer}
+                      predictedItems: {type: integer}
+                      trendItems: {type: integer}
+                      itemRatio: {type: number}
+                      valueRatio: {type: number}
+                  modelVersion:
+                    type: string
+                    nullable: true
                   total:
                     type: number
         '401':
@@ -728,7 +758,9 @@ paths:
     get:
       tags: [Models]
       summary: 获取模型对比数据
-      description: 6 回归 + 4 分类模型,所有指标
+      description: |
+        双轨模型指标。顶层字段兼容历史公平比较；tracks.historical 为 2019–2023
+        canonical test，tracks.online 为最近 180 天独立留出集，二者不得混合排名。
       responses:
         '200':
           description: 成功
@@ -747,6 +779,14 @@ paths:
                       $ref: '#/components/schemas/ModelResult'
                   buyAndHold:
                     $ref: '#/components/schemas/ModelResult'
+                  defaultTrack:
+                    type: string
+                    enum: [historical, online]
+                  tracks:
+                    type: object
+                    properties:
+                      historical: {type: object}
+                      online: {type: object}
 
   /api/models/backtest:
     get:
@@ -762,6 +802,13 @@ paths:
           in: query
           schema:
             type: string
+        - name: track
+          in: query
+          description: 历史公平回测或近期线上模型独立回测
+          schema:
+            type: string
+            enum: [historical, online]
+            default: historical
       responses:
         '200':
           description: 成功
@@ -770,6 +817,9 @@ paths:
               schema:
                 type: object
                 properties:
+                  track:
+                    type: string
+                    enum: [historical, online]
                   dates:
                     type: array
                     items:

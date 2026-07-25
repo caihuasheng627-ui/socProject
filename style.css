@@ -3367,6 +3367,26 @@ i.ph-duotone {
   z-index: 2;
 }
 
+.models-track-switch {
+  display: inline-flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px;
+  margin: 2px 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(17, 24, 39, 0.72);
+}
+
+.models-track-meta {
+  min-height: 20px;
+  margin-bottom: 12px;
+}
+
+.ml-card--trend {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
 .models-lab__heading {
   min-width: 0;
   flex: 1 1 180px;

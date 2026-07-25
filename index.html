@@ -1968,7 +1968,7 @@
                 <i class="ph-duotone ph-cpu icon-primary" aria-hidden="true"></i>
                 {{ t('models.title') }}
               </h2>
-              <p class="models-lab__sub">{{ t('models.subtitleShort') }}</p>
+              <p class="models-lab__sub">{{ modelTrack === 'online' ? t('models.subtitleOnline') : t('models.subtitleShort') }}</p>
             </div>
             <div class="models-lab__actions">
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
@@ -1981,12 +1981,29 @@
           </header>
 
           <div class="models-lab__scroll" ref="modelsLabScroll">
+            <div class="models-track-switch" role="tablist" :aria-label="t('models.trackLabel')">
+              <button type="button" class="timeframe-btn" :class="{ active: modelTrack === 'historical' }"
+                role="tab" :aria-selected="modelTrack === 'historical'" @click="setModelTrack('historical')">
+                {{ t('models.trackHistorical') }}
+              </button>
+              <button type="button" class="timeframe-btn" :class="{ active: modelTrack === 'online' }"
+                role="tab" :aria-selected="modelTrack === 'online'" @click="setModelTrack('online')">
+                {{ t('models.trackOnline') }}
+              </button>
+            </div>
+            <div class="models-lab__hint models-track-meta">
+              {{ modelTrack === 'online' ? t('models.trackOnlineDesc') : t('models.trackHistoricalDesc') }}
+              <span v-if="modelTrackMetadata.dateRange">
+                · {{ modelTrackMetadata.dateRange.start }} – {{ modelTrackMetadata.dateRange.end }}
+                · {{ modelTrackMetadata.items }} items · {{ modelTrackMetadata.decisions }} decisions
+              </span>
+            </div>
             <section class="models-lab__section">
               <div class="models-lab__section-head">
                 <h3>{{ t('models.regressionTable') }}</h3>
                 <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
               </div>
-              <div class="models-lab__hint">{{ t('models.routeNote') }}</div>
+              <div class="models-lab__hint">{{ modelTrack === 'online' ? t('models.onlineNote') : t('models.routeNote') }}</div>
               <div class="models-lab__list" role="list">
                 <article v-for="m in regressionModels" :key="'r-' + m.name" class="ml-card" role="listitem">
                   <div class="ml-card__top">
@@ -1994,6 +2011,7 @@
                       <strong>{{ m.name }}</strong>
                       <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
                       <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">Route</span>
+                      <span v-else-if="m.name === 'Hybrid-V2-Calibrated'" class="tag tag-green">Online</span>
                       <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
                     </div>
                     <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
@@ -2004,7 +2022,7 @@
                     <div><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
                     <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
                   </div>
-                  <div class="ml-card__return" :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
+                  <div v-if="m.returnPct != null" class="ml-card__return" :class="m.returnPct >= 15 ? 'text-up' : 'text-down'">
                     <span>{{ t('models.col.returnPct') }}</span>
                     <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
                   </div>
@@ -2012,7 +2030,27 @@
               </div>
             </section>
 
-            <section class="models-lab__section">
+            <section v-if="modelTrack === 'online' && trend30Metrics" class="models-lab__section">
+              <div class="models-lab__section-head">
+                <h3>{{ t('models.trend30Title') }}</h3>
+                <span class="tag tag-green">Keras · 30D</span>
+              </div>
+              <div class="models-lab__hint">{{ t('models.trend30Desc') }}</div>
+              <article class="ml-card ml-card--trend">
+                <div class="ml-card__top">
+                  <div class="ml-card__name"><strong>{{ trend30Metrics.name }}</strong></div>
+                  <span class="ml-card__type">{{ trend30Metrics.items }} items</span>
+                </div>
+                <div class="ml-card__metrics">
+                  <div><span>RMSE</span><b>{{ trend30Metrics.rmse != null ? trend30Metrics.rmse.toFixed(2) : '—' }}</b></div>
+                  <div><span>MAE</span><b>{{ trend30Metrics.mae != null ? trend30Metrics.mae.toFixed(2) : '—' }}</b></div>
+                  <div><span>MAPE</span><b>{{ trend30Metrics.mape != null ? trend30Metrics.mape.toFixed(2) + '%' : '—' }}</b></div>
+                  <div><span>R²</span><b>{{ trend30Metrics.r2 != null ? trend30Metrics.r2.toFixed(2) : '—' }}</b></div>
+                </div>
+              </article>
+            </section>
+
+            <section v-if="modelTrack === 'historical'" class="models-lab__section">
               <div class="models-lab__section-head">
                 <h3>{{ t('models.classificationTable') }}</h3>
                 <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
@@ -2084,7 +2122,7 @@
 
             <section class="models-lab__section">
               <div class="models-lab__section-head">
-                <h3>{{ t('models.shap') }}</h3>
+                <h3>{{ t('models.shap') }} · XGBoost</h3>
                 <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
               </div>
               <div ref="shapChart" class="models-lab__chart"></div>

@@ -908,7 +908,10 @@ const app = createApp({
         const courseByName = Object.fromEntries(
           (modelComparison.regression || []).map((r) => [r.name, r.course || ''])
         );
-        if (cmp?.regression?.length) {
+        if (cmp?.tracks) {
+          modelTracks.value = cmp.tracks;
+          applyModelTrack(modelTrack.value);
+        } else if (cmp?.regression?.length) {
           regressionModels.value = cmp.regression.map((r) => {
             const course = r.course && r.course !== r.type
               ? r.course
@@ -916,7 +919,7 @@ const app = createApp({
             return { ...r, course };
           });
         }
-        if (cmp?.classification?.length) {
+        if (!cmp?.tracks && cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
         }
         if (cmp?.buyAndHold && typeof cmp.buyAndHold === 'object') {
@@ -926,7 +929,7 @@ const app = createApp({
           };
         }
         // v5 契约: Seq2Seq 多步模型带 perDay 逐日指标(D1..D7)
-        modelsPerDay.value = (cmp?.regression || [])
+        if (!cmp?.tracks) modelsPerDay.value = (cmp?.regression || [])
           .filter((r) => Array.isArray(r.perDay) && r.perDay.length)
           .map((r) => ({ name: r.name, perDay: r.perDay }));
       } catch (_) { /* keep mock */ }
@@ -1285,8 +1288,32 @@ const app = createApp({
     const regressionModels = ref(
       (modelComparison.regression || []).map((r) => ({ ...r }))
     );
+    const modelTrack = ref('historical');
+    const modelTracks = ref(null);
+    const modelTrackMetadata = ref({});
+    const trend30Metrics = ref(null);
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
+    const applyModelTrack = (track) => {
+      const selected = modelTracks.value?.[track];
+      if (!selected) return;
+      regressionModels.value = (selected.regression || []).map((row) => ({ ...row }));
+      classificationModels.value = (selected.classification || []).map((row) => ({ ...row }));
+      modelsPerDay.value = regressionModels.value
+        .filter((row) => Array.isArray(row.perDay) && row.perDay.length)
+        .map((row) => ({ name: row.name, perDay: row.perDay }));
+      modelTrackMetadata.value = selected.metadata || {};
+      trend30Metrics.value = selected.trend30 || null;
+    };
+    const setModelTrack = async (track) => {
+      if (!['historical', 'online'].includes(track) || modelTrack.value === track) return;
+      modelTrack.value = track;
+      applyModelTrack(track);
+      await nextTick();
+      renderRadar();
+      renderPerDay();
+      renderBacktest();
+    };
     const modelTypeLabel = (m) => {
       if (!m) return '—';
       if (m.typeKey) {
@@ -2537,6 +2564,10 @@ const app = createApp({
       const values = hist.values || [];
       const predictedDates = hist.predictedDates || [];
       const predictedValues = hist.predictedValues || [];
+      const predicted7Dates = hist.predicted7Dates || predictedDates;
+      const predicted7Values = hist.predicted7Values || predictedValues;
+      const trend30Dates = hist.trend30Dates || [];
+      const trend30Values = hist.trend30Values || [];
       const hasData = dates.length > 0 && values.length > 0;
 
       if (!hasData) {
@@ -2557,17 +2588,24 @@ const app = createApp({
         return;
       }
 
-      const lastValue = values[values.length - 1];
-      const forecastSeries = new Array(Math.max(dates.length - 1, 0))
-        .fill('-')
-        .concat([lastValue], predictedValues);
+      const forecastAnchor = Number(hist.forecastAnchorTotal ?? values[values.length - 1]);
+      const futureDates = trend30Dates.length ? trend30Dates : predicted7Dates;
+      const exactTail = new Array(Math.max(futureDates.length - predicted7Values.length, 0)).fill('-');
+      const exactSeries = new Array(Math.max(dates.length - 1, 0))
+        .fill('-').concat([forecastAnchor], predicted7Values, exactTail);
+      const trendStart = Math.min(7, trend30Values.length);
+      const trendSeries = new Array(dates.length + trendStart).fill('-')
+        .concat([
+          predicted7Values.length ? predicted7Values[predicted7Values.length - 1] : forecastAnchor,
+          ...trend30Values.slice(trendStart),
+        ]);
 
       inventoryValueChartInstance.setOption({
         backgroundColor: 'transparent',
         animation: true,
         title: { show: false },
         legend: {
-          data: [t('inventory.valueTrend'), 'AI 预测'],
+          data: [t('inventory.valueTrend'), t('inventory.forecast7d'), t('inventory.trend30d')],
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
         },
@@ -2581,7 +2619,7 @@ const app = createApp({
         },
         xAxis: {
           type: 'category',
-          data: dates.concat(predictedDates),
+          data: dates.concat(futureDates),
           boundaryGap: false,
           axisLabel: { color: '#9ca3af', fontSize: 10 },
           axisLine: { lineStyle: { color: '#374151' } },
@@ -2596,30 +2634,40 @@ const app = createApp({
           {
             name: t('inventory.valueTrend'),
             type: 'line',
-            data: values.concat(predictedDates.map(() => '-')),
+            data: values.concat(futureDates.map(() => '-')),
             smooth: true,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#ff6b00' },
+            lineStyle: { width: 2.5, color: '#3b82f6' },
             areaStyle: {
               color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(255,107,0,0.28)' },
-                { offset: 1, color: 'rgba(255,107,0,0.02)' },
+                { offset: 0, color: 'rgba(59,130,246,0.22)' },
+                { offset: 1, color: 'rgba(59,130,246,0.02)' },
               ]),
             },
           },
           {
-            name: 'AI 预测',
+            name: t('inventory.forecast7d'),
             type: 'line',
-            data: forecastSeries,
+            data: exactSeries,
             smooth: true,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#22c792', type: 'dashed' },
-            markLine: predictedDates.length ? {
+            lineStyle: { width: 2.5, color: '#ff6b00', type: 'dashed' },
+            itemStyle: { color: '#ff6b00' },
+            markLine: predicted7Dates.length ? {
               symbol: 'none',
               label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
               lineStyle: { color: '#6b7280', type: 'dashed' },
               data: [{ xAxis: dates[dates.length - 1] }],
             } : undefined,
+          },
+          {
+            name: t('inventory.trend30d'),
+            type: 'line',
+            data: trendSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#22c55e', type: 'dashed' },
+            itemStyle: { color: '#22c55e' },
           },
         ],
       }, true);
@@ -2628,7 +2676,7 @@ const app = createApp({
 
     const refreshInventoryCharts = async () => {
       if (!currentUser.value) return;
-      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], predicted7Dates: [], predicted7Values: [], trend30Dates: [], trend30Values: [], total: 0 };
       // 本地库存为空:直接空态,不走会伪造曲线的 mock
       if (!myInventory.value.length) {
         inventoryValueHistory.value = emptyHist;
@@ -2923,10 +2971,7 @@ const app = createApp({
       const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
 
       // 从当前 ML 输出动态计算雷达分数，避免硬编码指标与重训结果脱节
-      const wanted = ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'];
-      const rows = wanted
-        .map(name => regressionModels.value.find(r => r.name === name))
-        .filter(Boolean);
+      const rows = regressionModels.value.slice(0, 4);
       const maxRmse = Math.max(...rows.map(r => Number(r.rmse) || 0), 1);
       const maxReturn = Math.max(...rows.map(r => Math.abs(Number(r.returnPct) || 0)), 1);
       const speedScore = (speed) => {
@@ -3009,7 +3054,7 @@ const app = createApp({
       try {
         const client = api();
         if (client && apiOnline.value) {
-          const bt = await client.getBacktest(90);
+          const bt = await client.getBacktest(90, modelTrack.value);
           dates = bt.dates || [];
           seriesMap = bt.series || {};
         }
@@ -3637,6 +3682,7 @@ const app = createApp({
       refreshInventoryCharts,
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
+      modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       radarChart, backtestChart, shapChart,
       perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具

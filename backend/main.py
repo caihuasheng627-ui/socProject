@@ -46,6 +46,7 @@ from auth import (
 import rag
 import agent_debate
 import portfolio_diagnose
+from inventory_forecast import aggregate_inventory_forecast
 import llm
 import quotes as quotes_svc
 import settings_store
@@ -740,7 +741,14 @@ def portfolio_value_history(days: int = 90, current_user: dict = Depends(get_cur
 @app.get("/api/inventory/value_history")
 def inventory_value_history(days: int = 90, current_user: dict = Depends(get_current_user_optional)):
     """真实库存(holding_type=real)总市值走势。无库存时返回空曲线,不伪造数据。"""
-    empty = {"dates": [], "values": [], "predictedDates": [], "predictedValues": [], "total": 0}
+    empty = {
+        "dates": [], "values": [], "predictedDates": [], "predictedValues": [],
+        "predicted7Dates": [], "predicted7Values": [],
+        "trend30Dates": [], "trend30Values": [], "forecastAnchorTotal": 0,
+        "predictionCoverage": {"totalItems": 0, "predictedItems": 0, "trendItems": 0,
+                               "itemRatio": 0.0, "valueRatio": 0.0},
+        "modelVersion": None, "total": 0,
+    }
     with get_connection() as conn:
         n = conn.execute(
             "SELECT COUNT(*) FROM portfolio WHERE user_id=? AND holding_type='real'",
@@ -757,26 +765,26 @@ def inventory_value_history(days: int = 90, current_user: dict = Depends(get_cur
                GROUP BY p.date ORDER BY p.date""",
             (current_user["id"], f"-{days} days"),
         ).fetchall()
+        forecast = aggregate_inventory_forecast(
+            conn,
+            user_id=current_user["id"],
+            loader=_loader,
+            now=_utcnow(),
+            ttl_hours=PRED_CACHE_TTL_HOURS,
+            circuit_breaker_enabled=PREDICTION_CIRCUIT_BREAKER_ENABLED,
+        )
     if not rows:
         return empty
     dates = [r["date"] for r in rows]
     values = [round(r["value"], 2) for r in rows]
-    # 简单外推 7 日:用近 7 个点的线性斜率,无足够历史则持平
-    predicted_dates: list[str] = []
-    predicted_values: list[float] = []
-    if len(values) >= 2:
-        window = values[-7:]
-        slope = (window[-1] - window[0]) / max(len(window) - 1, 1)
-        last = values[-1]
-        last_date = pd.Timestamp(dates[-1])
-        for i in range(1, 8):
-            predicted_dates.append((last_date + pd.Timedelta(days=i)).strftime("%Y-%m-%d"))
-            predicted_values.append(round(max(last + slope * i, 0), 2))
+    predicted_dates = forecast["predicted7Dates"]
+    predicted_values = forecast["predicted7Values"]
     return {
         "dates": dates,
         "values": values,
         "predictedDates": predicted_dates,
         "predictedValues": predicted_values,
+        **forecast,
         "total": values[-1] if values else 0,
     }
 
@@ -1098,15 +1106,76 @@ def models_comparison():
         "rmse": 0, "mae": 0, "mape": 0, "r2": 0,
         "returnPct": 0, "speed": "—", "course": "基准策略",
     }
-    return {"regression": regression, "classification": classification,
-            "buyAndHold": buy_hold,
-            "horizonSteps": horizon_steps or mc.get("horizonSteps") or 7}
+    historical = {
+        "track": "historical",
+        "regression": regression,
+        "classification": classification,
+        "buyAndHold": buy_hold,
+        "horizonSteps": horizon_steps or mc.get("horizonSteps") or 7,
+        "metadata": {
+            "label": "2019-2023 canonical fair test",
+            "dataSource": "steam-history-canonical-test",
+        },
+    }
+    online_path = OUTPUT_DIR / "online_model_comparison.json"
+    online: dict[str, Any] = {
+        "track": "online", "regression": [], "classification": [],
+        "horizonSteps": 7, "metadata": {}, "trend30": None,
+    }
+    if online_path.exists():
+        try:
+            payload = json.loads(online_path.read_text(encoding="utf-8"))
+            online["regression"] = [
+                {
+                    "name": name,
+                    "type": "DL" if name in ("LSTM-C", "LSTM-D") else "Fusion",
+                    "course": "recent 180d online holdout",
+                    "rmse": metrics.get("rmse"),
+                    "mae": metrics.get("mae"),
+                    "mape": metrics.get("mapePct"),
+                    "r2": metrics.get("r2"),
+                    "directionAccuracy": metrics.get("directionAccuracy"),
+                    "over30Rate": metrics.get("over30Rate"),
+                }
+                for name, metrics in (payload.get("models") or {}).items()
+                if isinstance(metrics, dict)
+            ]
+            online["metadata"] = {
+                key: payload.get(key) for key in (
+                    "dataSource", "split", "dateRange", "items", "decisions", "modelVersion"
+                )
+            }
+        except Exception:
+            pass
+    trend_path = OUTPUT_DIR / "trend_30d_results_test.json"
+    if trend_path.exists():
+        try:
+            trend = json.loads(trend_path.read_text(encoding="utf-8"))
+            overall = trend.get("overall") or {}
+            online["trend30"] = {
+                "name": "Keras-Seq2Seq-30D", "horizonSteps": 30,
+                "split": trend.get("split"), "items": trend.get("items"),
+                "rows": trend.get("rows"), "rmse": overall.get("rmse"),
+                "mae": overall.get("mae"), "mape": overall.get("mape_pct"),
+                "r2": overall.get("r2"), "coverage": overall.get("coverage"),
+            }
+        except Exception:
+            pass
+    return {
+        **historical,
+        "tracks": {"historical": historical, "online": online},
+        "defaultTrack": "historical",
+    }
 
 
 @app.get("/api/models/backtest")
-def models_backtest(days: int = 60, skinId: str | None = None):
-    p = OUTPUT_DIR / "backtest" / "backtest_curves.json"
-    if not p.exists():
+def models_backtest(
+    days: int = 60,
+    skinId: str | None = None,
+    track: Literal["historical", "online"] = "historical",
+):
+    p = OUTPUT_DIR / ("backtest_online" if track == "online" else "backtest") / "backtest_curves.json"
+    if track == "historical" and not p.exists():
         p = OUTPUT_DIR / "backtest_curves.json"
     if p.exists():
         try:
@@ -1120,13 +1189,19 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     "LSTM-C": ("lstm_c", "LSTM-C", "LSTM"),
                     "LSTM-D": ("lstm_d", "LSTM-D"),
                     "Hybrid": ("hybrid", "Hybrid"),
+                    "Hybrid-V2-Raw": ("hybrid_v2_raw", "Hybrid-V2-Raw"),
+                    "Hybrid-V2-Calibrated": ("hybrid_v2_calibrated", "Hybrid-V2-Calibrated"),
                     "GRU": ("gru", "GRU"),
                     "Random Forest": ("rf", "RF", "Random Forest"),
                     "LightGBM": ("lightgbm", "LightGBM"),
                     "XGBoost": ("xgboost", "XGBoost"),
                 }
                 # 图表主系列：策略模型 + Buy&Hold（避免一次塞太多线）
-                prefer_labels = ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "XGBoost")
+                prefer_labels = (
+                    ("LSTM-C", "LSTM-D", "Hybrid-V2-Raw", "Hybrid-V2-Calibrated")
+                    if track == "online"
+                    else ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "XGBoost")
+                )
 
                 def _fee_series(label: str) -> list:
                     for alias in label_aliases.get(label, (label,)):
@@ -1166,6 +1241,7 @@ def models_backtest(days: int = 60, skinId: str | None = None):
                     series = {k: v[-days:] for k, v in series.items()}
 
                 return {
+                    "track": track,
                     "dates": dates,
                     "series": series,
                     "indexed": True,
@@ -1177,7 +1253,7 @@ def models_backtest(days: int = 60, skinId: str | None = None):
             return raw
         except Exception:
             pass
-    return {"dates": [], "series": {}}
+    return {"track": track, "dates": [], "series": {}}
 
 
 @app.get("/api/models/shap")
