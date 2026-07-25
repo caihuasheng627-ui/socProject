@@ -772,6 +772,23 @@ const app = createApp({
       if (!client || !skinId) return;
       try {
         const res = await client.predict(skinId, 7);
+        predictionStatus.value = res.status || 'demo';
+        predictionReason.value = res.reason || '';
+        predictionCalibration.value = res.calibration || null;
+        if (predictionStatus.value === 'unavailable') {
+          modelPredictions.value = [];
+          predictionDaily.value = null;
+          predictionTrend30d.value = null;
+          predictionCalibration.value = null;
+          predictionMeta.value = {
+            consensusScore: 0,
+            consensusLevel: '',
+            entryLow: null,
+            entryHigh: null,
+            targetPrice: null,
+          };
+          return res;
+        }
         const curUsd = res.currentPrice
           ?? res.currentPriceUsd
           ?? selectedSkin.value?.price
@@ -786,12 +803,13 @@ const app = createApp({
             ? p.dailyPrices.map(v => +(+v).toFixed(4))
             : null;
           return {
-            name: p.model,
+            name: p.routeModel || p.model,
             type: p.type || 'ML',
             price,
             change: +change.toFixed(2),
             confidence: Math.round(p.confidence || 0),
             daily,
+            rawDaily: Array.isArray(p.rawDailyPrices) ? p.rawDailyPrices : null,
           };
         });
         const levelMap = {
@@ -807,13 +825,37 @@ const app = createApp({
         // 逐日预测主路径: 优先 LSTM(部署主力),否则任一带 daily 的模型
         const withDaily = modelPredictions.value.filter(p => p.daily && p.daily.length);
         const primary = withDaily.find(p => /lstm/i.test(p.name)) || withDaily[0] || null;
+        const forecastAnchor = Number(res.forecastAnchorPrice || curUsd);
         predictionDaily.value = primary
-          ? { model: primary.name, base: curUsd, prices: primary.daily }
+          ? {
+            model: primary.name,
+            base: Number.isFinite(forecastAnchor) && forecastAnchor > 0 ? forecastAnchor : curUsd,
+            prices: primary.daily,
+            anchorApplied: Boolean(
+              Array.isArray(res.calibration?.reasonCodes)
+              && res.calibration.reasonCodes.includes('UNCONFIRMED_PRICE_SHOCK')
+            ),
+          }
           : null;
+        predictionTrend30d.value = null;
+        if (
+          res.trend30d
+          && res.trend30d.horizon === 30
+          && ['p10', 'p50', 'p90'].every(
+            key => Array.isArray(res.trend30d[key]) && res.trend30d[key].length === 30
+          )
+        ) {
+          predictionTrend30d.value = res.trend30d;
+        }
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
+        predictionStatus.value = 'error';
+        predictionReason.value = 'REQUEST_FAILED';
+        predictionCalibration.value = null;
+        modelPredictions.value = [];
         predictionDaily.value = null;
+        predictionTrend30d.value = null;
         return null;
       }
     };
@@ -976,7 +1018,11 @@ const app = createApp({
           (modelComparison.regression || []).map((r) => [r.name, r.course || ''])
         );
         let usedLive = false;
-        if (cmp?.regression?.length) {
+        if (cmp?.tracks) {
+          modelTracks.value = cmp.tracks;
+          applyModelTrack(modelTrack.value);
+          usedLive = true;
+        } else if (cmp?.regression?.length) {
           regressionModels.value = cmp.regression.map((r) => {
             const course = r.course && r.course !== r.type
               ? r.course
@@ -985,7 +1031,7 @@ const app = createApp({
           });
           usedLive = true;
         }
-        if (cmp?.classification?.length) {
+        if (!cmp?.tracks && cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
           usedLive = true;
         }
@@ -999,7 +1045,7 @@ const app = createApp({
           modelsNItems.value = Number(cmp.nItems) || modelsNItems.value;
         }
         // v5 契约: Seq2Seq 多步模型带 perDay 逐日指标(D1..D7)
-        modelsPerDay.value = (cmp?.regression || [])
+        if (!cmp?.tracks) modelsPerDay.value = (cmp?.regression || [])
           .filter((r) => Array.isArray(r.perDay) && r.perDay.length)
           .map((r) => ({ name: r.name, perDay: r.perDay }));
         modelsDataSource.value = (usedLive && apiOnline.value) ? 'live' : 'demo';
@@ -1408,6 +1454,10 @@ const app = createApp({
     const regressionModels = ref(
       (modelComparison.regression || []).map((r) => ({ ...r }))
     );
+    const modelTrack = ref('historical');
+    const modelTracks = ref(null);
+    const modelTrackMetadata = ref({});
+    const trend30Metrics = ref(null);
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
     const modelsLoading = ref(false);
@@ -1422,6 +1472,27 @@ const app = createApp({
       { id: 'lightgbm', label: 'LightGBM' },
       { id: 'average', label: 'Avg' },
     ];
+
+    const applyModelTrack = (track) => {
+      const selected = modelTracks.value?.[track];
+      if (!selected) return;
+      regressionModels.value = (selected.regression || []).map((row) => ({ ...row }));
+      classificationModels.value = (selected.classification || []).map((row) => ({ ...row }));
+      modelsPerDay.value = regressionModels.value
+        .filter((row) => Array.isArray(row.perDay) && row.perDay.length)
+        .map((row) => ({ name: row.name, perDay: row.perDay }));
+      modelTrackMetadata.value = selected.metadata || {};
+      trend30Metrics.value = selected.trend30 || null;
+    };
+    const setModelTrack = async (track) => {
+      if (!['historical', 'online'].includes(track) || modelTrack.value === track) return;
+      modelTrack.value = track;
+      applyModelTrack(track);
+      await nextTick();
+      renderRadar();
+      renderPerDay();
+      renderBacktest();
+    };
 
     const modelsBest = computed(() => {
       const rows = regressionModels.value || [];
@@ -1495,7 +1566,6 @@ const app = createApp({
       shapModel.value = id;
       try { await renderShap(); } catch (_) { /* charts may not be ready */ }
     };
-
     const modelTypeLabel = (m) => {
       if (!m) return '—';
       if (m.typeKey) {
@@ -1659,8 +1729,26 @@ const app = createApp({
     const klineLoading = ref(false);
     let klineChartInstance = null;
     const modelPredictions = ref([]);
+    const predictionStatus = ref('idle');
+    const predictionReason = ref('');
+    const predictionCalibration = ref(null);
     // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
     const predictionDaily = ref(null);
+    // Optional Keras probability trend from the live API; never synthesized.
+    const predictionTrend30d = ref(null);
+    const calibrationEvidence = computed(() => {
+      const calibration = predictionCalibration.value;
+      if (!calibration) return null;
+      const weights = calibration.weights?.d7 || {};
+      const reasons = Array.isArray(calibration.reasonCodes) ? calibration.reasonCodes : [];
+      return {
+        c: Math.round(Number(weights.c || 0) * 100),
+        d: Math.round(Number(weights.d || 0) * 100),
+        recent: Math.round(Number(weights.recent || 0) * 100),
+        disagreement: (Number(calibration.modelDisagreement || 0) * 100).toFixed(1),
+        compressed: reasons.includes('SMOOTH_DEVIATION_COMPRESSION'),
+      };
+    });
     const predictionMeta = ref({
       consensusScore: 76,
       consensusLevel: '',
@@ -1935,7 +2023,7 @@ const app = createApp({
         kline = mock.kline;
         ma7 = window.CSVestData.calculateMA(kline, 7);
         ma30 = window.CSVestData.calculateMA(kline, 30);
-        if (!modelPredictions.value.length) {
+        if (!modelPredictions.value.length && predictionStatus.value !== 'unavailable') {
           const base = selectedSkin.value.price;
           modelPredictions.value = [
             { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65 },
@@ -1953,7 +2041,15 @@ const app = createApp({
       const predictedDates = [];
       const predictedValues = [];
       const dailyPath = predictionDaily.value;
-      const horizon = (dailyPath?.prices?.length) || 7;
+      const trendPath = predictionTrend30d.value;
+      const predictionUnavailable = predictionStatus.value === 'unavailable';
+      const hasTrend = !predictionUnavailable
+        && trendPath?.horizon === 30
+        && ['p10', 'p50', 'p90'].every(
+          key => Array.isArray(trendPath[key]) && trendPath[key].length === 30
+        );
+      const exactHorizon = predictionUnavailable ? 0 : ((dailyPath?.prices?.length) || 7);
+      const horizon = Math.max(exactHorizon, hasTrend ? 30 : 0);
       // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
       const lastLabel = String(kline[kline.length - 1][0]);
       const [lm, ld] = lastLabel.split('/').map(Number);
@@ -1968,11 +2064,14 @@ const app = createApp({
       // 桥接点取值:正常用 lastClose;若 lastClose 相对首日预测偏离过大
       // (末端脏价),改用首日预测价,既不断层也不把异常收盘画成 AI 预测尖峰。
       let bridgeValue = lastClose;
+      let dirtyAnchor = false;
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
         const firstPred = Number(dailyPath.prices[0]);
-        const dirtyAnchor = firstPred > 0
-          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5;
-        if (dirtyAnchor) bridgeValue = firstPred;
+        dirtyAnchor = Boolean(dailyPath.anchorApplied) || (
+          firstPred > 0
+          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5
+        );
+        if (dirtyAnchor) bridgeValue = Number(dailyPath.base || firstPred);
         for (const p of dailyPath.prices) {
           const value = dirtyAnchor
             ? Number(p)
@@ -1990,8 +2089,8 @@ const app = createApp({
         };
         // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
         const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
-        for (let i = 1; i <= horizon; i++) {
-          const t = i / horizon;
+        for (let i = 1; i <= exactHorizon; i++) {
+          const t = i / exactHorizon;
           const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
           const wiggle = i === horizon ? 0 : rand() * dailyVol;
           predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
@@ -2002,11 +2101,29 @@ const app = createApp({
       // 无真实日成交量:只画主图,不再渲染量能副图
       const forecastPad = predictedDates.map(() => '-');
       const categoryDates = kline.map(d => d[0]).concat(predictedDates);
+      const emptySeries = () => new Array(categoryDates.length).fill('-');
+      const exactTail = new Array(Math.max(horizon - predictedValues.length, 0)).fill('-');
+      const exactSeries = predictionUnavailable
+        ? emptySeries()
+        : new Array(kline.length - 1).fill('-')
+          .concat([bridgePoint], predictedValues, exactTail);
+      const trendPrefix = new Array(kline.length + Math.max(exactHorizon - 1, 0)).fill('-');
+      const trendSeries = (values = []) => hasTrend
+        ? trendPrefix.concat(values)
+        : emptySeries();
+      const authoritativeTrend = hasTrend
+        ? trendPath.p50.slice(Math.max(exactHorizon - 1, 0)).map(Number)
+        : [];
+      const forecast7Name = t('prediction.chart.forecast7d');
+      const trendMedianName = t('prediction.chart.trend30d');
+      const legendData = ['K线', 'MA7', 'MA30', forecast7Name];
+      if (hasTrend) legendData.push(trendMedianName);
       const option = {
         backgroundColor: 'transparent',
         animation: false,
         legend: {
-          data: ['K线', 'MA7', 'MA30', 'AI 预测'],
+          type: 'scroll',
+          data: legendData,
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
         },
@@ -2017,7 +2134,7 @@ const app = createApp({
           borderColor: '#374151',
           textStyle: { color: '#f3f4f6' },
         },
-        grid: { left: 52, right: 16, top: 40, bottom: 36 },
+        grid: { left: 52, right: 16, top: 48, bottom: 36 },
         xAxis: {
           type: 'category',
           data: categoryDates,
@@ -2065,9 +2182,9 @@ const app = createApp({
             lineStyle: { color: '#8b5cf6', width: 1 },
           },
           {
-            name: 'AI 预测',
+            name: forecast7Name,
             type: 'line',
-            data: new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
+            data: exactSeries,
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
@@ -2082,11 +2199,37 @@ const app = createApp({
             },
             markArea: {
               itemStyle: { color: 'rgba(255, 107, 0, 0.05)' },
-              data: [[
+              data: predictionUnavailable || !predictedDates.length ? [] : [[
                 { xAxis: kline[kline.length - 1][0] },
-                { xAxis: predictedDates[predictedDates.length - 1] },
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
               ]],
             },
+          },
+          {
+            name: trendMedianName,
+            type: 'line',
+            data: trendSeries(authoritativeTrend),
+            smooth: true,
+            showSymbol: false,
+            connectNulls: false,
+            lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+                  { offset: 1, color: 'rgba(34, 197, 94, 0)' },
+                ],
+              },
+            },
+            markArea: {
+              itemStyle: { color: 'rgba(34, 197, 94, 0.05)' },
+              data: !hasTrend || !predictedDates.length ? [] : [[
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
+                { xAxis: predictedDates[Math.min(29, predictedDates.length - 1)] },
+              ]],
+            },
+            emphasis: { focus: 'series' },
           },
         ],
       };
@@ -2673,6 +2816,10 @@ const app = createApp({
       const values = hist.values || [];
       const predictedDates = hist.predictedDates || [];
       const predictedValues = hist.predictedValues || [];
+      const predicted7Dates = hist.predicted7Dates || predictedDates;
+      const predicted7Values = hist.predicted7Values || predictedValues;
+      const trend30Dates = hist.trend30Dates || [];
+      const trend30Values = hist.trend30Values || [];
       const hasData = dates.length > 0 && values.length > 0;
 
       if (!hasData) {
@@ -2693,17 +2840,24 @@ const app = createApp({
         return;
       }
 
-      const lastValue = values[values.length - 1];
-      const forecastSeries = new Array(Math.max(dates.length - 1, 0))
-        .fill('-')
-        .concat([lastValue], predictedValues);
+      const forecastAnchor = Number(hist.forecastAnchorTotal ?? values[values.length - 1]);
+      const futureDates = trend30Dates.length ? trend30Dates : predicted7Dates;
+      const exactTail = new Array(Math.max(futureDates.length - predicted7Values.length, 0)).fill('-');
+      const exactSeries = new Array(Math.max(dates.length - 1, 0))
+        .fill('-').concat([forecastAnchor], predicted7Values, exactTail);
+      const trendStart = Math.min(7, trend30Values.length);
+      const trendSeries = new Array(dates.length + trendStart).fill('-')
+        .concat([
+          predicted7Values.length ? predicted7Values[predicted7Values.length - 1] : forecastAnchor,
+          ...trend30Values.slice(trendStart),
+        ]);
 
       inventoryValueChartInstance.setOption({
         backgroundColor: 'transparent',
         animation: true,
         title: { show: false },
         legend: {
-          data: [t('inventory.valueTrend'), 'AI 预测'],
+          data: [t('inventory.valueTrend'), t('inventory.forecast7d'), t('inventory.trend30d')],
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
         },
@@ -2717,7 +2871,7 @@ const app = createApp({
         },
         xAxis: {
           type: 'category',
-          data: dates.concat(predictedDates),
+          data: dates.concat(futureDates),
           boundaryGap: false,
           axisLabel: { color: '#9ca3af', fontSize: 10 },
           axisLine: { lineStyle: { color: '#374151' } },
@@ -2732,30 +2886,40 @@ const app = createApp({
           {
             name: t('inventory.valueTrend'),
             type: 'line',
-            data: values.concat(predictedDates.map(() => '-')),
+            data: values.concat(futureDates.map(() => '-')),
             smooth: true,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#ff6b00' },
+            lineStyle: { width: 2.5, color: '#3b82f6' },
             areaStyle: {
               color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(255,107,0,0.28)' },
-                { offset: 1, color: 'rgba(255,107,0,0.02)' },
+                { offset: 0, color: 'rgba(59,130,246,0.22)' },
+                { offset: 1, color: 'rgba(59,130,246,0.02)' },
               ]),
             },
           },
           {
-            name: 'AI 预测',
+            name: t('inventory.forecast7d'),
             type: 'line',
-            data: forecastSeries,
+            data: exactSeries,
             smooth: true,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#22c792', type: 'dashed' },
-            markLine: predictedDates.length ? {
+            lineStyle: { width: 2.5, color: '#ff6b00', type: 'dashed' },
+            itemStyle: { color: '#ff6b00' },
+            markLine: predicted7Dates.length ? {
               symbol: 'none',
               label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
               lineStyle: { color: '#6b7280', type: 'dashed' },
               data: [{ xAxis: dates[dates.length - 1] }],
             } : undefined,
+          },
+          {
+            name: t('inventory.trend30d'),
+            type: 'line',
+            data: trendSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#22c55e', type: 'dashed' },
+            itemStyle: { color: '#22c55e' },
           },
         ],
       }, true);
@@ -2764,7 +2928,7 @@ const app = createApp({
 
     const refreshInventoryCharts = async () => {
       if (!currentUser.value) return;
-      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], predicted7Dates: [], predicted7Values: [], trend30Dates: [], trend30Values: [], total: 0 };
       // 本地库存为空:直接空态,不走会伪造曲线的 mock
       if (!myInventory.value.length) {
         inventoryValueHistory.value = emptyHist;
@@ -3112,15 +3276,13 @@ const app = createApp({
       const th = modelsChartTheme();
       const narrow = th.narrow;
 
-      const wanted = ['LSTM-C', 'Hybrid', 'Random Forest', 'XGBoost'];
-      const rows = wanted
-        .map((name) => regressionModels.value.find((r) => r.name === name))
-        .filter(Boolean);
+      // 从当前 ML 输出动态计算雷达分数，避免硬编码指标与重训结果脱节
+      const rows = regressionModels.value.slice(0, 4);
       if (!rows.length) {
         radarInstance.clear();
         return;
       }
-      const maxRmse = Math.max(...rows.map((r) => Number(r.rmse) || 0), 1);
+      const maxRmse = Math.max(...rows.map(r => Number(r.rmse) || 0), 1);
       const posReturns = rows.map((r) => Math.max(0, Number(r.returnPct) || 0));
       const maxPosReturn = Math.max(...posReturns, 1);
       const speedScore = (speed) => {
@@ -3222,7 +3384,7 @@ const app = createApp({
       try {
         const client = api();
         if (client && apiOnline.value) {
-          const bt = await client.getBacktest(90);
+          const bt = await client.getBacktest(90, modelTrack.value);
           dates = bt.dates || [];
           seriesMap = bt.series || {};
         }
@@ -3853,7 +4015,11 @@ const app = createApp({
     watch(selectedSkin, (skin) => {
       relatedNewsOverride.value = null;
       explainSummary.value = '';
+      predictionStatus.value = 'idle';
+      predictionReason.value = '';
+      predictionCalibration.value = null;
       predictionDaily.value = null;
+      predictionTrend30d.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
@@ -3891,7 +4057,8 @@ const app = createApp({
       apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionMeta, predictionDaily, predictionDailyRows,
+      modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
+      predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
       relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
@@ -3928,6 +4095,7 @@ const app = createApp({
       refreshInventoryCharts,
       // 模型
       regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
+      modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
       selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
       shapEmpty, backtestEmpty,

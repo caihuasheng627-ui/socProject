@@ -3,10 +3,10 @@ GPU/CPU 训练加速配置 — 训练脚本共用。
 
 TensorFlow (Windows 原生):
     TF>=2.11 在 native Windows 上无 CUDA; configure_device() 仅在有 GPU 插件时启用。
-    需要 GPU 请用 WSL2+CUDA, 或改用 PyTorch CUDA 脚本 (如 train_seq2seq_30d.py)。
+    需要 GPU 请用 WSL2+CUDA；所有正式深度模型（含 30 天趋势）统一使用 Keras。
 
-PyTorch:
-    train_seq2seq_30d.py 内置 configure_torch_device(), 依赖 torch+cuXXX。
+30-day trend:
+    train_seq2seq_30d.py uses the same TensorFlow/Keras device policy.
 
 用法 (TF 脚本):
     from gpu_config import configure_device, create_dataset
@@ -35,7 +35,7 @@ def configure_device():
         import os
         n_cores = os.cpu_count() or 4
         print(f"[CPU] No TensorFlow GPU found — {n_cores} CPU cores available")
-        print("[CPU] Tip: 原生 Windows 请用 PyTorch CUDA 训练 (train_seq2seq_30d.py)")
+        print("[CPU] Native Windows TensorFlow training runs on CPU; use WSL2 for CUDA")
 
     # 打印物理设备列表
     for dev in tf.config.list_physical_devices():

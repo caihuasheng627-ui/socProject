@@ -1004,13 +1004,16 @@
 
               <div style="flex: 1;">
                 <div class="text-muted text-sm">{{ t('prediction.consensus') }}</div>
-                <div class="flex items-center gap-3 mt-2">
+                <div v-if="predictionStatus === 'unavailable'" class="mt-2 text-muted">
+                  {{ t('prediction.unavailable', { reason: predictionReason }) }}
+                </div>
+                <div v-else class="flex items-center gap-3 mt-2">
                   <div class="consensus-meter" style="flex: 1;">
                     <div class="consensus-bar" :style="{ width: (predictionMeta.consensusScore || 0) + '%' }"></div>
                   </div>
                   <strong style="color: var(--accent-orange); font-size: 20px;">{{ predictionMeta.consensusScore || 0 }}%</strong>
                 </div>
-                <div class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length || 6, classification: 4 }) }}</div>
+                <div v-if="predictionStatus !== 'unavailable'" class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length, classification: 0 }) }}</div>
               </div>
             </div>
           </div>
@@ -1124,6 +1127,27 @@
               <div class="card-header">
                 <div class="card-title">{{ t('prediction.modelsTitle') }}</div>
               </div>
+              <div v-if="predictionCalibration && calibrationEvidence" class="calibration-strip">
+                <div class="calibration-strip__icon" aria-hidden="true">
+                  <i class="ph ph-sliders-horizontal"></i>
+                </div>
+                <div class="calibration-strip__body">
+                  <div class="calibration-strip__title">{{ t('prediction.calibrationTitle') }}</div>
+                  <div class="calibration-strip__summary">
+                    {{ calibrationEvidence.compressed
+                      ? t('prediction.calibrationCompressed')
+                      : t('prediction.calibrationStable') }}
+                  </div>
+                </div>
+                <div class="calibration-strip__metrics">
+                  <span>{{ t('prediction.calibrationWeights', {
+                    c: calibrationEvidence.c,
+                    d: calibrationEvidence.d,
+                    recent: calibrationEvidence.recent
+                  }) }}</span>
+                  <span>{{ t('prediction.calibrationDisagreement', { value: calibrationEvidence.disagreement }) }}</span>
+                </div>
+              </div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -1134,6 +1158,11 @@
                   </tr>
                 </thead>
                 <tbody>
+                  <tr v-if="predictionStatus === 'unavailable'">
+                    <td colspan="4" class="text-muted" style="text-align: center; padding: 24px;">
+                      {{ t('prediction.unavailable', { reason: predictionReason }) }}
+                    </td>
+                  </tr>
                   <tr v-for="pred in modelPredictions" :key="pred.name">
                     <td>
                       <strong>{{ pred.name }}</strong>
@@ -1181,7 +1210,7 @@
                 </div>
               </div>
 
-              <div class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+              <div v-if="predictionStatus !== 'unavailable'" class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
                 <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
                 <div class="flex items-center gap-3">
                   <div style="font-size: 22px; font-weight: 700; color: var(--accent-orange);">
@@ -2269,7 +2298,7 @@
                   }"
                 >{{ modelsLoading ? t('models.source.loading') : (modelsDataSource === 'live' ? t('models.source.live') : t('models.source.demo')) }}</span>
               </h2>
-              <p class="models-lab__sub">{{ t('models.subtitleShort', { n: modelsNItems }) }}</p>
+              <p class="models-lab__sub">{{ modelTrack === 'online' ? t('models.subtitleOnline') : t('models.subtitleShort', { n: modelsNItems }) }}</p>
             </div>
             <div class="models-lab__actions">
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
@@ -2282,6 +2311,23 @@
           </header>
 
           <div class="models-lab__scroll" ref="modelsLabScroll">
+            <div class="models-track-switch" role="tablist" :aria-label="t('models.trackLabel')">
+              <button type="button" class="timeframe-btn" :class="{ active: modelTrack === 'historical' }"
+                role="tab" :aria-selected="modelTrack === 'historical'" @click="setModelTrack('historical')">
+                {{ t('models.trackHistorical') }}
+              </button>
+              <button type="button" class="timeframe-btn" :class="{ active: modelTrack === 'online' }"
+                role="tab" :aria-selected="modelTrack === 'online'" @click="setModelTrack('online')">
+                {{ t('models.trackOnline') }}
+              </button>
+            </div>
+            <div class="models-lab__hint models-track-meta">
+              {{ modelTrack === 'online' ? t('models.trackOnlineDesc') : t('models.trackHistoricalDesc') }}
+              <span v-if="modelTrackMetadata.dateRange">
+                · {{ modelTrackMetadata.dateRange.start }} — {{ modelTrackMetadata.dateRange.end }}
+                · {{ modelTrackMetadata.items }} items · {{ modelTrackMetadata.decisions }} decisions
+              </span>
+            </div>
             <div class="models-lab__kpi" aria-label="KPI">
               <div class="models-lab__kpi-item" v-for="k in modelsKpis" :key="k.id">
                 <span class="models-lab__kpi-label">{{ k.label }}</span>
@@ -2299,7 +2345,7 @@
                   </div>
                   <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
                 </div>
-                <div class="models-lab__hint">{{ t('models.routeNote') }}</div>
+                <div class="models-lab__hint">{{ modelTrack === 'online' ? t('models.onlineNote') : t('models.routeNote') }}</div>
                 <div class="models-lab__list" role="list">
                   <article
                     v-for="m in regressionModels"
@@ -2317,9 +2363,10 @@
                   >
                     <div class="ml-card__top">
                       <div class="ml-card__name">
-                        <strong>{{ m.name }}</strong>
+                        <strong>{{ m.name === 'Hybrid' ? t('models.hybridHistoricalName') : m.name }}</strong>
                         <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
-                        <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.badge.route') }}</span>
+                        <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.historicalBadge') }}</span>
+                        <span v-else-if="m.name === 'Hybrid-V2-Calibrated'" class="tag tag-green">Online</span>
                         <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">{{ t('models.badge.mape') }}</span>
                         <span v-if="m.name === modelsBest.rmse" class="tag tag-orange">{{ t('models.badge.best') }} RMSE</span>
                         <span v-if="m.name === modelsBest.mape" class="tag tag-green">{{ t('models.badge.best') }} MAPE</span>
@@ -2340,7 +2387,7 @@
                 </div>
               </section>
 
-              <section class="models-lab__section models-lab__section--clf">
+              <section v-if="modelTrack === 'historical'" class="models-lab__section models-lab__section--clf">
                 <div class="models-lab__section-head">
                   <div>
                     <p class="models-lab__eyebrow">{{ t('models.classificationEyebrow') }}</p>
@@ -2376,6 +2423,28 @@
                     </div>
                   </article>
                 </div>
+              </section>
+
+              <section v-if="modelTrack === 'online' && trend30Metrics" class="models-lab__section models-lab__section--clf">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.trend30Desc') }}</p>
+                    <h3>{{ t('models.trend30Title') }}</h3>
+                  </div>
+                  <span class="tag tag-green">Keras · 30D</span>
+                </div>
+                <article class="ml-card ml-card--trend">
+                  <div class="ml-card__top">
+                    <div class="ml-card__name"><strong>{{ trend30Metrics.name }}</strong></div>
+                    <span class="ml-card__type">{{ trend30Metrics.items }} items</span>
+                  </div>
+                  <div class="ml-card__metrics">
+                    <div><span>RMSE</span><b>{{ trend30Metrics.rmse != null ? trend30Metrics.rmse.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAE</span><b>{{ trend30Metrics.mae != null ? trend30Metrics.mae.toFixed(2) : '—' }}</b></div>
+                    <div><span>MAPE</span><b>{{ trend30Metrics.mape != null ? trend30Metrics.mape.toFixed(2) + '%' : '—' }}</b></div>
+                    <div><span>R²</span><b>{{ trend30Metrics.r2 != null ? trend30Metrics.r2.toFixed(2) : '—' }}</b></div>
+                  </div>
+                </article>
               </section>
 
               <section class="models-lab__section models-lab__section--radar">

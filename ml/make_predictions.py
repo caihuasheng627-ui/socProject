@@ -4,11 +4,13 @@ Outputs per-day predicted_price_d1..predicted_price_d7 columns.
 """
 
 import argparse
+import hashlib
 import pickle
 import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from forecast_contract import (
@@ -23,6 +25,9 @@ from forecast_contract import (
     validate_prediction_frame_seq,
 )
 from train_lstm_c import FEATURE_COLS, LOOKBACK
+from artifact_io import load_keras_artifact
+from train_seq2seq_30d import FEATURE_COLS as TREND_FEATURE_COLS
+from evaluate_trend_30d import evaluate_prediction_frame, save_split_metrics
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -114,7 +119,7 @@ def main(split="val"):
     train_price_floor = float(panel.loc[panel["_split"] == "train", "price"].min())
 
     x_values, y_log, meta = build_sequence_windows_multi(
-        panel, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=split
+        panel, list(FEATURE_COLS), LOOKBACK, SEQ_HORIZON, sample_split=split
     )
     # truth per day (USD) — only care about day 7 for legacy comparison
     truth_d7 = meta["actual_future_price"].to_numpy()
@@ -216,60 +221,141 @@ TREND_HORIZON = 30
 TREND_QUANTILE_COLS = ["p10", "p50", "p90"]
 
 
+def sanitize_trend_quantiles(
+    prediction, *, minimum_price=0.01, max_band_fraction=0.40
+):
+    """Order and bound P10/P50/P90 without applying the seven-day breaker."""
+    values = np.asarray(prediction, dtype=float)
+    if values.ndim != 3 or values.shape[-1] != 3:
+        raise ValueError(f"trend prediction must have shape (n, horizon, 3), got {values.shape}")
+    if not np.isfinite(values).all():
+        raise ValueError("trend prediction contains non-finite values")
+    if minimum_price <= 0 or not 0 < max_band_fraction < 1:
+        raise ValueError("minimum price and max band fraction must be valid positive bounds")
+
+    ordered = np.sort(values, axis=-1)
+    p50 = np.maximum(ordered[..., 1], minimum_price)
+    p10 = np.maximum(ordered[..., 0], minimum_price)
+    p90 = np.maximum(ordered[..., 2], p50)
+    p10 = np.maximum(np.minimum(p10, p50), p50 * (1.0 - max_band_fraction))
+    p90 = np.minimum(p90, p50 * (1.0 + max_band_fraction))
+    return np.stack([p10, p50, p90], axis=-1)
+
+
+def build_trend_prediction_frame(meta, prediction, *, model_version):
+    """Build and validate the canonical 30-day quantile prediction frame."""
+    values = sanitize_trend_quantiles(prediction)
+    if len(meta) != len(values):
+        raise ValueError("metadata and trend prediction row counts differ")
+    required_meta = [
+        "split", "date", "target_date", "market_hash_name", "current_price",
+        "actual_future_price", "horizon_steps",
+        *[f"actual_future_price_d{day}" for day in range(1, TREND_HORIZON + 1)],
+    ]
+    missing = [column for column in required_meta if column not in meta.columns]
+    if missing:
+        raise ValueError(f"trend metadata is missing columns: {missing}")
+
+    output = meta[required_meta].copy()
+    output["model_name"] = "Seq2Seq-30D-Quantile"
+    output["model_version"] = str(model_version)
+    output["horizon_steps"] = TREND_HORIZON
+    for day in range(1, TREND_HORIZON + 1):
+        for index, quantile in enumerate(TREND_QUANTILE_COLS):
+            output[f"trend_{quantile}_d{day}"] = values[:, day - 1, index]
+
+    output["date"] = np.asarray(output["date"], dtype="datetime64[ns]")
+    output["target_date"] = np.asarray(output["target_date"], dtype="datetime64[ns]")
+    splits = set(output["split"].dropna().astype(str))
+    if len(splits) != 1 or not splits.issubset({"val", "test"}):
+        raise ValueError(f"trend split must be exactly one of val/test, got {sorted(splits)}")
+
+    numeric_columns = [
+        "current_price", "actual_future_price",
+        *[f"actual_future_price_d{day}" for day in range(1, TREND_HORIZON + 1)],
+        *[
+            f"trend_{quantile}_d{day}"
+            for day in range(1, TREND_HORIZON + 1)
+            for quantile in TREND_QUANTILE_COLS
+        ],
+    ]
+    numeric = output[numeric_columns].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(numeric.to_numpy()).all() or (numeric <= 0).any().any():
+        raise ValueError("trend actual and predicted prices must be finite and positive")
+    output[numeric_columns] = numeric
+    output = output.drop_duplicates(["market_hash_name", "date"], keep="first")
+    return output.sort_values(["date", "market_hash_name"]).reset_index(drop=True)
+
+
+def _trend_model_version(*paths):
+    digest = hashlib.sha256()
+    for path in paths:
+        stat = Path(path).stat()
+        digest.update(f"{Path(path).name}:{stat.st_size}:{stat.st_mtime_ns}".encode())
+    return f"seq2seq-30d-keras-{digest.hexdigest()[:12]}"
+
+
 def export_trend_30d(split="val"):
     """Load seq2seq_30d model and export P10/P50/P90 per-day predictions."""
-    from tensorflow import keras
-
+    if split not in {"val", "test"}:
+        raise ValueError("split must be val or test")
     PRED_DIR.mkdir(parents=True, exist_ok=True)
 
     panel = load_feature_panel(DATA_DIR)
     panel = add_grouped_targets_multi(panel, horizon_steps=TREND_HORIZON)
-    train_price_floor = float(panel.loc[panel["_split"] == "train", "price"].min())
-
-    x_values, y_log, meta = build_sequence_windows_multi(
-        panel, FEATURE_COLS, LOOKBACK, TREND_HORIZON, sample_split=split
-    )
-    print(f"30d {split}: X={x_values.shape}, {meta.market_hash_name.nunique()} items")
-
-    # Load model
     model_path = MODEL_DIR / "seq2seq_30d.keras"
     scaler_path = MODEL_DIR / "seq2seq_30d_scaler.pkl"
-    if not model_path.exists():
-        print(f"  SKIP: {model_path} not found (train seq2seq_30d first)")
-        return
-
-    model = keras.models.load_model(model_path, compile=False)
+    if not model_path.exists() or not scaler_path.exists():
+        raise FileNotFoundError("30-day Keras model/scaler missing; train seq2seq_30d first")
     with open(scaler_path, "rb") as f:
         scalers = pickle.load(f)
+    artifact_features = list(scalers.get("feature_cols", []))
+    if artifact_features != list(TREND_FEATURE_COLS):
+        raise ValueError(
+            "30-day scaler feature contract does not match model_features.SEQUENCE_FEATURE_COLS"
+        )
+
+    x_values, _y_log, meta = build_sequence_windows_multi(
+        panel, list(TREND_FEATURE_COLS), LOOKBACK, TREND_HORIZON, sample_split=split
+    )
+    x_scaled = scale_x(x_values, scalers["x_scaler"]).astype(np.float32)
+    print(f"30d {split}: X={x_values.shape}, {meta.market_hash_name.nunique()} items")
+    model = load_keras_artifact(
+        model_path,
+        expected_input_shape=(LOOKBACK, len(TREND_FEATURE_COLS)),
+        expected_output_shape=(TREND_HORIZON, 3),
+        sample_input=x_scaled[: min(2, len(x_scaled))],
+    )
 
     y_scaler = scalers["y_scaler"]
 
     # Predict
     y_pred_scaled = model.predict(
-        scale_x(x_values, scalers["x_scaler"]), verbose=0, batch_size=512
+        x_scaled, verbose=0, batch_size=512
     )  # (n, 30, 3)
 
     # Inverse transform: per-quantile
     y_pred_log = np.zeros_like(y_pred_scaled)
     for q in range(3):
         y_pred_log[:, :, q] = y_scaler.inverse_transform(y_pred_scaled[:, :, q])
-    y_pred_price = np.expm1(y_pred_log)  # (n, 30, 3) USD
-
-    # Build output DataFrame
-    output = meta[["split", "date", "target_date", "market_hash_name",
-                   "current_price", "actual_future_price", "horizon_steps"]].copy()
-    for d in range(1, TREND_HORIZON + 1):
-        for qi, qname in enumerate(TREND_QUANTILE_COLS):
-            output[f"trend_{qname}_d{d}"] = y_pred_price[:, d - 1, qi]
+    y_pred_price = sanitize_trend_quantiles(np.expm1(y_pred_log))
+    output = build_trend_prediction_frame(
+        meta,
+        y_pred_price,
+        model_version=_trend_model_version(model_path, scaler_path),
+    )
 
     out_path = PRED_DIR / f"pred_seq2seq_30d_{split}.csv"
     output.to_csv(out_path, index=False, date_format="%Y-%m-%d")
     print(f"  saved {out_path.name}: {len(output):,} rows, {output.market_hash_name.nunique()} items")
+    metrics = evaluate_prediction_frame(output)
+    metrics_path = save_split_metrics(metrics, split)
+    print(f"  saved {metrics_path.name}")
 
     # Quick stats
-    pred_p50_d30 = y_pred_price[:, -1, 1]
-    pred_p10_d30 = y_pred_price[:, -1, 0]
-    pred_p90_d30 = y_pred_price[:, -1, 2]
+    pred_p50_d30 = output["trend_p50_d30"].to_numpy()
+    pred_p10_d30 = output["trend_p10_d30"].to_numpy()
+    pred_p90_d30 = output["trend_p90_d30"].to_numpy()
     spread_pct = float(((pred_p90_d30 - pred_p10_d30) / np.maximum(pred_p50_d30, 0.01)).mean() * 100)
     print(f"  Day 30 P50 mean: ${float(pred_p50_d30.mean()):.2f}")
     print(f"  Day 30 avg spread (P10-P90): {spread_pct:.1f}%")

@@ -4,7 +4,7 @@ GRU: RNN 变体对比模型 (10 件高流动性代表物品) — Seq2Seq 7 天�
 参考: Lecture4 例 8 (IBM LSTM) — 把 LSTM 层换成 GRU
 
 策略 (team_tasks.md 第 4 步):
-  - 按 train 集 daily_volume 均值选 10 件高流动性代表物品
+  - 使用现有 GRU 产物中冻结的 10 件高流动性代表物品
   - 单个 Sequential GRU 在这 10 件的滑动窗口上训练
   - 输出 Dense(7), 直接预测 7 天每日价格
 
@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import sys
+import uuid
 import warnings
 from pathlib import Path
 
@@ -37,6 +38,12 @@ from forecast_contract import (
     load_feature_panel,
 )
 from gpu_config import configure_device, create_dataset
+from artifact_io import promote_keras_checkpoint, save_pickle_atomic
+from model_features import (
+    FEATURE_CONTRACT_VERSION,
+    FROZEN_GRU_ITEMS,
+    SEQUENCE_FEATURE_COLS,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -45,7 +52,7 @@ warnings.filterwarnings("ignore")
 # ============================================================
 LOOKBACK = 60           # 60 天窗口
 SEQ_HORIZON = 7         # 输出未来 7 天每日价格
-N_ITEMS = 10            # 高流动性代表物品数
+N_ITEMS = len(FROZEN_GRU_ITEMS)
 GRU_UNITS = 50          # GRU 隐藏单元数
 DROPOUT = 0.2           # Dropout 比例
 BATCH_SIZE = 32
@@ -64,30 +71,27 @@ ITEMS_PATH  = OUTPUT_DIR / "gru_items.pkl"
 
 
 # ============================================================
-# 第 1 步: 加载数据 + 选 10 件高流动性物品 + 特征工程
+# 第 1 步: 加载数据 + 校验 10 件冻结物品 + 特征工程
 # ============================================================
 def load_data():
-    """从训练集选 top10，并返回连续特征面板。"""
+    """加载并校验手工冻结的十件代表物品。"""
     print("=" * 60)
     print("第 1 步: 加载数据 + 选高流动性物品 + 特征工程")
     print("=" * 60)
 
-    train = pd.read_csv(DATA_DIR / "train.csv")
-    val   = pd.read_csv(DATA_DIR / "val.csv")
-
-    print(f"  原始 train: {len(train):,} 行, {train['market_hash_name'].nunique()} 件")
-    print(f"  原始 val:   {len(val):,} 行, {val['market_hash_name'].nunique()} 件")
-
-    # --- 按 train 集日均成交量选 top10 (只在 val 也有的物品里选, 保证可评估) ---
-    vol = train.groupby("market_hash_name")["daily_volume"].mean()
-    vol = vol[vol.index.isin(val["market_hash_name"].unique())]
-    items = vol.sort_values(ascending=False).head(N_ITEMS).index.tolist()
-
-    print(f"\n  高流动性 top{N_ITEMS} (train 日均成交量):")
-    for name in items:
-        print(f"    {vol[name]:>10,.0f}  {name}")
-
     panel = load_feature_panel(DATA_DIR)
+    train_items = set(panel.loc[panel["_split"] == "train", "market_hash_name"])
+    missing_items = [name for name in FROZEN_GRU_ITEMS if name not in train_items]
+    if missing_items:
+        raise ValueError(
+            "Frozen GRU items missing from train split: " + ", ".join(missing_items)
+        )
+
+    items = list(FROZEN_GRU_ITEMS)
+    print(f"\n  Frozen representative items ({N_ITEMS}):")
+    for name in items:
+        print(f"    {name}")
+
     panel = panel[panel["market_hash_name"].isin(items)].copy()
     panel = add_grouped_targets_multi(panel, horizon_steps=SEQ_HORIZON)
     print(f"\n  连续特征面板: {len(panel):,} 行")
@@ -95,31 +99,15 @@ def load_data():
 
 
 # ============================================================
-# 第 2 步: 滑动窗口构建 (与 LSTM-C/D 同款 15 特征)
+# 第 2 步: 滑动窗口构建 (与 LSTM-C/D 同款 13 特征)
 #          ⚠️ 关键: 逐物品 groupby, 严禁跨物品拼序列
 # ============================================================
-FEATURE_COLS = [
-    "log_price",              # 对数价格 ★ 核心
-    "MA_7",                   # 7 日均线
-    "MA_30",                  # 30 日均线
-    "MA_90",                  # 90 日均线
-    "Return_1d",              # 1 日收益率
-    "Return_7d",              # 7 日收益率
-    "Volatility_30",          # 30 日波动率
-    "RSI_14",                 # RSI
-    "MACD",                   # MACD
-    "volume_ma_log",          # 对数成交量均线
-    "daily_volume_log",       # 对数当日量
-    "is_floor_price",         # 地板价标记
-    "is_stattrak",            # StatTrak 标记
-    "is_major_active",        # Major 赛期
-    "steam_ccu",              # Steam 在线 (已 /1e6)
-]
+FEATURE_COLS = SEQUENCE_FEATURE_COLS
 
 def build_sequences(df, sample_split, x_scaler=None, fit_scaler=False):
-    """逐物品构建滑动窗口 X(60,15) → y(7), 单输入版"""
+    """逐物品构建滑动窗口 X(60,13) → y(7), 单输入版"""
     X, y, _ = build_sequence_windows_multi(
-        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
+        df, list(FEATURE_COLS), LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
 
     # --- 全局 StandardScaler ---
@@ -199,14 +187,42 @@ def main():
     reduce_lr = keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss", factor=0.5, patience=7, min_lr=1e-6
     )
+    checkpoint_path = OUTPUT_DIR / f".gru.best-{uuid.uuid4().hex}.keras"
+    checkpoint = keras.callbacks.ModelCheckpoint(
+        checkpoint_path,
+        monitor="val_loss",
+        save_best_only=True,
+        save_weights_only=False,
+    )
 
     history = model.fit(
         create_dataset(X_train, y_train_scaled, batch_size=BATCH_SIZE, shuffle=True),
         validation_data=create_dataset(X_val, y_val_scaled, batch_size=BATCH_SIZE, shuffle=False),
         epochs=EPOCHS,
-        callbacks=[early_stop, reduce_lr],
+        callbacks=[early_stop, reduce_lr, checkpoint],
         verbose=1,
     )
+
+    sample_count = min(2, len(X_val))
+    model = promote_keras_checkpoint(
+        checkpoint_path,
+        MODEL_PATH,
+        sample_inputs=X_val[:sample_count],
+        expected_output_shape=(sample_count, SEQ_HORIZON),
+    )
+
+    save_pickle_atomic(
+        {
+            "y_scaler": y_scaler,
+            "x_scaler": x_scaler,
+            "feature_cols": FEATURE_COLS,
+            "feature_contract_version": FEATURE_CONTRACT_VERSION,
+            "lookback": LOOKBACK,
+            "horizon_steps": SEQ_HORIZON,
+        },
+        SCALER_PATH,
+    )
+    save_pickle_atomic(items, ITEMS_PATH)
 
     # --- 评估: 逐日 + 整体 ---
     print("\n" + "=" * 60)
@@ -240,12 +256,6 @@ def main():
     print("\n" + "=" * 60)
     print("第 6 步: 保存模型文件")
     print("=" * 60)
-    model.save(MODEL_PATH)
-    with open(SCALER_PATH, "wb") as f:
-        pickle.dump({"y_scaler": y_scaler, "x_scaler": x_scaler}, f)
-    with open(ITEMS_PATH, "wb") as f:
-        pickle.dump(items, f)
-
     print(f"  ✅ {MODEL_PATH}")
     print(f"  ✅ {SCALER_PATH}")
     print(f"  ✅ {ITEMS_PATH}")

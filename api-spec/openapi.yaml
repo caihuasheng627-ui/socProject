@@ -205,10 +205,12 @@ paths:
   /api/predict:
     post:
       tags: [Prediction]
-      summary: 多模型价格预测
+      summary: 在线 7 天 Hybrid V2 预测与 30 天概率趋势
       description: |
-        6 回归模型 + 4 分类模型综合预测。
-        训练方法见策划书 5.5 节: TimeSeriesSplit + Walk-Forward。
+        仅使用当前数据库最新 60 个观测构建输入，同时调用 LSTM-C/D，
+        再由最近 180 天 CS2 数据拟合的 Hybrid V2 适配器融合并校准。
+        有效的 7 天响应会附带与 D7 自然衔接的 Keras 30 天 P10/P50/P90 趋势。
+        不读取离线 val/test 预测 CSV；无法生成可信结果时返回 status=unavailable。
       requestBody:
         required: true
         content:
@@ -222,14 +224,14 @@ paths:
                   example: 'ak47-fireserpent-fn'
                 horizon:
                   type: integer
-                  enum: [7, 30]
-                  description: 预测天数
+                  enum: [7]
+                  description: 精确预测周期；30 天概率趋势随有效响应返回
                 models:
                   type: array
                   items:
                     type: string
-                    enum: [arima, xgboost, lightgbm, randomforest, lstm, gru]
-                  description: 指定模型,默认全部
+                    enum: [lstm]
+                  description: 在线接口仅支持 LSTM
       responses:
         '200':
           description: 成功
@@ -670,7 +672,8 @@ paths:
       tags: [Inventory]
       summary: 库存总价值历史曲线
       description: |
-        聚合库存饰品历史价 → 总市值曲线。用于「我的库存」页总值走势。
+        聚合库存饰品历史价 → 总市值曲线；逐件调用 Hybrid V2 生成 7 天预测，
+        并聚合 Keras 30 天 P50 趋势。无预测持仓按现价持平，避免低估总值。
       parameters:
         - name: days
           in: query
@@ -693,6 +696,35 @@ paths:
                     type: array
                     items:
                       type: number
+                  predicted7Dates:
+                    type: array
+                    items: {type: string}
+                  predicted7Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 7
+                    maxItems: 7
+                  trend30Dates:
+                    type: array
+                    items: {type: string}
+                  trend30Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 30
+                    maxItems: 30
+                  forecastAnchorTotal:
+                    type: number
+                  predictionCoverage:
+                    type: object
+                    properties:
+                      totalItems: {type: integer}
+                      predictedItems: {type: integer}
+                      trendItems: {type: integer}
+                      itemRatio: {type: number}
+                      valueRatio: {type: number}
+                  modelVersion:
+                    type: string
+                    nullable: true
                   total:
                     type: number
         '401':
@@ -726,7 +758,9 @@ paths:
     get:
       tags: [Models]
       summary: 获取模型对比数据
-      description: 6 回归 + 4 分类模型,所有指标
+      description: |
+        双轨模型指标。顶层字段兼容历史公平比较；tracks.historical 为 2019–2023
+        canonical test，tracks.online 为最近 180 天独立留出集，二者不得混合排名。
       responses:
         '200':
           description: 成功
@@ -745,6 +779,14 @@ paths:
                       $ref: '#/components/schemas/ModelResult'
                   buyAndHold:
                     $ref: '#/components/schemas/ModelResult'
+                  defaultTrack:
+                    type: string
+                    enum: [historical, online]
+                  tracks:
+                    type: object
+                    properties:
+                      historical: {type: object}
+                      online: {type: object}
 
   /api/models/backtest:
     get:
@@ -760,6 +802,13 @@ paths:
           in: query
           schema:
             type: string
+        - name: track
+          in: query
+          description: 历史公平回测或近期线上模型独立回测
+          schema:
+            type: string
+            enum: [historical, online]
+            default: historical
       responses:
         '200':
           description: 成功
@@ -768,6 +817,9 @@ paths:
               schema:
                 type: object
                 properties:
+                  track:
+                    type: string
+                    enum: [historical, online]
                   dates:
                     type: array
                     items:
@@ -1006,15 +1058,173 @@ components:
           type: integer
           enum: [-1, 1]
 
+    Trend30D:
+      type: object
+      required: [decisionDate, model, horizon, p10, p50, p90]
+      properties:
+        decisionDate:
+          type: string
+          format: date
+        model:
+          type: string
+          enum: [Keras-Seq2Seq-30D]
+        horizon:
+          type: integer
+          enum: [30]
+        p10:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p50:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p90:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        calibration:
+          $ref: '#/components/schemas/ForecastCalibration'
+
+    ForecastCalibration:
+      type: object
+      required: [applied, method, maxDeviation, reasonCodes]
+      properties:
+        applied:
+          type: boolean
+        method:
+          type: string
+          example: hybrid-v2-log-return-smooth-bound
+        maxDeviation:
+          type: number
+          enum: [0.3]
+        modelDisagreement:
+          type: number
+          minimum: 0
+        reasonCodes:
+          type: array
+          items:
+            type: string
+            enum:
+              - MODEL_DISAGREEMENT
+              - RECENT_TREND_ADJUSTMENT
+              - SMOOTH_DEVIATION_COMPRESSION
+              - D7_TREND_HANDOFF
+              - PRICE_LEVEL_REBASE
+              - UNCONFIRMED_PRICE_SHOCK
+        forecastAnchorPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 预测校准使用的稳健锚点；未确认单点跳价时为跳价前近期中位数
+        currentPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 当前真实市场价格，不因预测锚点调整而修改
+        weights:
+          type: object
+          description: D1-D7 的 LSTM-C、LSTM-D 与近期趋势融合权重
+          additionalProperties:
+            type: object
+            properties:
+              c:
+                type: number
+              d:
+                type: number
+              recent:
+                type: number
+
     PredictionResult:
       type: object
+      required:
+        - skinId
+        - horizon
+        - status
+        - warnings
+        - predictions
+        - decisionDate
+        - dataThrough
+        - modelVersion
+        - priceSource
+        - volumeCoverage
+        - generatedAt
+        - trend30d
       properties:
         skinId:
           type: string
         horizon:
           type: integer
+        status:
+          type: string
+          enum: [available, unavailable]
+        reason:
+          type: string
+          nullable: true
+          enum:
+            - NO_PRICE_HISTORY
+            - UNSUPPORTED_HORIZON
+            - REQUESTED_MODEL_UNAVAILABLE
+            - MODEL_UNAVAILABLE
+            - STALE_INPUT
+            - PRICE_ANCHOR_MISMATCH
+            - INVALID_PREDICTION
+        warnings:
+          type: array
+          description: 向后兼容字段；校准后的成功响应固定为空数组
+          items:
+            type: string
+        currency:
+          type: string
+          enum: [USD]
         currentPrice:
           type: number
+          nullable: true
+        forecastAnchorPrice:
+          type: number
+          nullable: true
+          description: 预测路径使用的稳健价格锚点；正常情况下等于 currentPrice
+        currentPriceUsd:
+          type: number
+          nullable: true
+        livePriceUsd:
+          type: number
+          nullable: true
+        decisionDate:
+          type: string
+          format: date
+          nullable: true
+        dataThrough:
+          type: string
+          format: date
+          nullable: true
+        modelVersion:
+          type: string
+        priceSource:
+          type: string
+          nullable: true
+        volumeSource:
+          type: string
+          nullable: true
+        volumeCoverage:
+          type: object
+          required: [windowObservations, observed, ratio]
+          properties:
+            windowObservations:
+              type: integer
+            observed:
+              type: integer
+            ratio:
+              type: number
+              minimum: 0
+              maximum: 1
         predictions:
           type: array
           items:
@@ -1024,7 +1234,7 @@ components:
                 type: string
               type:
                 type: string
-                enum: [统计, ML, DL]
+                enum: [DL]
               price:
                 type: number
                 description: 预测周期末价格；7 天模型为第 7 天价格
@@ -1034,6 +1244,9 @@ components:
                 type: number
                 minimum: 0
                 maximum: 100
+              decisionDate:
+                type: string
+                format: date
               dailyPrices:
                 type: array
                 nullable: true
@@ -1042,8 +1255,34 @@ components:
                 maxItems: 7
                 items:
                   type: number
+              rawDailyPrices:
+                type: array
+                minItems: 7
+                maxItems: 7
+                description: 校准前的 Hybrid V2 路径，仅用于解释和审计
+                items:
+                  type: number
+              routeModel:
+                type: string
+                enum: [Hybrid-V2]
+              forecastAnchorPrice:
+                type: number
+                description: 当前预测路径使用的价格锚点
+              marketChange:
+                type: number
+                description: 预测末值相对于真实 currentPrice 的百分比变化
+        trend30d:
+          allOf:
+            - $ref: '#/components/schemas/Trend30D'
+          nullable: true
+          description: 基于同一决策日的 30 天概率趋势；模型不可用或校验失败时为 null
+        calibration:
+          allOf:
+            - $ref: '#/components/schemas/ForecastCalibration'
+          nullable: true
         consensus:
           type: object
+          nullable: true
           properties:
             score:
               type: number
@@ -1054,6 +1293,7 @@ components:
               enum: [low, medium, high, very_high]
         entryRange:
           type: object
+          nullable: true
           properties:
             low:
               type: number
@@ -1061,6 +1301,7 @@ components:
               type: number
         targetPrice:
           type: number
+          nullable: true
         generatedAt:
           type: string
           format: date-time

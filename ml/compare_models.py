@@ -28,11 +28,11 @@ MODEL_FILES = {
     "LSTM-C": "pred_lstm_c_{split}.csv",
     "LSTM-D": "pred_lstm_d_{split}.csv",
     "Hybrid": "pred_lstm_hybrid_{split}.csv",
-    "GRU": "pred_gru_{split}.csv",
     "RF": "pred_rf_{split}.csv",
     "LightGBM": "pred_lightgbm_{split}.csv",
     "XGBoost": "pred_xgboost_{split}.csv",
 }
+BENCHMARK_FILES = {"GRU": "pred_gru_{split}.csv"}
 
 # Models that use the new multi-step format
 SEQ_MODELS = {"LSTM-C", "LSTM-D", "Hybrid", "GRU"}
@@ -81,9 +81,9 @@ def _is_seq_format(df):
     return "predicted_price_d1" in df.columns
 
 
-def load_available_predictions(split):
+def load_available_predictions(split, *, files=MODEL_FILES):
     frames = {}
-    for model, pattern in MODEL_FILES.items():
+    for model, pattern in files.items():
         path = PRED_DIR / pattern.format(split=split)
         if path.exists():
             df = pd.read_csv(path)
@@ -239,6 +239,11 @@ def main(split="test", per_day=False):
     if not frames:
         raise FileNotFoundError(f"No canonical {split} prediction files found in {PRED_DIR}")
     results = evaluate_frames(frames, per_day=per_day)
+    benchmark_frames = load_available_predictions(split, files=BENCHMARK_FILES)
+    benchmarks = {
+        name: evaluate_frames({name: frame}, per_day=per_day)[name]
+        for name, frame in benchmark_frames.items()
+    }
     print_results(results, split, per_day=per_day)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     coverage = comparison_coverage(frames)
@@ -247,6 +252,7 @@ def main(split="test", per_day=False):
         "horizon_steps": 7,
         **coverage,
         "models": results,
+        "benchmarks": benchmarks,
     }
     if coverage["status"] == "partial":
         print(f"WARNING: partial comparison; missing {', '.join(coverage['missing_models'])}")
