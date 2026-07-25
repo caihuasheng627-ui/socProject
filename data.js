@@ -114,7 +114,39 @@ const MODEL_COMPARISON = {
     { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6798, auc: 0.8536, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
     { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6805, auc: 0.8537, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
   ],
-  buyAndHold: { name: '买入持有', returnPct: 194.65 }
+  buyAndHold: { name: '买入持有', returnPct: 194.65 },
+  tracks: {
+    historical: null, // filled below
+    online: {
+      track: 'online',
+      horizonSteps: 7,
+      metadata: {
+        dateRange: { start: '2026-06-28', end: '2026-07-15' },
+        items: 665,
+        decisions: 9967,
+        modelVersion: 'hybrid-v2-volume-free-v1',
+      },
+      regression: [
+        { name: 'LSTM-C', type: 'DL', course: 'recent 180d online holdout', rmse: 42.9, mae: 8.47, mape: 15.0, r2: 0.933, returnPct: 5.58 },
+        { name: 'LSTM-D', type: 'DL', course: 'recent 180d online holdout', rmse: 48.15, mae: 12.69, mape: 15.56, r2: 0.916, returnPct: 4.11 },
+        { name: 'Hybrid-V2-Raw', type: 'Fusion', course: 'recent 180d online holdout', rmse: 27.49, mae: 6.34, mape: 6.72, r2: 0.973, returnPct: 3.79 },
+        { name: 'Hybrid-V2-Calibrated', type: 'Fusion', course: 'recent 180d online holdout', rmse: 27.48, mae: 6.33, mape: 6.71, r2: 0.973, returnPct: 3.63 },
+      ],
+      classification: [],
+      trend30: {
+        name: 'Keras-Seq2Seq-30D', horizonSteps: 30, items: 155,
+        rmse: 46.9, mae: 7.68, mape: 57.9, r2: 0.92,
+      },
+    },
+  },
+};
+MODEL_COMPARISON.tracks.historical = {
+  track: 'historical',
+  regression: MODEL_COMPARISON.regression,
+  classification: MODEL_COMPARISON.classification,
+  buyAndHold: MODEL_COMPARISON.buyAndHold,
+  horizonSteps: MODEL_COMPARISON.horizonSteps,
+  metadata: { label: '2019-2023 canonical fair test', items: MODEL_COMPARISON.nItems },
 };
 
 // 回测曲线 Mock（演示用；真实曲线见 ml/outputs/backtest/backtest_curves.json）
@@ -143,16 +175,16 @@ function generateBacktestData(days = 60) {
   return data;
 }
 
-// SHAP 特征重要性（来自策划书 5.3 节）
+// SHAP 特征重要性（离线演示兜底；在线优先 /api/models/shap → shap_results.json）
 const SHAP_FEATURES = [
-  { name: 'MA_30 偏离度', value: 0.245, importance: 0.245 },
-  { name: 'RSI_14', value: 0.198, importance: 0.198 },
-  { name: 'Volume_Change_Ratio', value: 0.167, importance: 0.167 },
-  { name: 'Return_7d', value: 0.142, importance: 0.142 },
-  { name: 'MACD', value: 0.098, importance: 0.098 },
-  { name: 'BB_position', value: 0.076, importance: 0.076 },
-  { name: 'Days_To_Major', value: 0.045, importance: 0.045 },
-  { name: 'Steam_CCU', value: 0.029, importance: 0.029 },
+  { name: 'MA_90', value: 0.867687, importance: 0.867687 },
+  { name: 'log_price', value: 0.363003, importance: 0.363003 },
+  { name: 'MA_7', value: 0.076831, importance: 0.076831 },
+  { name: 'MA_30', value: 0.055029, importance: 0.055029 },
+  { name: 'Volume_MA_7', value: 0.012936, importance: 0.012936 },
+  { name: 'days_since_cs2_announce', value: 0.00771, importance: 0.00771 },
+  { name: 'Volatility_30', value: 0.001627, importance: 0.001627 },
+  { name: 'MACD', value: 0.001268, importance: 0.001268 },
 ];
 
 // 涨跌榜数据

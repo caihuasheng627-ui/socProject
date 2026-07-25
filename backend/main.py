@@ -982,6 +982,146 @@ def delete_alert(alert_id: int, current_user: dict = Depends(get_current_user_op
 # ============================================================
 # 模型对比 / 回测 / SHAP
 # ============================================================
+
+def _read_json_file(path: Path) -> Any:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _normalize_shap_rows(items: Any) -> list[dict[str, Any]]:
+    """统一 SHAP / 特征重要性条目为 {feature, importance, meanAbsShap}。"""
+    if isinstance(items, dict):
+        items = (
+            items.get("feature_importance")
+            or items.get("feature_importance_all_classes")
+            or items.get("features")
+            or []
+        )
+    if not isinstance(items, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        feature = row.get("feature") or row.get("name")
+        if not feature:
+            continue
+        raw = row.get("mean_abs_shap", row.get("meanAbsShap", row.get("importance", row.get("value"))))
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if value < 0 or value != value:  # NaN
+            continue
+        out.append({
+            "feature": str(feature),
+            "importance": value,
+            "meanAbsShap": value,
+        })
+    out.sort(key=lambda r: r["importance"], reverse=True)
+    for i, row in enumerate(out, start=1):
+        row["rank"] = i
+    return out
+
+
+def _load_shap_artifact(model_key: str) -> list[dict[str, Any]]:
+    """优先读真实 SHAP 产物 shap_results*.json，再回退旧版 shap_features.json。"""
+    key = (model_key or "xgboost").strip().lower()
+    aliases = {
+        "xgboost": "xgboost",
+        "xgb": "xgboost",
+        "lightgbm": "lightgbm",
+        "lgbm": "lightgbm",
+        "lgb": "lightgbm",
+        "average": "average",
+        "avg": "average",
+    }
+    key = aliases.get(key, key)
+
+    real_files = {
+        "xgboost": [
+            OUTPUT_DIR / "shap_results.json",
+            OUTPUT_DIR / "shap_xgboost_results.json",
+        ],
+        "lightgbm": [
+            OUTPUT_DIR / "shap_lightgbm_results.json",
+            OUTPUT_DIR / "shap_lgbm_results.json",
+        ],
+    }
+
+    def from_real(mkey: str) -> list[dict[str, Any]]:
+        for path in real_files.get(mkey, []):
+            payload = _read_json_file(path)
+            rows = _normalize_shap_rows(payload)
+            if rows:
+                return rows
+        return []
+
+    if key in ("xgboost", "lightgbm"):
+        rows = from_real(key)
+        if rows:
+            return rows
+
+    if key == "average":
+        buckets: dict[str, list[float]] = {}
+        for mkey in ("xgboost", "lightgbm"):
+            for row in from_real(mkey):
+                buckets.setdefault(row["feature"], []).append(float(row["importance"]))
+        if buckets:
+            merged = [
+                {"feature": feat, "importance": sum(vals) / len(vals)}
+                for feat, vals in buckets.items()
+            ]
+            return _normalize_shap_rows(merged)
+
+    legacy = _read_json_file(OUTPUT_DIR / "shap_features.json")
+    if isinstance(legacy, dict):
+        models = legacy.get("models")
+        if isinstance(models, dict):
+            block = models.get(key) or {}
+            if key == "average" and not block:
+                # average of model blocks when present
+                buckets = {}
+                for mkey in ("xgboost", "lightgbm"):
+                    b = models.get(mkey) or {}
+                    feats = b.get("features") if isinstance(b, dict) else None
+                    for row in _normalize_shap_rows(feats or []):
+                        buckets.setdefault(row["feature"], []).append(float(row["importance"]))
+                if buckets:
+                    merged = [
+                        {"feature": feat, "importance": sum(vals) / len(vals)}
+                        for feat, vals in buckets.items()
+                    ]
+                    return _normalize_shap_rows(merged)
+            feats = block.get("features") if isinstance(block, dict) else None
+            rows = _normalize_shap_rows(feats or [])
+            if rows:
+                return rows
+        if key == "average":
+            avg_rows = _normalize_shap_rows(legacy.get("average"))
+            if avg_rows:
+                return avg_rows
+            buckets = {}
+            for mkey in ("xgboost", "lightgbm"):
+                for row in _normalize_shap_rows(legacy.get(mkey) or []):
+                    buckets.setdefault(row["feature"], []).append(float(row["importance"]))
+            if buckets:
+                merged = [
+                    {"feature": feat, "importance": sum(vals) / len(vals)}
+                    for feat, vals in buckets.items()
+                ]
+                return _normalize_shap_rows(merged)
+        rows = _normalize_shap_rows(legacy.get(key) or legacy.get("xgboost") or [])
+        if rows:
+            return rows
+
+    return []
+
+
 @app.get("/api/models/comparison")
 def models_comparison():
     """模型实验室对比表。
@@ -1004,30 +1144,40 @@ def models_comparison():
             mc = {}
 
     # backtest returnPct: 兼容 lstm_c / LSTM-C 两种键名
-    ret_map: dict[str, float] = {}
     key_alias = {
         "lstm_c": "LSTM-C", "LSTM-C": "LSTM-C",
         "lstm_d": "LSTM-D", "LSTM-D": "LSTM-D",
         "hybrid": "Hybrid", "Hybrid": "Hybrid",
+        "hybrid-v2-raw": "Hybrid-V2-Raw", "Hybrid-V2-Raw": "Hybrid-V2-Raw",
+        "hybrid-v2-calibrated": "Hybrid-V2-Calibrated",
+        "Hybrid-V2-Calibrated": "Hybrid-V2-Calibrated",
         "gru": "GRU", "GRU": "GRU",
         "rf": "Random Forest", "RF": "Random Forest", "Random Forest": "Random Forest",
         "lightgbm": "LightGBM", "LightGBM": "LightGBM",
         "xgboost": "XGBoost", "XGBoost": "XGBoost",
     }
-    if bt_path.exists():
+
+    def _load_return_map(path) -> dict[str, float]:
+        out: dict[str, float] = {}
+        if not path.exists():
+            return out
         try:
-            bt = json.loads(bt_path.read_text(encoding="utf-8"))
+            bt = json.loads(path.read_text(encoding="utf-8"))
             fee = bt.get("fee_0.0000") if isinstance(bt, dict) else None
-            if isinstance(fee, dict):
-                for k, blk in fee.items():
-                    if not isinstance(blk, dict) or blk.get("returnPct") is None:
-                        continue
-                    rp = float(blk["returnPct"])
-                    display = key_alias.get(k, k)
-                    ret_map[k] = rp
-                    ret_map[display] = rp
+            if not isinstance(fee, dict):
+                return out
+            for k, blk in fee.items():
+                if not isinstance(blk, dict) or blk.get("returnPct") is None:
+                    continue
+                rp = float(blk["returnPct"])
+                display = key_alias.get(k, k)
+                out[k] = rp
+                out[display] = rp
         except Exception:
             pass
+        return out
+
+    ret_map = _load_return_map(bt_path)
 
     meta_by_name = {
         r.get("name"): r for r in (mc.get("regression") or []) if isinstance(r, dict)
@@ -1133,6 +1283,8 @@ def models_comparison():
         },
     }
     online_path = OUTPUT_DIR / "online_model_comparison.json"
+    online_bt_path = OUTPUT_DIR / "backtest_online" / "backtest_results.json"
+    online_ret_map = _load_return_map(online_bt_path)
     online: dict[str, Any] = {
         "track": "online", "regression": [], "classification": [],
         "horizonSteps": 7, "metadata": {}, "trend30": None,
@@ -1149,6 +1301,11 @@ def models_comparison():
                     "mae": metrics.get("mae"),
                     "mape": metrics.get("mapePct"),
                     "r2": metrics.get("r2"),
+                    "returnPct": (
+                        online_ret_map.get(name)
+                        or online_ret_map.get(key_alias.get(name, name))
+                        or metrics.get("returnPct")
+                    ),
                     "directionAccuracy": metrics.get("directionAccuracy"),
                     "over30Rate": metrics.get("over30Rate"),
                 }
@@ -1160,6 +1317,8 @@ def models_comparison():
                     "dataSource", "split", "dateRange", "items", "decisions", "modelVersion"
                 )
             }
+            if online_ret_map and "backtestSource" not in online["metadata"]:
+                online["metadata"]["backtestSource"] = "backtest_online/backtest_results.json"
         except Exception:
             pass
     trend_path = OUTPUT_DIR / "trend_30d_results_test.json"
@@ -1274,43 +1433,9 @@ def models_backtest(
 
 @app.get("/api/models/shap")
 def models_shap(model: str = "xgboost"):
-    p = OUTPUT_DIR / "shap_features.json"
-    if p.exists():
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            models = data.get("models") if isinstance(data, dict) else None
-            if isinstance(models, dict):
-                block = models.get(model) or models.get("xgboost") or {}
-                features = block.get("features") if isinstance(block, dict) else None
-                if isinstance(features, list):
-                    return features
-        except Exception:
-            pass
+    """返回模型特征重要性（优先真实 mean |SHAP| 产物）。"""
+    return _load_shap_artifact(model)
 
-    if model == "xgboost":
-        current = OUTPUT_DIR / "shap_results.json"
-        if current.exists():
-            try:
-                payload = json.loads(current.read_text(encoding="utf-8"))
-                rows = payload.get("feature_importance") or []
-                values = [max(0.0, float(row.get("mean_abs_shap", 0))) for row in rows]
-                total = sum(values)
-                if total > 0:
-                    return [
-                        {"feature": row.get("feature"), "importance": value / total}
-                        for row, value in zip(rows, values)
-                        if row.get("feature")
-                    ]
-            except Exception:
-                pass
-
-    if not p.exists():
-        return []
-    try:
-        legacy = json.loads(p.read_text(encoding="utf-8"))
-        return legacy.get(model, legacy.get("xgboost", []))
-    except Exception:
-        return []
 
 
 # ============================================================

@@ -747,9 +747,49 @@ class CSVestAPI {
     );
   }
 
+  /** 从净值曲线推算 returnPct（旧后端 online track 可能缺该字段） */
+  _returnPctFromSeries(arr) {
+    if (!Array.isArray(arr) || arr.length < 2) return null;
+    let first = null;
+    let last = null;
+    for (const v of arr) {
+      if (v == null || Number.isNaN(Number(v))) continue;
+      if (first == null) first = Number(v);
+      last = Number(v);
+    }
+    if (first == null || last == null || first === 0) return null;
+    return +(((last / first) - 1) * 100).toFixed(2);
+  }
+
+  async _enrichOnlineReturnPct(cmp) {
+    const online = cmp?.tracks?.online;
+    const rows = online?.regression;
+    if (!Array.isArray(rows) || !rows.length) return cmp;
+    if (rows.every((r) => r?.returnPct != null && !Number.isNaN(Number(r.returnPct)))) {
+      return cmp;
+    }
+    try {
+      // days=0：不截断，用全段净值推收益
+      const raw = await this._fetch('/api/models/backtest?days=0&track=online');
+      const bt = this._normalizeBacktest(raw, 0);
+      const series = bt?.series || {};
+      online.regression = rows.map((r) => {
+        if (r?.returnPct != null && !Number.isNaN(Number(r.returnPct))) return r;
+        const rp = this._returnPctFromSeries(series[r.name]);
+        return rp == null ? r : { ...r, returnPct: rp };
+      });
+    } catch (err) {
+      console.warn('[API] enrich online returnPct failed:', err?.message || err);
+    }
+    return cmp;
+  }
+
   async getModelComparison() {
     return this._safeCall(
-      () => this._fetch('/api/models/comparison'),
+      async () => {
+        const cmp = await this._fetch('/api/models/comparison');
+        return this._enrichOnlineReturnPct(cmp);
+      },
       () => window.CSVestData.MODEL_COMPARISON
     );
   }
@@ -875,8 +915,9 @@ class CSVestAPI {
     return this._safeCall(
       () => this._fetch(`/api/models/shap?model=${encodeURIComponent(model)}`),
       () => (window.CSVestData.SHAP_FEATURES || []).map(d => ({
-        feature: d.name,
-        importance: d.value,
+        feature: d.name || d.feature,
+        importance: d.value ?? d.importance ?? d.mean_abs_shap ?? 0,
+        meanAbsShap: d.value ?? d.importance ?? d.mean_abs_shap ?? 0,
       }))
     );
   }

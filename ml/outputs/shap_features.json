@@ -1,4 +1,3 @@
-{
   "contractVersion": "tree-shap-v2",
   "method": "mean-absolute-shap",
   "models": {

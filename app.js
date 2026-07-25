@@ -69,7 +69,6 @@ const app = createApp({
         {
           id: 'dashboard',
           label: t('menu.dashboard'),
-          badge: t('menu.badge.core'),
           iconName: 'chart-line',
         },
         {
@@ -80,7 +79,6 @@ const app = createApp({
         {
           id: 'chat',
           label: t('menu.chat'),
-          badge: t('menu.badge.highlight'),
           iconName: 'message-circle',
         },
         {
@@ -1021,6 +1019,7 @@ const app = createApp({
         if (cmp?.tracks) {
           modelTracks.value = cmp.tracks;
           applyModelTrack(modelTrack.value);
+          await enrichOnlineReturnsFromBacktest();
           usedLive = true;
         } else if (cmp?.regression?.length) {
           regressionModels.value = cmp.regression.map((r) => {
@@ -1186,12 +1185,12 @@ const app = createApp({
     const ragLoading = ref(false);
     const ragAsked = ref(false);
     const ragRetrieval = ref({ mode: '', model: null });
-    const ragSuggestions = [
-      'Major 赛事对饰品价格有什么影响?',
-      'StatTrak 版本为什么更贵?',
-      '磨损等级怎么影响价格和流动性?',
-      '最近有哪些利好/利空消息?',
-    ];
+    const ragSuggestions = computed(() => [
+      t('daily.rag.sug1'),
+      t('daily.rag.sug2'),
+      t('daily.rag.sug3'),
+      t('daily.rag.sug4'),
+    ]);
 
     const askRag = async (q) => {
       const query = (q ?? ragQuery.value ?? '').trim();
@@ -1484,10 +1483,46 @@ const app = createApp({
       modelTrackMetadata.value = selected.metadata || {};
       trend30Metrics.value = selected.trend30 || null;
     };
+
+    /** 旧后端 online 缺 returnPct 时，用回测净值曲线补齐 */
+    const enrichOnlineReturnsFromBacktest = async () => {
+      if (modelTrack.value !== 'online') return;
+      const rows = regressionModels.value || [];
+      if (!rows.length || rows.every((r) => r.returnPct != null)) return;
+      const client = api();
+      if (!client?.getBacktest) return;
+      try {
+        const bt = await client.getBacktest(0, 'online');
+        const series = bt?.series || {};
+        let changed = false;
+        const next = rows.map((r) => {
+          if (r.returnPct != null) return r;
+          const arr = series[r.name];
+          if (!Array.isArray(arr) || arr.length < 2) return r;
+          const first = Number(arr.find((v) => v != null));
+          const last = Number([...arr].reverse().find((v) => v != null));
+          if (!first || last == null || Number.isNaN(first) || Number.isNaN(last)) return r;
+          changed = true;
+          return { ...r, returnPct: +(((last / first) - 1) * 100).toFixed(2) };
+        });
+        if (!changed) return;
+        regressionModels.value = next;
+        if (modelTracks.value?.online) {
+          modelTracks.value = {
+            ...modelTracks.value,
+            online: { ...modelTracks.value.online, regression: next.map((r) => ({ ...r })) },
+          };
+        }
+      } catch (err) {
+        console.warn('[Models] enrich online returns failed:', err?.message || err);
+      }
+    };
+
     const setModelTrack = async (track) => {
       if (!['historical', 'online'].includes(track) || modelTrack.value === track) return;
       modelTrack.value = track;
       applyModelTrack(track);
+      await enrichOnlineReturnsFromBacktest();
       await nextTick();
       renderRadar();
       renderPerDay();
@@ -1524,11 +1559,21 @@ const app = createApp({
       return `${lead.toFixed(1)}%`;
     });
 
+    const formatModelReturn = (value) => {
+      if (value == null || Number.isNaN(Number(value))) return '—';
+      const n = Number(value);
+      return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+    };
+
     const modelsKpis = computed(() => {
       void currentLang.value;
       const b = modelsBest.value;
       const route = hybridRoute || {};
       const routeText = `low→${route.low || 'C'} · mid/high→${route.mid || route.high || 'D'}`;
+      const meta = modelTrackMetadata.value || {};
+      const onlineMeta = meta.items != null
+        ? `${meta.items} items`
+        : (meta.modelVersion || '');
       return [
         {
           id: 'rmse',
@@ -1545,15 +1590,22 @@ const app = createApp({
         {
           id: 'ret',
           label: t('models.kpi.bestReturn'),
-          value: b.returnPct != null ? `${b.returnPct >= 0 ? '+' : ''}${b.returnPct.toFixed(1)}%` : '—',
+          value: formatModelReturn(b.returnPct),
           meta: b.returnName || '',
         },
-        {
-          id: 'route',
-          label: t('models.kpi.route'),
-          value: routeText,
-          meta: '',
-        },
+        modelTrack.value === 'online'
+          ? {
+              id: 'online',
+              label: t('models.kpi.onlineCoverage'),
+              value: meta.decisions != null ? String(meta.decisions) : '—',
+              meta: onlineMeta,
+            }
+          : {
+              id: 'route',
+              label: t('models.kpi.route'),
+              value: routeText,
+              meta: '',
+            },
       ];
     });
 
@@ -3254,18 +3306,18 @@ const app = createApp({
       const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
       return {
         narrow,
-        tooltipBg: 'rgba(18, 18, 26, 0.94)',
-        tooltipBorder: 'rgba(255, 140, 64, 0.28)',
-        axis: '#9ca3af',
-        split: 'rgba(55, 65, 81, 0.55)',
-        axisLine: '#374151',
-        palette: ['#ff6b00', '#06b6d4', '#3b82f6', '#f59e0b', '#10b981', '#a78bfa', '#ec4899'],
+        tooltipBg: 'rgba(16, 16, 24, 0.96)',
+        tooltipBorder: 'rgba(255, 140, 64, 0.35)',
+        axis: '#9a96a0',
+        split: 'rgba(154, 150, 160, 0.22)',
+        axisLine: '#6d6875',
+        palette: ['#e07a28', '#1fa89a', '#4f7cff', '#d63b6a', '#c9a227', '#8b9cb3', '#5a8f7b'],
         tooltipBase: {
-          backgroundColor: 'rgba(18, 18, 26, 0.94)',
-          borderColor: 'rgba(255, 140, 64, 0.28)',
+          backgroundColor: 'rgba(14, 16, 20, 0.96)',
+          borderColor: 'rgba(255, 255, 255, 0.14)',
           borderWidth: 1,
-          textStyle: { color: '#f3f4f6', fontSize: 12 },
-          extraCssText: 'backdrop-filter:blur(8px);box-shadow:0 12px 32px rgba(0,0,0,0.35);',
+          textStyle: { color: '#f2efe9', fontSize: 12 },
+          extraCssText: 'border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.35);',
         },
       };
     };
@@ -3292,11 +3344,12 @@ const app = createApp({
         if (/中|medium/.test(s)) return 58;
         return 30;
       };
+      // 高对比四色 + 线型区分：铜橙实线 / 青绿虚线 / 靛蓝点线 / 玫红短划
       const colors = [
-        ['#ff6b00', 'rgba(255, 107, 0, 0.22)'],
-        ['#06b6d4', 'rgba(6, 182, 212, 0.18)'],
-        ['#3b82f6', 'rgba(59, 130, 246, 0.16)'],
-        ['#f59e0b', 'rgba(245, 158, 11, 0.16)'],
+        { stroke: '#e07a28', fill: 'rgba(224, 122, 40, 0.18)', dash: null },
+        { stroke: '#12b5a0', fill: 'rgba(18, 181, 160, 0.14)', dash: [6, 4] },
+        { stroke: '#4f7cff', fill: 'rgba(79, 124, 255, 0.12)', dash: [2, 4] },
+        { stroke: '#e23d6e', fill: 'rgba(226, 61, 110, 0.12)', dash: [8, 3, 2, 3] },
       ];
       const selected = selectedRadarModel.value;
       const radarData = rows.map((r, i) => {
@@ -3307,6 +3360,7 @@ const app = createApp({
         const returnScore = Math.max(0, Math.min(100, (Math.max(0, ret) / maxPosReturn) * 100));
         const generalize = (rmseScore + r2Score) / 2;
         const isSel = !selected || selected === r.name;
+        const c = colors[i % colors.length];
         return {
           value: [
             +rmseScore.toFixed(1),
@@ -3318,9 +3372,19 @@ const app = createApp({
           ],
           name: r.name,
           _raw: r,
-          areaStyle: { color: isSel ? colors[i][1] : 'rgba(148,163,184,0.04)' },
-          lineStyle: { color: colors[i][0], width: isSel ? 2.6 : 1.2, opacity: isSel ? 1 : 0.35 },
-          itemStyle: { color: colors[i][0], opacity: isSel ? 1 : 0.4 },
+          areaStyle: { color: isSel ? c.fill : 'rgba(148,163,184,0.02)' },
+          lineStyle: {
+            color: c.stroke,
+            width: isSel ? 3.2 : 2,
+            opacity: isSel ? 1 : 0.62,
+            type: c.dash || 'solid',
+          },
+          itemStyle: {
+            color: c.stroke,
+            opacity: isSel ? 1 : 0.7,
+            borderWidth: isSel ? 2 : 1,
+            borderColor: '#fff',
+          },
           z: isSel ? 3 : 1,
         };
       });
@@ -3328,6 +3392,7 @@ const app = createApp({
       radarInstance.setOption({
         backgroundColor: 'transparent',
         animationDuration: 420,
+        color: colors.map((c) => c.stroke),
         tooltip: {
           ...th.tooltipBase,
           formatter: (params) => {
@@ -3338,14 +3403,21 @@ const app = createApp({
             return [
               `<strong>${raw.name}</strong>`,
               `RMSE ${raw.rmse?.toFixed?.(2) ?? '—'} · R² ${raw.r2?.toFixed?.(2) ?? '—'}`,
-              `${t('models.col.returnPct')} ${raw.returnPct >= 0 ? '+' : ''}${(raw.returnPct ?? 0).toFixed(1)}%`,
+              `${t('models.col.returnPct')} ${formatModelReturn(raw.returnPct)}`,
               `MAPE ${raw.mape?.toFixed?.(2) ?? '—'}%`,
             ].join('<br/>');
           },
         },
         legend: {
-          data: rows.map((r) => r.name),
-          textStyle: { color: th.axis, fontSize: narrow ? 10 : 11 },
+          data: rows.map((r, i) => ({
+            name: r.name,
+            itemStyle: { color: colors[i % colors.length].stroke },
+            lineStyle: { color: colors[i % colors.length].stroke, width: 2 },
+          })),
+          textStyle: { color: th.axis, fontSize: narrow ? 10 : 12, fontWeight: 500 },
+          itemWidth: 14,
+          itemHeight: 10,
+          itemGap: narrow ? 10 : 16,
           top: narrow ? undefined : 4,
           bottom: narrow ? 0 : undefined,
           type: 'scroll',
@@ -3365,10 +3437,10 @@ const app = createApp({
           radius: narrow ? '48%' : '56%',
           axisName: { color: th.axis, fontSize: narrow ? 10 : 11 },
           splitLine: { lineStyle: { color: th.split } },
-          splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.055)'] } },
+          splitArea: { areaStyle: { color: ['rgba(255,255,255,0.015)', 'rgba(255,255,255,0.04)'] } },
           axisLine: { lineStyle: { color: th.axisLine } },
         },
-        series: [{ type: 'radar', data: radarData, symbol: 'circle', symbolSize: 5 }],
+        series: [{ type: 'radar', data: radarData, symbol: 'circle', symbolSize: 7 }],
       }, true);
       allowPageScrollOverChart(radarInstance);
     };
@@ -3604,23 +3676,47 @@ const app = createApp({
       const th = modelsChartTheme();
       const narrow = th.narrow;
 
+      const normalizeShapRows = (raw) => {
+        const list = Array.isArray(raw)
+          ? raw
+          : (raw?.feature_importance || raw?.features || []);
+        return (Array.isArray(list) ? list : [])
+          .map((d) => {
+            const name = d.feature || d.name;
+            const value = Number(
+              d.meanAbsShap ?? d.mean_abs_shap ?? d.importance ?? d.value ?? NaN
+            );
+            return { name, value };
+          })
+          .filter((d) => d.name && Number.isFinite(d.value) && d.value >= 0);
+      };
+
       let rows = [];
+      let usedLive = false;
       try {
         const client = api();
         if (client && apiOnline.value) {
           const shap = await client.getShap(shapModel.value);
-          rows = (Array.isArray(shap) ? shap : []).map((d) => ({
-            name: d.feature || d.name,
-            value: d.importance ?? d.value ?? 0,
-          }));
+          rows = normalizeShapRows(shap);
+          usedLive = rows.length > 0;
         }
       } catch (_) { /* mock */ }
       if (!rows.length) {
-        rows = (window.CSVestData.SHAP_FEATURES || []).map((d) => ({ name: d.name, value: d.value }));
+        rows = normalizeShapRows(window.CSVestData.SHAP_FEATURES || []);
       }
+      // 真实 SHAP 量级跨度大：只展示 Top 12，避免尾部条几乎看不见
+      rows = rows.slice().sort((a, b) => b.value - a.value).slice(0, 12);
       shapEmpty.value = !rows.length;
       const data = rows.slice().sort((a, b) => a.value - b.value);
-      const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 0.001);
+      const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 1e-9);
+      const fmtShap = (v) => {
+        const n = Number(v) || 0;
+        if (n >= 0.1) return n.toFixed(3);
+        if (n >= 0.01) return n.toFixed(4);
+        if (n >= 0.001) return n.toFixed(4);
+        if (n > 0) return n.toExponential(2);
+        return '0';
+      };
 
       shapInstance.setOption({
         backgroundColor: 'transparent',
@@ -3631,17 +3727,28 @@ const app = createApp({
           axisPointer: { type: 'shadow' },
           formatter: (params) => {
             const p = Array.isArray(params) ? params[0] : params;
-            return `<strong>${p.name}</strong><br/>${t('models.shapUnit')}: ${Number(p.value).toFixed(4)}`;
+            const src = usedLive ? 'SHAP' : 'Demo';
+            return `<strong>${p.name}</strong><br/>${t('models.shapUnit')}: ${fmtShap(p.value)}<br/><span style="opacity:.7">${src}</span>`;
           },
         },
-        grid: { left: narrow ? 88 : 128, right: narrow ? 36 : 48, top: 16, bottom: 24 },
+        grid: {
+          left: narrow ? 96 : 148,
+          right: narrow ? 48 : 64,
+          top: 16,
+          bottom: 28,
+          containLabel: false,
+        },
         xAxis: {
           type: 'value',
           name: t('models.shapUnit'),
           nameLocation: 'end',
           nameTextStyle: { color: '#6b7280', fontSize: 10 },
           axisLine: { lineStyle: { color: th.axisLine } },
-          axisLabel: { color: th.axis, fontSize: 10 },
+          axisLabel: {
+            color: th.axis,
+            fontSize: 10,
+            formatter: (v) => fmtShap(v),
+          },
           splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
         },
         yAxis: {
@@ -3651,7 +3758,7 @@ const app = createApp({
           axisLabel: {
             color: th.axis,
             fontSize: narrow ? 10 : 11,
-            width: narrow ? 72 : 110,
+            width: narrow ? 84 : 130,
             overflow: 'truncate',
             ellipsis: '…',
           },
@@ -3659,13 +3766,13 @@ const app = createApp({
         series: [{
           type: 'bar',
           data: data.map((d) => {
-            const ratio = Math.max(0.25, (Number(d.value) || 0) / maxV);
+            const ratio = Math.max(0.22, Math.sqrt((Number(d.value) || 0) / maxV));
             return {
               value: d.value,
               itemStyle: {
                 color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                  { offset: 0, color: `rgba(255, 107, 0, ${0.35 + ratio * 0.25})` },
-                  { offset: 1, color: `rgba(255, 140, 64, ${0.55 + ratio * 0.45})` },
+                  { offset: 0, color: `rgba(201, 106, 43, ${0.35 + ratio * 0.25})` },
+                  { offset: 1, color: `rgba(219, 138, 74, ${0.55 + ratio * 0.45})` },
                 ]),
                 borderRadius: [0, 5, 5, 0],
               },
@@ -3677,7 +3784,7 @@ const app = createApp({
             position: 'right',
             color: '#9ca3af',
             fontSize: 10,
-            formatter: (p) => Number(p.value).toFixed(3),
+            formatter: (p) => fmtShap(p.value),
           },
         }],
       }, true);
@@ -4094,7 +4201,7 @@ const app = createApp({
       inventoryValueChart, inventoryValueHistory,
       refreshInventoryCharts,
       // 模型
-      regressionModels, classificationModels, modelTypeLabel, modelComparison, hybridRoute,
+      regressionModels, classificationModels, modelTypeLabel, formatModelReturn, modelComparison, hybridRoute,
       modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
       selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,

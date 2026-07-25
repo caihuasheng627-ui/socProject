@@ -107,21 +107,41 @@ def main(model_path=MODEL_PATH, split="test", allow_in_sample=False):
     print(f"  ✅ {OUT_DIR / 'shap_bar.png'}")
 
     # --- JSON 导出 (前端模型实验室用) ---
+    feature_importance = [
+        {"rank": i + 1, "feature": name, "mean_abs_shap": round(float(val), 6)}
+        for i, (name, val) in enumerate(ranked)
+    ]
     shap_export = {
         "model": "XGBoost Regression",
         "model_fit_split": fit_split,
         "explanation_split": split,
         "n_features": len(FEATURE_NAMES),
         "n_samples": n_sample,
-        "feature_importance": [
-            {"rank": i + 1, "feature": name, "mean_abs_shap": round(float(val), 6)}
-            for i, (name, val) in enumerate(ranked)
-        ],
+        "feature_importance": feature_importance,
         "top3_features": [ranked[0][0], ranked[1][0], ranked[2][0]],
     }
     with open(OUT_DIR / "shap_results.json", "w", encoding="utf-8") as f:
         json.dump(shap_export, f, ensure_ascii=False, indent=2)
     print(f"  ✅ {OUT_DIR / 'shap_results.json'}")
+
+    # 同步写入 shap_features.json（兼容旧 API / 前端回退）
+    compat_rows = [
+        {"feature": r["feature"], "importance": r["mean_abs_shap"]}
+        for r in feature_importance
+    ]
+    shap_features_path = OUT_DIR / "shap_features.json"
+    shap_features = {}
+    if shap_features_path.exists():
+        try:
+            shap_features = json.loads(shap_features_path.read_text(encoding="utf-8"))
+        except Exception:
+            shap_features = {}
+    if not isinstance(shap_features, dict):
+        shap_features = {}
+    shap_features["xgboost"] = compat_rows
+    with open(shap_features_path, "w", encoding="utf-8") as f:
+        json.dump(shap_features, f, ensure_ascii=False, indent=2)
+    print(f"  ✅ {shap_features_path} (xgboost synced)")
 
     # ---------- 总结 ----------
     print("\n" + "=" * 60)
