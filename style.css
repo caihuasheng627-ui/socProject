@@ -4107,6 +4107,7 @@ i.ph-duotone {
   --lp-link-on-light: #c44d00;
   --lp-display: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', 'SimSun', Georgia, serif;
   --lp-sans: 'Sora', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Outfit, system-ui, sans-serif;
+  --lp-nav-h: 48px;
 
   position: fixed;
   inset: 0;
@@ -4117,7 +4118,7 @@ i.ph-duotone {
   overscroll-behavior-y: contain;
   scroll-behavior: smooth;
   scroll-snap-type: y mandatory;
-  scroll-padding-top: 48px;
+  scroll-padding-top: var(--lp-nav-h);
   background: var(--lp-bg);
   color: var(--lp-text);
   height: 100vh;
@@ -4159,7 +4160,7 @@ i.ph-duotone {
 .landing-nav-inner {
   max-width: 1024px;
   margin: 0 auto;
-  height: 48px;
+  height: var(--lp-nav-h);
   padding: 0 max(22px, env(safe-area-inset-right)) 0 max(22px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
@@ -4250,8 +4251,10 @@ i.ph-duotone {
 .landing-hero {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* The sticky nav sits above every snap point, so a full-viewport panel would
+     always push its own bottom strip (the scene caption) off screen. */
+  min-height: calc(100vh - var(--lp-nav-h));
+  min-height: calc(100dvh - var(--lp-nav-h));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4747,8 +4750,8 @@ i.ph-duotone {
 }
 
 .landing-section--stage {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - var(--lp-nav-h));
+  min-height: calc(100dvh - var(--lp-nav-h));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5415,12 +5418,12 @@ i.ph-duotone {
   }
 
   .landing {
-    scroll-padding-top: 48px;
+    scroll-padding-top: var(--lp-nav-h);
   }
 
   .landing-hero {
-    min-height: 100svh;
-    min-height: 100dvh;
+    min-height: calc(100svh - var(--lp-nav-h));
+    min-height: calc(100dvh - var(--lp-nav-h));
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -5515,8 +5518,8 @@ i.ph-duotone {
   }
 
   .landing-section--stage {
-    min-height: 100svh;
-    min-height: 100dvh;
+    min-height: calc(100svh - var(--lp-nav-h));
+    min-height: calc(100dvh - var(--lp-nav-h));
     padding:
       calc(64px + env(safe-area-inset-top))
       max(16px, env(safe-area-inset-right))
@@ -5613,6 +5616,93 @@ i.ph-duotone {
 
   .landing-footer {
     padding: 24px 16px calc(22px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Phone in landscape: squeeze the hero so it still fits one screen, otherwise
+   the copy collides with the caption and the scene lock has to stand down. */
+@media (max-height: 560px) and (orientation: landscape) and (pointer: coarse) {
+  .landing-hero {
+    padding:
+      calc(24px + env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      calc(68px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
+
+  .landing-hero-copy-viewport,
+  .landing-hero-slide {
+    height: clamp(6.5rem, 36svh, 9rem);
+  }
+
+  .landing-hero-eyebrow {
+    margin-bottom: 6px;
+  }
+
+  .landing-hero-title {
+    font-size: clamp(21px, 3.4vh, 28px);
+    margin-bottom: 6px;
+  }
+
+  .landing-hero-lead {
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  .landing-hero-cta {
+    margin-top: 10px;
+  }
+
+  .landing-hero-hint {
+    margin-top: 6px;
+    font-size: 10.5px;
+  }
+
+  .landing-cta-row {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .landing-cta-row .landing-btn {
+    width: auto;
+    min-height: 38px;
+    padding: 8px 18px;
+    font-size: 14px;
+  }
+
+  /* Centre stays free for the copy, so the caption moves to the corner. */
+  .landing-scene-caption {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    transform: none;
+    animation: none;
+    align-items: flex-end;
+    text-align: right;
+    max-width: min(200px, 34%);
+    padding: 6px 12px 5px;
+  }
+
+  .landing-scene-caption-name {
+    font-size: 12.5px;
+  }
+
+  .landing-scene-caption-price {
+    font-size: 12px;
+  }
+
+  .landing-scene-dots {
+    margin-top: 4px;
+  }
+
+  .landing-scene-caption-hint {
+    display: none;
+  }
+
+  .landing-hero-hint {
+    max-width: 26em;
+    margin-inline: auto;
   }
 }
 
