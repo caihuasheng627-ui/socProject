@@ -47,7 +47,84 @@ def _base_response(
         "volumeSource": None,
         "volumeCoverage": coverage,
         "generatedAt": generated_at,
+        "trend30d": None,
     }
+
+
+def _validated_trend_30d(
+    loader: Any,
+    market_hash_name: str,
+    current_price: float,
+    decision_date: str,
+) -> dict[str, Any] | None:
+    predictor = getattr(loader, "predict_live_trend_30d", None)
+    if not callable(predictor):
+        return None
+    try:
+        raw = predictor(market_hash_name)
+    except Exception:
+        return None
+    if not isinstance(raw, dict) or raw.get("date") != decision_date:
+        return None
+    try:
+        anchor = float(raw["current_price"])
+        horizon = int(raw["horizon"])
+        p10 = [float(value) for value in raw["p10"]]
+        p50 = [float(value) for value in raw["p50"]]
+        p90 = [float(value) for value in raw["p90"]]
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not math.isclose(anchor, current_price, rel_tol=1e-9, abs_tol=1e-6):
+        return None
+    if horizon != 30 or any(len(values) != 30 for values in (p10, p50, p90)):
+        return None
+    if not all(
+        math.isfinite(value) and value > 0
+        for values in (p10, p50, p90)
+        for value in values
+    ):
+        return None
+    if not all(low <= median <= high for low, median, high in zip(p10, p50, p90)):
+        return None
+    p10 = [round(max(low, median * 0.60), 4) for low, median in zip(p10, p50)]
+    p50 = [round(median, 4) for median in p50]
+    p90 = [round(min(high, median * 1.40), 4) for median, high in zip(p50, p90)]
+    return {
+        "decisionDate": decision_date,
+        "model": str(raw.get("model") or "Keras-Seq2Seq-30D"),
+        "horizon": 30,
+        "p10": p10,
+        "p50": p50,
+        "p90": p90,
+    }
+
+
+def _attach_trend_30d(
+    response: dict[str, Any],
+    loader: Any,
+    market_hash_name: str,
+    current_price: float,
+    decision_date: str,
+) -> dict[str, Any]:
+    response["trend30d"] = _validated_trend_30d(
+        loader, market_hash_name, current_price, decision_date
+    )
+    return response
+
+
+def _unavailable_with_trend(
+    base: dict[str, Any],
+    reason: str,
+    loader: Any,
+    market_hash_name: str,
+    current_price: float,
+    decision_date: str,
+) -> dict[str, Any]:
+    """Keep the seven-day failure explicit while exposing independent trend output."""
+    response = _unavailable(base, reason)
+    return _attach_trend_30d(
+        response, loader, market_hash_name, current_price, decision_date
+    )
 
 
 def _unavailable(base: dict[str, Any], reason: str) -> dict[str, Any]:
@@ -154,9 +231,22 @@ def predict_for_skin(
                 for value in [cached["predicted_price"], *daily]
             )
             if out_of_range and circuit_breaker_enabled:
-                return _unavailable(base, "PREDICTION_OUT_OF_RANGE")
+                return _unavailable_with_trend(
+                    base,
+                    "PREDICTION_OUT_OF_RANGE",
+                    loader,
+                    skin["market_hash_name"],
+                    current_price,
+                    decision_date,
+                )
             warnings = ["PREDICTION_OUT_OF_RANGE"] if out_of_range else []
-            return _available(base, prediction, warnings)
+            return _attach_trend_30d(
+                _available(base, prediction, warnings),
+                loader,
+                skin["market_hash_name"],
+                current_price,
+                decision_date,
+            )
 
     raw = loader.predict_live_lstm(skin["market_hash_name"])
     if raw is None:
@@ -180,7 +270,14 @@ def predict_for_skin(
         abs(value / current_price - 1.0) > 0.30 for value in [predicted, *daily]
     )
     if out_of_range and circuit_breaker_enabled:
-        return _unavailable(base, "PREDICTION_OUT_OF_RANGE")
+        return _unavailable_with_trend(
+            base,
+            "PREDICTION_OUT_OF_RANGE",
+            loader,
+            skin["market_hash_name"],
+            current_price,
+            decision_date,
+        )
 
     change = round((predicted - current_price) / current_price * 100.0, 2)
     confidence = float(raw.get("confidence", 0.0))
@@ -210,4 +307,10 @@ def predict_for_skin(
     )
     conn.commit()
     warnings = ["PREDICTION_OUT_OF_RANGE"] if out_of_range else []
-    return _available(base, prediction, warnings)
+    return _attach_trend_30d(
+        _available(base, prediction, warnings),
+        loader,
+        skin["market_hash_name"],
+        current_price,
+        decision_date,
+    )

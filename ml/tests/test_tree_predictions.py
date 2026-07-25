@@ -3,6 +3,7 @@ import pandas as pd
 
 from forecast_contract import PREDICTION_COLUMNS, validate_prediction_frame
 from make_predictions_trees import build_model_bundle, build_prediction_frame, select_fit_frame
+from model_features import FEATURE_CONTRACT_VERSION
 
 
 def split_frame(split, date, price):
@@ -61,4 +62,6 @@ def test_tree_model_bundle_contains_train_only_encoders_and_feature_order():
     assert bundle["encoders"] is encoders
     assert bundle["fit_split"] == "train+val"
     assert bundle["horizon_steps"] == 7
-    assert len(bundle["feature_cols"]) == 23
+    assert len(bundle["feature_cols"]) == 21
+    assert all("volume" not in column.lower() for column in bundle["feature_cols"])
+    assert bundle["feature_contract_version"] == FEATURE_CONTRACT_VERSION

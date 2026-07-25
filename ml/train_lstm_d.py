@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import sys
+import uuid
 import warnings
 from pathlib import Path
 
@@ -45,6 +46,8 @@ from forecast_contract import (
     route_price_group,
 )
 from gpu_config import configure_device, create_dataset
+from artifact_io import promote_keras_checkpoint, save_pickle_atomic
+from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
 
 warnings.filterwarnings("ignore")
 
@@ -107,39 +110,23 @@ def assign_groups(train_df):
 
 
 # ============================================================
-# 第 3 步: 滑动窗口构建 (与 LSTM-C 同款 15 特征)
+# 第 3 步: 滑动窗口构建 (与 LSTM-C 同款 13 特征)
 #          ⚠️ 关键: 逐物品 groupby, 严禁跨物品拼序列
 # ============================================================
-FEATURE_COLS = [
-    "log_price",              # 对数价格 ★ 核心
-    "MA_7",                   # 7 日均线
-    "MA_30",                  # 30 日均线
-    "MA_90",                  # 90 日均线
-    "Return_1d",              # 1 日收益率
-    "Return_7d",              # 7 日收益率
-    "Volatility_30",          # 30 日波动率
-    "RSI_14",                 # RSI
-    "MACD",                   # MACD
-    "volume_ma_log",          # 对数成交量均线
-    "daily_volume_log",       # 对数当日量
-    "is_floor_price",         # 地板价标记
-    "is_stattrak",            # StatTrak 标记
-    "is_major_active",        # Major 赛期
-    "steam_ccu",              # Steam 在线 (已 /1e6)
-]
+FEATURE_COLS = SEQUENCE_FEATURE_COLS
 
 def build_sequences(
     df, sample_split, group_name, boundaries, item_group,
     x_scaler=None, fit_scaler=False,
 ):
     """
-    逐物品构建滑动窗口 X(60,15) → y(7)
+    逐物品构建滑动窗口 X(60,13) → y(7)
 
     x_scaler:   已 fit 的 StandardScaler (val 时传入)
     fit_scaler: True → fit 新 scaler 并返回
     """
     X, y, meta = build_sequence_windows_multi(
-        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
+        df, list(FEATURE_COLS), LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
     routes = np.array([
         route_price_group(row.market_hash_name, row.current_price, item_group, boundaries)
@@ -188,7 +175,7 @@ def build_model(group_name):
 # ============================================================
 # 第 5 步: 训练单组
 # ============================================================
-def train_group(gname, panel, boundaries, item_group):
+def train_group(gname, panel, boundaries, item_group, scalers):
     """训练一组, 返回 (model, scalers, 组内评估 dict, y_true_price, y_pred_price)"""
     print("\n" + "=" * 60)
     n_known = sum(group == gname for group in item_group.values())
@@ -218,14 +205,40 @@ def train_group(gname, panel, boundaries, item_group):
     reduce_lr = keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss", factor=0.5, patience=7, min_lr=1e-6
     )
+    checkpoint_path = OUTPUT_DIR / f".lstm_d_{gname}.best-{uuid.uuid4().hex}.keras"
+    checkpoint = keras.callbacks.ModelCheckpoint(
+        checkpoint_path,
+        monitor="val_loss",
+        save_best_only=True,
+        save_weights_only=False,
+    )
 
     history = model.fit(
         create_dataset(X_train, y_train_scaled, batch_size=BATCH_SIZE, shuffle=True),
         validation_data=create_dataset(X_val, y_val_scaled, batch_size=BATCH_SIZE, shuffle=False),
         epochs=EPOCHS,
-        callbacks=[early_stop, reduce_lr],
+        callbacks=[early_stop, reduce_lr, checkpoint],
         verbose=1,
     )
+
+    sample_count = min(2, len(X_val))
+    model = promote_keras_checkpoint(
+        checkpoint_path,
+        MODEL_PATHS[gname],
+        sample_inputs=X_val[:sample_count],
+        expected_output_shape=(sample_count, SEQ_HORIZON),
+    )
+
+    scaler_bundle = {
+        "x_scaler": x_scaler,
+        "y_scaler": y_scaler,
+        "feature_cols": FEATURE_COLS,
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
+        "lookback": LOOKBACK,
+        "horizon_steps": SEQ_HORIZON,
+    }
+    scalers[gname] = scaler_bundle
+    save_pickle_atomic(scalers, SCALER_PATH)
 
     # --- 组内评估: 逐日 + 整体 ---
     y_pred_scaled = model.predict(X_val, verbose=0)  # (n, 7)
@@ -260,7 +273,7 @@ def train_group(gname, panel, boundaries, item_group):
     print(f"\n  Day 7 only (对标旧版): RMSE=${metrics['rmse']:.4f}  MAE=${metrics['mae']:.4f}  R²={metrics['r2']:.4f}")
     print(f"  模型参数: {metrics['params']:,} | 训练轮数: {metrics['epochs']}")
 
-    return model, {"x_scaler": x_scaler, "y_scaler": y_scaler}, metrics, y_true_price, y_pred_price
+    return model, scaler_bundle, metrics, y_true_price, y_pred_price
 
 
 # ============================================================
@@ -283,12 +296,20 @@ def main():
     scalers, group_metrics = {}, {}
     all_true, all_pred = [], []
 
+    # The routing metadata is independent of model fitting and must survive a
+    # later group evaluation failure.
+    group_bundle = {
+        "boundaries": boundaries,
+        "item_group": item_group,
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
+    }
+    save_pickle_atomic(group_bundle, GROUP_MAP_PATH)
+
     for gname in GROUP_NAMES:
         model, sc, metrics, y_t, y_p = train_group(
-            gname, panel, boundaries, item_group
+            gname, panel, boundaries, item_group, scalers
         )
 
-        model.save(MODEL_PATHS[gname])
         scalers[gname] = sc
         group_metrics[gname] = metrics
         all_true.append(y_t)
@@ -327,10 +348,8 @@ def main():
     print("\n" + "=" * 60)
     print("第 8 步: 保存模型文件")
     print("=" * 60)
-    with open(SCALER_PATH, "wb") as f:
-        pickle.dump(scalers, f)
-    with open(GROUP_MAP_PATH, "wb") as f:
-        pickle.dump({"boundaries": boundaries, "item_group": item_group}, f)
+    save_pickle_atomic(scalers, SCALER_PATH)
+    save_pickle_atomic(group_bundle, GROUP_MAP_PATH)
 
     for gname in GROUP_NAMES:
         print(f"  ✅ {MODEL_PATHS[gname]}")

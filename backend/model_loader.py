@@ -146,7 +146,7 @@ def _skin_window_from_db(market_hash_name: str) -> tuple[np.ndarray, float, str]
     g = feat_df.sort_values("date")
     if len(g) < LOOKBACK + 1:
         return None
-    feat = g[FEATURE_COLS].values.astype(np.float32)
+    feat = g[list(FEATURE_COLS)].values.astype(np.float32)
     price = g["price"].values
     dates = g["date"].values
     i = len(g) - 1
@@ -238,6 +238,30 @@ class ModelLoader:
                 self.scalers["gru"] = _pkl("gru_scaler.pkl")
                 self.gru_items = set(_pkl("gru_items.pkl"))
 
+            # 30-day probabilistic trend model. Keep this optional so a missing
+            # or incompatible trend artifact cannot disable the 7-day LSTM.
+            trend_model = MODEL_DIR / "seq2seq_30d.keras"
+            trend_scaler = MODEL_DIR / "seq2seq_30d_scaler.pkl"
+            if trend_model.exists() and trend_scaler.exists():
+                try:
+                    self.models["seq2seq_30d"] = keras.models.load_model(
+                        trend_model, compile=False
+                    )
+                    scaler_bundle = _pkl("seq2seq_30d_scaler.pkl")
+                    if (
+                        isinstance(scaler_bundle, dict)
+                        and scaler_bundle.get("feature_contract_version") == "volume-free-v1"
+                        and len(scaler_bundle.get("feature_cols", ())) == 13
+                    ):
+                        self.scalers["seq2seq_30d"] = scaler_bundle
+                    else:
+                        self.models.pop("seq2seq_30d", None)
+                        print("[model_loader] WARN invalid 30-day scaler bundle")
+                except Exception as e:
+                    self.models.pop("seq2seq_30d", None)
+                    self.scalers.pop("seq2seq_30d", None)
+                    print(f"[model_loader] WARN 30-day trend load failed: {e}")
+
             print(f"[model_loader] OK models loaded: {list(self.models.keys())} | "
                   f"item_map={len(self.item_map)} group_map={len(self.group_map)} "
                   f"gru_items={len(self.gru_items)} route={self.hybrid_route}")
@@ -261,9 +285,14 @@ class ModelLoader:
         return [float(v) for v in np.expm1(inv)]
 
     def live_model_version(self) -> str:
-        """Return a stable cache identity for the deployed LSTM artifacts."""
+        """Return a stable cache identity for deployed 7-day and 30-day artifacts."""
         digest = hashlib.sha256()
-        for artifact in sorted(MODEL_DIR.glob("lstm*"), key=lambda path: path.name):
+        artifacts = {
+            artifact.name: artifact
+            for pattern in ("lstm*", "seq2seq_30d*")
+            for artifact in MODEL_DIR.glob(pattern)
+        }
+        for artifact in sorted(artifacts.values(), key=lambda path: path.name):
             try:
                 stat = artifact.stat()
             except OSError:
@@ -272,6 +301,30 @@ class ModelLoader:
                 f"{artifact.name}:{stat.st_size}:{stat.st_mtime_ns}\n".encode("utf-8")
             )
         return f"lstm-live-{digest.hexdigest()[:16]}"
+
+    @staticmethod
+    def _inverse_trend_output(values: np.ndarray, y_scaler: Any) -> np.ndarray | None:
+        """Invert a (30, 3) log-price tensor for common sklearn scaler shapes."""
+        n_features = int(getattr(y_scaler, "n_features_in_", 1) or 1)
+        try:
+            if n_features == 1:
+                restored = y_scaler.inverse_transform(values.reshape(-1, 1)).reshape(30, 3)
+            elif n_features == 3:
+                restored = y_scaler.inverse_transform(values)
+            elif n_features == 30:
+                restored = np.empty_like(values, dtype=np.float64)
+                for quantile_index in range(3):
+                    restored[:, quantile_index] = y_scaler.inverse_transform(
+                        values[:, quantile_index].reshape(1, 30)
+                    )[0]
+            elif n_features == 90:
+                restored = y_scaler.inverse_transform(values.reshape(1, -1)).reshape(30, 3)
+            else:
+                return None
+            prices = np.expm1(np.asarray(restored, dtype=np.float64))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return prices if np.isfinite(prices).all() else None
 
     # ---------- 单模型推理(v5 契约: 返回 7 天每日价格列表) ----------
     def _predict_lstm_c(self, X: np.ndarray, name: str) -> list[float] | None:
@@ -356,6 +409,71 @@ class ModelLoader:
             "confidence": self._confidence(model_tag),
             "price_tier": grp,
             "route": prefer,
+        }
+
+    def predict_live_trend_30d(self, market_hash_name: str) -> dict | None:
+        """Run the Keras 30-day quantile model on the latest database window."""
+        if (
+            not self.tf_available
+            or "seq2seq_30d" not in self.models
+            or "seq2seq_30d" not in self.scalers
+        ):
+            return None
+        win = _skin_window_from_db(market_hash_name)
+        if win is None:
+            return None
+        X, cur_price, cur_date = win
+        if X.shape != (1, LOOKBACK, 13):
+            return None
+
+        scalers = self.scalers["seq2seq_30d"]
+        if not isinstance(scalers, dict):
+            return None
+        artifact_features = scalers.get("feature_cols")
+        try:
+            from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
+        except ImportError:
+            return None
+        if (
+            tuple(artifact_features or ()) != tuple(SEQUENCE_FEATURE_COLS)
+            or scalers.get("feature_contract_version") != FEATURE_CONTRACT_VERSION
+        ):
+            return None
+        x_scaler = scalers.get("x_scaler")
+        y_scaler = scalers.get("y_scaler")
+        if x_scaler is None or y_scaler is None:
+            return None
+        try:
+            scaled = self._scale_X(X, x_scaler)
+            raw = np.asarray(
+                self.models["seq2seq_30d"].predict(
+                    scaled, verbose=0, batch_size=1
+                ),
+                dtype=np.float64,
+            )
+        except (TypeError, ValueError, RuntimeError):
+            return None
+        if raw.shape != (1, 30, 3):
+            return None
+
+        prices = self._inverse_trend_output(raw[0], y_scaler)
+        if prices is None:
+            return None
+        # Quantile crossing is sanitized per forecast day before the API
+        # applies its stricter contract validation.
+        ordered = np.sort(np.maximum(prices, 0.01), axis=1)
+        median = ordered[:, 1]
+        ordered[:, 0] = np.clip(ordered[:, 0], median * 0.60, median)
+        ordered[:, 2] = np.clip(ordered[:, 2], median, median * 1.40)
+        ordered = np.sort(ordered, axis=1)
+        return {
+            "current_price": round(float(cur_price), 2),
+            "date": cur_date,
+            "model": "Keras-Seq2Seq-30D",
+            "horizon": 30,
+            "p10": [round(float(value), 4) for value in ordered[:, 0]],
+            "p50": [round(float(value), 4) for value in ordered[:, 1]],
+            "p90": [round(float(value), 4) for value in ordered[:, 2]],
         }
 
     @staticmethod

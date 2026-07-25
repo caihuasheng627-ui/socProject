@@ -25,17 +25,9 @@ from tree_features import (  # noqa: E402
     classification_arrays,
     load_tree_split,
 )
+from model_features import TREE_FEATURE_COLS  # noqa: E402
 
-FEATURE_NAMES = [
-    "log_price", "MA_7", "MA_30", "MA_90",
-    "Return_1d", "Return_7d", "Volatility_30",
-    "RSI_14", "MACD", "Volume_MA_7",
-    "MA_30_dev", "BB_position", "Volume_Change_Ratio",
-    "is_stattrak", "is_floor_price",
-    "days_to_next_major", "days_since_last_major", "is_major_active",
-    "steam_ccu", "days_since_cs2_announce",
-    "weapon_type_enc", "rarity_enc", "wear_enc",
-]
+FEATURE_NAMES = TREE_FEATURE_COLS
 CLASS_NAMES = {0: "跌 (die)", 1: "平 (ping)", 2: "涨 (zhang)"}
 
 

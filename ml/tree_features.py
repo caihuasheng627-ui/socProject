@@ -6,18 +6,10 @@ import numpy as np
 
 from feature_engineering import fit_categoricals, transform_categoricals
 from forecast_contract import load_feature_panel
+from model_features import TREE_FEATURE_COLS
 
 
-FEATURE_COLS = [
-    "log_price", "MA_7", "MA_30", "MA_90",
-    "Return_1d", "Return_7d", "Volatility_30",
-    "RSI_14", "MACD", "Volume_MA_7",
-    "MA_30_dev", "BB_position", "Volume_Change_Ratio",
-    "is_stattrak", "is_floor_price",
-    "days_to_next_major", "days_since_last_major", "is_major_active",
-    "steam_ccu", "days_since_cs2_announce",
-    "weapon_type_enc", "rarity_enc", "wear_enc",
-]
+FEATURE_COLS = TREE_FEATURE_COLS
 CLASS_THRESHOLD = 0.02
 
 
@@ -37,7 +29,7 @@ def load_tree_split(data_dir: str | Path, split: str):
 
 def regression_arrays(frame):
     return (
-        frame[FEATURE_COLS].to_numpy(),
+        frame[list(FEATURE_COLS)].to_numpy(),
         frame["Target"].to_numpy(),
         frame["date"].to_numpy(),
         frame["market_hash_name"].to_numpy(),
@@ -53,7 +45,7 @@ def classification_arrays(frame, threshold: float = CLASS_THRESHOLD):
         np.where(future_return <= -threshold, 0, 1),
     )
     return (
-        frame[FEATURE_COLS].to_numpy(),
+        frame[list(FEATURE_COLS)].to_numpy(),
         labels,
         frame["date"].to_numpy(),
         frame["market_hash_name"].to_numpy(),

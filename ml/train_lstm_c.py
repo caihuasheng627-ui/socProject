@@ -4,7 +4,7 @@ LSTM-C: 面板 Embedding 模型 (Functional API) — Seq2Seq 7 天版
 参考: Lecture4 例 8 (IBM LSTM) + 自研双输入架构
 
 架构图:
-  价格分支: Input(60, 15) ─────────────────┐
+  价格分支: Input(60, 13) ─────────────────┐
   物品分支: Input(1) → Embedding(154, 8) ──┼→ Concatenate → LSTM(50)×2 → Dense(7)
 
 核心规则:
@@ -20,6 +20,8 @@ LSTM-C: 面板 Embedding 模型 (Functional API) — Seq2Seq 7 天版
 import numpy as np
 import pandas as pd
 import pickle
+import sys
+import uuid
 import warnings
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
@@ -40,6 +42,10 @@ from forecast_contract import (
     load_feature_panel,
 )
 from gpu_config import configure_device, create_multi_input_dataset
+from artifact_io import promote_keras_checkpoint, save_pickle_atomic
+from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 warnings.filterwarnings("ignore")
 
@@ -98,32 +104,16 @@ def build_item_map(train_df):
 # 第 3 步: 滑动窗口构建 (参照 Lecture4 例 8 的 create_dataset)
 #          ⚠️ 关键: 逐物品 groupby, 严禁跨物品拼序列
 # ============================================================
-# 选哪些列做 LSTM 输入 (17 个)
-FEATURE_COLS = [
-    "log_price",              # 对数价格 ★ 核心 (0.03~7.3)
-    "MA_7",                   # 7 日均线
-    "MA_30",                  # 30 日均线
-    "MA_90",                  # 90 日均线
-    "Return_1d",              # 1 日收益率 (-0.05~0.05)
-    "Return_7d",              # 7 日收益率
-    "Volatility_30",          # 30 日波动率 (0~0.5)
-    "RSI_14",                 # RSI (0~100)
-    "MACD",                   # MACD (~-10~100)
-    "volume_ma_log",          # 对数成交量 (0~13.7)
-    "daily_volume_log",       # 对数当日量 (0~13.7)
-    "is_floor_price",         # 地板价标记 (0/1)
-    "is_stattrak",            # StatTrak 标记 (0/1)
-    "is_major_active",        # Major 赛期 (0/1)
-    "steam_ccu",              # Steam 在线 (13~30, 已 /1e6)
-]
+# Keep the legacy export while sourcing the contract from one module.
+FEATURE_COLS = SEQUENCE_FEATURE_COLS
 
 def build_sequences(df, item_map, sample_split, x_scaler=None, fit_scaler=False):
     """
-    逐物品构建滑动窗口 X(60,15) → y(7)
+    逐物品构建滑动窗口 X(60,13) → y(7)
     返回多步 target y shape: (n_samples, 7)
     """
     X_price, y, meta = build_sequence_windows_multi(
-        df, FEATURE_COLS, LOOKBACK, SEQ_HORIZON, sample_split=sample_split
+        df, list(FEATURE_COLS), LOOKBACK, SEQ_HORIZON, sample_split=sample_split
     )
     X_item = encode_item_ids(meta["market_hash_name"], item_map).reshape(-1, 1)
 
@@ -164,7 +154,7 @@ def build_model(n_items):
 
     # ---- 合并两路 ----
     concat = Concatenate(name="concat")([input_price, embed])
-    # concat shape: (None, 60, 15+8=23)
+    # concat shape: (None, 60, 13+8=21)
 
     # ---- LSTM 层 ----
     x = LSTM(LSTM_UNITS, return_sequences=True, name="lstm_1")(concat)
@@ -249,14 +239,44 @@ def main():
     reduce_lr = keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss", factor=0.5, patience=7, min_lr=1e-6
     )
+    checkpoint_path = OUTPUT_DIR / f".lstm_c.best-{uuid.uuid4().hex}.keras"
+    checkpoint = keras.callbacks.ModelCheckpoint(
+        checkpoint_path,
+        monitor="val_loss",
+        save_best_only=True,
+        save_weights_only=False,
+    )
 
     history = model.fit(
         train_ds,
         validation_data=val_ds,
         epochs=EPOCHS,
-        callbacks=[early_stop, reduce_lr],
+        callbacks=[early_stop, reduce_lr, checkpoint],
         verbose=1
     )
+
+    sample_count = min(2, len(Xp_val))
+    model = promote_keras_checkpoint(
+        checkpoint_path,
+        MODEL_PATH,
+        sample_inputs=[Xp_val[:sample_count], Xi_val[:sample_count]],
+        expected_output_shape=(sample_count, SEQ_HORIZON),
+    )
+
+    # Persist inference metadata before evaluation so a reporting failure does
+    # not invalidate an otherwise successful long-running training job.
+    save_pickle_atomic(
+        {
+            "y_scaler": y_scaler,
+            "x_scaler": x_scaler,
+            "feature_cols": FEATURE_COLS,
+            "feature_contract_version": FEATURE_CONTRACT_VERSION,
+            "lookback": LOOKBACK,
+            "horizon_steps": SEQ_HORIZON,
+        },
+        SCALER_PATH,
+    )
+    save_pickle_atomic(item_map, ITEM_MAP_PATH)
 
     # --- 评估: 逐日 + 整体 ---
     print("\n" + "=" * 60)
@@ -300,12 +320,6 @@ def main():
     print("\n" + "=" * 60)
     print("第 7 步: 保存模型文件")
     print("=" * 60)
-    model.save(MODEL_PATH)
-    with open(SCALER_PATH, "wb") as f:
-        pickle.dump({"y_scaler": y_scaler, "x_scaler": x_scaler}, f)
-    with open(ITEM_MAP_PATH, "wb") as f:
-        pickle.dump(item_map, f)
-
     print(f"  ✅ {MODEL_PATH}")
     print(f"  ✅ {SCALER_PATH}")
     print(f"  ✅ {ITEM_MAP_PATH}")

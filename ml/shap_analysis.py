@@ -28,23 +28,14 @@ MODEL_PATH = BASE_DIR / "models" / "xgb_reg.pkl"
 OUT_DIR = BASE_DIR / "outputs"
 
 from tree_features import (  # noqa: E402
-    FEATURE_COLS,
     assert_held_out,
     load_tree_split,
     regression_arrays,
 )
+from model_features import TREE_FEATURE_COLS  # noqa: E402
 
-# 23 特征列名 (与 utils.py FEATURE_COLS 对齐)
-FEATURE_NAMES = [
-    "log_price", "MA_7", "MA_30", "MA_90",
-    "Return_1d", "Return_7d", "Volatility_30",
-    "RSI_14", "MACD", "Volume_MA_7",
-    "MA_30_dev", "BB_position", "Volume_Change_Ratio",
-    "is_stattrak", "is_floor_price",
-    "days_to_next_major", "days_since_last_major", "is_major_active",
-    "steam_ccu", "days_since_cs2_announce",
-    "weapon_type_enc", "rarity_enc", "wear_enc",
-]
+# Keep plotting labels aligned exactly with the tree model input order.
+FEATURE_NAMES = TREE_FEATURE_COLS
 
 
 def main(model_path=MODEL_PATH, split="test", allow_in_sample=False):

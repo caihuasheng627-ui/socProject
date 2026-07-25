@@ -205,9 +205,10 @@ paths:
   /api/predict:
     post:
       tags: [Prediction]
-      summary: 在线 LSTM 价格预测
+      summary: 在线 7 天 LSTM 预测与 30 天概率趋势
       description: |
         仅使用当前数据库最新 60 个观测构建输入并调用已部署 LSTM。
+        有效的 7 天响应会附带可空的 Keras 30 天 P10/P50/P90 概率趋势。
         不读取离线 val/test 预测 CSV；无法生成可信结果时返回 status=unavailable。
       requestBody:
         required: true
@@ -222,8 +223,8 @@ paths:
                   example: 'ak47-fireserpent-fn'
                 horizon:
                   type: integer
-                  enum: [7, 30]
-                  description: 预测天数
+                  enum: [7]
+                  description: 精确预测周期；30 天概率趋势随有效响应返回
                 models:
                   type: array
                   items:
@@ -1006,6 +1007,41 @@ components:
           type: integer
           enum: [-1, 1]
 
+    Trend30D:
+      type: object
+      required: [decisionDate, model, horizon, p10, p50, p90]
+      properties:
+        decisionDate:
+          type: string
+          format: date
+        model:
+          type: string
+          enum: [Keras-Seq2Seq-30D]
+        horizon:
+          type: integer
+          enum: [30]
+        p10:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p50:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p90:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+
     PredictionResult:
       type: object
       required:
@@ -1020,6 +1056,7 @@ components:
         - priceSource
         - volumeCoverage
         - generatedAt
+        - trend30d
       properties:
         skinId:
           type: string
@@ -1116,6 +1153,11 @@ components:
                 maxItems: 7
                 items:
                   type: number
+        trend30d:
+          allOf:
+            - $ref: '#/components/schemas/Trend30D'
+          nullable: true
+          description: 基于同一决策日的 30 天概率趋势；模型不可用或校验失败时为 null
         consensus:
           type: object
           nullable: true

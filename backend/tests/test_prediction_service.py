@@ -38,9 +38,11 @@ def make_conn():
 
 
 class FakeLoader:
-    def __init__(self, result):
+    def __init__(self, result, trend_result=None):
         self.result = result
+        self.trend_result = trend_result
         self.live_calls = 0
+        self.trend_calls = 0
 
     def live_model_version(self):
         return "lstm-test-v1"
@@ -48,6 +50,10 @@ class FakeLoader:
     def predict_live_lstm(self, name):
         self.live_calls += 1
         return self.result
+
+    def predict_live_trend_30d(self, name):
+        self.trend_calls += 1
+        return self.trend_result
 
     def predict_all_models(self, name, horizon):
         raise AssertionError("offline prediction adapter was called")
@@ -63,6 +69,18 @@ def live_result(price=105.0, date="2026-07-22", current=100.0):
         "date": date,
         "change_pct": round((price - current) / current * 100, 2),
         "confidence": 73.6,
+    }
+
+
+def trend_result(date="2026-07-22", current=100.0, p50=105.0):
+    return {
+        "current_price": current,
+        "date": date,
+        "model": "Keras-Seq2Seq-30D",
+        "horizon": 30,
+        "p10": [p50 - 10.0] * 30,
+        "p50": [p50] * 30,
+        "p90": [p50 + 10.0] * 30,
     }
 
 
@@ -86,6 +104,53 @@ def test_service_returns_fresh_live_prediction():
     assert result["decisionDate"] == "2026-07-22"
     assert result["currentPrice"] == 100.0
     assert result["predictions"][0]["price"] == 105.0
+    assert result["trend30d"] is None
+
+
+def test_service_attaches_thirty_day_trend_without_seven_day_breaker():
+    loader = FakeLoader(live_result(), trend_result(p50=180.0))
+
+    result = call(make_conn(), loader, circuit_breaker_enabled=True)
+
+    assert result["status"] == "available"
+    assert result["trend30d"]["decisionDate"] == "2026-07-22"
+    assert result["trend30d"]["model"] == "Keras-Seq2Seq-30D"
+    assert result["trend30d"]["horizon"] == 30
+    assert result["trend30d"]["p50"] == [180.0] * 30
+
+
+def test_service_ignores_stale_thirty_day_trend_but_keeps_seven_day_result():
+    loader = FakeLoader(live_result(), trend_result(date="2026-07-21"))
+
+    result = call(make_conn(), loader)
+
+    assert result["status"] == "available"
+    assert result["predictions"][0]["price"] == 105.0
+    assert result["trend30d"] is None
+
+
+def test_service_ignores_invalid_thirty_day_quantile_order():
+    trend = trend_result()
+    trend["p10"][5] = 120.0
+    loader = FakeLoader(live_result(), trend)
+
+    result = call(make_conn(), loader)
+
+    assert result["status"] == "available"
+    assert result["trend30d"] is None
+
+
+def test_service_clips_overwide_trend_edges_without_rejecting_median():
+    trend = trend_result(p50=180.0)
+    trend["p10"] = [5.0] * 30
+    trend["p90"] = [500.0] * 30
+    loader = FakeLoader(live_result(), trend)
+
+    result = call(make_conn(), loader)
+
+    assert result["trend30d"]["p10"] == [108.0] * 30
+    assert result["trend30d"]["p50"] == [180.0] * 30
+    assert result["trend30d"]["p90"] == [252.0] * 30
 
 
 def test_service_rejects_stale_decision_date():
@@ -102,9 +167,13 @@ def test_service_rejects_price_anchor_mismatch():
 
 
 def test_service_rejects_move_over_thirty_percent():
-    result = call(make_conn(), FakeLoader(live_result(price=131.0)))
+    result = call(
+        make_conn(),
+        FakeLoader(live_result(price=131.0), trend_result(p50=180.0)),
+    )
     assert result["status"] == "unavailable"
     assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+    assert result["trend30d"]["horizon"] == 30
 
 
 def test_service_returns_out_of_range_prediction_in_observation_mode():
@@ -153,11 +222,13 @@ def test_cache_requires_unexpired_matching_date_price_and_version():
             "2026-07-22",
         ),
     )
-    loader = FakeLoader(live_result())
+    loader = FakeLoader(live_result(), trend_result())
     result = call(conn, loader)
     assert result["status"] == "available"
     assert result["generatedAt"] == "2026-07-24T11:00:00+00:00"
     assert loader.live_calls == 0
+    assert loader.trend_calls == 1
+    assert result["trend30d"]["horizon"] == 30
 
 
 def test_expired_cache_is_not_reused():
@@ -200,10 +271,14 @@ def test_enabled_breaker_rejects_out_of_range_observation_mode_cache():
             "2026-07-22",
         ),
     )
-    loader = FakeLoader(live_result(price=131.0))
+    loader = FakeLoader(
+        live_result(price=131.0),
+        trend_result(p50=180.0),
+    )
 
     result = call(conn, loader, circuit_breaker_enabled=True)
 
     assert result["status"] == "unavailable"
     assert result["reason"] == "PREDICTION_OUT_OF_RANGE"
+    assert result["trend30d"]["horizon"] == 30
     assert loader.live_calls == 0

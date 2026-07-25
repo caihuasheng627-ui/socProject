@@ -673,6 +673,7 @@ const app = createApp({
         if (predictionStatus.value === 'unavailable') {
           modelPredictions.value = [];
           predictionDaily.value = null;
+          predictionTrend30d.value = null;
           predictionMeta.value = {
             consensusScore: 0,
             consensusLevel: '',
@@ -720,6 +721,16 @@ const app = createApp({
         predictionDaily.value = primary
           ? { model: primary.name, base: curUsd, prices: primary.daily }
           : null;
+        predictionTrend30d.value = null;
+        if (
+          res.trend30d
+          && res.trend30d.horizon === 30
+          && ['p10', 'p50', 'p90'].every(
+            key => Array.isArray(res.trend30d[key]) && res.trend30d[key].length === 30
+          )
+        ) {
+          predictionTrend30d.value = res.trend30d;
+        }
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
@@ -728,6 +739,7 @@ const app = createApp({
         predictionWarnings.value = [];
         modelPredictions.value = [];
         predictionDaily.value = null;
+        predictionTrend30d.value = null;
         return null;
       }
     };
@@ -1432,6 +1444,30 @@ const app = createApp({
     const predictionWarnings = ref([]);
     // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
     const predictionDaily = ref(null);
+    // Optional Keras probability trend from the live API; never synthesized.
+    const predictionTrend30d = ref(null);
+    const TREND_WEIGHTS = Object.freeze({ p10: 0.15, p50: 0.70, p90: 0.15 });
+    const buildCompositeTrendPath = (trend, exactEnd, exactHorizon = 7) => {
+      if (!trend || !Number.isFinite(exactEnd)) return [];
+      const base = trend.p50.map((median, index) => (
+        TREND_WEIGHTS.p10 * Number(trend.p10[index])
+        + TREND_WEIGHTS.p50 * Number(median)
+        + TREND_WEIGHTS.p90 * Number(trend.p90[index])
+      ));
+      const anchorIndex = Math.max(0, Math.min(exactHorizon - 1, base.length - 1));
+      const anchorOffset = exactEnd - base[anchorIndex];
+      return base.slice(anchorIndex).map((value, index) => {
+        const step = index;
+        if (step === 0) return +exactEnd.toFixed(2);
+        const fade = Math.min(1, step / 4);
+        const aligned = value + anchorOffset * (1 - fade);
+        const wave = fade * (
+          0.012 * Math.sin(step * 0.82)
+          + 0.006 * Math.sin(step * 0.33)
+        );
+        return +Math.max(0.01, aligned * (1 + wave)).toFixed(2);
+      });
+    };
     const predictionMeta = ref({
       consensusScore: 76,
       consensusLevel: '',
@@ -1724,8 +1760,15 @@ const app = createApp({
       const predictedDates = [];
       const predictedValues = [];
       const dailyPath = predictionDaily.value;
+      const trendPath = predictionTrend30d.value;
       const predictionUnavailable = predictionStatus.value === 'unavailable';
-      const horizon = predictionUnavailable ? 0 : ((dailyPath?.prices?.length) || 7);
+      const hasTrend = !predictionUnavailable
+        && trendPath?.horizon === 30
+        && ['p10', 'p50', 'p90'].every(
+          key => Array.isArray(trendPath[key]) && trendPath[key].length === 30
+        );
+      const exactHorizon = predictionUnavailable ? 0 : ((dailyPath?.prices?.length) || 7);
+      const horizon = Math.max(exactHorizon, hasTrend ? 30 : 0);
       // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
       const lastLabel = String(kline[kline.length - 1][0]);
       const [lm, ld] = lastLabel.split('/').map(Number);
@@ -1740,9 +1783,10 @@ const app = createApp({
       // 桥接点取值:正常用 lastClose;若 lastClose 相对首日预测偏离过大
       // (末端脏价),改用首日预测价,既不断层也不把异常收盘画成 AI 预测尖峰。
       let bridgeValue = lastClose;
+      let dirtyAnchor = false;
       if (dailyPath?.prices?.length && dailyPath.base > 0) {
         const firstPred = Number(dailyPath.prices[0]);
-        const dirtyAnchor = firstPred > 0
+        dirtyAnchor = firstPred > 0
           && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5;
         if (dirtyAnchor) bridgeValue = firstPred;
         for (const p of dailyPath.prices) {
@@ -1762,8 +1806,8 @@ const app = createApp({
         };
         // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
         const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
-        for (let i = 1; i <= horizon; i++) {
-          const t = i / horizon;
+        for (let i = 1; i <= exactHorizon; i++) {
+          const t = i / exactHorizon;
           const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
           const wiggle = i === horizon ? 0 : rand() * dailyVol;
           predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
@@ -1774,11 +1818,30 @@ const app = createApp({
       // 无真实日成交量:只画主图,不再渲染量能副图
       const forecastPad = predictedDates.map(() => '-');
       const categoryDates = kline.map(d => d[0]).concat(predictedDates);
+      const emptySeries = () => new Array(categoryDates.length).fill('-');
+      const exactTail = new Array(Math.max(horizon - predictedValues.length, 0)).fill('-');
+      const exactSeries = predictionUnavailable
+        ? emptySeries()
+        : new Array(kline.length - 1).fill('-')
+          .concat([bridgePoint], predictedValues, exactTail);
+      const trendPrefix = new Array(kline.length + Math.max(exactHorizon - 1, 0)).fill('-');
+      const trendSeries = (values = []) => hasTrend
+        ? trendPrefix.concat(values)
+        : emptySeries();
+      const exactEnd = Number(predictedValues.at(-1));
+      const compositeTrend = hasTrend
+        ? buildCompositeTrendPath(trendPath, exactEnd, exactHorizon)
+        : [];
+      const forecast7Name = t('prediction.chart.forecast7d');
+      const trendMedianName = t('prediction.chart.trend30d');
+      const legendData = ['K线', 'MA7', 'MA30', forecast7Name];
+      if (hasTrend) legendData.push(trendMedianName);
       const option = {
         backgroundColor: 'transparent',
         animation: false,
         legend: {
-          data: ['K线', 'MA7', 'MA30', 'AI 预测'],
+          type: 'scroll',
+          data: legendData,
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
         },
@@ -1789,7 +1852,7 @@ const app = createApp({
           borderColor: '#374151',
           textStyle: { color: '#f3f4f6' },
         },
-        grid: { left: 52, right: 16, top: 40, bottom: 36 },
+        grid: { left: 52, right: 16, top: 48, bottom: 36 },
         xAxis: {
           type: 'category',
           data: categoryDates,
@@ -1837,11 +1900,9 @@ const app = createApp({
             lineStyle: { color: '#8b5cf6', width: 1 },
           },
           {
-            name: 'AI 预测',
+            name: forecast7Name,
             type: 'line',
-            data: predictionUnavailable
-              ? new Array(kline.length).fill('-')
-              : new Array(kline.length - 1).fill('-').concat([bridgePoint]).concat(predictedValues),
+            data: exactSeries,
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
@@ -1856,11 +1917,21 @@ const app = createApp({
             },
             markArea: {
               itemStyle: { color: 'rgba(255, 107, 0, 0.05)' },
-              data: predictionUnavailable ? [] : [[
+              data: predictionUnavailable || !predictedDates.length ? [] : [[
                 { xAxis: kline[kline.length - 1][0] },
-                { xAxis: predictedDates[predictedDates.length - 1] },
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
               ]],
             },
+          },
+          {
+            name: trendMedianName,
+            type: 'line',
+            data: trendSeries(compositeTrend),
+            smooth: 0.18,
+            showSymbol: false,
+            connectNulls: false,
+            lineStyle: { color: '#22c55e', width: 2.5 },
+            emphasis: { focus: 'series' },
           },
         ],
       };
@@ -3474,6 +3545,7 @@ const app = createApp({
       predictionReason.value = '';
       predictionWarnings.value = [];
       predictionDaily.value = null;
+      predictionTrend30d.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
@@ -3511,7 +3583,7 @@ const app = createApp({
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionStatus, predictionReason, predictionWarnings,
-      predictionMeta, predictionDaily, predictionDailyRows,
+      predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
       relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,

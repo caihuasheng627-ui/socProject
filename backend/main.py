@@ -14,7 +14,7 @@ import json
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # Windows 控制台/管道默认可能是 ascii/GBK;强制 UTF-8,避免中文 prompt/日志 UnicodeEncodeError
 try:
@@ -73,7 +73,7 @@ app.add_middleware(
 # ============================================================
 class PredictReq(BaseModel):
     skinId: str
-    horizon: int = 7
+    horizon: Literal[7] = 7
     models: list[str] | None = None
 
 
@@ -306,8 +306,6 @@ def get_kline(skin_id: str, days: int = 90, interval: str = "1d"):
 # ============================================================
 @app.post("/api/predict")
 def predict(req: PredictReq):
-    if req.horizon not in (7, 30):
-        raise HTTPException(400, "horizon must be 7 or 30")
     with get_connection() as conn:
         skin = resolve_skin(conn, req.skinId)
         if not skin:
