@@ -191,6 +191,13 @@ const app = createApp({
         lead: t(`landing.hero.s${i}.lead`),
       }));
     });
+    const landingCoarsePointer =
+      typeof matchMedia === 'function' &&
+      (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 720px)').matches);
+    const landingSceneHint = computed(() => {
+      void currentLang.value;
+      return t(landingCoarsePointer ? 'landing.sceneHintTouch' : 'landing.sceneHint');
+    });
     let landingScenesApi = null;
     let landingScrollApi = null;
 
@@ -3584,7 +3591,8 @@ const app = createApp({
       // 菜单
       menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
-      showLanding, landingExiting, landingHeroIndex, landingHeroSlides, enterSystem, showAdmin, leaveAdmin,
+      showLanding, landingExiting, landingHeroIndex, landingHeroSlides, landingSceneHint,
+      enterSystem, showAdmin, leaveAdmin,
       // 用户认证
       currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,

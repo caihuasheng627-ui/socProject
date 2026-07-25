@@ -4114,6 +4114,7 @@ i.ph-duotone {
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   scroll-behavior: smooth;
   scroll-snap-type: y mandatory;
   scroll-padding-top: 48px;
@@ -4260,6 +4261,15 @@ i.ph-duotone {
   background: #07060a;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+}
+
+/* While the hero owns the screen, vertical touch gestures drive the scene
+   scrubber instead of the page scroll. The `none` fallback covers engines that
+   do not parse the `pinch-zoom` keyword. */
+.landing-hero.is-scene-lock {
+  touch-action: none;
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior: contain;
 }
 
 .landing-hero-stage {
