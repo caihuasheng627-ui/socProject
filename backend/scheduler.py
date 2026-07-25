@@ -192,7 +192,9 @@ def market_metrics_from_db() -> dict:
 
 def summary_is_degraded(text: str | None) -> bool:
     """种子/降级文案是否应对外隐藏（Mock、未配置 Key、显式 error）。"""
-    t = text or ""
+    t = (text or "").strip()
+    if not t:
+        return True
     markers = (
         "Mock 模式",
         "(Mock",
@@ -206,50 +208,88 @@ def summary_is_degraded(text: str | None) -> bool:
     return any(m in t for m in markers)
 
 
+def summary_is_non_english(text: str | None) -> bool:
+    """日报默认英文；含较多汉字的旧摘要视为需刷新。"""
+    t = (text or "").strip()
+    if not t:
+        return True
+    cjk = sum(1 for ch in t if "\u4e00" <= ch <= "\u9fff")
+    return cjk >= 8
+
+
 def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str:
-    """无 LLM 时的干净市场总结（不含 Mock/错误头）。"""
+    """No-LLM English market brief (clean, no Mock/error headers)."""
     m = metrics or {}
     total = int(m.get("monitored") or 0)
     gainers = int(m.get("gainers") or 0)
     losers = int(m.get("losers") or 0)
-    cite = " [1]" if sources else ""
-    bias = "偏强" if gainers > losers else ("偏弱" if losers > gainers else "震荡分化")
+    breadth = (gainers + losers) or 1
+    up_pct = round(100.0 * gainers / breadth, 1)
+    down_pct = round(100.0 * losers / breadth, 1)
+    if gainers > losers:
+        bias = "mildly constructive"
+        tilt = "more names are advancing than declining over the trailing week"
+    elif losers > gainers:
+        bias = "soft / risk-off"
+        tilt = "decliners outnumber advancers over the trailing week"
+    else:
+        bias = "two-way / rotational"
+        tilt = "advancers and decliners are roughly balanced"
+
+    cite1 = " [1]" if sources else ""
+    cite2 = " [2]" if len(sources or []) >= 2 else (cite1 if sources else "")
+    theme = ""
+    if sources:
+        snip = (sources[0].get("snippet") or sources[0].get("title") or "").strip()
+        if snip:
+            theme = f" Retrieved context highlights: {snip[:160].rstrip('.')}.{cite1}"
+
     return (
-        f"今日监控 {total} 件饰品，近 7 日上涨 {gainers} 件、下跌 {losers} 件，"
-        f"市场整体{bias}{cite}。建议结合成交量与赛事日历观察高波动标的，"
-        f"控制仓位并设置止损。\n\n"
-        f"⚠ 饰品市场高波动，以上不构成投资建议。"
+        f"CS2 skin market brief — monitored universe: {total} priced items. "
+        f"Over the last ~7 days, {gainers} rose ({up_pct}%) and {losers} fell ({down_pct}%), "
+        f"so breadth looks {bias}: {tilt}.{cite1}\n\n"
+        f"Trading implication: focus on liquid majors and event-linked stickers/skins when volume expands, "
+        f"and avoid chasing illiquid knives/gloves on thin books.{cite2}"
+        f"{theme}\n\n"
+        f"Positioning note: size risk carefully around tournament calendars and post-event mean reversion. "
+        f"Skin markets are highly volatile — this is not investment advice."
     )
 
 
 def refresh_ai_summary(
     metrics: dict,
     *,
-    portfolio_text: str = "无持仓",
+    portfolio_text: str = "No holdings",
     sources: list | None = None,
 ) -> str:
-    """优先 LLM；失败或降级则回落到规则摘要。"""
+    """Prefer LLM English brief; fall back to richer rule-based English summary."""
     from config import LLM_ENABLED
 
     sources = sources or []
     context_text = "\n".join(
         f"[{s.get('id')}] ({s.get('source')}) {s.get('snippet')}" for s in sources
-    ) or "(无检索结果)"
+    ) or "(no retrieval hits)"
     total = metrics.get("monitored", 0)
     gainers = metrics.get("gainers", 0)
     losers = metrics.get("losers", 0)
     prompt = (
-        f"今日 CS2 饰品市场:监控 {total} 件,上涨 {gainers} 件,下跌 {losers} 件。"
-        f"你的持仓:{portfolio_text}。\n"
-        f"以下是检索到的市场知识库/资讯:\n{context_text}\n\n"
-        f"请据此生成一段中文市场日报(3-4 句),在相关处用 [编号] 标注引用来源,"
-        f"含持仓提示与风险。不要输出 Mock、错误码或系统提示。"
+        f"You are writing the CSVest CS2 skin market daily brief.\n"
+        f"Market stats: monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
+        f"User portfolio: {portfolio_text}.\n"
+        f"Retrieved knowledge / news snippets:\n{context_text}\n\n"
+        f"Write the summary in English only (no Chinese).\n"
+        f"Length: 2–3 short paragraphs (about 6–9 sentences total).\n"
+        f"Cover: (1) market breadth & tone from the stats, "
+        f"(2) themes inferred from citations — cite with [n] where relevant, "
+        f"(3) practical watchlist / positioning hints for the portfolio, "
+        f"(4) clear risk disclaimer.\n"
+        f"Do not invent prices. Do not output Mock labels, error codes, or system prompts."
     )
     if LLM_ENABLED:
         text = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
-        if text and not summary_is_degraded(text):
+        if text and not summary_is_degraded(text) and not summary_is_non_english(text):
             return text
-        print("[scheduler] LLM 摘要不可用，改用规则摘要")
+        print("[scheduler] LLM summary unavailable/non-English, using rule-based English brief")
     return rule_based_market_summary(metrics, sources)
 
 
@@ -265,8 +305,8 @@ def generate_daily_report() -> dict:
                FROM portfolio p JOIN skins s ON s.id=p.skin_id"""
         ).fetchall()
 
-    portfolio_text = "无持仓" if not positions else "; ".join(
-        f"{r['market_hash_name']} {r['quantity']}件" for r in positions
+    portfolio_text = "No holdings" if not positions else "; ".join(
+        f"{r['market_hash_name']} x{r['quantity']}" for r in positions
     )
 
     # RAG 检索: 拉取市场级知识库/资讯来源, 供日报引用(展示检索→生成)

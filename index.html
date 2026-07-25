@@ -47,7 +47,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260725-hero-touch" />
+  <link rel="stylesheet" href="style.css?v=20260725-diag" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -2028,8 +2028,9 @@
               <button class="btn btn-primary" @click="showPortfolioModal = true">
                 <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
-              <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline">
-                {{ t('portfolio.diagnose') }}
+              <button class="btn btn-secondary" @click="loadPortfolioExtras" :disabled="!apiOnline || portfolioDiagnoseLoading">
+                <i class="ph ph-heartbeat" :class="{ 'spin-slow': portfolioDiagnoseLoading }" aria-hidden="true"></i>
+                {{ portfolioDiagnoseLoading ? t('portfolio.diag.loading') : t('portfolio.diagnose') }}
               </button>
               <button class="btn btn-secondary" @click="goToPage('alerts')">
                 <span>🔔</span> {{ t('portfolio.alertsEntry') }}
@@ -2037,12 +2038,133 @@
             </div>
           </div>
 
-          <div v-if="portfolioDiagnose" class="card mb-4">
+          <div v-if="portfolioDiagnose" class="card mb-4 diag-panel">
             <div class="card-header">
-              <div class="card-title">{{ t('portfolio.diagnose') }}</div>
-              <span class="tag tag-orange" v-if="apiOnline && !portfolioDiagnose.empty">API</span>
+              <div class="card-title">
+                <i class="ph-duotone ph-heartbeat icon-primary" aria-hidden="true"></i>
+                {{ t('portfolio.diagnose') }}
+              </div>
+              <div class="diag-panel__head-meta">
+                <span class="tag tag-orange" v-if="apiOnline && !portfolioDiagnose.empty">API</span>
+                <span class="text-muted text-xs" v-if="portfolioDiagnose.generatedAt">{{ formatDiagnoseTime(portfolioDiagnose.generatedAt) }}</span>
+                <span class="tag tag-blue" v-if="portfolioDiagnose.totalItems">{{ t('portfolio.diag.items', { n: portfolioDiagnose.totalItems }) }}</span>
+              </div>
             </div>
-            <p class="text-sm" :class="portfolioDiagnose.empty ? 'text-muted' : ''" style="line-height: 1.7; white-space: pre-wrap;">{{ portfolioDiagnose.summary || portfolioDiagnose.aiSummary || t('portfolio.emptyDiagnose') }}</p>
+
+            <template v-if="portfolioDiagnose.empty">
+              <p class="text-sm text-muted" style="line-height: 1.7;">{{ portfolioDiagnose.summary || portfolioDiagnose.error || t('portfolio.emptyDiagnose') }}</p>
+            </template>
+
+            <template v-else>
+              <section class="diag-block">
+                <div class="diag-block__label">{{ t('portfolio.diag.summary') }}</div>
+                <p class="diag-summary">{{ portfolioDiagnose.aiSummary || portfolioDiagnose.summary || '—' }}</p>
+              </section>
+
+              <section class="diag-block" v-if="portfolioDiagnose.valueRange">
+                <div class="diag-block__label">{{ t('portfolio.diag.valueRange') }}</div>
+                <div class="diag-kpis">
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.current') }}</span>
+                    <strong class="diag-kpi__value">${{ formatPrice(portfolioDiagnose.valueRange.current) }}</strong>
+                  </article>
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.pred7') }}</span>
+                    <strong class="diag-kpi__value diag-kpi__value--range">
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred7d_low) }}
+                      <span class="diag-kpi__sep">~</span>
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred7d_high) }}
+                    </strong>
+                    <span
+                      class="diag-kpi__hint"
+                      :class="(portfolioDiagnose.valueRange.expected7d_change_pct || 0) >= 0 ? 'text-up' : 'text-down'"
+                    >
+                      {{ (portfolioDiagnose.valueRange.expected7d_change_pct || 0) >= 0 ? '+' : '' }}{{ Number(portfolioDiagnose.valueRange.expected7d_change_pct || 0).toFixed(1) }}%
+                    </span>
+                  </article>
+                  <article class="diag-kpi">
+                    <span class="diag-kpi__label">{{ t('portfolio.diag.pred30') }}</span>
+                    <strong class="diag-kpi__value diag-kpi__value--range">
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred30d_low) }}
+                      <span class="diag-kpi__sep">~</span>
+                      ${{ formatPrice(portfolioDiagnose.valueRange.pred30d_high) }}
+                    </strong>
+                  </article>
+                </div>
+              </section>
+
+              <section class="diag-block" v-if="(portfolioDiagnose.adjustments || []).length">
+                <div class="diag-block__label">{{ t('portfolio.diag.adjustments') }}</div>
+                <div class="diag-table-wrap">
+                  <table class="diag-table">
+                    <thead>
+                      <tr>
+                        <th>{{ t('portfolio.diag.col.skin') }}</th>
+                        <th>{{ t('portfolio.diag.col.action') }}</th>
+                        <th>{{ t('portfolio.diag.col.pred') }}</th>
+                        <th>{{ t('portfolio.diag.col.pnl') }}</th>
+                        <th>{{ t('portfolio.diag.col.reason') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in portfolioDiagnose.adjustments" :key="'adj-' + (row.id || row.skinId || row.name)">
+                        <td>
+                          <div class="diag-skin">
+                            <strong>{{ row.name }}</strong>
+                            <span class="text-muted text-xs">${{ formatPrice(row.currentPrice) }} × {{ row.quantity }}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span class="diag-action" :class="diagnoseActionClass(row.action)">{{ diagnoseActionLabel(row.action) }}</span>
+                        </td>
+                        <td>
+                          <div :class="(row.predChange7d || 0) >= 0 ? 'text-up' : 'text-down'">
+                            {{ (row.predChange7d || 0) >= 0 ? '+' : '' }}{{ Number(row.predChange7d || 0).toFixed(1) }}%
+                          </div>
+                          <div class="text-muted text-xs">7d ${{ formatPrice(row.pred7d) }}</div>
+                        </td>
+                        <td>
+                          <span v-if="row.pnlPct != null" :class="row.pnlPct >= 0 ? 'text-up' : 'text-down'">
+                            {{ row.pnlPct >= 0 ? '+' : '' }}{{ Number(row.pnlPct).toFixed(1) }}%
+                          </span>
+                          <span v-else class="text-muted">—</span>
+                        </td>
+                        <td class="diag-reason">{{ row.reason || '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="diag-block diag-block--last" v-if="(portfolioDiagnose.riskTopN || []).length">
+                <div class="diag-block__label">{{ t('portfolio.diag.riskTop') }}</div>
+                <div class="diag-risk-list">
+                  <article
+                    v-for="(r, idx) in portfolioDiagnose.riskTopN"
+                    :key="'risk-' + idx + r.name"
+                    class="diag-risk"
+                  >
+                    <div class="diag-risk__rank">{{ idx + 1 }}</div>
+                    <div class="diag-risk__body">
+                      <div class="diag-risk__top">
+                        <strong>{{ r.name }}</strong>
+                        <span class="diag-risk__share">{{ Number(r.riskSharePct || 0).toFixed(1) }}%</span>
+                      </div>
+                      <div class="diag-risk__bar" aria-hidden="true">
+                        <span :style="{ width: Math.min(100, Number(r.riskSharePct || 0)) + '%' }"></span>
+                      </div>
+                      <div class="diag-risk__meta text-muted text-xs">
+                        {{ t('portfolio.diag.mv') }} ${{ formatPrice(r.marketValue) }}
+                        · Vol {{ ((r.vol30 || 0) * 100).toFixed(1) }}%
+                        · DD {{ ((r.maxDrawdown30 || 0) * 100).toFixed(1) }}%
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <p class="diag-disclaimer">{{ t('portfolio.diag.disclaimer') }}</p>
+            </template>
           </div>
 
           <div class="portfolio-summary mb-4">
@@ -2131,15 +2253,23 @@
           </div>
         </div>
 
-        <!-- 模型实验室：独立滚动壳，避免被外层/图表抢走触摸 -->
+        <!-- 模型实验室：分析台布局 -->
         <div v-if="currentPage === 'models'" class="models-lab">
           <header class="models-lab__bar">
             <div class="models-lab__heading">
               <h2 class="models-lab__title">
                 <i class="ph-duotone ph-cpu icon-primary" aria-hidden="true"></i>
                 {{ t('models.title') }}
+                <span
+                  class="models-lab__source"
+                  :class="{
+                    'is-live': modelsDataSource === 'live',
+                    'is-demo': modelsDataSource === 'demo',
+                    'is-loading': modelsLoading,
+                  }"
+                >{{ modelsLoading ? t('models.source.loading') : (modelsDataSource === 'live' ? t('models.source.live') : t('models.source.demo')) }}</span>
               </h2>
-              <p class="models-lab__sub">{{ t('models.subtitleShort') }}</p>
+              <p class="models-lab__sub">{{ t('models.subtitleShort', { n: modelsNItems }) }}</p>
             </div>
             <div class="models-lab__actions">
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
@@ -2152,130 +2282,201 @@
           </header>
 
           <div class="models-lab__scroll" ref="modelsLabScroll">
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.regressionTable') }}</h3>
-                <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
+            <div class="models-lab__kpi" aria-label="KPI">
+              <div class="models-lab__kpi-item" v-for="k in modelsKpis" :key="k.id">
+                <span class="models-lab__kpi-label">{{ k.label }}</span>
+                <strong class="models-lab__kpi-value">{{ k.value }}</strong>
+                <span class="models-lab__kpi-meta" v-if="k.meta">{{ k.meta }}</span>
               </div>
-              <div class="models-lab__hint">{{ t('models.routeNote') }}</div>
-              <div class="models-lab__list" role="list">
-                <article v-for="m in regressionModels" :key="'r-' + m.name" class="ml-card" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name">
-                      <strong>{{ m.name }}</strong>
-                      <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
-                      <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">Route</span>
-                      <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">MAPE</span>
-                    </div>
-                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
-                  </div>
-                  <div class="ml-card__metrics">
-                    <div><span>RMSE</span><b>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</b></div>
-                    <div><span>MAE</span><b>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</b></div>
-                    <div><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
-                    <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
-                  </div>
-                  <div class="ml-card__return" :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                    <span>{{ t('models.col.returnPct') }}</span>
-                    <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
-                  </div>
-                </article>
-              </div>
-            </section>
+            </div>
 
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.classificationTable') }}</h3>
-                <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
-              </div>
-              <div class="models-lab__list" role="list">
-                <article v-for="m in classificationModels" :key="'c-' + m.name" class="ml-card" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name"><strong>{{ m.name }}</strong></div>
-                    <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+            <div class="models-lab__bento" :class="{ 'is-loading': modelsLoading }">
+              <section class="models-lab__section models-lab__section--reg">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.regressionEyebrow') }}</p>
+                    <h3>{{ t('models.regressionTable') }}</h3>
                   </div>
-                  <div class="ml-card__metrics ml-card__metrics--3">
-                    <div><span>ACC</span><b>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</b></div>
-                    <div><span>AUC</span><b>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</b></div>
-                    <div>
-                      <span>{{ t('models.col.returnPct') }}</span>
-                      <b :class="(m.returnPct ?? 0) >= 15 ? 'text-up' : 'text-down'">
-                        {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
-                      </b>
-                    </div>
-                  </div>
-                </article>
-                <article class="ml-card ml-card--muted" role="listitem">
-                  <div class="ml-card__top">
-                    <div class="ml-card__name"><strong>{{ t('models.buyHold') }}</strong></div>
-                  </div>
-                  <div class="ml-card__return">
-                    <span>{{ t('models.col.returnPct') }}</span>
-                    <strong class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</strong>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.radar') }}</h3>
-                <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
-              </div>
-              <div ref="radarChart" class="models-lab__chart"></div>
-            </section>
-
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.backtest') }}</h3>
-                <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
-              </div>
-              <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
-            </section>
-
-            <!-- v5 契约: Seq2Seq Dense(7) 逐日误差 -->
-            <section v-if="modelsPerDay.length" class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.perDay') }}</h3>
-                <div class="models-lab__section-tools">
-                  <button
-                    v-for="m in ['rmse', 'mae', 'mape']"
-                    :key="'pd-' + m"
-                    type="button"
-                    class="timeframe-btn"
-                    :class="{ active: perDayMetric === m }"
-                    @click="setPerDayMetric(m)"
-                  >{{ m.toUpperCase() }}</button>
-                  <span class="tag tag-purple">{{ t('models.perDayBadge') }}</span>
+                  <span class="tag tag-blue">{{ t('models.regressionTask') }}</span>
                 </div>
-              </div>
-              <div class="models-lab__hint">{{ t('models.perDayDesc') }}</div>
-              <div ref="perDayChart" class="models-lab__chart"></div>
-            </section>
+                <div class="models-lab__hint">{{ t('models.routeNote') }}</div>
+                <div class="models-lab__list" role="list">
+                  <article
+                    v-for="m in regressionModels"
+                    :key="'r-' + m.name"
+                    class="ml-card"
+                    :class="{
+                      'ml-card--star': m.name === 'LSTM-C',
+                      'ml-card--hybrid': m.name === 'Hybrid',
+                      'ml-card--active': selectedRadarModel === m.name,
+                    }"
+                    role="listitem"
+                    tabindex="0"
+                    @click="selectRadarModel(m.name)"
+                    @keydown.enter.prevent="selectRadarModel(m.name)"
+                  >
+                    <div class="ml-card__top">
+                      <div class="ml-card__name">
+                        <strong>{{ m.name }}</strong>
+                        <span v-if="m.name === 'LSTM-C'" class="tag tag-orange">{{ t('models.star') }}</span>
+                        <span v-else-if="m.name === 'Hybrid'" class="tag tag-blue">{{ t('models.badge.route') }}</span>
+                        <span v-else-if="m.name === 'Random Forest'" class="tag tag-green">{{ t('models.badge.mape') }}</span>
+                        <span v-if="m.name === modelsBest.rmse" class="tag tag-orange">{{ t('models.badge.best') }} RMSE</span>
+                        <span v-if="m.name === modelsBest.mape" class="tag tag-green">{{ t('models.badge.best') }} MAPE</span>
+                      </div>
+                      <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+                    </div>
+                    <div class="ml-card__metrics">
+                      <div :class="{ 'is-best': m.name === modelsBest.rmse }"><span>RMSE</span><b>{{ m.rmse != null ? m.rmse.toFixed(2) : '—' }}</b></div>
+                      <div><span>MAE</span><b>{{ m.mae != null ? m.mae.toFixed(2) : '—' }}</b></div>
+                      <div :class="{ 'is-best': m.name === modelsBest.mape }"><span>MAPE</span><b>{{ m.mape != null ? m.mape.toFixed(2) + '%' : '—' }}</b></div>
+                      <div><span>R²</span><b>{{ m.r2 != null ? m.r2.toFixed(2) : '—' }}</b></div>
+                    </div>
+                    <div class="ml-card__return" :class="(m.returnPct ?? 0) >= 0 ? 'text-up' : 'text-down'">
+                      <span>{{ t('models.col.returnPct') }}</span>
+                      <strong>{{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%</strong>
+                    </div>
+                  </article>
+                </div>
+              </section>
 
-            <section class="models-lab__section">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.shap') }}</h3>
-                <span class="tag tag-orange">{{ t('models.shapBadge') }}</span>
-              </div>
-              <div ref="shapChart" class="models-lab__chart"></div>
-            </section>
+              <section class="models-lab__section models-lab__section--clf">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.classificationEyebrow') }}</p>
+                    <h3>{{ t('models.classificationTable') }}</h3>
+                  </div>
+                  <span class="tag tag-blue">{{ t('models.classificationTask') }}</span>
+                </div>
+                <div class="models-lab__list" role="list">
+                  <article v-for="m in classificationModels" :key="'c-' + m.name" class="ml-card" role="listitem">
+                    <div class="ml-card__top">
+                      <div class="ml-card__name"><strong>{{ m.name }}</strong></div>
+                      <span class="ml-card__type">{{ modelTypeLabel(m) }}</span>
+                    </div>
+                    <div class="ml-card__metrics ml-card__metrics--3">
+                      <div><span>ACC</span><b>{{ m.accuracy != null ? (m.accuracy * 100).toFixed(1) + '%' : '—' }}</b></div>
+                      <div><span>AUC</span><b>{{ m.auc != null ? m.auc.toFixed(2) : '—' }}</b></div>
+                      <div>
+                        <span>{{ t('models.col.returnPct') }}</span>
+                        <b :class="(m.returnPct ?? 0) >= 0 ? 'text-up' : 'text-down'">
+                          {{ (m.returnPct ?? 0) >= 0 ? '+' : '' }}{{ (m.returnPct ?? 0).toFixed(1) }}%
+                        </b>
+                      </div>
+                    </div>
+                  </article>
+                  <article class="ml-card ml-card--muted" role="listitem">
+                    <div class="ml-card__top">
+                      <div class="ml-card__name"><strong>{{ t('models.buyHold') }}</strong></div>
+                      <span class="ml-card__type">{{ t('models.buyHoldHint') }}</span>
+                    </div>
+                    <div class="ml-card__return">
+                      <span>{{ t('models.col.returnPct') }}</span>
+                      <strong class="text-muted">+{{ modelComparison.buyAndHold.returnPct }}%</strong>
+                    </div>
+                  </article>
+                </div>
+              </section>
 
-            <section class="models-lab__section models-lab__section--last">
-              <div class="models-lab__section-head">
-                <h3>{{ t('models.trainStrategy') }}</h3>
-              </div>
-              <ul class="models-lab__bullets">
-                <li><strong>TimeSeriesSplit</strong> 70/15/15</li>
-                <li><strong>Walk-Forward</strong> rolling validation</li>
-                <li><strong>SMOTE</strong> · <strong>StandardScaler</strong> · <strong>GridSearch</strong></li>
-                <li><strong>Backtest</strong> vs Buy&Hold · Sharpe / Drawdown</li>
-              </ul>
-              <div class="models-lab__findings">
-                <div class="models-lab__findings-label">{{ t('models.findings') }}</div>
-                <p>{{ t('models.findingsText', { pct: '14.3%' }) }}</p>
-              </div>
-            </section>
+              <section class="models-lab__section models-lab__section--radar">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.radarEyebrow') }}</p>
+                    <h3>{{ t('models.radar') }}</h3>
+                  </div>
+                  <span class="tag tag-purple">{{ t('models.radar.badge') }}</span>
+                </div>
+                <div class="models-lab__chart-wrap">
+                  <div ref="radarChart" class="models-lab__chart"></div>
+                  <div v-if="!regressionModels.length" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
+                </div>
+              </section>
+
+              <section class="models-lab__section models-lab__section--shap">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.shapEyebrow') }}</p>
+                    <h3>{{ t('models.shap') }}</h3>
+                  </div>
+                  <div class="models-lab__section-tools">
+                    <button
+                      v-for="sm in shapModelOptions"
+                      :key="'shap-' + sm.id"
+                      type="button"
+                      class="timeframe-btn"
+                      :class="{ active: shapModel === sm.id }"
+                      @click="setShapModel(sm.id)"
+                    >{{ sm.label }}</button>
+                  </div>
+                </div>
+                <div class="models-lab__chart-wrap">
+                  <div ref="shapChart" class="models-lab__chart"></div>
+                  <div v-if="shapEmpty" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
+                </div>
+              </section>
+
+              <section class="models-lab__section models-lab__section--backtest">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.backtestEyebrow') }}</p>
+                    <h3>{{ t('models.backtest') }}</h3>
+                  </div>
+                  <span class="tag tag-green">{{ t('models.backtestBadge') }}</span>
+                </div>
+                <div class="models-lab__chart-wrap">
+                  <div ref="backtestChart" class="models-lab__chart models-lab__chart--tall"></div>
+                  <div v-if="backtestEmpty" class="models-lab__chart-empty">{{ t('models.empty.chart') }}</div>
+                </div>
+                <p class="models-lab__hint models-lab__hint--below">{{ t('models.backtestNote') }}</p>
+              </section>
+
+              <section class="models-lab__section models-lab__section--perday">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.perDayEyebrow') }}</p>
+                    <h3>{{ t('models.perDay') }}</h3>
+                  </div>
+                  <div class="models-lab__section-tools" v-if="modelsPerDay.length">
+                    <button
+                      v-for="m in ['rmse', 'mae', 'mape']"
+                      :key="'pd-' + m"
+                      type="button"
+                      class="timeframe-btn"
+                      :class="{ active: perDayMetric === m }"
+                      @click="setPerDayMetric(m)"
+                    >{{ m.toUpperCase() }}</button>
+                    <span class="tag tag-purple">{{ t('models.perDayBadge') }}</span>
+                  </div>
+                </div>
+                <template v-if="modelsPerDay.length">
+                  <div class="models-lab__hint">{{ t('models.perDayDesc') }}</div>
+                  <div class="models-lab__chart-wrap">
+                    <div ref="perDayChart" class="models-lab__chart"></div>
+                  </div>
+                  <p class="models-lab__hint models-lab__hint--below">{{ t('models.perDayHint') }}</p>
+                </template>
+                <p v-else class="models-lab__empty-note">{{ t('models.empty.perDay') }}</p>
+              </section>
+
+              <section class="models-lab__section models-lab__section--insight models-lab__section--last">
+                <div class="models-lab__section-head">
+                  <div>
+                    <p class="models-lab__eyebrow">{{ t('models.trainEyebrow') }}</p>
+                    <h3>{{ t('models.trainStrategy') }}</h3>
+                  </div>
+                </div>
+                <ul class="models-lab__bullets">
+                  <li>{{ t('models.train.b1') }}</li>
+                  <li>{{ t('models.train.b2') }}</li>
+                  <li>{{ t('models.train.b3') }}</li>
+                  <li>{{ t('models.train.b4') }}</li>
+                </ul>
+                <div class="models-lab__findings">
+                  <div class="models-lab__findings-label">{{ t('models.findings') }}</div>
+                  <p>{{ t('models.findingsText', { pct: modelsFindingsPct }) }}</p>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
 
@@ -2571,12 +2772,12 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260724-steam2"></script>
-  <script src="i18n.js?v=20260725-hero-touch"></script>
+  <script src="i18n.js?v=20260725-diag"></script>
   <script src="js/api.js?v=20260724-steam2"></script>
   <script src="js/auth.js?v=20260723v"></script>
   <script src="js/lucide-icons.js?v=20260724-ragnn"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260725-hero-touch"></script>
+  <script src="app.js?v=20260725-diag"></script>
 </body>
 </html>

@@ -476,7 +476,7 @@ class CSVestAPI {
         generatedAt: new Date().toISOString(),
         metrics: { monitored: 20, gainers: 14, losers: 6 },
         hotVolume: window.CSVestData.HOT_VOLUME,
-        aiSummary: '今日 CS2 饰品市场整体偏强震荡,大盘上涨面占优 [1];临近 Major 赛程,热门贴纸与皮肤成交活跃 [2]。建议关注成交量放大标的,注意赛事结束后的回调风险。',
+        aiSummary: 'CS2 skin market brief — monitored demo universe is mostly advancing, with breadth skewed constructive [1]. Event calendars and sticker liquidity remain the main near-term drivers; watch post-Major mean reversion [2].\n\nPrefer liquid rifles/SMGs over thin knife/glove books when scaling risk. Skin markets are highly volatile — this is not investment advice.',
         sources: this._mockRagSources(),
         news: window.CSVestData.NEWS_FEED,
       })

@@ -976,10 +976,12 @@ def daily_report(date: str | None = None, refresh: bool = False):
                     rep["sources"] = rag.retrieve_daily_sources(limit=6)
                 except Exception:
                     rep["sources"] = []
-            if scheduler.summary_is_degraded(rep.get("aiSummary")):
+            if scheduler.summary_is_degraded(rep.get("aiSummary")) or scheduler.summary_is_non_english(
+                rep.get("aiSummary")
+            ):
                 portfolio = rep.get("portfolio") or []
-                portfolio_text = "无持仓" if not portfolio else "; ".join(
-                    f"{p.get('name')} {p.get('quantity', 1)}件" for p in portfolio
+                portfolio_text = "No holdings" if not portfolio else "; ".join(
+                    f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
                 )
                 rep["aiSummary"] = scheduler.refresh_ai_summary(
                     live_metrics,
@@ -1117,11 +1119,14 @@ def models_comparison():
 
     regression: list[dict[str, Any]] = []
     horizon_steps = None
+    n_items = mc.get("nItems") if isinstance(mc, dict) else None
     # 1) fair-test compare_results_* 优先
     if cmp_path.exists():
         try:
             cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
             horizon_steps = cmp.get("horizon_steps") if isinstance(cmp, dict) else None
+            if n_items is None and isinstance(cmp, dict):
+                n_items = cmp.get("n_items") or cmp.get("nItems")
             models_blk = cmp.get("models") if isinstance(cmp, dict) else None
             if isinstance(models_blk, dict):
                 for name, blk in models_blk.items():
@@ -1201,7 +1206,8 @@ def models_comparison():
     }
     return {"regression": regression, "classification": classification,
             "buyAndHold": buy_hold,
-            "horizonSteps": horizon_steps or mc.get("horizonSteps") or 7}
+            "horizonSteps": horizon_steps or mc.get("horizonSteps") or 7,
+            "nItems": n_items or mc.get("nItems") or 113}
 
 
 @app.get("/api/models/backtest")
