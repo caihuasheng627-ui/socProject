@@ -168,7 +168,14 @@ def _available(
 ) -> dict[str, Any]:
     current = float(base["forecastAnchorPrice"] or base["currentPrice"])
     change = float(prediction["change"])
-    score = round(min(100.0, max(0.0, 50.0 + change * 8.0)), 1)
+    # Consensus measures confidence / decisiveness, not bullishness.
+    # Old formula `50 + change*8` collapsed to 0% on modest drawdowns.
+    confidence = float(prediction.get("confidence") or 0.0)
+    if confidence > 0:
+        score = round(min(96.0, max(42.0, confidence)), 1)
+    else:
+        magnitude = min(abs(change), 10.0)
+        score = round(min(92.0, max(48.0, 58.0 + magnitude * 2.4)), 1)
     level = (
         "very_high" if score >= 80 else "high" if score >= 65
         else "medium" if score >= 45 else "low"

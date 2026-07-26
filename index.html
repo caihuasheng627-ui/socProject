@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260727-rarity-halo2" />
+  <link rel="stylesheet" href="style.css?v=20260727-sim-align" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -576,7 +576,13 @@
         </div>
       </div>
 
-      <nav class="nav-menu" role="menubar">
+      <nav class="nav-menu" ref="navMenuRef" role="menubar">
+        <div
+          class="nav-glass-pill"
+          :class="{ 'is-ready': navPillReady }"
+          :style="navPillStyle"
+          aria-hidden="true"
+        ></div>
         <div
           v-for="item in menu"
           :key="item.id"
@@ -651,11 +657,16 @@
             ></span>
             <span>{{ dataSourceLabel }}</span>
           </button>
-          <div class="market-status" :aria-label="t('topbar.sentiment')">
-            <i class="ph-duotone ph-trend-up" style="color: var(--accent-green);" aria-hidden="true"></i>
+          <div class="market-status" :aria-label="t('topbar.sentiment')" :title="marketSentiment.hint">
+            <i
+              class="ph-duotone"
+              :class="marketSentiment.icon"
+              :style="{ color: marketSentiment.tone }"
+              aria-hidden="true"
+            ></i>
             <span>{{ t('topbar.sentiment') }}</span>
-            <strong style="color: var(--accent-orange);">68</strong>
-            <span class="text-muted text-sm">{{ t('topbar.sentiment.greed') }}</span>
+            <strong :style="{ color: marketSentiment.tone }">{{ marketSentiment.score }}</strong>
+            <span class="text-muted text-sm">{{ t(marketSentiment.labelKey) }}</span>
           </div>
           <div class="user-menu" ref="userMenuRef">
             <button
@@ -694,11 +705,13 @@
         </div>
       </header>
 
-      <div
+        <div
         class="content-area"
         :class="{
           'content-area--models': currentPage === 'models',
           'content-area--market': currentPage === 'dashboard',
+          'content-area--prediction': currentPage === 'prediction',
+          'content-area--portfolio': currentPage === 'portfolio',
         }"
       >
         <!-- 行情看板 -->
@@ -709,7 +722,6 @@
                 <i class="ph-duotone ph-chart-line-up icon-primary" aria-hidden="true"></i>
                 {{ t('dashboard.title') }}
               </h2>
-              <p class="market-board__sub">{{ t('dashboard.subtitle', { count: skins.length }) }}</p>
             </div>
             <div class="market-board__actions">
               <button
@@ -724,12 +736,6 @@
                 <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
                 {{ marketLiveLoading ? t('dashboard.liveLoading') : t('common.refresh') }}
               </button>
-              <button class="btn btn-sm" type="button" @click="exportData('skins', 'csv')" :title="t('common.export')">
-                <i class="ph ph-file-csv" aria-hidden="true"></i> CSV
-              </button>
-              <button class="btn btn-sm" type="button" @click="exportData('skins', 'json')" title="JSON">
-                <i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON
-              </button>
             </div>
           </header>
 
@@ -741,28 +747,50 @@
           <div class="market-board__scroll">
             <!-- 市场脉搏 -->
             <section class="market-pulse" :aria-label="t('dashboard.pulse')">
-              <div class="market-pulse__item">
-                <span class="market-pulse__label">{{ t('dashboard.pulse.monitored') }}</span>
-                <strong class="market-pulse__value">{{ marketPulse.total }}</strong>
-              </div>
-              <div class="market-pulse__item">
-                <span class="market-pulse__label">{{ t('dashboard.pulse.live') }}</span>
-                <strong class="market-pulse__value market-pulse__value--live">{{ marketPulse.live }}</strong>
+              <div class="market-pulse__item market-pulse__item--live">
+                <span class="market-pulse__label">
+                  <i class="ph-duotone ph-pulse" aria-hidden="true"></i>
+                  {{ t('dashboard.pulse.live') }}
+                </span>
+                <div class="market-pulse__row">
+                  <strong class="market-pulse__value">{{ marketPulse.live }}</strong>
+                  <span class="market-pulse__meta market-pulse__meta--live">{{ t('dashboard.pulse.liveActive', { pct: marketPulse.livePct }) }}</span>
+                </div>
               </div>
               <div class="market-pulse__item market-pulse__item--up">
-                <span class="market-pulse__label">{{ t('dashboard.pulse.up') }}</span>
-                <strong class="market-pulse__value">{{ marketPulse.up }}</strong>
+                <span class="market-pulse__label">
+                  <i class="ph-duotone ph-trend-up" aria-hidden="true"></i>
+                  {{ t('dashboard.pulse.up') }}
+                </span>
+                <div class="market-pulse__row">
+                  <strong class="market-pulse__value">{{ marketPulse.up }}</strong>
+                  <span class="market-pulse__meta market-pulse__meta--up">{{ marketPulse.upPct }}%</span>
+                </div>
               </div>
               <div class="market-pulse__item market-pulse__item--down">
-                <span class="market-pulse__label">{{ t('dashboard.pulse.down') }}</span>
-                <strong class="market-pulse__value">{{ marketPulse.down }}</strong>
+                <span class="market-pulse__label">
+                  <i class="ph-duotone ph-trend-down" aria-hidden="true"></i>
+                  {{ t('dashboard.pulse.down') }}
+                </span>
+                <div class="market-pulse__row">
+                  <strong class="market-pulse__value">{{ marketPulse.down }}</strong>
+                  <span class="market-pulse__meta market-pulse__meta--down">{{ marketPulse.downPct }}%</span>
+                </div>
               </div>
-              <div class="market-pulse__item">
-                <span class="market-pulse__label">{{ t('dashboard.pulse.avg7d') }}</span>
-                <strong
-                  class="market-pulse__value"
-                  :class="marketPulse.avg >= 0 ? 'text-up' : 'text-down'"
-                >{{ formatChange(marketPulse.avg) }}</strong>
+              <div class="market-pulse__item market-pulse__item--avg">
+                <span class="market-pulse__label">
+                  <i class="ph-duotone ph-chart-line" aria-hidden="true"></i>
+                  {{ t('dashboard.pulse.avg7d') }}
+                </span>
+                <div class="market-pulse__row">
+                  <strong
+                    class="market-pulse__value"
+                    :class="marketPulse.avg >= 0 ? 'text-up' : 'text-down'"
+                  >{{ formatChange(marketPulse.avg) }}</strong>
+                </div>
+                <svg class="market-pulse__spark" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="market-pulse__spark-line" :d="marketPulse.sparkLine" fill="none" />
+                </svg>
               </div>
             </section>
 
@@ -796,6 +824,14 @@
                       <div class="mb-row__name">{{ skinDisplayName(skin) }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
+                    <svg
+                      v-if="rowSparkPath(skin.id)"
+                      class="mb-row__spark mb-row__spark--up"
+                      viewBox="0 0 72 28"
+                      aria-hidden="true"
+                    >
+                      <path :d="rowSparkPath(skin.id)" />
+                    </svg>
                     <div class="mb-row__quote">
                       <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
                       <div class="skin-change change-up">{{ formatChange(skin.change7d) }}</div>
@@ -833,6 +869,14 @@
                       <div class="mb-row__name">{{ skinDisplayName(skin) }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
+                    <svg
+                      v-if="rowSparkPath(skin.id)"
+                      class="mb-row__spark mb-row__spark--down"
+                      viewBox="0 0 72 28"
+                      aria-hidden="true"
+                    >
+                      <path :d="rowSparkPath(skin.id)" />
+                    </svg>
                     <div class="mb-row__quote">
                       <div class="mb-row__price">${{ formatPrice(skin.price) }}</div>
                       <div class="skin-change change-down">{{ formatChange(skin.change7d) }}</div>
@@ -867,13 +911,28 @@
                     autocomplete="off"
                   />
                 </label>
-                <select v-model="skinSort" class="market-sort" :aria-label="t('dashboard.sort')">
-                  <option value="change7d">{{ t('dashboard.sort.change7d') }}</option>
-                  <option value="change24h">{{ t('dashboard.sort.change24h') }}</option>
-                  <option value="price">{{ t('dashboard.sort.price') }}</option>
-                  <option value="rarity">{{ t('dashboard.sort.rarity') }}</option>
-                  <option value="name">{{ t('dashboard.sort.name') }}</option>
-                </select>
+                <div class="market-sort-group">
+                  <select v-model="skinSort" class="market-sort" :aria-label="t('dashboard.sort')">
+                    <option value="change7d">{{ t('dashboard.sort.change7d') }}</option>
+                    <option value="change24h">{{ t('dashboard.sort.change24h') }}</option>
+                    <option value="price">{{ t('dashboard.sort.price') }}</option>
+                    <option value="rarity">{{ t('dashboard.sort.rarity') }}</option>
+                    <option value="name">{{ t('dashboard.sort.name') }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="market-sort-dir"
+                    :aria-label="skinSortDir === 'desc' ? t('dashboard.sort.desc') : t('dashboard.sort.asc')"
+                    :title="skinSortDir === 'desc' ? t('dashboard.sort.desc') : t('dashboard.sort.asc')"
+                    @click="skinSortDir = skinSortDir === 'desc' ? 'asc' : 'desc'"
+                  >
+                    <i
+                      class="ph"
+                      :class="skinSortDir === 'desc' ? 'ph-sort-descending' : 'ph-sort-ascending'"
+                      aria-hidden="true"
+                    ></i>
+                  </button>
+                </div>
               </div>
 
               <div class="filter-chip-row market-catalog__chips" role="toolbar" :aria-label="t('dashboard.allSkins')">
@@ -953,7 +1012,7 @@
         </div>
 
         <!-- AI 预测详情 -->
-        <div v-if="currentPage === 'prediction'" class="fade-in">
+        <div v-if="currentPage === 'prediction'" class="fade-in prediction-page">
           <button class="btn btn-ghost btn-sm mb-3" @click="goToPage('dashboard')">
             <i class="ph ph-arrow-left" aria-hidden="true"></i> {{ t('prediction.back') }}
           </button>
@@ -961,22 +1020,27 @@
             <div class="prediction-target">
               <img v-if="selectedSkin.imageUrl" :src="selectedSkin.imageUrl + '/512fx512f'" class="prediction-img" alt="">
               <div v-else class="prediction-emoji">{{ selectedSkin.image }}</div>
-              <div style="flex: 1;">
+              <div class="prediction-target__body">
                 <div class="prediction-title">{{ skinDisplayName(selectedSkin) }}</div>
-                <div class="text-muted text-sm mt-2">
+                <div class="prediction-tags">
                   <span class="tag tag-orange">{{ categoryLabel(selectedSkin.category) }}</span>
-                  <span class="tag" style="margin-left: 6px;">{{ wearLabel(selectedSkin.wear) }}</span>
-                  <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
+                  <span class="tag">{{ wearLabel(selectedSkin.wear) }}</span>
+                  <span
+                    class="tag prediction-rarity-tag"
+                    :style="{
+                      color: rarityColor(selectedSkin),
+                      background: `color-mix(in srgb, ${rarityColor(selectedSkin)} 16%, transparent)`,
+                      borderColor: `color-mix(in srgb, ${rarityColor(selectedSkin)} 28%, transparent)`,
+                    }"
+                  >{{ rarityLabel(selectedSkin) }}</span>
                   <span
                     v-if="selectedSkin.isLive !== false"
                     class="tag tag-green"
-                    style="margin-left: 6px;"
                     :title="t('dashboard.sourceLiveHint')"
                   ><i class="ph ph-broadcast" aria-hidden="true"></i> {{ t('dashboard.sourceLive') }}</span>
                   <span
                     v-else
                     class="tag"
-                    style="margin-left: 6px;"
                     :title="t('dashboard.sourceStaleHint', { date: selectedSkin.priceDate || '—' })"
                   >{{ t('prediction.dataAsOf', { date: selectedSkin.priceDate || '—' }) }}</span>
                 </div>
@@ -991,41 +1055,52 @@
               </div>
             </div>
 
-            <div class="flex items-end gap-6 mb-4">
-              <div>
-                <div class="text-muted text-sm">
+            <div class="prediction-hero__metrics">
+              <div class="prediction-hero__price">
+                <div class="prediction-hero__label">
                   {{ livePriceAvg != null ? t('prediction.currentPriceLive') : t('prediction.currentPrice') }}
-                  <span v-if="livePriceAvg != null" class="tag tag-green" style="margin-left: 6px; font-size: 10px;">
+                  <span v-if="livePriceAvg != null" class="tag prediction-hero__live-tag">
                     <i class="ph ph-broadcast" aria-hidden="true"></i> {{ t('prediction.platformsLive') }}
                   </span>
-                  <span v-else-if="platformQuotesLoading" class="text-muted" style="font-size: 11px; margin-left: 6px;">
+                  <span v-else-if="platformQuotesLoading" class="prediction-hero__hint">
                     {{ t('prediction.platformsLoading') }}
                   </span>
                 </div>
                 <div class="prediction-current-price">
                   ${{ formatPrice(livePriceAvg != null ? livePriceAvg : selectedSkin.price) }}
                 </div>
-                <div v-if="livePriceAvg != null" class="text-muted" style="font-size: 11px;">
+                <div v-if="livePriceAvg != null" class="prediction-hero__sub">
                   {{ t('prediction.modelPrice') }} ${{ formatPrice(selectedSkin.price) }}
                 </div>
-                <div :class="selectedSkin.change24h >= 0 ? 'change-up' : 'change-down'" class="skin-change" style="display: inline-block;">
-                  24h {{ selectedSkin.change24h >= 0 ? '+' : '' }}{{ selectedSkin.change24h.toFixed(2) }}% ·
-                  7d {{ selectedSkin.change7d >= 0 ? '+' : '' }}{{ selectedSkin.change7d.toFixed(2) }}%
+                <div
+                  class="skin-change prediction-hero__change"
+                  :class="selectedSkin.change24h >= 0 ? 'change-up' : 'change-down'"
+                >
+                  24h {{ formatChange(selectedSkin.change24h) }} ·
+                  7d {{ formatChange(selectedSkin.change7d) }}
                 </div>
               </div>
 
-              <div style="flex: 1;">
-                <div class="text-muted text-sm">{{ t('prediction.consensus') }}</div>
-                <div v-if="predictionStatus === 'unavailable'" class="mt-2 text-muted">
+              <div class="prediction-hero__consensus">
+                <div class="prediction-hero__label">
+                  <i class="ph-duotone ph-target" aria-hidden="true"></i>
+                  {{ t('prediction.consensus') }}
+                </div>
+                <div v-if="predictionStatus === 'unavailable'" class="prediction-hero__sub">
                   {{ t('prediction.unavailable', { reason: predictionReason }) }}
                 </div>
-                <div v-else class="flex items-center gap-3 mt-2">
-                  <div class="consensus-meter" style="flex: 1;">
-                    <div class="consensus-bar" :style="{ width: (predictionMeta.consensusScore || 0) + '%' }"></div>
+                <template v-else>
+                  <div class="prediction-hero__consensus-row">
+                    <div class="consensus-meter">
+                      <div class="consensus-bar" :style="{ width: displayConsensusScore + '%' }"></div>
+                    </div>
+                    <strong class="prediction-hero__score">{{ displayConsensusScore }}%</strong>
                   </div>
-                  <strong style="color: var(--accent-orange); font-size: 20px;">{{ predictionMeta.consensusScore || 0 }}%</strong>
-                </div>
-                <div v-if="predictionStatus !== 'unavailable'" class="text-muted text-sm">{{ predictionMeta.consensusLevel ? t(predictionMeta.consensusLevel) : t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length, classification: 0 }) }}</div>
+                  <div class="prediction-hero__sub">
+                    {{ predictionMeta.consensusLevel ? t(predictionMeta.consensusLevel) : t('prediction.medium') }}
+                    · {{ consensusModelsLabel }}
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -1077,8 +1152,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="q in platformQuotesSorted" :key="q.platform"
-                      :class="{ 'is-best': platformQuotesMeta.spread && q.platform === platformQuotesMeta.spread.minPlatform && q.ok }">
+                  <tr v-for="q in platformQuotesSorted" :key="q.platform">
                     <td>
                       <strong>{{ q.label || platformLabel(q.platform) }}</strong>
                     </td>
@@ -1108,20 +1182,25 @@
             </div>
           </div>
 
-          <!-- K线图 -->
-          <div class="card mb-4">
-            <div class="card-header">
-              <div>
-                <div class="card-title">
+          <!-- K线图：玻璃霓虹金融图表模块 -->
+          <div class="kline-panel mb-4">
+            <div class="kline-panel__header">
+              <div class="kline-panel__heading">
+                <h3 class="kline-panel__title">
                   <i class="ph-duotone ph-chart-candle" aria-hidden="true"></i>
                   {{ t('prediction.kline') }}
-                </div>
-                <div class="card-subtitle">{{ t('prediction.klineDesc') }}</div>
+                </h3>
+                <p class="kline-panel__desc">{{ t('prediction.klineDesc') }}</p>
               </div>
-              <div class="kline-toolbar">
-                <button v-for="tf in ['7D','30D','90D','180D']" :key="tf"
-                  class="timeframe-btn" :class="{ active: timeframe === tf }"
-                  @click="timeframe = tf; renderKline();">{{ t('prediction.tf.' + tf) }}</button>
+              <div class="kline-toolbar" role="group" :aria-label="t('prediction.kline')">
+                <button
+                  v-for="tf in ['7D','30D','90D','180D']"
+                  :key="tf"
+                  type="button"
+                  class="timeframe-btn"
+                  :class="{ active: timeframe === tf }"
+                  @click="timeframe = tf; renderKline();"
+                >{{ t('prediction.tf.' + tf) }}</button>
               </div>
             </div>
             <div class="kline-wrap">
@@ -1986,7 +2065,7 @@
         </div>
 
         <!-- 我的库存 / 模拟持仓 -->
-        <div v-if="currentPage === 'portfolio'" class="fade-in">
+        <div v-if="currentPage === 'portfolio'" class="fade-in portfolio-page">
           <div class="portfolio-tabs" role="tablist" :aria-label="t('menu.portfolio')">
             <button
               type="button"
@@ -2036,19 +2115,18 @@
                   <p class="text-muted text-sm mt-2">{{ t('inventory.subtitle') }}</p>
                 </div>
                 <div class="flex gap-2 inventory-actions">
-                  <div class="export-group">
-                    <button class="btn btn-sm" @click="exportData('inventory', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
-                    <button class="btn btn-sm" @click="exportData('inventory', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
-                  </div>
                   <button class="btn btn-primary" @click="showInventoryModal = true">
                     <i class="ph ph-plus" aria-hidden="true"></i> {{ t('inventory.addManual') }}
                   </button>
-                  <button class="btn btn-secondary" @click="importSteamInventory" :title="t('inventory.steamPending.desc')">
+                  <button class="btn btn-secondary" @click="importSteamInventory">
                     <i class="ph ph-cloud-arrow-down" aria-hidden="true"></i> {{ t('inventory.steamImport') }}
-                    <span class="tag tag-orange" style="margin-left: 6px;">Soon</span>
                   </button>
-                  <button class="btn btn-secondary" @click="goToPage('alerts')">
-                    <span>🔔</span> {{ t('portfolio.alertsEntry') }}
+                  <button class="btn inventory-alerts-entry" @click="goToPage('alerts')">
+                    <span class="inventory-alerts-entry__icon" aria-hidden="true">🔔</span>
+                    <span class="inventory-alerts-entry__text">
+                      <strong>{{ t('portfolio.alertsEntry') }}</strong>
+                      <small>{{ t('portfolio.alertsEntryDesc') }}</small>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2088,8 +2166,11 @@
               </div>
 
               <div class="card">
-                <div class="card-header">
-                  <div class="card-title">{{ t('inventory.list') }}</div>
+                <div class="card-header inventory-list-header">
+                  <div>
+                    <div class="card-title">{{ t('inventory.list') }}</div>
+                    <div class="card-subtitle inventory-list-hint">{{ t('inventory.listHint') }}</div>
+                  </div>
                   <span class="tag">{{ t('inventory.countUnit', { count: inventoryItemCount }) }}</span>
                 </div>
                 <div v-if="!myInventory.length" class="inventory-empty text-muted text-sm">
@@ -2168,9 +2249,9 @@
             </template>
           </div>
 
-          <!-- ===== 模拟持仓（保持原有能力）===== -->
+          <!-- ===== 模拟持仓 ===== -->
           <div v-else class="sim-portfolio-panel">
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex justify-between items-center mb-4 inventory-header">
             <div>
               <h2 style="font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                 <i class="ph-duotone ph-clipboard-text icon-primary" aria-hidden="true"></i>
@@ -2178,11 +2259,7 @@
               </h2>
               <p class="text-muted text-sm mt-2">{{ t('portfolio.subtitle') }}</p>
             </div>
-            <div class="flex gap-2">
-              <div class="export-group">
-                <button class="btn btn-sm" @click="exportData('portfolio', 'csv')"><i class="ph ph-file-csv" aria-hidden="true"></i> CSV</button>
-                <button class="btn btn-sm" @click="exportData('portfolio', 'json')"><i class="ph ph-brackets-curly" aria-hidden="true"></i> JSON</button>
-              </div>
+            <div class="flex gap-2 inventory-actions">
               <button class="btn btn-primary" @click="showPortfolioModal = true">
                 <i class="ph ph-plus" aria-hidden="true"></i> {{ t('portfolio.addHolding') }}
               </button>
@@ -2190,8 +2267,12 @@
                 <i class="ph ph-heartbeat" :class="{ 'spin-slow': portfolioDiagnoseLoading }" aria-hidden="true"></i>
                 {{ portfolioDiagnoseLoading ? t('portfolio.diag.loading') : t('portfolio.diagnose') }}
               </button>
-              <button class="btn btn-secondary" @click="goToPage('alerts')">
-                <span>🔔</span> {{ t('portfolio.alertsEntry') }}
+              <button class="btn inventory-alerts-entry" @click="goToPage('alerts')">
+                <span class="inventory-alerts-entry__icon" aria-hidden="true">🔔</span>
+                <span class="inventory-alerts-entry__text">
+                  <strong>{{ t('portfolio.alertsEntry') }}</strong>
+                  <small>{{ t('portfolio.alertsEntryDesc') }}</small>
+                </span>
               </button>
             </div>
           </div>
@@ -2364,8 +2445,11 @@
           </div>
 
           <div class="card">
-            <div class="card-header">
-              <div class="card-title">{{ t('portfolio.holdingsList') }}</div>
+            <div class="card-header inventory-list-header">
+              <div>
+                <div class="card-title">{{ t('portfolio.holdingsList') }}</div>
+                <div class="card-subtitle inventory-list-hint">{{ t('inventory.listHint') }}</div>
+              </div>
               <span class="tag">{{ t('portfolio.holdingsCount', { count: portfolio.length }) }}</span>
             </div>
             <div v-if="!portfolio.length" class="inventory-empty text-muted text-sm">
@@ -2989,13 +3073,13 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260726-daily"></script>
-  <script src="i18n.js?v=20260727-rarity"></script>
+  <script src="i18n.js?v=20260727-sim-align"></script>
   <script src="js/skin-names-zh.js?v=20260727-skinnames"></script>
-  <script src="js/api.js?v=20260725-shap"></script>
+  <script src="js/api.js?v=20260727-diag-i18n"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
-  <script src="js/lucide-icons.js?v=20260726-icons"></script>
+  <script src="js/lucide-icons.js?v=20260727-fix"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260727-rarity"></script>
+  <script src="app.js?v=20260727-diag-i18n"></script>
 </body>
 </html>

@@ -64,13 +64,19 @@ def _adjust_action(pred_change: float, vol30: float) -> tuple[str, str]:
     return "Hold", f"Forecast {pred_change:+.1f}% — mixed signal, hold and watch"
 
 
-def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> dict:
+def diagnose(
+    user_id: int | None = None,
+    holding_type: str | None = "sim",
+    locale: str = "zh-CN",
+) -> dict:
     """/api/portfolio/diagnose entry.
 
     When user_id is set, only that user's holdings are diagnosed. holding_type
     defaults to 'sim' (paper portfolio page); pass None to skip type filter.
     Empty portfolio returns empty/error without raising.
+    locale controls AI summary language (zh-CN / en-US).
     """
+    english = str(locale or "").lower().startswith("en")
     loader = get_loader()
     items_out: list[dict] = []
     risk_rows: list[dict] = []
@@ -98,7 +104,12 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
             tuple(params),
         ).fetchall()
         if not positions:
-            return {"empty": True, "error": "Paper portfolio is empty — add holdings first"}
+            msg = (
+                "Paper portfolio is empty — add holdings first"
+                if english
+                else "模拟持仓为空，请先添加持仓"
+            )
+            return {"empty": True, "error": msg}
 
         for pos in positions:
             name = pos["market_hash_name"]
@@ -196,7 +207,7 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
     ]
 
     # ---- LLM summary ----
-    summary = _summarize(items_out, value_range, risk_top)
+    summary = _summarize(items_out, value_range, risk_top, locale=locale)
 
     return {
         "generatedAt": _utcnow().isoformat(),
@@ -205,24 +216,35 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
         "adjustments": items_out,
         "riskTopN": risk_top,
         "aiSummary": summary,
+        "locale": "en-US" if english else "zh-CN",
     }
 
 
-def _summarize(items, value_range, risk_top) -> str:
+def _summarize(items, value_range, risk_top, locale: str = "zh-CN") -> str:
+    english = str(locale or "").lower().startswith("en")
+    up = value_range["expected7d_change_pct"]
+    top_risk = risk_top[0]["name"] if risk_top else "—"
     if not llm.LLM_ENABLED:
-        up = value_range["expected7d_change_pct"]
-        top_risk = risk_top[0]["name"] if risk_top else "—"
+        if english:
+            return (
+                f"(Mock) Portfolio value ${value_range['current']}; "
+                f"7-day outlook {up:+.1f}% "
+                f"(range ${value_range['pred7d_low']}–${value_range['pred7d_high']}). "
+                f"Largest risk contribution: {top_risk} — watch its volatility. "
+                f"⚠ Not investment advice."
+            )
         return (
-            f"(Mock) Portfolio value ${value_range['current']}; "
-            f"7-day outlook {up:+.1f}% "
-            f"(range ${value_range['pred7d_low']}–${value_range['pred7d_high']}). "
-            f"Largest risk contribution: {top_risk} — watch its volatility. "
-            f"⚠ Not investment advice."
+            f"（模拟）组合总值 ${value_range['current']}；"
+            f"7 日展望 {up:+.1f}% "
+            f"（区间 ${value_range['pred7d_low']}–${value_range['pred7d_high']}）。"
+            f"最大风险贡献：{top_risk}，请关注其波动。"
+            f"⚠ 非投资建议。"
         )
+    language = "English" if english else "Simplified Chinese"
     actions = ", ".join(f"{i['name']}={i['action']}" for i in items)
     risks = ", ".join(f"{r['name']}({r['riskSharePct']}%)" for r in risk_top)
     prompt = (
-        "You are a CS2 skin portfolio analyst. Reply in English only.\n"
+        f"You are a CS2 skin portfolio analyst. Reply in {language} only.\n"
         f"Holdings: {len(items)} items; current value ${value_range['current']}; "
         f"7-day forecast range ${value_range['pred7d_low']}–${value_range['pred7d_high']} "
         f"({value_range['expected7d_change_pct']:+.1f}%).\n"

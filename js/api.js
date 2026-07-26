@@ -748,16 +748,21 @@ class CSVestAPI {
     );
   }
 
-  async diagnosePortfolio() {
+  async diagnosePortfolio(locale) {
+    const loc = locale || localStorage.getItem('sv_lang') || 'zh-CN';
+    const offlineMsg = String(loc).toLowerCase().startsWith('en')
+      ? 'Offline demo: connect the backend to run portfolio diagnosis.'
+      : '离线演示：请连接后端后再运行组合诊断。';
     return this._safeCall(
-      () => this._fetch('/api/portfolio/diagnose', { method: 'POST' }),
+      () => this._fetch(`/api/portfolio/diagnose?locale=${encodeURIComponent(loc)}`, { method: 'POST' }),
       () => ({
         empty: true,
-        summary: 'Offline demo: connect the backend to run portfolio diagnosis.',
-        aiSummary: 'Offline demo: connect the backend to run portfolio diagnosis.',
+        summary: offlineMsg,
+        aiSummary: offlineMsg,
         valueRange: null,
         adjustments: [],
         riskTopN: [],
+        locale: String(loc).toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN',
       })
     );
   }

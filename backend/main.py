@@ -982,11 +982,21 @@ def inventory_value_history(days: int = 90, current_user: dict = Depends(get_cur
 # 🆕 P1:组合诊断(需登录)
 # ============================================================
 @app.post("/api/portfolio/diagnose")
-def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
-    """只诊断模拟持仓(sim)。空仓返回 empty 标记,不抛 400。"""
-    result = portfolio_diagnose.diagnose(user_id=current_user["id"], holding_type="sim")
+def diagnose_portfolio(
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+    current_user: dict = Depends(get_current_user_optional),
+):
+    """只诊断模拟持仓(sim)。空仓返回 empty 标记,不抛 400。locale 控制 AI 总结语言。"""
+    result = portfolio_diagnose.diagnose(
+        user_id=current_user["id"], holding_type="sim", locale=locale,
+    )
     if result.get("empty") or "error" in result:
-        msg = result.get("error") or "模拟持仓为空,请先添加持仓"
+        english = str(locale or "").lower().startswith("en")
+        msg = result.get("error") or (
+            "Paper portfolio is empty — add holdings first"
+            if english
+            else "模拟持仓为空，请先添加持仓"
+        )
         return {
             "empty": True,
             "summary": msg,
@@ -995,6 +1005,7 @@ def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
             "valueRange": None,
             "adjustments": [],
             "riskTopN": [],
+            "locale": "en-US" if english else "zh-CN",
         }
     return result
 

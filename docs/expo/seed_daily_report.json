@@ -1,6 +1,6 @@
 {
-  "date": "2026-07-24",
-  "generatedAt": "2026-07-24T12:14:00+00:00",
+  "date": "2026-07-26",
+  "generatedAt": "2026-07-26T18:47:52+00:00",
   "metrics": {
     "monitored": 681,
     "gainers": 304,
@@ -8,54 +8,43 @@
   },
   "portfolio": [
     {
-      "name": "M4A4 | Desert Storm (Field-Tested)",
+      "name": "MAG-7 | Monster Call (Field-Tested)",
       "quantity": 1,
-      "holdingType": "sim"
+      "holdingType": "real"
     },
     {
-      "name": "M4A4 | Desert Storm (Field-Tested)",
+      "name": "M4A4 | Aeolian Dark (Field-Tested)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "MP7 | Fade (Minimal Wear)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "Glock-18 | Block-18 (Field-Tested)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "Galil AR | Connexion (Field-Tested)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "M4A1-S | Emphorosaur-S (Minimal Wear)",
+      "quantity": 1,
+      "holdingType": "real"
+    },
+    {
+      "name": "★ Driver Gloves | Rezan the Red (Field-Tested)",
       "quantity": 1,
       "holdingType": "sim"
     }
   ],
-  "aiSummary": "CS2 skin market brief — monitored universe: 681 priced items. Over the last ~7 days, 304 rose (45.9%) and 358 fell (54.1%), so breadth looks soft / risk-off: decliners outnumber advancers over the trailing week [1].\n\nTrading implication: focus on liquid majors and event-linked stickers/skins when volume expands, and avoid chasing illiquid knives/gloves on thin books [2]. Retrieved context highlights: Major windows often lift related sticker/skin turnover for 7–14 days, with post-event pullback risk [1].\n\nPositioning note: size risk carefully around tournament calendars and post-event mean reversion. Skin markets are highly volatile — this is not investment advice.",
+  "aiSummary": "**Market Overview**  \nThe market shows a slightly bearish tilt: among 681 monitored skins, 304 gained over 7 days while 358 declined, indicating more downward pressure. Near-term catalysts include Valve’s recent wear and texture rework [1][2], which is expected to temporarily boost liquidity but also amplify volatility, especially for affected skins. Additionally, the post-Major window (7–14 days) typically sees a 15–30% volume spike for sticker capsules [3][6], though a subsequent correction is common.\n\n**Thematic Highlights & Portfolio Guidance**  \nThe rework theme [2] may increase short-term trading activity, but high-value items like the ★ Driver Gloves | Rezan the Red (Field-Tested) face lower liquidity and larger price swings [5]—position sizing and exit planning are key. Your other skins (e.g., M4A4 Aeolian Dark, Glock-18 Block-18) are mid-to-low tier, which could see moderate weekend activity but lack strong event catalysts. The post-Major sticker capsule opportunity [3][6] is worth a tactical watch for short-term swings, but avoid holding through the eventual dilution.\n\n**Risk Disclaimer**  \nThis brief is for informational purposes only. CS2 skin prices are highly volatile and influenced by game updates, player sentiment, and speculative flows. Past performance does not guarantee future results. None of this constitutes investment advice.",
   "sources": [
-    {
-      "type": "kb",
-      "title": "CS2 市场知识库",
-      "snippet": "Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。",
-      "source": "内置知识库",
-      "date": null,
-      "url": null,
-      "score": 6.0,
-      "method": "keyword",
-      "id": 1,
-      "relevance": 0.67
-    },
-    {
-      "type": "kb",
-      "title": "CS2 市场知识库",
-      "snippet": "同款饰品中 Factory New(FN)磨损最稀有,价格显著高于 Field-Tested(FT);磨损越低流动性往往越弱。",
-      "source": "内置知识库",
-      "date": null,
-      "url": null,
-      "score": 4.0,
-      "method": "keyword",
-      "id": 2,
-      "relevance": 0.44
-    },
-    {
-      "type": "kb",
-      "title": "CS2 市场知识库",
-      "snippet": "高价值低流动性饰品(刀/手套)日内波动大,买卖价差宽,不适合大额短线。",
-      "source": "内置知识库",
-      "date": null,
-      "url": null,
-      "score": 4.0,
-      "method": "keyword",
-      "id": 3,
-      "relevance": 0.44
-    },
     {
       "type": "news",
       "title": "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
@@ -64,10 +53,65 @@
       "date": "2026-07-21T15:49:03.589638+00:00",
       "sentiment": "positive",
       "url": "https://blog.counter-strike.net/",
-      "score": 9.0,
-      "method": "keyword",
-      "id": 4,
-      "relevance": 1.0
+      "score": 0.0328,
+      "method": "hybrid",
+      "uid": "news:1",
+      "parentUid": "news:1",
+      "vectorScore": 0.7786,
+      "keywordScore": 9.0,
+      "relevance": 1.0,
+      "id": 1
+    },
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "valve 更新 沉浸 贴图 重做 armory Valve 武器贴图/磨损重做、Armory 通行证奖励或掉落池调整会改变供给预期,相关饰品短期波动加大;官方博客与更新日志是领先信号。",
+      "source": "内置知识库",
+      "date": null,
+      "sentiment": null,
+      "url": null,
+      "score": 0.0318,
+      "method": "hybrid",
+      "uid": "kb:1",
+      "parentUid": "kb:1",
+      "vectorScore": 0.681,
+      "keywordScore": 4.0,
+      "relevance": 0.89,
+      "id": 2
+    },
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "major 赛事 sticker 涨价 流动性 capsule Major 赛事前后 7-14 天,相关战队贴纸与胶囊成交量通常上升 15-30%,但赛事结束后常有回调。决赛圈战队贴纸溢价更高;赛后新开胶囊会稀释旧贴纸稀缺预期。",
+      "source": "内置知识库",
+      "date": null,
+      "sentiment": null,
+      "url": null,
+      "score": 0.0317,
+      "method": "hybrid",
+      "uid": "kb:0",
+      "parentUid": "kb:0",
+      "vectorScore": 0.6371,
+      "keywordScore": 5.0,
+      "relevance": 0.87,
+      "id": 3
+    },
+    {
+      "type": "kb",
+      "title": "CS2 市场知识库",
+      "snippet": "周末 成交 volume 工作日 波动 饰品市场成交常在周末与重大赛事期间更活跃,工作日流动性相对更弱。低流动性标的在周末更易出现跳价,用周末极值做成本锚可能高估可成交价格。",
+      "source": "内置知识库",
+      "date": null,
+      "sentiment": null,
+      "url": null,
+      "score": 0.0313,
+      "method": "hybrid",
+      "uid": "kb:19",
+      "parentUid": "kb:19",
+      "vectorScore": 0.6061,
+      "keywordScore": 6.0,
+      "relevance": 0.83,
+      "id": 4
     },
     {
       "type": "news",
@@ -77,10 +121,14 @@
       "date": "2026-07-19T15:49:03.589638+00:00",
       "sentiment": "neutral",
       "url": null,
-      "score": 3.0,
-      "method": "keyword",
-      "id": 5,
-      "relevance": 0.33
+      "score": 0.0294,
+      "method": "hybrid",
+      "uid": "news:3",
+      "parentUid": "news:3",
+      "vectorScore": 0.6039,
+      "keywordScore": 3.0,
+      "relevance": 0.61,
+      "id": 5
     },
     {
       "type": "news",
@@ -90,49 +138,97 @@
       "date": "2026-07-20T15:49:03.589638+00:00",
       "sentiment": "positive",
       "url": "https://www.hltv.org/",
-      "score": 2.0,
-      "method": "keyword",
-      "id": 6,
-      "relevance": 0.22
+      "score": 0.0291,
+      "method": "hybrid",
+      "uid": "news:2",
+      "parentUid": "news:2",
+      "vectorScore": 0.6219,
+      "keywordScore": 2.0,
+      "relevance": 0.58,
+      "id": 6
     },
     {
       "type": "news",
-      "title": "社区热议新箱子掉落率调整",
-      "snippet": "若掉落率下调,箱子价格可能上行。",
+      "title": "CS2-Bot-Improver v1.4.3: Stickers, Charms & Bot Inspects",
+      "snippet": "https://github.com/ed0ard/CS2-Bot-Improver v1.4.3 Update: Added stickers and charms Expanded skin variety and enhanced stability Added `br_reroll` console command to re-roll bot skins Bots will switch back to their weapons when they spot enemies mid-reload Bots will now inspect their weapons at appropriate timings Cleaned up bots' POV Added a \"Less\" mode with reduced nade count Fixed an issue where bots would incorrectly switch to knife in Deathmatch and Arms Race Fixed a bug preventing pro teams from being added properly CS2-Bot-Improver is a plugin that improves bots' aim, movement, nade throwing, personalities, strategies, etc. Aims to enhance your experience when playing against bots off",
       "source": "reddit",
-      "date": "2026-07-18T15:49:03.589638+00:00",
-      "sentiment": "positive",
-      "url": "https://www.reddit.com/r/GlobalOffensive/",
-      "score": 0.0,
-      "method": "keyword",
-      "id": 7,
-      "relevance": 0.0
+      "date": "2026-07-26T17:08:02+00:00",
+      "sentiment": "neutral",
+      "url": "https://www.reddit.com/r/GlobalOffensive/comments/1v79pev/cs2botimprover_v143_stickers_charms_bot_inspects/",
+      "score": 0.0259,
+      "method": "hybrid",
+      "uid": "news:73:c0",
+      "parentUid": "news:73",
+      "vectorScore": 0.5655,
+      "keywordScore": 1.0,
+      "relevance": 0.22,
+      "id": 7
+    },
+    {
+      "type": "news",
+      "title": "SmokePractice got a big update: Nuke, Cache, better physics and more",
+      "snippet": "CS2 players: Do any smokes feel different compared to the real game?Are there maps/features you would like to see next?Any performance issues?Check it out: smokepractice.com submitted by /u/mysterio36 [link] [comments]",
+      "source": "reddit",
+      "date": "2026-07-26T09:43:37+00:00",
+      "sentiment": "neutral",
+      "url": "https://www.reddit.com/r/GlobalOffensive/comments/1v6zax3/smokepractice_got_a_big_update_nuke_cache_better/",
+      "score": 0.0248,
+      "method": "hybrid",
+      "uid": "news:43:c1",
+      "parentUid": "news:43",
+      "vectorScore": 0.5598,
+      "keywordScore": 1.0,
+      "relevance": 0.09,
+      "id": 8
+    },
+    {
+      "type": "news",
+      "title": "Donk broke his personal Faceit CS2 elo record today. He's now 48 elo away from reclaiming the all-time record from Mail09.",
+      "snippet": "submitted by /u/TuttoKersTuttoPower [link] [comments]",
+      "source": "reddit",
+      "date": "2026-07-25T20:52:07+00:00",
+      "sentiment": "neutral",
+      "url": "https://www.reddit.com/r/GlobalOffensive/comments/1v6jmbw/donk_broke_his_personal_faceit_cs2_elo_record/",
+      "score": 0.024,
+      "method": "hybrid",
+      "uid": "news:18",
+      "parentUid": "news:18",
+      "vectorScore": 0.5446,
+      "keywordScore": 1.0,
+      "relevance": 0.0,
+      "id": 9
     }
   ],
   "news": [
     {
-      "title": "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
-      "summary": "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
-      "source": "valve",
-      "sentiment": "positive"
-    },
-    {
-      "title": "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
-      "summary": "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
-      "source": "hltv",
-      "sentiment": "positive"
-    },
-    {
-      "title": "BUFF 平台部分高价值饰品挂单减少",
-      "summary": "高价值饰品流动性下降,短期价格波动可能加大。",
-      "source": "internal",
+      "title": "When autocorrect kicks your ass",
+      "summary": "submitted by     /u/MandrewTheMan       [link]       [comments]",
+      "source": "reddit",
       "sentiment": "neutral"
     },
     {
-      "title": "社区热议新箱子掉落率调整",
-      "summary": "若掉落率下调,箱子价格可能上行。",
+      "title": "Is there something like a reverse fraudwatch?",
+      "summary": "submitted by     /u/New_Manufacturer8333       [link]       [comments]",
       "source": "reddit",
-      "sentiment": "positive"
+      "sentiment": "neutral"
+    },
+    {
+      "title": "Hally masterclass (fails) (Donk’s back is sore)",
+      "summary": "submitted by     /u/Several-Smell-2402       [link]       [comments]",
+      "source": "reddit",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "Why is 75% of all the games above 25k vs wallhackers?",
+      "summary": "It is unplayable.  We are a 5 stack, and are seeing so many wallhackers, they are all horrible at the game, and are not even trying to hide it.       submitted by     /u/Inno-Samsoee       [link]       [comments]",
+      "source": "reddit",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "\"you muted MFer\" on blast stream lol",
+      "summary": "submitted by     /u/Trrenchy       [link]       [comments]",
+      "source": "reddit",
+      "sentiment": "neutral"
     }
   ]
 }
