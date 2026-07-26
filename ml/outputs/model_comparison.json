@@ -1,14 +1,14 @@
 {
   "split": "test",
   "horizonSteps": 7,
-  "nItems": 113,
-  "nRows": 25702,
+  "nItems": 155,
+  "nRows": 35322,
   "hybridRoute": {
     "low": "LSTM-C",
     "mid": "LSTM-D",
     "high": "LSTM-D"
   },
-  "note": "Fair test after 2026-07-23 tree retrain",
+  "note": "Fair test after volume-free retrain (155 items / ~35k test rows).",
   "regression": [
     {
       "name": "LSTM-C",

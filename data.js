@@ -90,14 +90,14 @@ const NEWS_FEED = [
   { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', url: '', relatedSkins: [] },
 ];
 
-// 模型对比：公平 test（25,702 行 · 113 件 · horizon=7；剔除同名异价脏行）
-// 来源 ml/outputs/compare_results_test.json · 2026-07-23 树模型重训后
+// 模型对比：volume-free fair test（~35k 行 · 155 件 · horizon=7）
+// 来源 ml/outputs/compare_results_test.json · volume-free 重训后覆盖 155 件
 // returnPct 来自同契约回测 fee=0（子集演示曲线，非主结论）
 const MODEL_COMPARISON = {
   split: 'test',
   horizonSteps: 7,
-  nItems: 113,
-  nRows: 25702,
+  nItems: 155,
+  nRows: 35322,
   hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
   note: 'Fair test after 2026-07-23 tree retrain. Rows with mismatched truth vs LSTM panel dropped. LSTM-C best RMSE/MAE/R²; RF best MAPE.',
   regression: [

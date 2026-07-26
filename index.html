@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260725-title-en" />
+  <link rel="stylesheet" href="style.css?v=20260726-daily" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -1477,7 +1477,7 @@
           <!-- RAG 核心：神经网络 + 流程 + 问答 -->
           <section class="card daily-rag-core" :class="{ 'daily-rag-core--fetching': newsFetchLoading, 'daily-rag-core--asking': ragLoading }">
             <div class="daily-rag-nn" aria-hidden="true">
-              <svg class="daily-rag-nn__svg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid slice">
+              <svg class="daily-rag-nn__svg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet">
                 <defs>
                   <linearGradient id="nnEdge" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stop-color="#c96a2b" stop-opacity="0.18"/>
@@ -1516,7 +1516,7 @@
                   <line class="nn-edge nn-edge--d1" x1="720" y1="100" x2="910" y2="180"/><line class="nn-edge" x1="720" y1="180" x2="910" y2="180"/>
                   <line class="nn-edge nn-edge--d2" x1="720" y1="260" x2="910" y2="180"/>
                 </g>
-                <g filter="url(#nnSoftGlowLg)">
+                <g>
                   <circle class="nn-packet" r="2.2" fill="#c96a2b"><animateMotion dur="4.8s" repeatCount="indefinite" path="M90 120 L280 160 L500 145 L720 180 L910 180"/></circle>
                   <circle class="nn-packet" r="1.8" fill="#db8a4a"><animateMotion dur="5.6s" begin="0.8s" repeatCount="indefinite" path="M90 60 L280 40 L500 70 L720 100 L910 180"/></circle>
                   <circle class="nn-packet" r="1.7" fill="#c96a2b"><animateMotion dur="6.2s" begin="1.6s" repeatCount="indefinite" path="M90 240 L280 280 L500 215 L720 260 L910 180"/></circle>
@@ -1524,7 +1524,7 @@
                   <circle class="nn-packet" r="1.5" fill="#db8a4a"><animateMotion dur="7s" begin="1.1s" repeatCount="indefinite" path="M90 180 L280 100 L500 145 L720 100 L910 180"/></circle>
                 </g>
                 <!-- tiny light points -->
-                <g class="daily-rag-nn__dots" filter="url(#nnSoftGlow)">
+                <g class="daily-rag-nn__dots">
                   <circle class="nn-dot nn-dot--orange" cx="90" cy="60" r="1.8"/><circle class="nn-dot nn-dot--orange" cx="90" cy="120" r="1.6"/>
                   <circle class="nn-dot nn-dot--orange nn-dot--bright" cx="90" cy="180" r="2"/><circle class="nn-dot nn-dot--orange" cx="90" cy="240" r="1.6"/>
                   <circle class="nn-dot nn-dot--orange" cx="90" cy="300" r="1.7"/>
@@ -1545,9 +1545,9 @@
                 </g>
                 <g class="daily-rag-nn__labels" fill="currentColor" font-size="10" font-family="ui-sans-serif,system-ui,sans-serif" opacity="0.38">
                   <text x="90" y="28" text-anchor="middle">News</text>
-                  <text x="280" y="22" text-anchor="middle">Embed</text>
-                  <text x="500" y="28" text-anchor="middle">Retrieve</text>
-                  <text x="720" y="28" text-anchor="middle">Context</text>
+                  <text x="280" y="22" text-anchor="middle">Chunk</text>
+                  <text x="500" y="28" text-anchor="middle">Embed</text>
+                  <text x="720" y="28" text-anchor="middle">Retrieve</text>
                   <text x="910" y="28" text-anchor="middle">LLM</text>
                 </g>
               </svg>
@@ -1586,7 +1586,7 @@
                   <article class="daily-rag-step" style="--rag-i: 1">
                     <div class="daily-rag-step__top">
                       <span class="daily-rag-step__num">2</span>
-                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-magnifying-glass" aria-hidden="true"></i></span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-scissors" aria-hidden="true"></i></span>
                     </div>
                     <div class="daily-rag-step__name">{{ t('daily.rag.flow2Title') }}</div>
                     <p class="daily-rag-step__desc">{{ t('daily.rag.flow2Desc') }}</p>
@@ -1595,10 +1595,19 @@
                   <article class="daily-rag-step" style="--rag-i: 2">
                     <div class="daily-rag-step__top">
                       <span class="daily-rag-step__num">3</span>
-                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-brain" aria-hidden="true"></i></span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-magnifying-glass" aria-hidden="true"></i></span>
                     </div>
                     <div class="daily-rag-step__name">{{ t('daily.rag.flow3Title') }}</div>
                     <p class="daily-rag-step__desc">{{ t('daily.rag.flow3Desc') }}</p>
+                  </article>
+                  <div class="daily-rag-connector" aria-hidden="true"><span class="daily-rag-connector__line"></span><span class="daily-rag-connector__dot"></span></div>
+                  <article class="daily-rag-step" style="--rag-i: 3">
+                    <div class="daily-rag-step__top">
+                      <span class="daily-rag-step__num">4</span>
+                      <span class="daily-rag-step__icon"><i class="ph-duotone ph-brain" aria-hidden="true"></i></span>
+                    </div>
+                    <div class="daily-rag-step__name">{{ t('daily.rag.flow4Title') }}</div>
+                    <p class="daily-rag-step__desc">{{ t('daily.rag.flow4Desc') }}</p>
                   </article>
                 </div>
               </div>
@@ -2306,7 +2315,11 @@
                   }"
                 >{{ modelsLoading ? t('models.source.loading') : (modelsDataSource === 'live' ? t('models.source.live') : t('models.source.demo')) }}</span>
               </h2>
-              <p class="models-lab__sub">{{ modelTrack === 'online' ? t('models.subtitleOnline') : t('models.subtitleShort', { n: modelsNItems }) }}</p>
+              <p class="models-lab__sub">
+                <template v-if="modelTrack === 'online'">{{ t('models.subtitleOnline') }}</template>
+                <template v-else>{{ t('models.subtitleShort', { n: modelsNItems }) }}</template>
+                <span v-if="skins.length" class="models-lab__catalog-n"> · {{ t('models.catalogCount', { n: skins.length }) }}</span>
+              </p>
             </div>
             <div class="models-lab__actions">
               <button class="btn btn-sm" type="button" @click="exportData('models', 'csv')">
@@ -2339,7 +2352,12 @@
               {{ modelTrack === 'online' ? t('models.trackOnlineDesc') : t('models.trackHistoricalDesc') }}
               <span v-if="modelTrackMetadata.dateRange">
                 · {{ modelTrackMetadata.dateRange.start }} — {{ modelTrackMetadata.dateRange.end }}
-                · {{ modelTrackMetadata.items }} items · {{ modelTrackMetadata.decisions }} decisions
+              </span>
+              <span v-if="modelTrackMetadata.items != null">
+                · {{ modelTrackMetadata.items }} {{ t('models.meta.items') }}
+              </span>
+              <span v-if="modelTrackMetadata.decisions != null">
+                · {{ modelTrackMetadata.decisions }} {{ t('models.meta.decisions') }}
               </span>
             </div>
             <div class="models-lab__kpi" aria-label="KPI">
@@ -2858,13 +2876,13 @@
   </div>
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260725-shap"></script>
-  <script src="i18n.js?v=20260725-rag-en"></script>
+  <script src="data.js?v=20260726-daily"></script>
+  <script src="i18n.js?v=20260726-icons"></script>
   <script src="js/api.js?v=20260725-shap"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
-  <script src="js/lucide-icons.js?v=20260724-ragnn"></script>
+  <script src="js/lucide-icons.js?v=20260726-icons"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260725-shap"></script>
+  <script src="app.js?v=20260726-icons"></script>
 </body>
 </html>

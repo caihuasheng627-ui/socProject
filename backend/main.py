@@ -199,7 +199,7 @@ def health():
 # ============================================================
 @app.get("/api/skins")
 def list_skins(category: str | None = None, sort: str = "volume_desc",
-               limit: int = Query(200, le=1000)):
+               limit: int = Query(1000, le=2000)):
     with get_connection() as conn:
         q = """SELECT s.* FROM skins s
                WHERE EXISTS (SELECT 1 FROM price_history p WHERE p.skin_id=s.id)"""
@@ -1189,15 +1189,28 @@ def models_comparison():
 
     regression: list[dict[str, Any]] = []
     horizon_steps = None
-    n_items = mc.get("nItems") if isinstance(mc, dict) else None
+    # 覆盖件数：优先用 compare_results_* 里模型自带的 items（volume-free 后为 155），
+    # 避免被陈旧 model_comparison.json 的 113 盖住。
+    n_items = None
     # 1) fair-test compare_results_* 优先
     if cmp_path.exists():
         try:
             cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
             horizon_steps = cmp.get("horizon_steps") if isinstance(cmp, dict) else None
-            if n_items is None and isinstance(cmp, dict):
+            if isinstance(cmp, dict):
                 n_items = cmp.get("n_items") or cmp.get("nItems")
             models_blk = cmp.get("models") if isinstance(cmp, dict) else None
+            if n_items is None and isinstance(models_blk, dict):
+                for name in ("LSTM-C", "Hybrid", "XGBoost", "LightGBM", "RF", "Random Forest"):
+                    blk = models_blk.get(name)
+                    if isinstance(blk, dict) and blk.get("items"):
+                        n_items = blk.get("items")
+                        break
+                if n_items is None:
+                    for blk in models_blk.values():
+                        if isinstance(blk, dict) and blk.get("items"):
+                            n_items = blk.get("items")
+                            break
             if isinstance(models_blk, dict):
                 for name, blk in models_blk.items():
                     if not isinstance(blk, dict):
@@ -1235,6 +1248,9 @@ def models_comparison():
                     })
         except Exception:
             regression = []
+
+    if n_items is None:
+        n_items = mc.get("nItems") if isinstance(mc, dict) else None
 
     # 2) 回退 model_comparison.json
     if not regression and mc.get("regression"):
@@ -1283,7 +1299,7 @@ def models_comparison():
         "metadata": {
             "label": "2019-2023 canonical fair test",
             "dataSource": "steam-history-canonical-test",
-            "items": n_items or mc.get("nItems") or 113,
+            "items": n_items or mc.get("nItems") or 155,
         },
     }
     online_path = OUTPUT_DIR / "online_model_comparison.json"
@@ -1343,7 +1359,7 @@ def models_comparison():
         **historical,
         "tracks": {"historical": historical, "online": online},
         "defaultTrack": "historical",
-        "nItems": n_items or mc.get("nItems") or 113,
+        "nItems": n_items or mc.get("nItems") or 155,
     }
 
 
