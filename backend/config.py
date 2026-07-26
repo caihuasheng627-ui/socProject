@@ -37,6 +37,16 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 LLM_ENABLED = bool(DEEPSEEK_API_KEY)   # 无 Key → 全部走 Mock/预录回放
 
+# ---------- 独立 Agent 配置 ----------
+# 默认可共享同一基础模型，但配置、Prompt、上下文和工具权限保持独立。
+BULL_MODEL = os.getenv("BULL_MODEL", DEEPSEEK_MODEL)
+BEAR_MODEL = os.getenv("BEAR_MODEL", DEEPSEEK_MODEL)
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", DEEPSEEK_MODEL)
+BULL_TEMPERATURE = float(os.getenv("BULL_TEMPERATURE", "0.6"))
+BEAR_TEMPERATURE = float(os.getenv("BEAR_TEMPERATURE", "0.6"))
+JUDGE_TEMPERATURE = float(os.getenv("JUDGE_TEMPERATURE", "0.2"))
+DEBATE_ROUNDS = int(os.getenv("DEBATE_ROUNDS", "3"))
+
 # ---------- 数据源开关 ----------
 USE_BUFF_LIVE = os.getenv("USE_BUFF_LIVE", "0") == "1"   # 默认关:用已落库历史价
 RSS_FEEDS = [

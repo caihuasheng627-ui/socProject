@@ -5,7 +5,8 @@
 
 class CSVestAPI {
   constructor() {
-    this.baseURL = localStorage.getItem('sv_api_url') || 'http://localhost:8000';
+    const queryAPI = new URLSearchParams(window.location.search).get('api_url');
+    this.baseURL = queryAPI || localStorage.getItem('sv_api_url') || 'http://localhost:8000';
     this.token = localStorage.getItem('sv_token') || null;
     this.timeout = 30000;
     // 未设置时默认 mock；显式 'false' 才走真实后端
@@ -214,7 +215,7 @@ class CSVestAPI {
     );
   }
 
-  async chat(message, sessionId, onChunk) {
+  async chat(message, sessionId, onChunk, locale = null) {
     if (this.useMock) {
       return this._mockChatStream(message, onChunk);
     }
@@ -225,7 +226,11 @@ class CSVestAPI {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({
+          message,
+          sessionId,
+          locale: locale || localStorage.getItem('sv_lang') || 'zh-CN',
+        }),
       });
 
       if (!response.ok) throw new APIError('对话请求失败', response.status);
@@ -257,6 +262,147 @@ class CSVestAPI {
     }
   }
 
+  async orchestrateAI(payload) {
+    if (this.useMock) {
+      return this._mockOrchestrate(payload, { mode: 'mock', reason: 'manual_mock' });
+    }
+    try {
+      const result = await this._fetch('/api/ai/orchestrate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      this.online = true;
+      return result;
+    } catch (err) {
+      console.warn('[API] orchestrate request failed, using explicit fallback:', err.message);
+      this.online = false;
+      return this._mockOrchestrate(payload, {
+        mode: 'degraded',
+        reason: 'request_failed',
+        errorType: err?.name || 'APIError',
+      });
+    }
+  }
+
+  async createAgentSession(payload) {
+    return this._fetch('/api/agent/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        locale: payload.locale || localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  async getAgentSession(sessionId) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  async sendAgentMessage(sessionId, message, targetAgent) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/message`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        targetAgent,
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  async runAgentRound(sessionId, message) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/round`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  _mockOrchestrate(payload, fallback = {}) {
+    const message = String(payload.message || '');
+    const action = payload.action || 'auto';
+    const english = payload.locale === 'en-US';
+    const fallbackMode = fallback.mode || 'mock';
+    const runtime = {
+      llm: {
+        mode: fallbackMode,
+        configured: false,
+        provider: 'Local',
+        model: 'browser-fallback',
+        lastError: fallback.errorType || null,
+      },
+      agents: {
+        mode: fallbackMode,
+        bullModel: 'local-fallback',
+        bearModel: 'local-fallback',
+        judgeModel: 'local-fallback',
+      },
+      hybrid: { mode: 'mock', model: 'browser-trend-fallback' },
+    };
+    const pool = window.CSVestData.SKINS_POOL || [];
+    const skin = pool.find(item => item.id === payload.skinId);
+    const wantsRecommendation = action === 'recommend'
+      || /\u63a8\u8350|recommend|suggest/i.test(message);
+
+    if (wantsRecommendation) {
+      const budget = Number(payload.budget) || Infinity;
+      const recommendations = pool
+        .filter(item => Number(item.price) <= budget)
+        .sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))
+        .slice(0, 5)
+        .map(item => ({
+          skinId: item.id,
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          change7d: item.change7d || 0,
+          liquidity: item.liquidity || 0,
+          risk: 'medium',
+          score: Math.min(99, 60 + (item.liquidity || 0) * 0.3),
+          reasons: english
+            ? ['Offline demo ranking', 'Start the backend for evidence-based results']
+            : ['离线演示排序', '启动后端后将使用真实市场证据'],
+        }));
+      return Promise.resolve({
+        type: 'recommendation',
+        message: english
+          ? 'This is an offline demo ranking. Start the backend for evidence-based recommendations.'
+          : '\u5f53\u524d\u662f\u79bb\u7ebf\u6f14\u793a\u63a8\u8350\uff1b\u542f\u52a8\u540e\u7aef\u540e\u5c06\u4f7f\u7528\u771f\u5b9e\u5e02\u573a\u8bc1\u636e\u6392\u5e8f\u3002',
+        recommendations,
+        runtime,
+        fallbackReason: fallback.reason || 'manual_mock',
+      });
+    }
+
+    if (action === 'predict' && skin) {
+      return Promise.resolve({
+        type: 'prediction',
+        message: english
+          ? 'An offline demo forecast has been generated.'
+          : '\u5df2\u751f\u6210\u79bb\u7ebf\u6f14\u793a\u9884\u6d4b\u3002',
+        skin: { skinId: skin.id, name: skin.name, price: skin.price },
+        prediction: this._mockPredict(skin.id, payload.horizonDays || 7),
+        runtime,
+        fallbackReason: fallback.reason || 'manual_mock',
+      });
+    }
+
+    return Promise.resolve({
+      type: 'chat',
+      message: english
+        ? (fallback.reason === 'request_failed'
+          ? 'The live backend request failed, so this reply used the browser fallback. Retry after checking the backend log; no DeepSeek result was produced for this message.'
+          : 'The app is using the offline demo assistant. Start the backend for live AI output.')
+        : (fallback.reason === 'request_failed'
+          ? '本次后端实时请求失败，因此明确使用了浏览器降级回复。请检查后端日志后重试；这条消息没有产生 DeepSeek 结果。'
+          : (window.CSVestData.AI_PRESET_RESPONSES.default
+            || '\u5f53\u524d\u4e3a\u79bb\u7ebf\u6f14\u793a\u6a21\u5f0f\u3002')),
+      runtime,
+      fallbackReason: fallback.reason || 'manual_mock',
+    });
+  }
+
   async _mockChatStream(message, onChunk) {
     const response = window.CSVestData.AI_PRESET_RESPONSES['default']
       || '抱歉，当前为离线演示模式。请启动后端并关闭 Mock 后重试。';
@@ -268,8 +414,9 @@ class CSVestAPI {
   }
 
   async debate(skinId, mode = 'bull_bear') {
+    const locale = localStorage.getItem('sv_lang') || 'zh-CN';
     return this._safeCall(
-      () => this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' }),
+      () => this._fetch(`/api/debate/${skinId}?mode=${mode}&locale=${encodeURIComponent(locale)}`, { method: 'POST' }),
       () => null
     );
   }

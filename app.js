@@ -28,7 +28,7 @@ const detectBrowserLang = () => {
 const currentLang = ref(localStorage.getItem('sv_lang') || detectBrowserLang());
 const t = (key, params = {}) => {
   const dict = window.I18N[currentLang.value] || window.I18N['zh-CN'];
-  let str = dict[key] || key;
+  let str = dict[key] || window.I18N['zh-CN']?.[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
     str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
@@ -43,6 +43,60 @@ const setLang = (lang) => {
 const toggleLang = () => {
   setLang(currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN');
 };
+
+const QUICK_QUESTION_DEFS = [
+  {
+    key: 'chat.q1',
+    action: 'debate',
+    skinId: 'ak-47-slate-minimal-wear',
+    fallback: {
+      'zh-CN': '🔍 AK-47 | Slate（略有磨损）现在该买吗？',
+      'en-US': '🔍 Should I buy AK-47 | Slate (Minimal Wear) now?',
+    },
+  },
+  {
+    key: 'chat.q2',
+    action: 'recommend',
+    budget: 700,
+    riskLevel: 'medium',
+    fallback: {
+      'zh-CN': '💰 $700 预算、中等风险，推荐什么？',
+      'en-US': '💰 What do you recommend for a $700 medium-risk budget?',
+    },
+  },
+  {
+    key: 'chat.q3',
+    action: 'chat',
+    fallback: {
+      'zh-CN': '📈 今天哪些饰品在涨？',
+      'en-US': '📈 Which skins are rising today?',
+    },
+  },
+  {
+    key: 'chat.q4',
+    action: 'recommend',
+    fallback: {
+      'zh-CN': '🎯 哪个饰品更适合长期持有？',
+      'en-US': '🎯 Which skin is better suited to long-term holding?',
+    },
+  },
+  {
+    key: 'chat.q5',
+    action: 'chat',
+    fallback: {
+      'zh-CN': '⚠️ 帮我设置价格预警',
+      'en-US': '⚠️ Help me set a price alert',
+    },
+  },
+  {
+    key: 'chat.q6',
+    action: 'chat',
+    fallback: {
+      'zh-CN': '📊 模型对比结果怎么样？',
+      'en-US': '📊 How do the models compare?',
+    },
+  },
+];
 
 const app = createApp({
   setup() {
@@ -422,6 +476,11 @@ const app = createApp({
 
     // ============ 数据 ============
     const apiOnline = ref(false);
+    const aiRuntime = ref({
+      llm: { mode: 'unknown', model: 'unknown' },
+      agents: { mode: 'unknown' },
+      hybrid: { mode: 'unknown', model: 'unknown' },
+    });
     const skins = ref(window.CSVestData.SKINS_POOL);
     const topGainers = ref(window.CSVestData.TOP_GAINERS);
     const topLosers = ref(window.CSVestData.TOP_LOSERS);
@@ -606,8 +665,9 @@ const app = createApp({
         return false;
       }
       try {
-        client.setBaseURL(localStorage.getItem('sv_api_url') || 'http://localhost:8000');
-        await client.health();
+        client.setBaseURL(client.baseURL || localStorage.getItem('sv_api_url') || 'http://localhost:8000');
+        const health = await client.health();
+        aiRuntime.value = health?.aiRuntime || aiRuntime.value;
         client.setUseMock(false);
         apiOnline.value = true;
         await loadSkinsFromApi();
@@ -747,7 +807,15 @@ const app = createApp({
     ]);
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
-    const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
+    const suggestedQuestions = computed(() => QUICK_QUESTION_DEFS.map((question) => {
+      const translated = t(question.key);
+      return {
+        ...question,
+        label: translated === question.key
+          ? question.fallback[currentLang.value]
+          : translated,
+      };
+    }));
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
@@ -822,7 +890,6 @@ const app = createApp({
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
-        loadDebate(skin.id);
       }
     };
 
@@ -936,7 +1003,8 @@ const app = createApp({
         return seed / 997 - 0.5;
       };
       // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
-      const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
+      const absPct = Math.abs(predChange);
+      const dailyVol = Math.max(0.006, Math.min(0.030, absPct * 0.35 + 0.006));
       for (let i = 1; i <= horizon; i++) {
         const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
@@ -1083,17 +1151,103 @@ const app = createApp({
         role: 'assistant',
         content: '__WELCOME__',
         time: '刚刚',
-        model: 'DeepSeek-V3',
+        model: 'CSVest AI',
       }
     ]);
     const chatInput = ref('');
     const chatLoading = ref(false);
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
+    const chatAgentSession = ref(null);
+    const chatBudget = ref(null);
+    const chatRiskLevel = ref('medium');
 
-    const sendMessage = async (overrideText) => {
+    const responseModelLabel = (response) => {
+      const runtime = response?.runtime || aiRuntime.value || {};
+      const type = response?.type || 'chat';
+      if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
+        if (runtime.agents?.mode === 'live') {
+          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
+        }
+        return runtime.agents?.mode === 'degraded'
+          ? 'Bull / Bear / Judge · Degraded to Local Rules'
+          : 'Bull / Bear / Judge · Mock Rules';
+      }
+      if (type === 'debate_answer') {
+        if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
+          return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'} · Grounded Q&A`;
+        }
+        return runtime.llm?.mode === 'degraded'
+          ? 'Main AI · Degraded Local Grounded Q&A'
+          : 'Main AI · Local Grounded Q&A';
+      }
+      if (type === 'profile_update') return 'Main AI · Local Profile Parser';
+      if (type === 'clarification') return 'Main AI · Local Skin Resolver';
+      if (type === 'prediction') {
+        return runtime.hybrid?.mode === 'live'
+          ? `Hybrid · Live (${runtime.hybrid.model})`
+          : 'Hybrid · Mock Trend';
+      }
+      if (type === 'recommendation') return 'Recommendation Agent · Local Rules';
+      if (runtime.llm?.mode === 'live') {
+        return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'}`;
+      }
+      if (runtime.llm?.mode === 'configured') {
+        return `${runtime.llm.provider || 'LLM'} · Configured`;
+      }
+      return runtime.llm?.mode === 'degraded'
+        ? 'Live request failed · Browser fallback'
+        : 'Mock · Local Template';
+    };
+
+    const latestAgentResult = (session, agentName) => {
+      if (!session) return null;
+      const key = `${agentName}History`;
+      const history = session[key] || [];
+      return history.length ? history[history.length - 1] : null;
+    };
+
+    const agentResultLines = (result) => {
+      if (!result) return [];
+      if (Array.isArray(result.arguments)) {
+        return result.arguments.map(item => item.claim).filter(Boolean);
+      }
+      return Array.isArray(result.reasoning) ? result.reasoning : [];
+    };
+
+    const runSkinAction = async (skinId, action) => {
+      const skin = skins.value.find(item => item.id === skinId);
+      if (skin) selectedSkin.value = skin;
+      currentPage.value = 'chat';
+      if (action === 'debate') chatAgentSession.value = null;
+      const label = skin?.name || skinId;
+      const english = currentLang.value === 'en-US';
+      const prompt = action === 'predict'
+        ? (english
+          ? `Forecast the price trend of ${label} over the next 7 days`
+          : `预测 ${label} 未来 7 天的价格走势`)
+        : (english
+          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
+          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
+      await nextTick();
+      return sendMessage(prompt, { action, skinId });
+    };
+
+    const openPredictionResult = (skinId) => {
+      if (skinId) viewSkin(skinId);
+    };
+
+    const continueDebate = (message) => {
+      if (!chatAgentSession.value || chatLoading.value) return;
+      sendMessage(message);
+    };
+
+    const sendMessage = async (overrideText, requestOptions = {}) => {
       const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
       if (!text || chatLoading.value) return;
+      if (!requestOptions || typeof requestOptions !== 'object' || requestOptions instanceof Event) {
+        requestOptions = {};
+      }
 
       chatMessages.value.push({
         role: 'user',
@@ -1108,29 +1262,53 @@ const app = createApp({
         role: 'assistant',
         content: '',
         time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        model: apiOnline.value ? 'DeepSeek-V3' : 'Mock',
+        model: t('chat.thinking'),
       };
       chatMessages.value.push(assistantMsg);
 
       try {
         const client = api();
-        if (client && apiOnline.value) {
-          await client.chat(text, null, (chunk) => {
-            assistantMsg.content += chunk;
-            scrollChatBottom();
+        if (client?.orchestrateAI) {
+          const continueActiveDebate = chatAgentSession.value
+            && !requestOptions.action && !requestOptions.skinId;
+          const response = await client.orchestrateAI({
+            message: text,
+            action: requestOptions.action || 'auto',
+            skinId: requestOptions.skinId || null,
+            sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
+            targetAgent: null,
+            budget: requestOptions.budget ?? (chatBudget.value ? Number(chatBudget.value) : null),
+            horizonDays: 7,
+            riskLevel: requestOptions.riskLevel || chatRiskLevel.value,
+            locale: currentLang.value,
+            // The current user message and its empty assistant placeholder are
+            // already the last two entries; the backend appends the current
+            // message itself, so only send earlier public chat history.
+            history: chatMessages.value.slice(1, -2).slice(-8)
+              .filter(item => item.content && item.content !== '__WELCOME__')
+              .map(item => ({ role: item.role, content: item.content })),
           });
-          if (!assistantMsg.content.trim()) {
-            assistantMsg.content = generateAIResponse(text);
+          assistantMsg.content = response?.message || generateAIResponse(text);
+          assistantMsg.kind = response?.type || 'chat';
+          assistantMsg.payload = response || null;
+          if (response?.runtime) aiRuntime.value = response.runtime;
+          assistantMsg.model = responseModelLabel(response);
+          if (response?.agentSession) {
+            chatAgentSession.value = response.agentSession;
+            if (response.agentSession.userProfile) {
+              chatBudget.value = response.agentSession.userProfile.budget;
+              chatRiskLevel.value = response.agentSession.userProfile.risk_level || chatRiskLevel.value;
+            }
           }
         } else {
           // 离线：模拟延迟后本地回复
           await new Promise(r => setTimeout(r, 600));
           assistantMsg.content = generateAIResponse(text);
-          assistantMsg.model = 'Mock';
+          assistantMsg.model = 'Mock · Browser Fallback';
         }
       } catch (e) {
         assistantMsg.content = generateAIResponse(text);
-        assistantMsg.model = 'Mock';
+        assistantMsg.model = 'Mock · Browser Fallback';
       }
       chatLoading.value = false;
       await scrollChatBottom();
@@ -1142,14 +1320,14 @@ const app = createApp({
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestedQuestions.length - 1);
+          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestedQuestions.value.length - 1);
           if (chatSuggestedIndex.value < 0) chatSuggestedIndex.value = 0;
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           chatSuggestedIndex.value = Math.max(chatSuggestedIndex.value - 1, 0);
         } else if (e.key === 'Enter' && chatSuggestedIndex.value >= 0) {
           e.preventDefault();
-          sendMessage(suggestedQuestions[chatSuggestedIndex.value]);
+          askQuestion(suggestedQuestions.value[chatSuggestedIndex.value]);
           chatSuggestedIndex.value = -1;
           return;
         }
@@ -1162,8 +1340,21 @@ const app = createApp({
       }
     };
 
-    const askQuestion = (q) => {
-      sendMessage(q);
+    const askQuestion = (question) => {
+      const quickQuestion = typeof question === 'string'
+        ? suggestedQuestions.value.find(item => item.key === question || item.label === question)
+        : question;
+      if (!quickQuestion) {
+        sendMessage(String(question || ''));
+        chatSuggestedIndex.value = -1;
+        return;
+      }
+      sendMessage(quickQuestion.label, {
+        action: quickQuestion.action,
+        skinId: quickQuestion.skinId || null,
+        budget: quickQuestion.budget ?? null,
+        riskLevel: quickQuestion.riskLevel || null,
+      });
       chatSuggestedIndex.value = -1;
     };
 
@@ -1924,13 +2115,15 @@ const app = createApp({
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
       filterCategory, categoryKeys, categoryMap, filteredSkins,
-      apiOnline, connectBackend,
+      apiOnline, aiRuntime, connectBackend,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
       explainSummary, loadExplanation,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
+      chatAgentSession, chatBudget, chatRiskLevel,
+      latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport,
       // 预警
