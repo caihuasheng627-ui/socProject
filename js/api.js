@@ -548,6 +548,13 @@ class CSVestAPI {
     });
   }
   */
+  async translateAIContent(content, targetLocale) {
+    return this._fetch('/api/ai/translate', {
+      method: 'POST',
+      body: JSON.stringify({ content, targetLocale }),
+    });
+  }
+
   async debate(skinId, options = {}) {
     const settings = typeof options === 'string' ? { mode: options } : options;
     const query = new URLSearchParams({
