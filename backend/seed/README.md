@@ -1,9 +1,12 @@
 # 全量 SQLite 种子库（云端 Docker 首次启动灌入 volume）
 #
-# - `skinvision.db`：本地 BUFF+CSV 灌好的库（约 681 件有 `price_history`）
+# - `skinvision.db`：本地 BUFF+CSV 灌好的库（约 681 件有 `price_history`，含 Steam `image_url`）
 # - 运行时库仍在 `backend/data/`（gitignore，Docker volume `sqlite-data`）
-# - 服务器若已是旧的 154 件库，需重置 volume 或设环境变量：
+# - 服务器若已是旧的 154 件库，或饰品图为空，需重置 volume 或设环境变量：
 #     RESET_DB_FROM_SEED=1 docker compose up -d --force-recreate api
 #
 # 更新种子（本机有新库时）：
 #   cp backend/data/skinvision.db backend/seed/skinvision.db
+# 仅同步饰品图 URL：
+#   py backend/_sync_seed_images.py
+# 运行库缺图时会读 seed/skin_image_urls.json 幂等回填（不必整库 RESET）

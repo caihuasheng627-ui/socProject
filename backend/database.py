@@ -827,6 +827,36 @@ def change_pct(conn: sqlite3.Connection, skin_id: int, days: int) -> float | Non
 
 # ============================================================
 # 启动入口
+def apply_seed_skin_images() -> int:
+    """从 backend/seed/skin_image_urls.json 回填空 image_url(幂等,不覆盖已有)。"""
+    path = Path(__file__).resolve().parent / "seed" / "skin_image_urls.json"
+    if not path.exists():
+        return 0
+    try:
+        mapping = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[db] skin_image_urls.json 读取失败: {e}")
+        return 0
+    if not isinstance(mapping, dict) or not mapping:
+        return 0
+
+    updated = 0
+    with get_connection() as conn:
+        if not _column_exists(conn, "skins", "image_url"):
+            conn.execute("ALTER TABLE skins ADD COLUMN image_url TEXT")
+        for name, url in mapping.items():
+            if not name or not url:
+                continue
+            cur = conn.execute(
+                "UPDATE skins SET image_url=? WHERE market_hash_name=? "
+                "AND (image_url IS NULL OR image_url='')",
+                (str(url), str(name)),
+            )
+            updated += int(cur.rowcount)
+        conn.commit()
+    return updated
+
+
 # ============================================================
 def clear_fake_daily_volumes() -> int:
     """清空由挂单数 sell_num 污染的假 daily_volume(恒为常数、非真成交量)。"""
@@ -844,6 +874,9 @@ def run_init() -> None:
     migrate_prediction_cache_contract()
     import_skins_and_prices()
     import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
+    filled = apply_seed_skin_images()
+    if filled:
+        print(f"[db] 已回填 Steam 饰品图 image_url: {filled} 件")
     quality = migrate_price_history_quality()
     if quality["rows"]:
         print(
