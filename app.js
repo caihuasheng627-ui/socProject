@@ -3,6 +3,13 @@
 // 基于策划书功能清单实现
 // ============================================
 
+// 预览器 / 热更新有时会把 app.js 注入两次；顶层 const 会抛
+// "Identifier 'createApp' has already been declared" 并触发「运行时错误」Toast。
+if (window.__CSVEST_APP_BOOTED__) {
+  // 已挂载则忽略重复执行
+} else {
+window.__CSVEST_APP_BOOTED__ = true;
+
 const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
 
 // 安全地获取/创建 ECharts 实例。
@@ -4358,9 +4365,12 @@ app.config.errorHandler = (err, instance, info) => {
 // 未捕获的 JS 错误
 window.addEventListener('error', (e) => {
   console.error('[Window Error]', e.error);
+  const msg = String(e.message || e.error?.message || '');
   // 避免在某些已知错误上刷屏 (CDN 加载失败等)
-  if (e.message && e.message.includes('Script error')) return;
-  showErrorToast('运行时错误', String(e.message || '').slice(0, 80));
+  if (msg.includes('Script error')) return;
+  // 脚本被重复注入时的无害噪音，不打断用户
+  if (msg.includes('has already been declared')) return;
+  showErrorToast('运行时错误', msg.slice(0, 80));
 });
 
 // 未处理的 Promise 拒绝
@@ -4371,3 +4381,5 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 app.mount('#app');
+
+} // end __CSVEST_APP_BOOTED__ guard
