@@ -54,6 +54,8 @@ import settings_store
 # ---------- 启动初始化 ----------
 ensure_dirs()
 run_init()
+import settings_store
+settings_store.apply_runtime_settings()
 _loader = get_loader()
 
 app = FastAPI(title="SkinVision AI API", version="1.1.0",
