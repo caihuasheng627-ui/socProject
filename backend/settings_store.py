@@ -220,3 +220,29 @@ def apply_runtime_settings() -> None:
             pass
     except Exception:
         pass
+
+    # 其余模块在文件顶层 `from config import LLM_ENABLED / *_MODEL`，
+    # 形成的是本地旧绑定，必须显式回写，否则 admin 保存后它们仍读到旧值。
+    try:
+        import agent_debate as debate_mod
+        debate_mod.LLM_ENABLED = cfg.LLM_ENABLED
+    except Exception:
+        pass
+
+    try:
+        import main as main_mod
+        main_mod.LLM_ENABLED = cfg.LLM_ENABLED
+        main_mod.DEEPSEEK_MODEL = cfg.DEEPSEEK_MODEL
+        main_mod.BULL_MODEL = cfg.BULL_MODEL
+        main_mod.BEAR_MODEL = cfg.BEAR_MODEL
+        main_mod.JUDGE_MODEL = cfg.JUDGE_MODEL
+    except Exception:
+        pass
+
+    try:
+        from agents import bear_agent, bull_agent, judge_agent
+        bull_agent.BULL_MODEL = cfg.BULL_MODEL
+        bear_agent.BEAR_MODEL = cfg.BEAR_MODEL
+        judge_agent.JUDGE_MODEL = cfg.JUDGE_MODEL
+    except Exception:
+        pass
