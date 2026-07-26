@@ -1432,7 +1432,22 @@ body.sidebar-open {
 .chat-page {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
+  min-height: 0;
+}
+
+/* 让聊天页占满主内容区，避免 height:100% 在部分移动浏览器算成 0 导致整页空白 */
+.content-area:has(> .chat-page),
+.content-area--chat {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.content-area > .chat-page {
+  flex: 1 1 auto;
   min-height: 0;
 }
 
