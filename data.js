@@ -375,19 +375,19 @@ const AI_PRESET_RESPONSES = {
 
 // 推荐问题
 const SUGGESTED_QUESTIONS = [
-  '🔍 AK-47 火蛇现在该买吗?',
-  '💰 $700 预算,中等风险,推荐什么?',
-  '📈 今天哪些饰品在涨?',
-  '🎯 哪个饰品最值得长期持有?',
-  '⚠️ 帮我设置价格预警',
-  '📊 模型对比结果怎么样?',
+  'Should I buy AK-47 | Fire Serpent now?',
+  'With a $700 medium-risk budget, what do you recommend?',
+  'Which skins are rising today?',
+  'Which skin is better for longer holding?',
+  'Help me set a price alert',
+  'How do the models compare right now?',
 ];
 
 const DEBATE_SUGGESTED_QUESTIONS = [
-  '🐂🐻 对 AK-47 火蛇发起牛熊辩论',
-  '🐂🐻 龙狙现在多空怎么看?',
-  '🐂🐻 红线该不该买?开辩论',
-  '🐂🐻 Asiimov 三轮多空对决',
+  'Run a Bull / Bear / Judge debate on AK-47 | Fire Serpent',
+  'What is the multi-agent view on AWP | Dragon Lore?',
+  'Should I buy AK-47 | Redline? Start a debate',
+  'Debate AWP | Asiimov across three rounds',
 ];
 
 // 导出到全局
