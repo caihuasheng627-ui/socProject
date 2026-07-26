@@ -90,6 +90,10 @@ RSS_PER_FEED_LIMIT = int(os.getenv("RSS_PER_FEED_LIMIT", "50"))
 # 手动 Fetch 强化模式:更长窗口 + 每源更多条目
 RSS_AGGRESSIVE_MAX_AGE_DAYS = int(os.getenv("RSS_AGGRESSIVE_MAX_AGE_DAYS", "60"))
 RSS_AGGRESSIVE_PER_FEED = int(os.getenv("RSS_AGGRESSIVE_PER_FEED", "80"))
+# 摘要最大字符(入库前截断;RAG 再按块切分)
+RSS_SUMMARY_MAX_CHARS = int(os.getenv("RSS_SUMMARY_MAX_CHARS", "2000"))
+# 启动后是否立刻做一次 aggressive RSS 回填
+RSS_STARTUP_BACKFILL = os.getenv("RSS_STARTUP_BACKFILL", "1") == "1"
 
 # ---------- 业务参数 ----------
 PRED_CACHE_TTL_HOURS = int(os.getenv("PRED_CACHE_TTL_HOURS", "6"))   # predictions 缓存有效期
@@ -116,6 +120,13 @@ RAG_EMBED_DIM = int(os.getenv("RAG_EMBED_DIM", "1024"))
 RAG_USE_VECTOR = os.getenv("RAG_USE_VECTOR", "1") == "1"
 RAG_INDEX_PATH = DATA_RUNTIME_DIR / "rag_vectors.npz"
 RAG_EMBED_ENABLED = bool(DASHSCOPE_API_KEY) and RAG_USE_VECTOR
+# 分块 / 语料窗口 / 混合检索阈值
+RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "700"))
+RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "120"))
+RAG_NEWS_LIMIT = int(os.getenv("RAG_NEWS_LIMIT", "200"))
+RAG_MIN_VECTOR_SCORE = float(os.getenv("RAG_MIN_VECTOR_SCORE", "0.22"))
+RAG_MIN_KEYWORD_SCORE = int(os.getenv("RAG_MIN_KEYWORD_SCORE", "1"))
+RAG_HYBRID_RRF_K = int(os.getenv("RAG_HYBRID_RRF_K", "60"))
 
 
 def ensure_dirs() -> None:

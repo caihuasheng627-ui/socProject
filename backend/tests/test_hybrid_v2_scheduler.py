@@ -46,3 +46,9 @@ def test_scheduler_registers_monthly_hybrid_refresh(monkeypatch):
     hybrid = [job for job in jobs if job[2]["id"] == "hybrid_v2_refresh"]
     assert len(hybrid) == 1
     assert hybrid[0][0] is scheduler.refresh_hybrid_v2_adapter
+
+    startup = [job for job in jobs if job[2]["id"] == "rss_startup"]
+    if scheduler.RSS_STARTUP_BACKFILL:
+        assert len(startup) == 1
+        assert startup[0][0] is scheduler.fetch_rss_news
+        assert startup[0][2].get("kwargs", {}).get("aggressive") is True

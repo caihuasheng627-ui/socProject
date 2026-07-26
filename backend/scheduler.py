@@ -29,6 +29,8 @@ from config import (
     RSS_PER_FEED_LIMIT,
     RSS_AGGRESSIVE_MAX_AGE_DAYS,
     RSS_AGGRESSIVE_PER_FEED,
+    RSS_SUMMARY_MAX_CHARS,
+    RSS_STARTUP_BACKFILL,
     ML_DIR,
     REPO_ROOT,
 )
@@ -78,6 +80,26 @@ def _rss_source_tag(url: str) -> str:
     return "rss"
 
 
+def _entry_summary_text(entry) -> str:
+    """尽量取更长正文: summary / description / content:encoded。"""
+    candidates: list[str] = []
+    for key in ("summary", "description"):
+        raw = entry.get(key)
+        if raw:
+            candidates.append(str(raw))
+    content = entry.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("value"):
+                candidates.append(str(block["value"]))
+            elif isinstance(block, str):
+                candidates.append(block)
+    elif isinstance(content, str) and content:
+        candidates.append(content)
+    best = max((c for c in candidates if c), key=len, default="")
+    return _strip_html(best)
+
+
 def fetch_rss_news(aggressive: bool = False) -> dict:
     """拉取 RSS 写入 news 表。aggressive=True 时加大窗口与每源条数。"""
     try:
@@ -124,7 +146,7 @@ def fetch_rss_news(aggressive: bool = False) -> dict:
                     ).fetchone()
                     if exists:
                         continue
-                    summary = _strip_html(entry.get("summary", "") or "")[:300]
+                    summary = _entry_summary_text(entry)[: max(300, RSS_SUMMARY_MAX_CHARS)]
                     if pub_dt is not None:
                         published = pub_dt.isoformat()
                     else:
@@ -423,13 +445,27 @@ def start_scheduler() -> BackgroundScheduler:
         id="hybrid_v2_refresh",
         misfire_grace_time=21600,
     )
+    # 启动后立刻 aggressive 回填一次,避免语料长期只剩种子 news
+    if RSS_STARTUP_BACKFILL:
+        _scheduler.add_job(
+            fetch_rss_news,
+            trigger="date",
+            run_date=datetime.now(timezone.utc) + timedelta(seconds=8),
+            kwargs={"aggressive": True},
+            id="rss_startup",
+            misfire_grace_time=3600,
+        )
     # BUFF 实时刷新(默认每 6h;需 USE_BUFF_LIVE=1 才真正执行)
     from config import BUFF_REFRESH_HOURS
     _scheduler.add_job(refresh_buff_prices, IntervalTrigger(hours=BUFF_REFRESH_HOURS),
                        id="buff_refresh", next_run_time=None, misfire_grace_time=7200)
     _scheduler.start()
     live = "开(USE_BUFF_LIVE=1)" if __import__("os").getenv("USE_BUFF_LIVE", "0") == "1" else "关(USE_BUFF_LIVE=0)"
-    print(f"[scheduler] 已启动 (rss 每日09:00 / daily 09:00 / buff刷新{BUFF_REFRESH_HOURS}h·{live} / incremental 默认禁用)")
+    backfill = "开" if RSS_STARTUP_BACKFILL else "关"
+    print(
+        f"[scheduler] 已启动 (rss 每日09:00 / startup回填·{backfill} / daily 09:00 "
+        f"/ buff刷新{BUFF_REFRESH_HOURS}h·{live} / incremental 默认禁用)"
+    )
     return _scheduler
 
 
