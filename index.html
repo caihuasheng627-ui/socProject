@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260726-daily" />
+  <link rel="stylesheet" href="style.css?v=20260726-debate-enable" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -1321,7 +1321,220 @@
                       </div>
                     </div>
                   </div>
-                  <div v-else class="chat-content" v-html="renderMarkdown(msg.content)"></div>
+                  <template v-else>
+                  <div class="chat-content" v-html="renderMarkdown(msg.content)"></div>
+                  <div v-if="msg.payload?.recommendations?.length" class="ai-result-grid">
+                    <article v-for="item in msg.payload.recommendations" :key="item.skinId" class="ai-result-card recommendation-result">
+                      <div class="ai-result-card-head">
+                        <strong>{{ item.name }}</strong>
+                        <span class="tag tag-green">{{ item.score }}</span>
+                      </div>
+                      <div class="ai-result-metrics">
+                        <span>${{ formatPrice(item.price) }}</span>
+                        <span :class="item.change7d >= 0 ? 'text-green' : 'text-red'">{{ item.change7d >= 0 ? '+' : '' }}{{ item.change7d }}%</span>
+                        <span>Risk: {{ item.risk }}</span>
+                      </div>
+                      <ul class="ai-result-reasons">
+                        <li v-for="reason in item.reasons" :key="reason">{{ reason }}</li>
+                      </ul>
+                      <div class="ai-result-actions">
+                        <button class="btn btn-secondary btn-sm" @click="runSkinAction(item.skinId, 'predict')">Hybrid prediction</button>
+                        <button class="btn btn-primary btn-sm" @click="runSkinAction(item.skinId, 'debate')">Agent debate</button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div v-if="msg.payload?.skinCandidates?.length" class="skin-candidate-picker">
+                    <div class="skin-candidate-picker-head">
+                      <strong>请选择具体皮肤</strong>
+                      <span>选中后启动 {{ msg.payload.requestedAction === 'predict' ? 'Hybrid 预测' : 'Bull / Bear / Judge Debate' }}</span>
+                    </div>
+                    <div class="ai-result-grid">
+                      <article v-for="item in msg.payload.skinCandidates" :key="item.skinId" class="ai-result-card skin-candidate-card">
+                        <strong>{{ item.name }}</strong>
+                        <div class="ai-result-metrics">
+                          <span v-if="item.price !== null && item.price !== undefined">${{ formatPrice(item.price) }}</span>
+                          <span>{{ item.category }}</span>
+                        </div>
+                        <button class="btn btn-primary btn-sm" @click="runSkinAction(item.skinId, msg.payload.requestedAction || 'debate')">
+                          {{ msg.payload.requestedAction === 'predict' ? '预测这款' : '辩论这款' }}
+                        </button>
+                      </article>
+                    </div>
+                  </div>
+
+                  <div v-if="msg.payload?.prediction" class="ai-result-card prediction-result">
+                    <div class="ai-result-card-head">
+                      <strong>{{ msg.payload.skin?.name || msg.payload.prediction.skinId }}</strong>
+                      <span class="tag tag-purple">Hybrid {{ msg.payload.prediction.horizon }}D</span>
+                    </div>
+                    <div class="ai-result-metrics ai-result-metrics-large">
+                      <span>Current ${{ formatPrice(msg.payload.prediction.currentPrice || msg.payload.skin?.price) }}</span>
+                      <span>Target ${{ formatPrice(msg.payload.prediction.targetPrice) }}</span>
+                      <span>Consensus {{ msg.payload.prediction.consensus?.score || 0 }}%</span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" @click="openPredictionResult(msg.payload.skin?.skinId)">Open full prediction</button>
+                  </div>
+
+                  <div v-if="msg.payload?.debateRound" class="debate-timeline">
+                    <div class="debate-timeline-header">
+                      <div>
+                        <strong>{{ t('debate.round', { round: msg.payload.debateRound.roundNo }) }}</strong>
+                        <div class="text-muted text-sm">{{ t('debate.flow') }}</div>
+                      </div>
+                      <span class="tag tag-orange">{{ msg.payload.agentSession?.userProfile?.risk_level || 'medium' }} risk</span>
+                    </div>
+
+                    <div v-if="msg.payload.agentSession?.userProfile" class="debate-profile-summary">
+                      <span>{{ t('debate.holding', { days: msg.payload.agentSession.userProfile.horizon_days }) }}</span>
+                      <span>{{ t('debate.purpose') }} {{ t('debate.value.' + (msg.payload.agentSession.userProfile.purpose || 'unspecified')) }}</span>
+                      <span>{{ t('debate.liquidity') }} {{ t('debate.value.' + (msg.payload.agentSession.userProfile.liquidity_priority || 'medium')) }}</span>
+                      <span v-if="msg.payload.agentSession.userProfile.budget">{{ t('debate.budget') }} {{ msg.payload.agentSession.userProfile.budget }}</span>
+                      <span v-if="msg.payload.agentSession.userProfile.loss_tolerance_pct !== null && msg.payload.agentSession.userProfile.loss_tolerance_pct !== undefined">{{ t('debate.maxLoss') }} {{ msg.payload.agentSession.userProfile.loss_tolerance_pct }}%</span>
+                    </div>
+
+                    <div v-if="msg.payload.debateRound.userMessage" class="debate-user-context">
+                      <span class="debate-step-index">你</span>
+                      <div><strong>{{ t('debate.newInput') }}</strong><p>{{ msg.payload.debateRound.userMessage }}</p></div>
+                    </div>
+
+                    <div class="debate-flow-line"></div>
+                    <article v-if="msg.payload.debateRound.bull" class="debate-turn bull-turn">
+                      <div class="debate-turn-head">
+                        <span class="debate-step-index">1</span>
+                        <div><strong>Bull · {{ t(msg.payload.debateRound.roundNo > 1 ? 'debate.bull.reply' : 'debate.bull.initial') }}</strong><div class="text-muted text-sm">{{ msg.payload.debateRound.bull.position }} · {{ t('debate.confidence') }} {{ msg.payload.debateRound.bull.confidence }}%</div></div>
+                      </div>
+                      <div v-for="argument in msg.payload.debateRound.bull.arguments" :key="argument.claim" class="explained-evidence">
+                        <strong>{{ argument.claim }}</strong>
+                        <p><span>{{ t('debate.means') }}</span>{{ argument.explanation }}</p>
+                        <p><span>{{ t('debate.impact') }}</span>{{ argument.decision_impact }}</p>
+                      </div>
+                    </article>
+
+                    <article v-if="msg.payload.debateRound.bear" class="debate-turn bear-turn">
+                      <div class="debate-turn-head">
+                        <span class="debate-step-index">2</span>
+                        <div><strong>Bear · {{ t(msg.payload.debateRound.roundNo > 1 ? 'debate.bear.reply' : 'debate.bear.initial') }}</strong><div class="text-muted text-sm">{{ msg.payload.debateRound.bear.position }} · {{ t('debate.confidence') }} {{ msg.payload.debateRound.bear.confidence }}%</div></div>
+                      </div>
+                      <div v-for="argument in msg.payload.debateRound.bear.arguments" :key="argument.claim" class="explained-evidence">
+                        <strong>{{ argument.claim }}</strong>
+                        <p><span>{{ t('debate.means') }}</span>{{ argument.explanation }}</p>
+                        <p><span>{{ t('debate.impact') }}</span>{{ argument.decision_impact }}</p>
+                      </div>
+                    </article>
+
+                    <article v-if="msg.payload.debateRound.judge" class="debate-turn judge-turn">
+                      <div class="debate-turn-head">
+                        <span class="debate-step-index">3</span>
+                        <div><strong>Judge · {{ t('debate.judge') }}</strong><div class="text-muted text-sm">{{ t('debate.action.' + msg.payload.debateRound.judge.strategy_action) }} · {{ t('debate.evidenceSupport') }} {{ msg.payload.debateRound.judge.confidence }}%</div></div>
+                      </div>
+                      <div class="judge-report">
+                        <h4>{{ t('debate.summary') }}</h4>
+                        <p class="judge-summary">{{ msg.payload.debateRound.judge.summary || msg.payload.debateRound.judge.reasoning?.[0] }}</p>
+                        <div class="judge-recommendation">
+                          <strong>{{ t('debate.recommendation') }}</strong>
+                          <p>{{ msg.payload.debateRound.judge.recommendation }}</p>
+                        </div>
+                        <div v-if="msg.payload.debateRound.judge.key_conflict" class="judge-conflict">
+                          <strong>{{ t('debate.tradeoff') }}</strong>
+                          <p>{{ msg.payload.debateRound.judge.key_conflict }}</p>
+                        </div>
+                        <div class="judge-synthesis-grid">
+                          <div v-if="msg.payload.debateRound.judge.agreed_facts?.length">
+                            <strong>{{ t('debate.agreed') }}</strong>
+                            <ul><li v-for="line in msg.payload.debateRound.judge.agreed_facts" :key="line">{{ line }}</li></ul>
+                          </div>
+                          <div v-if="msg.payload.debateRound.judge.complementary_views?.length">
+                            <strong>{{ t('debate.combine') }}</strong>
+                            <ul><li v-for="line in msg.payload.debateRound.judge.complementary_views" :key="line">{{ line }}</li></ul>
+                          </div>
+                          <div v-if="msg.payload.debateRound.judge.true_conflicts?.length">
+                            <strong>{{ t('debate.trueConflicts') }}</strong>
+                            <ul><li v-for="line in msg.payload.debateRound.judge.true_conflicts" :key="line">{{ line }}</li></ul>
+                          </div>
+                          <div v-if="msg.payload.debateRound.judge.evidence_verdicts?.length">
+                            <strong>{{ t('debate.evidenceVerdict') }}</strong>
+                            <ul><li v-for="line in msg.payload.debateRound.judge.evidence_verdicts" :key="line">{{ line }}</li></ul>
+                          </div>
+                        </div>
+                        <div class="judge-action-plan">
+                          <div>
+                            <span>{{ t('debate.opportunity') }}</span>
+                            <strong>{{ msg.payload.debateRound.judge.opportunity_score ?? 0 }}/100</strong>
+                          </div>
+                          <div>
+                            <span>{{ t('debate.riskScore') }}</span>
+                            <strong>{{ msg.payload.debateRound.judge.risk_score ?? 0 }}/100</strong>
+                          </div>
+                          <div>
+                            <span>{{ t('debate.decisionScore') }}</span>
+                            <strong>{{ msg.payload.debateRound.judge.decision_score ?? 0 }}/100</strong>
+                          </div>
+                          <div>
+                            <span>{{ t('debate.position') }}</span>
+                            <strong>{{ msg.payload.debateRound.judge.position_size_pct ?? 0 }}%</strong>
+                          </div>
+                          <div>
+                            <span>{{ t('debate.recheck') }}</span>
+                            <strong>{{ msg.payload.debateRound.judge.recheck_after_days ? t('debate.afterDays', { days: msg.payload.debateRound.judge.recheck_after_days }) : t('debate.afterData') }}</strong>
+                          </div>
+                          <div v-if="msg.payload.debateRound.judge.stop_loss !== null && msg.payload.debateRound.judge.stop_loss !== undefined">
+                            <span>{{ t('debate.exitPrice') }}</span>
+                            <strong>${{ formatPrice(msg.payload.debateRound.judge.stop_loss) }}</strong>
+                          </div>
+                        </div>
+                        <details v-if="msg.payload.debateRound.judge.policy_explanation?.length" class="judge-confidence-detail" open>
+                          <summary>{{ t('debate.policy') }}</summary>
+                          <p class="text-muted text-sm">{{ msg.payload.debateRound.judge.policy_threshold }}</p>
+                          <ul><li v-for="line in msg.payload.debateRound.judge.policy_explanation" :key="line">{{ line }}</li></ul>
+                        </details>
+                        <div v-if="msg.payload.debateRound.judge.entry_strategy?.length" class="judge-entry-strategy">
+                          <strong>{{ t('debate.execution') }}</strong>
+                          <ol><li v-for="line in msg.payload.debateRound.judge.entry_strategy" :key="line">{{ line }}</li></ol>
+                        </div>
+                        <details v-if="msg.payload.debateRound.judge.confidence_basis?.length" class="judge-confidence-detail" open>
+                          <summary>{{ t('debate.confidenceWhy', { value: msg.payload.debateRound.judge.confidence }) }}</summary>
+                          <p class="text-muted text-sm">{{ t('debate.confidenceHelp') }}</p>
+                          <ul><li v-for="line in msg.payload.debateRound.judge.confidence_basis" :key="line">{{ line }}</li></ul>
+                        </details>
+                        <div class="judge-condition-grid">
+                          <div v-if="msg.payload.debateRound.judge.buy_triggers?.length || msg.payload.debateRound.judge.conditions_to_buy?.length">
+                            <strong>{{ t('debate.buyTriggers') }}</strong>
+                            <ul><li v-for="line in (msg.payload.debateRound.judge.buy_triggers?.length ? msg.payload.debateRound.judge.buy_triggers : msg.payload.debateRound.judge.conditions_to_buy)" :key="line">{{ line }}</li></ul>
+                          </div>
+                          <div v-if="msg.payload.debateRound.judge.exit_triggers?.length || msg.payload.debateRound.judge.conditions_to_wait?.length">
+                            <strong>{{ t('debate.exitTriggers') }}</strong>
+                            <ul><li v-for="line in (msg.payload.debateRound.judge.exit_triggers?.length ? msg.payload.debateRound.judge.exit_triggers : msg.payload.debateRound.judge.conditions_to_wait)" :key="line">{{ line }}</li></ul>
+                          </div>
+                        </div>
+                        <p v-if="msg.payload.debateRound.judge.alternative_action" class="judge-alternative"><strong>{{ t('debate.alternative') }}</strong>{{ msg.payload.debateRound.judge.alternative_action }}</p>
+                        <p v-if="msg.payload.debateRound.judge.profile_fit" class="judge-profile-fit">{{ msg.payload.debateRound.judge.profile_fit }}</p>
+                        <p v-if="msg.payload.debateRound.judge.risk_warning" class="judge-risk-warning">{{ msg.payload.debateRound.judge.risk_warning }}</p>
+                      </div>
+                      <p class="judge-user-view">{{ msg.payload.debateRound.judge.user_view_considered }}</p>
+                      <div class="judge-change-summary" :class="{ changed: msg.payload.debateRound.judge.changed_from_previous }">
+                        {{ msg.payload.debateRound.judge.change_summary }}
+                      </div>
+                      <ul><li v-for="line in msg.payload.debateRound.judge.reasoning" :key="line">{{ line }}</li></ul>
+                    </article>
+
+                    <details v-if="msg.payload.agentSession?.evidenceGuide?.length" class="evidence-guide">
+                      <summary>{{ t('debate.dataGuide') }}</summary>
+                      <div v-for="metric in msg.payload.agentSession.evidenceGuide" :key="metric.evidenceId" class="evidence-guide-item">
+                        <strong>{{ metric.value }}</strong>
+                        <p>{{ metric.meaning }}</p>
+                        <small>{{ metric.decisionImpact }}</small>
+                      </div>
+                    </details>
+
+                    <div class="debate-quick-actions">
+                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.aggressivePrompt'))">{{ t('debate.quick.aggressive') }}</button>
+                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.safePrompt'))">{{ t('debate.quick.safe') }}</button>
+                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.liquidityPrompt'))">{{ t('debate.quick.liquidity') }}</button>
+                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.judgePrompt'))">{{ t('debate.quick.judge') }}</button>
+                    </div>
+                  </div>
+                  </template>
                   <div class="chat-meta">
                     <span>{{ msg.role === 'user' ? t('chat.meta.you') : t('chat.meta.ai') }}</span>
                     <span>·</span>
@@ -1365,6 +1578,10 @@
               </div>
               <p v-if="chatMode === 'debate'" class="chat-mode-hint text-muted text-sm">
                 {{ selectedSkin ? t('chat.debateHintSkin', { name: selectedSkin.name }) : t('chat.debateHint') }}
+              </p>
+              <p v-if="chatMode === 'debate' && chatAgentSession" class="chat-mode-hint active-debate-hint text-muted text-sm">
+                <span class="status-dot" aria-hidden="true"></span>
+                {{ t('debate.activeHint') }}
               </p>
               <textarea
                 class="chat-input"
@@ -2877,12 +3094,12 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260726-daily"></script>
-  <script src="i18n.js?v=20260726-icons"></script>
-  <script src="js/api.js?v=20260725-shap"></script>
+  <script src="i18n.js?v=20260726-debate-enable"></script>
+  <script src="js/api.js?v=20260726-debate-enable"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
   <script src="js/lucide-icons.js?v=20260726-icons"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260726-icons"></script>
+  <script src="app.js?v=20260726-debate-enable"></script>
 </body>
 </html>
