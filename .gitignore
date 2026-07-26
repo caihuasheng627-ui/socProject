@@ -41,6 +41,10 @@ env/
 .venv/
 *.egg-info/
 
+# AI 辅助开发产物（superpowers 计划/规格）
+docs/superpowers/
+.superpowers/
+
 # 临时文件
 *.tmp
 *.bak
