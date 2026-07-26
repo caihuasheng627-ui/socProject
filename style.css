@@ -938,9 +938,19 @@ body::before {
     width: 100%;
     animation: toastSlideUp 0.25s var(--ease-out-expo);
   }
-  .chat-container {
-    height: calc(100dvh - 52px);
-    max-height: calc(100dvh - 52px);
+  /* 聊天页由 content-area flex 撑满，勿再用 100dvh 否则会高出视口裁切底部输入区 */
+  .content-area:has(> .chat-page),
+  .content-area--chat {
+    padding: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .chat-container,
+  .chat-shell {
+    height: auto;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 12px;
   }
 }
 
@@ -1056,14 +1066,32 @@ body::before {
   .kline-container {
     height: 200px;
   }
-  .chat-container {
-    height: calc(100vh - 60px);
+  .chat-container,
+  .chat-shell {
+    height: auto;
+    max-height: none;
   }
   .chat-messages {
-    padding: 12px;
+    padding: 10px 10px 8px;
   }
   .chat-message {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+  }
+  .chat-hero {
+    margin: 0 0 12px;
+  }
+  .chat-hero-title {
+    font-size: 20px;
+  }
+  .chat-hero-capabilities {
+    display: none;
+  }
+  .chat-composer {
+    padding: 8px 10px 10px;
+  }
+  .chat-input {
+    min-height: 36px;
+    font-size: 14px;
   }
 }
 
@@ -1913,31 +1941,298 @@ body.sidebar-open {
 
 @media (max-width: 720px) {
   .chat-shell-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .chat-shell-mark {
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-orange) 18%, transparent);
+  }
+
+  .chat-shell-eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .chat-shell-mode {
+    font-size: 13px;
   }
 
   .chat-mode-toggle {
-    width: 100%;
+    flex-shrink: 0;
+    padding: 3px;
+    border-radius: 10px;
   }
 
   .chat-mode-btn {
-    flex: 1;
-    text-align: center;
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .chat-messages {
+    padding: 12px 10px 8px;
   }
 
   .chat-hero {
-    margin-top: 2vh;
+    margin: 4px auto 14px;
     text-align: left;
   }
 
-  .chat-hero-capabilities,
-  .suggested-questions-row {
-    justify-content: flex-start;
+  .chat-hero-eyebrow {
+    margin-bottom: 6px;
+    font-size: 10px;
   }
 
   .chat-hero-title {
-    font-size: clamp(24px, 7vw, 32px);
+    margin-bottom: 8px;
+    font-size: clamp(20px, 5.6vw, 26px);
+    line-height: 1.2;
+  }
+
+  .chat-hero-lead {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .chat-hero-capabilities {
+    display: none; /* 移动端省垂直空间，能力说明已在 lead / 推荐问题里 */
+  }
+
+  .suggested-questions,
+  .suggested-questions-row {
+    max-width: none;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .suggested-label {
+    margin-bottom: 6px;
+    font-size: 10px;
+  }
+
+  .suggested-question {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+    width: 100%;
+  }
+
+  .chat-message {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .chat-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 10px;
+  }
+
+  .chat-content {
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .chat-input-area,
+  .chat-composer {
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .chat-mode-hint {
+    margin-bottom: 6px;
+    font-size: 11.5px;
+  }
+
+  .chat-composer-box {
+    border-radius: 12px;
+    padding: 6px 8px 8px;
+  }
+
+  .chat-input {
+    min-height: 40px;
+    max-height: 96px;
+    padding: 4px 2px 6px;
+    font-size: 14px;
+  }
+
+  .chat-input-actions {
+    gap: 8px;
+  }
+
+  .chat-composer-hint {
+    display: none;
+  }
+
+  .chat-send-btn {
+    min-width: 88px;
+    min-height: 36px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .chat-disclaimer {
+    margin-top: 6px;
+    font-size: 10px;
+  }
+
+  /* 辩论结果：移动端更紧凑，避免横向/纵向撑爆 */
+  .debate-timeline {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .debate-timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .debate-profile-summary {
+    gap: 6px;
+    margin: 8px 0 12px;
+  }
+
+  .debate-profile-summary span {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .debate-turn {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .debate-step-index {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .explained-evidence,
+  .judge-user-view,
+  .judge-change-summary {
+    margin-left: 0;
+  }
+
+  .explained-evidence {
+    margin-top: 8px;
+    padding: 8px 10px;
+  }
+
+  .judge-report {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .judge-summary {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .judge-recommendation,
+  .judge-conflict,
+  .judge-confidence-detail,
+  .judge-condition-grid > div,
+  .judge-synthesis-grid > div,
+  .judge-entry-strategy {
+    margin-top: 8px;
+    padding: 10px;
+  }
+
+  .judge-action-plan {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .judge-action-plan > div {
+    padding: 8px;
+  }
+
+  .judge-action-plan strong {
+    font-size: 14px;
+  }
+
+  .debate-quick-actions {
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .debate-quick-actions .btn {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .ai-result-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .skin-candidate-picker {
+    padding: 10px;
+    margin-top: 10px;
+  }
+
+  .skin-candidate-picker-head {
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .chat-debate-metric {
+    font-size: 14px;
+  }
+
+  .grid.grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-area:has(> .chat-page),
+  .content-area--chat {
+    padding: 4px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+
+  .chat-container,
+  .chat-shell {
+    border-radius: 10px;
+  }
+
+  .chat-shell-bar {
+    padding: 6px 8px;
+  }
+
+  .chat-hero-title {
+    font-size: 19px;
+  }
+
+  .chat-hero-lead {
+    font-size: 12px;
+  }
+
+  .suggested-question {
+    padding: 7px 9px;
+    font-size: 11.5px;
+  }
+
+  .judge-action-plan {
+    grid-template-columns: 1fr;
   }
 }
 
