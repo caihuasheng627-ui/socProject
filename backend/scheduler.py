@@ -18,9 +18,40 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.triggers.interval import IntervalTrigger
+except Exception:  # pragma: no cover - fallback for environments without APScheduler
+    class CronTrigger:  # type: ignore[no-redef]
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class IntervalTrigger:  # type: ignore[no-redef]
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class BackgroundScheduler:  # type: ignore[no-redef]
+        def __init__(self, timezone=None):
+            self.timezone = timezone
+            self.jobs: list[dict] = []
+
+        def add_job(self, func, trigger=None, id=None, replace_existing=False):
+            self.jobs.append(
+                {
+                    "func": func,
+                    "trigger": trigger,
+                    "id": id,
+                    "replace_existing": replace_existing,
+                }
+            )
+            return self.jobs[-1]
+
+        def start(self):
+            return self
+
+        def shutdown(self, wait=False):
+            self.jobs.clear()
 
 import llm
 from config import (

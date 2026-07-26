@@ -1,7 +1,7 @@
 """
 SkinVision AI 后端配置
 ======================
-集中管理路径、DeepSeek Key、降级开关。
+集中管理路径、DeepSeek Key、降级开关和多 agent 运行参数。
 - DeepSeek Key 从环境变量 DEEPSEEK_API_KEY 或 .env 读取;缺失时 LLM 相关端点自动降级 Mock。
 - BUFF/Skinport 实时爬虫默认关闭(课程演示用已落库历史价格 + 训练 CSV 兜底,见策划书 §13.2 降级预案)。
 """
@@ -45,6 +45,16 @@ DEEPSEEK_BASE_URL = os.getenv(
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v3")
 # 无独立 DeepSeek Key 时,可回退到 DASHSCOPE_API_KEY(见 settings_store.apply_runtime_settings)
 LLM_ENABLED = bool(DEEPSEEK_API_KEY)   # 启动后再由 apply_runtime_settings 校正
+
+# ---------- 独立 Agent 配置 ----------
+# 默认可共享同一基础模型,但配置、Prompt、上下文和工具权限保持独立。
+BULL_MODEL = os.getenv("BULL_MODEL", DEEPSEEK_MODEL)
+BEAR_MODEL = os.getenv("BEAR_MODEL", DEEPSEEK_MODEL)
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", DEEPSEEK_MODEL)
+BULL_TEMPERATURE = float(os.getenv("BULL_TEMPERATURE", "0.6"))
+BEAR_TEMPERATURE = float(os.getenv("BEAR_TEMPERATURE", "0.6"))
+JUDGE_TEMPERATURE = float(os.getenv("JUDGE_TEMPERATURE", "0.2"))
+DEBATE_ROUNDS = int(os.getenv("DEBATE_ROUNDS", "3"))
 
 # ---------- JWT / 认证 ----------
 JWT_SECRET = os.getenv("JWT_SECRET", "skinvision-dev-secret-change-me")

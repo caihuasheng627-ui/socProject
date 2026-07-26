@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import bcrypt
+try:
+    import bcrypt
+except Exception:  # pragma: no cover - fallback for environments without bcrypt
+    bcrypt = None
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -58,12 +62,43 @@ def _prehash(plain: str) -> bytes:
     return base64.b64encode(hashlib.sha256(plain.encode("utf-8")).digest())
 
 
+def _fallback_hash(plain: str) -> str:
+    salt = hashlib.sha256(plain.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        plain.encode("utf-8"),
+        salt.encode("utf-8"),
+        120_000,
+    ).hex()
+    return f"pbkdf2_sha256${salt}${digest}"
+
+
+def _fallback_verify(plain: str, hashed: str) -> bool:
+    try:
+        scheme, salt, digest = hashed.split("$", 2)
+    except ValueError:
+        return False
+    if scheme != "pbkdf2_sha256":
+        return False
+    candidate = hashlib.pbkdf2_hmac(
+        "sha256",
+        plain.encode("utf-8"),
+        salt.encode("utf-8"),
+        120_000,
+    ).hex()
+    return hmac.compare_digest(candidate, digest)
+
+
 def hash_password(plain: str) -> str:
+    if bcrypt is None:
+        return _fallback_hash(plain)
     return bcrypt.hashpw(_prehash(plain), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
+        if hashed.startswith("pbkdf2_sha256$") or bcrypt is None:
+            return _fallback_verify(plain, hashed)
         return bcrypt.checkpw(_prehash(plain), hashed.encode("utf-8"))
     except Exception:
         return False

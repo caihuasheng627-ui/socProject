@@ -1,5 +1,13 @@
-import numpy as np
 import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+sys.modules.pop("config", None)
 
 import model_loader
 from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
