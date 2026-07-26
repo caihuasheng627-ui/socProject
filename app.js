@@ -1063,6 +1063,11 @@ const app = createApp({
       sources: [],
     });
     const dailyReportLoading = ref(false);
+    const dailyReportLocaleVersions = ref({});
+    let dailyReportTranslationRequest = 0;
+    const dailySummaryLocale = (summary) => /[\u3400-\u9fff]/.test(String(summary || ''))
+      ? 'zh-CN'
+      : 'en-US';
     const dailyBreadth = computed(() => {
       const g = Number(dailyReport.value?.metrics?.gainers) || 0;
       const l = Number(dailyReport.value?.metrics?.losers) || 0;
@@ -1080,6 +1085,7 @@ const app = createApp({
 
     const applyDailyReport = (rep) => {
       if (!rep) return;
+      const summary = rep.aiSummary || rep.summary || '';
       dailyReport.value = {
         date: rep.date || '',
         generatedAt: rep.generatedAt || '',
@@ -1088,11 +1094,14 @@ const app = createApp({
           gainers: rep.metrics?.gainers ?? topGainers.value.length,
           losers: rep.metrics?.losers ?? topLosers.value.length,
         },
-        aiSummary: rep.aiSummary || rep.summary || '',
+        aiSummary: summary,
         sources: Array.isArray(rep.sources) ? rep.sources : [],
         news: Array.isArray(rep.news) ? rep.news : [],
         portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
       };
+      dailyReportLocaleVersions.value = summary
+        ? { [dailySummaryLocale(summary)]: summary }
+        : {};
       if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
         hotVolume.value = rep.hotVolume;
       } else {
@@ -1102,12 +1111,40 @@ const app = createApp({
       if (news.length) newsFeed.value = news;
     };
 
+    const localizeDailyReport = async (locale) => {
+      const summary = dailyReport.value?.aiSummary;
+      if (!summary) return;
+      const cached = dailyReportLocaleVersions.value?.[locale];
+      if (cached) {
+        dailyReport.value = { ...dailyReport.value, aiSummary: cached };
+        return;
+      }
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      const source = Object.values(dailyReportLocaleVersions.value || {})[0] || summary;
+      const requestId = ++dailyReportTranslationRequest;
+      try {
+        const response = await client.translateAIContent(source, locale);
+        if (requestId !== dailyReportTranslationRequest) return;
+        const translated = response?.content;
+        if (typeof translated !== 'string' || !translated.trim()) return;
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [locale]: translated,
+        };
+        dailyReport.value = { ...dailyReport.value, aiSummary: translated };
+      } catch (error) {
+        console.warn('[daily-report] translation unavailable:', error?.message || error);
+      }
+    };
+
     const loadDailyReport = async ({ refresh = false } = {}) => {
       const client = api();
       if (!client) return;
       try {
         const rep = await client.getDailyReport(undefined, { refresh });
         applyDailyReport(rep);
+        await localizeDailyReport(currentLang.value);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
       }
@@ -1130,6 +1167,11 @@ const app = createApp({
         dailyReportLoading.value = false;
       }
     };
+
+    watch(currentLang, async (locale) => {
+      if (currentPage.value !== 'daily') return;
+      await localizeDailyReport(locale);
+    });
 
     const exportDailyReport = () => {
       const r = dailyReport.value || {};
@@ -1638,7 +1680,14 @@ const app = createApp({
           'How do the model-comparison results look?',
         ];
       }
-      return window.CSVestData.SUGGESTED_QUESTIONS;
+      return [
+        '现在适合买入 AK-47 | 火蛇吗？',
+        '预算 700 美元、中等风险，推荐什么饰品？',
+        '今天哪些饰品正在上涨？',
+        '哪款饰品更适合长期持有？',
+        '帮我设置一个价格预警。',
+        '当前各个预测模型的表现如何？',
+      ];
     });
 
     // ============ 行情看板 ============

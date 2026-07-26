@@ -234,7 +234,11 @@ def translate_content(content: Any, target_locale: str, timeout: float = 45.0) -
     if not LLM_ENABLED:
         raise RuntimeError("DeepSeek is not configured")
     target = "Simplified Chinese" if str(target_locale).lower().startswith("zh") else "English"
-    payload_json = json.dumps(content, ensure_ascii=False)
+    # JSON mode is more reliable when a scalar is wrapped in an object.  Keep
+    # the public helper contract ergonomic by unwrapping that value again
+    # below; structured chat/debate payloads retain their original shape.
+    scalar_content = isinstance(content, str)
+    payload_json = json.dumps({"content": content} if scalar_content else content, ensure_ascii=False)
     messages = [{
         "role": "user",
         "content": (
@@ -256,6 +260,10 @@ def translate_content(content: Any, target_locale: str, timeout: float = 45.0) -
     try:
         raw = _request_sync(request_payload, timeout)
         translated = json.loads(_strip_json_fence(raw))
+        if scalar_content:
+            if not isinstance(translated, dict) or not isinstance(translated.get("content"), str):
+                raise ValueError("translation response did not preserve scalar content")
+            translated = translated["content"]
         _record_execution(live=True)
         return translated
     except Exception as exc:
