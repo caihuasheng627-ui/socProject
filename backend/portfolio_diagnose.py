@@ -52,23 +52,24 @@ def _item_metrics(conn: sqlite3.Connection, skin_id: int) -> dict:
 
 
 def _adjust_action(pred_change: float, vol30: float) -> tuple[str, str]:
-    """调仓建议:基于预测涨幅 + 波动率。"""
+    """Rebalance suggestion from predicted change + volatility (English)."""
     if pred_change >= 3.0 and vol30 < 0.05:
-        return "加仓", f"模型预测 +{pred_change:.1f}%,低波动,趋势稳健"
+        return "Add", f"Model +{pred_change:.1f}% with low volatility — trend looks steady"
     if pred_change >= 1.5:
-        return "持有", f"预测 +{pred_change:.1f}%,趋势偏多,继续持有"
+        return "Hold", f"Forecast +{pred_change:.1f}% — mildly bullish, keep holding"
     if pred_change <= -3.0:
-        return "卖出", f"预测 {pred_change:.1f}%,下行风险显著"
+        return "Sell", f"Forecast {pred_change:.1f}% — downside risk is material"
     if vol30 >= 0.08:
-        return "持有(减仓观察)", f"预测 {pred_change:+.1f}% 但波动率高({vol30:.1%}),宜减仓"
-    return "持有", f"预测 {pred_change:+.1f}%,信号不明确,持有观望"
+        return "Hold (trim)", f"Forecast {pred_change:+.1f}% but vol is high ({vol30:.1%}) — consider trimming"
+    return "Hold", f"Forecast {pred_change:+.1f}% — mixed signal, hold and watch"
 
 
 def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> dict:
-    """/api/portfolio/diagnose 主入口。
+    """/api/portfolio/diagnose entry.
 
-    user_id 给定时只诊断该用户持仓；holding_type 默认 'sim'(模拟持仓页),
-    传 None 则不按类型过滤。空仓返回 empty/error,不抛异常。
+    When user_id is set, only that user's holdings are diagnosed. holding_type
+    defaults to 'sim' (paper portfolio page); pass None to skip type filter.
+    Empty portfolio returns empty/error without raising.
     """
     loader = get_loader()
     items_out: list[dict] = []
@@ -97,7 +98,7 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
             tuple(params),
         ).fetchall()
         if not positions:
-            return {"empty": True, "error": "模拟持仓为空,请先添加持仓"}
+            return {"empty": True, "error": "Paper portfolio is empty — add holdings first"}
 
         for pos in positions:
             name = pos["market_hash_name"]
@@ -123,7 +124,7 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
             p7 = float(pred["price"])
             pred_change = float(pred["change"])
             conf = float(pred.get("confidence") or 0.0) / 100.0
-            band = max(0.02, (1 - conf) * 0.06)   # 置信越低带越宽
+            band = max(0.02, (1 - conf) * 0.06)   # wider band when confidence is low
             p7_low = p7 * (1 - band)
             p7_high = p7 * (1 + band)
             trend = forecast.get("trend30d") or {}
@@ -168,10 +169,10 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
             risk_rows.append({
                 "name": name, "marketValue": mv,
                 "vol30": m["vol30"], "max_dd": m["max_dd"],
-                "risk_contrib": mv * m["vol30"],   # 简化:市值 × 波动率
+                "risk_contrib": mv * m["vol30"],   # market value × volatility
             })
 
-    # ---- 块 1:总值区间 ----
+    # ---- block 1: portfolio value range ----
     value_range = {
         "current": round(total_cur, 2),
         "pred7d_low": round(total_pred7_low, 2),
@@ -182,7 +183,7 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
             if total_cur else 0.0,
     }
 
-    # ---- 块 3:风险贡献 Top N ----
+    # ---- block 3: risk contribution Top N ----
     total_risk = sum(r["risk_contrib"] for r in risk_rows) or 1.0
     for r in risk_rows:
         r["risk_share_pct"] = round(r["risk_contrib"] / total_risk * 100, 2)
@@ -194,7 +195,7 @@ def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> di
         for r in risk_rows[:5]
     ]
 
-    # ---- LLM 汇总 ----
+    # ---- LLM summary ----
     summary = _summarize(items_out, value_range, risk_top)
 
     return {
@@ -212,16 +213,22 @@ def _summarize(items, value_range, risk_top) -> str:
         up = value_range["expected7d_change_pct"]
         top_risk = risk_top[0]["name"] if risk_top else "—"
         return (
-            f"(Mock)组合当前总值 ${value_range['current']},"
-            f"7 天预计 {up:+.1f}%(区间 ${value_range['pred7d_low']}~${value_range['pred7d_high']})。"
-            f"最大风险贡献来自 {top_risk},建议关注其波动。⚠ 不构成投资建议。"
+            f"(Mock) Portfolio value ${value_range['current']}; "
+            f"7-day outlook {up:+.1f}% "
+            f"(range ${value_range['pred7d_low']}–${value_range['pred7d_high']}). "
+            f"Largest risk contribution: {top_risk} — watch its volatility. "
+            f"⚠ Not investment advice."
         )
+    actions = ", ".join(f"{i['name']}={i['action']}" for i in items)
+    risks = ", ".join(f"{r['name']}({r['riskSharePct']}%)" for r in risk_top)
     prompt = (
-        f"组合共 {len(items)} 件,当前总值 ${value_range['current']},"
-        f"7天预测区间 ${value_range['pred7d_low']}~${value_range['pred7d_high']}"
-        f"({value_range['expected7d_change_pct']:+.1f}%)。"
-        f"调仓动作:{ {i['name']+'='+i['action'] for i in items} }。"
-        f"风险 Top:{ [r['name']+'('+str(r['riskSharePct'])+'%)' for r in risk_top] }。"
-        f"用 3 句话给组合诊断总结,含风险提示。"
+        "You are a CS2 skin portfolio analyst. Reply in English only.\n"
+        f"Holdings: {len(items)} items; current value ${value_range['current']}; "
+        f"7-day forecast range ${value_range['pred7d_low']}–${value_range['pred7d_high']} "
+        f"({value_range['expected7d_change_pct']:+.1f}%).\n"
+        f"Suggested actions: {actions}.\n"
+        f"Risk Top: {risks}.\n"
+        "Write a 3-sentence portfolio diagnosis with a clear risk caveat. "
+        "Do not claim certainty; this is not investment advice."
     )
     return llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.4)
