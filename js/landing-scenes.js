@@ -114,17 +114,36 @@
     const layers = scenes.map((scene, i) => {
       const el = document.createElement('div');
       el.className = 'landing-scene' + (i === 0 ? ' is-on' : '');
-      el.style.backgroundImage = `url('${scene.src}')`;
+      el.dataset.src = scene.src;
       el.setAttribute('aria-hidden', 'true');
       layersHost.appendChild(el);
       return el;
     });
 
-    scenes.forEach((s) => {
+    const loadedScenes = new Set();
+    function ensureSceneLoaded(index) {
+      const i = clamp(Math.round(index), 0, maxIndex);
+      if (loadedScenes.has(i)) return;
+      loadedScenes.add(i);
+      const el = layers[i];
+      const scene = scenes[i];
+      if (!el || !scene) return;
+      el.style.backgroundImage = `url('${scene.src}')`;
       const img = new Image();
       img.decoding = 'async';
-      img.src = s.src;
-    });
+      img.src = scene.src;
+    }
+
+    // First screen first; warm the next slide. Remaining scenes load as the user scrubs.
+    ensureSceneLoaded(0);
+    if (maxIndex >= 1) {
+      const warmNext = () => ensureSceneLoaded(1);
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(warmNext, { timeout: 1200 });
+      } else {
+        setTimeout(warmNext, 400);
+      }
+    }
 
     const captionEl = options.captionEl || document.getElementById('landing-scene-caption');
     const nameEl = options.nameEl || document.getElementById('landing-scene-name');
@@ -222,6 +241,10 @@
       // Smoothstep for silkier crossfade
       const u = t * t * (3 - 2 * t);
       const layerAmp = isNarrow ? 14 : 28;
+
+      ensureSceneLoaded(i0);
+      ensureSceneLoaded(i1);
+      if (i1 < maxIndex) ensureSceneLoaded(i1 + 1);
 
       layers.forEach((el, i) => {
         let op = 0;

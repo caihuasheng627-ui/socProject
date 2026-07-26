@@ -4103,11 +4103,16 @@ const app = createApp({
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
-      // 移除首次加载遮罩 (CSS 动画 0.6s 后自动隐藏,这里做兜底)
-      setTimeout(() => {
+
+      // 启动遮罩由 boot-loader 按首屏图片进度关闭；此处等待就绪再挂载英雄场景
+      if (window.CSVestBoot?.waitUntilReady) {
+        try {
+          await window.CSVestBoot.waitUntilReady();
+        } catch (_) { /* ignore */ }
+      } else {
         const loader = document.getElementById('app-loader');
         if (loader) loader.classList.add('hidden');
-      }, 300);
+      }
 
       // 自动探测后端；通了就切真实 API
       await connectBackend();
@@ -4130,6 +4135,9 @@ const app = createApp({
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
       if (showLanding.value) {
         await mountLandingCanvas();
+        try {
+          window.CSVestBoot?.lazyLoadSections?.(document.querySelector('.landing') || document);
+        } catch (_) { /* ignore */ }
       } else {
         renderKline();
         await hydrateCurrentPage(currentPage.value);
