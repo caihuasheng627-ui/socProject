@@ -4369,8 +4369,7 @@ window.addEventListener('error', (e) => {
   if (msg.includes('Script error')) return;
   // 脚本被重复注入时的无害噪音，不打断用户
   if (msg.includes('has already been declared')) return;
-  if (msg.includes('Can't create duplicate variable')) return;
-  if (msg.includes('Cannot create duplicate variable')) return;
+  if (/can't create duplicate variable/i.test(msg)) return;
   showErrorToast('运行时错误', msg.slice(0, 80));
 });
 
