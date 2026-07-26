@@ -3717,16 +3717,25 @@ i.ph-duotone {
 }
 
 .mb-skin {
+  --rarity-color: #8847ff;
   width: 100%;
   display: grid;
   grid-template-columns: 38px minmax(0, 1.4fr) minmax(88px, 0.7fr) minmax(110px, 0.8fr);
   gap: 12px;
   align-items: center;
   text-align: left;
-  padding: 11px 14px;
+  padding: 11px 14px 11px 16px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: color-mix(in srgb, var(--bg-elevated) 55%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--rarity-color) 16%, transparent) 0,
+      color-mix(in srgb, var(--rarity-color) 16%, transparent) 3px,
+      color-mix(in srgb, var(--bg-elevated) 55%, transparent) 3px,
+      color-mix(in srgb, var(--bg-elevated) 55%, transparent) 100%
+    );
+  box-shadow: inset 3px 0 0 0 var(--rarity-color);
   color: inherit;
   cursor: pointer;
   font: inherit;
@@ -3741,11 +3750,34 @@ i.ph-duotone {
 
 .mb-skin:hover,
 .mb-skin:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-orange-light) 40%, transparent);
-  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  border-color: color-mix(in srgb, var(--rarity-color) 45%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--rarity-color) 22%, transparent) 0,
+      color-mix(in srgb, var(--rarity-color) 22%, transparent) 3px,
+      color-mix(in srgb, var(--accent-orange) 10%, transparent) 3px,
+      color-mix(in srgb, var(--accent-orange) 10%, transparent) 100%
+    );
+  box-shadow:
+    inset 3px 0 0 0 var(--rarity-color),
+    0 8px 24px rgba(0, 0, 0, 0.22);
   transform: translateY(-2px);
   outline: none;
+}
+
+.mb-skin__rarity {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+  color: var(--rarity-color);
+  background: color-mix(in srgb, var(--rarity-color) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rarity-color) 42%, transparent);
 }
 
 .mb-skin__mark {

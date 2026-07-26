@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260726-daily" />
+  <link rel="stylesheet" href="style.css?v=20260727-rarity" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -105,7 +105,7 @@
               @click="toggleLang"
               :title="t('topbar.lang.switch')"
               :aria-label="t('topbar.lang.switch')"
-            >{{ currentLang === 'zh-CN' ? 'EN' : '中文' }}</button>
+            >{{ t('topbar.lang.current') }}</button>
             <button v-if="currentUser" type="button" class="landing-nav-cta" @click="enterSystem()">{{ t('landing.nav.enter') }}</button>
             <button v-else type="button" class="landing-nav-cta" @click="openAuthPanel('login')">{{ t('landing.nav.login') }}</button>
           </div>
@@ -462,7 +462,7 @@
               <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
               <div class="admin-config-grid">
                 <div>
-                  <h4 class="admin-section-label">DeepSeek (LLM · 阿里云百炼)</h4>
+                  <h4 class="admin-section-label">{{ t('admin.deepseekLabel') }}</h4>
                   <div class="form-group">
                     <label class="form-label">API Key
                       <span class="text-muted" v-if="adminConfig?.deepseek?.keyMasked">
@@ -471,7 +471,7 @@
                     </label>
                     <input class="form-input" type="password" v-model="adminConfigForm.deepseekApiKey"
                            :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
-                    <p class="text-muted text-sm mt-1">可留空，自动复用右侧 DashScope Key</p>
+                    <p class="text-muted text-sm mt-1">{{ t('admin.reuseDashscope') }}</p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Base URL</label>
@@ -484,7 +484,7 @@
                   </div>
                 </div>
                 <div>
-                  <h4 class="admin-section-label">DashScope (向量)</h4>
+                  <h4 class="admin-section-label">{{ t('admin.dashscopeLabel') }}</h4>
                   <div class="form-group">
                     <label class="form-label">API Key
                       <span class="text-muted" v-if="adminConfig?.dashscope?.keyMasked">
@@ -625,7 +625,7 @@
           <!-- 语言切换按钮 -->
           <button class="theme-toggle lang-toggle" @click="toggleLang" :title="t('topbar.lang.switch')" :aria-label="t('topbar.lang.switch')">
             <i :class="currentLang === 'zh-CN' ? 'ph-bold ph-globe-hemisphere-west' : 'ph-bold ph-translate'" aria-hidden="true"></i>
-            <span style="margin-left: 4px;">{{ currentLang === 'zh-CN' ? 'EN' : '中' }}</span>
+            <span style="margin-left: 4px;">{{ t('topbar.lang.current') }}</span>
           </button>
           <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')" :aria-label="theme === 'dark' ? t('topbar.theme.toLight') : t('topbar.theme.toDark')">
             <i :class="theme === 'dark' ? 'ph-duotone ph-sun' : 'ph-duotone ph-moon'" aria-hidden="true"></i>
@@ -790,7 +790,7 @@
                     <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-row__img" alt="" loading="lazy">
                     <span v-else class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
-                      <div class="mb-row__name">{{ skin.name }}</div>
+                      <div class="mb-row__name">{{ skinDisplayName(skin) }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
                     <div class="mb-row__quote">
@@ -824,7 +824,7 @@
                     <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-row__img" alt="" loading="lazy">
                     <span v-else class="mb-row__mark" aria-hidden="true">{{ skin.image }}</span>
                     <div class="mb-row__main">
-                      <div class="mb-row__name">{{ skin.name }}</div>
+                      <div class="mb-row__name">{{ skinDisplayName(skin) }}</div>
                       <div class="mb-row__meta">{{ t('dashboard.change24h') }} {{ formatChange(skin.change24h) }}</div>
                     </div>
                     <div class="mb-row__quote">
@@ -888,19 +888,25 @@
                   type="button"
                   class="mb-skin"
                   role="listitem"
-                  :style="{ '--mb-delay': Math.min(idx, 12) * 28 + 'ms' }"
+                  :style="{ '--mb-delay': Math.min(idx, 12) * 28 + 'ms', ...rarityStyle(skin) }"
+                  :aria-label="`${skinDisplayName(skin)} · ${rarityLabel(skin)}`"
                   @click="viewSkin(skin.id)"
                 >
                   <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="mb-skin__img" alt="" loading="lazy">
                   <span v-else class="mb-skin__mark" aria-hidden="true">{{ skin.image }}</span>
                   <div class="mb-skin__info">
-                    <div class="mb-skin__name">{{ skin.name }}</div>
+                    <div class="mb-skin__name">{{ skinDisplayName(skin) }}</div>
                     <div class="mb-skin__sub">
                       <template v-if="skin.wear && skin.wear !== 'N/A' && skin.wear !== 'nan'">
-                        <span>{{ skin.wear }}</span>
+                        <span>{{ wearLabel(skin.wear) }}</span>
                         <span class="mb-skin__dot" aria-hidden="true">·</span>
                       </template>
                       <span>{{ categoryLabel(skin.category) }}</span>
+                      <span class="mb-skin__dot" aria-hidden="true">·</span>
+                      <span
+                        class="mb-skin__rarity"
+                        :title="rarityLabel(skin)"
+                      >{{ rarityLabel(skin) }}</span>
                       <span class="mb-skin__dot" aria-hidden="true">·</span>
                       <span
                         class="mb-skin__source"
@@ -951,10 +957,10 @@
               <img v-if="selectedSkin.imageUrl" :src="selectedSkin.imageUrl + '/512fx512f'" class="prediction-img" alt="">
               <div v-else class="prediction-emoji">{{ selectedSkin.image }}</div>
               <div style="flex: 1;">
-                <div class="prediction-title">{{ selectedSkin.name }}</div>
+                <div class="prediction-title">{{ skinDisplayName(selectedSkin) }}</div>
                 <div class="text-muted text-sm mt-2">
                   <span class="tag tag-orange">{{ categoryLabel(selectedSkin.category) }}</span>
-                  <span class="tag" style="margin-left: 6px;">{{ selectedSkin.wear }}</span>
+                  <span class="tag" style="margin-left: 6px;">{{ wearLabel(selectedSkin.wear) }}</span>
                   <span class="tag tag-purple" style="margin-left: 6px;">Lv.{{ selectedSkin.rarity }}</span>
                   <span
                     v-if="selectedSkin.isLive !== false"
@@ -1014,7 +1020,7 @@
                   </div>
                   <strong style="color: var(--accent-orange); font-size: 20px;">{{ predictionMeta.consensusScore || 0 }}%</strong>
                 </div>
-                <div v-if="predictionStatus !== 'unavailable'" class="text-muted text-sm">{{ predictionMeta.consensusLevel || t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length, classification: 0 }) }}</div>
+                <div v-if="predictionStatus !== 'unavailable'" class="text-muted text-sm">{{ predictionMeta.consensusLevel ? t(predictionMeta.consensusLevel) : t('prediction.medium') }} · {{ t('prediction.modelsCount', { regression: modelPredictions.length, classification: 0 }) }}</div>
               </div>
             </div>
           </div>
@@ -1273,55 +1279,55 @@
                   <div v-if="msg.payload?.recommendations?.length" class="ai-result-grid">
                     <article v-for="item in msg.payload.recommendations" :key="item.skinId" class="ai-result-card recommendation-result">
                       <div class="ai-result-card-head">
-                        <strong>{{ item.name }}</strong>
+                        <strong>{{ skinDisplayName(item) }}</strong>
                         <span class="tag tag-green">{{ item.score }}</span>
                       </div>
                       <div class="ai-result-metrics">
                         <span>${{ formatPrice(item.price) }}</span>
                         <span :class="item.change7d >= 0 ? 'text-green' : 'text-red'">{{ item.change7d >= 0 ? '+' : '' }}{{ item.change7d }}%</span>
-                        <span>Risk: {{ item.risk }}</span>
+                        <span>{{ t('chat.label.risk') }}: {{ item.risk }}</span>
                       </div>
                       <ul class="ai-result-reasons">
                         <li v-for="reason in item.reasons" :key="reason">{{ reason }}</li>
                       </ul>
                       <div class="ai-result-actions">
-                        <button class="btn btn-secondary btn-sm" @click="runSkinAction(item, 'predict')">Hybrid prediction</button>
-                        <button class="btn btn-primary btn-sm" @click="runSkinAction(item, 'debate')">Agent debate</button>
+                        <button class="btn btn-secondary btn-sm" @click="runSkinAction(item, 'predict')">{{ t('chat.btnPredict') }}</button>
+                        <button class="btn btn-primary btn-sm" @click="runSkinAction(item, 'debate')">{{ t('chat.btnDebate') }}</button>
                       </div>
                     </article>
                   </div>
                   <div v-if="msg.payload?.skinCandidates?.length" class="skin-candidate-picker">
                     <div class="skin-candidate-picker-head">
-                      <strong>请选择具体皮肤</strong>
-                      <span>选中后启动 {{ msg.payload.requestedAction === 'predict' ? 'Hybrid 预测' : 'Bull / Bear / Judge Debate' }}</span>
+                      <strong>{{ t('chat.pickSkinTitle') }}</strong>
+                      <span>{{ msg.payload.requestedAction === 'predict' ? t('chat.pickSkinPredict') : t('chat.pickSkinDebate') }}</span>
                     </div>
                     <div class="ai-result-grid">
                       <article v-for="item in msg.payload.skinCandidates" :key="item.skinId" class="ai-result-card skin-candidate-card">
-                        <strong>{{ item.name }}</strong>
+                        <strong>{{ skinDisplayName(item) }}</strong>
                         <div class="ai-result-metrics">
                           <span v-if="item.price !== null && item.price !== undefined">${{ formatPrice(item.price) }}</span>
-                          <span>{{ item.category }}</span>
+                          <span>{{ categoryLabel(item.category) }}</span>
                         </div>
                         <button class="btn btn-primary btn-sm" @click="runSkinAction(item, msg.payload.requestedAction || 'debate')">
-                          {{ msg.payload.requestedAction === 'predict' ? '预测这款' : '辩论这款' }}
+                          {{ msg.payload.requestedAction === 'predict' ? t('chat.actionPredict') : t('chat.actionDebate') }}
                         </button>
                       </article>
                     </div>
                   </div>
                   <div v-if="msg.payload?.prediction" class="ai-result-card prediction-result">
                     <div class="ai-result-card-head">
-                      <strong>{{ msg.payload.skin?.name || msg.payload.prediction.skinId }}</strong>
+                      <strong>{{ skinDisplayName(msg.payload.skin?.name || msg.payload.prediction.skinId) }}</strong>
                       <span class="tag tag-purple">Hybrid {{ msg.payload.prediction.horizon }}D</span>
                     </div>
                     <div class="ai-result-metrics ai-result-metrics-large">
-                      <span>Current: ${{ formatPrice(msg.payload.prediction.price) }}</span>
-                      <span>Target: ${{ formatPrice(msg.payload.prediction.targetPrice) }}</span>
-                      <span>Confidence: {{ msg.payload.prediction.confidence }}%</span>
+                      <span>{{ t('chat.label.current') }}: ${{ formatPrice(msg.payload.prediction.price) }}</span>
+                      <span>{{ t('chat.label.target') }}: ${{ formatPrice(msg.payload.prediction.targetPrice) }}</span>
+                      <span>{{ t('chat.label.confidence') }}: {{ msg.payload.prediction.confidence }}%</span>
                     </div>
                     <p v-if="msg.payload.prediction.entryLow !== undefined && msg.payload.prediction.entryHigh !== undefined">
-                      Entry: ${{ formatPrice(msg.payload.prediction.entryLow) }} - ${{ formatPrice(msg.payload.prediction.entryHigh) }}
+                      {{ t('chat.label.entry') }}: ${{ formatPrice(msg.payload.prediction.entryLow) }} - ${{ formatPrice(msg.payload.prediction.entryHigh) }}
                     </p>
-                    <p v-if="msg.payload.prediction.stopLoss !== undefined">Stop loss: ${{ formatPrice(msg.payload.prediction.stopLoss) }}</p>
+                    <p v-if="msg.payload.prediction.stopLoss !== undefined">{{ t('chat.label.stopLoss') }}: ${{ formatPrice(msg.payload.prediction.stopLoss) }}</p>
                   </div>
                   <div v-if="msg.payload?.debateRound" class="debate-timeline">
                     <div class="debate-timeline-header">
@@ -1329,7 +1335,7 @@
                         <strong>{{ t('debate.round', { round: msg.payload.debateRound.roundNo }) }}</strong>
                         <div class="text-muted text-sm">{{ t('debate.flow') }}</div>
                       </div>
-                      <span class="tag tag-orange">{{ msg.payload.agentSession?.userProfile?.risk_level || 'medium' }} {{ currentLang === 'en-US' ? 'risk' : '风险' }}</span>
+                      <span class="tag tag-orange">{{ msg.payload.agentSession?.userProfile?.risk_level || 'medium' }} {{ t('chat.label.risk') }}</span>
                     </div>
                     <div v-if="msg.payload.agentSession?.userProfile" class="debate-profile-summary">
                       <span>{{ t('debate.holding', { days: msg.payload.agentSession.userProfile.horizon_days }) }}</span>
@@ -1339,7 +1345,7 @@
                       <span v-if="msg.payload.agentSession.userProfile.loss_tolerance_pct !== null && msg.payload.agentSession.userProfile.loss_tolerance_pct !== undefined">{{ t('debate.maxLoss') }} {{ msg.payload.agentSession.userProfile.loss_tolerance_pct }}%</span>
                     </div>
                     <div v-if="msg.payload.debateRound.userMessage" class="debate-user-context">
-                      <span class="debate-step-index">{{ currentLang === 'en-US' ? 'You' : '你' }}</span>
+                      <span class="debate-step-index">{{ t('chat.you') }}</span>
                       <div><strong>{{ t('debate.newInput') }}</strong><p>{{ msg.payload.debateRound.userMessage }}</p></div>
                     </div>
                     <div class="debate-flow-line"></div>
@@ -1810,7 +1816,7 @@
                   <img v-if="skin.imageUrl" :src="skin.imageUrl + '/360fx360f'" class="daily-mover__img" alt="" loading="lazy">
                   <div v-else class="daily-mover__emoji" aria-hidden="true">{{ skin.image }}</div>
                   <div class="daily-mover__info">
-                    <div class="daily-mover__name">{{ skin.name }}</div>
+                    <div class="daily-mover__name">{{ skinDisplayName(skin) }}</div>
                     <div class="daily-mover__cat">{{ categoryLabel(skin.category) }}</div>
                   </div>
                   <div class="daily-mover__stats">
@@ -2099,7 +2105,7 @@
                     <img v-if="getSkinImageUrl(item.skinId)" :src="getSkinImageUrl(item.skinId) + '/360fx360f'" class="inv-item__img" alt="" loading="lazy">
                     <div v-else class="inv-item__mark" aria-hidden="true">{{ getSkinImage(item.skinId) }}</div>
                     <div class="inv-item__body">
-                      <div class="inv-item__name" :title="item.name">{{ item.name }}</div>
+                      <div class="inv-item__name" :title="skinDisplayName(item)">{{ skinDisplayName(item) }}</div>
                       <div class="inv-item__meta-row">
                         <div class="inv-item__meta">
                           <span>{{ inventorySourceLabel(item.source, true) }}</span>
@@ -2107,7 +2113,7 @@
                           <span>×{{ item.quantity }}</span>
                           <template v-if="getSkinMeta(item.skinId)?.wear && getSkinMeta(item.skinId).wear !== 'N/A'">
                             <span class="inv-item__dot" aria-hidden="true">·</span>
-                            <span>{{ getSkinMeta(item.skinId).wear }}</span>
+                            <span>{{ wearLabel(getSkinMeta(item.skinId).wear) }}</span>
                           </template>
                         </div>
                         <div class="inv-item__more" @click.stop>
@@ -2257,7 +2263,7 @@
                       <tr v-for="row in portfolioDiagnose.adjustments" :key="'adj-' + (row.id || row.skinId || row.name)">
                         <td>
                           <div class="diag-skin">
-                            <strong>{{ row.name }}</strong>
+                            <strong>{{ skinDisplayName(row) }}</strong>
                             <span class="text-muted text-xs">${{ formatPrice(row.currentPrice) }} × {{ row.quantity }}</span>
                           </div>
                         </td>
@@ -2294,7 +2300,7 @@
                     <div class="diag-risk__rank">{{ idx + 1 }}</div>
                     <div class="diag-risk__body">
                       <div class="diag-risk__top">
-                        <strong>{{ r.name }}</strong>
+                        <strong>{{ skinDisplayName(r) }}</strong>
                         <span class="diag-risk__share">{{ Number(r.riskSharePct || 0).toFixed(1) }}%</span>
                       </div>
                       <div class="diag-risk__bar" aria-hidden="true">
@@ -2377,7 +2383,7 @@
               </thead>
               <tbody>
                 <tr v-for="item in portfolio" :key="item.id">
-                  <td><strong>{{ item.name }}</strong></td>
+                  <td><strong>{{ skinDisplayName(item) }}</strong></td>
                   <td>${{ formatPrice(item.buyPrice) }}</td>
                   <td>{{ item.quantity }}</td>
                   <td>${{ formatPrice(item.buyPrice * item.quantity) }}</td>
@@ -2700,7 +2706,7 @@
           <label class="form-label">{{ t('alerts.modal.skin') }}</label>
           <select class="form-select" v-model="newAlert.skinId">
             <option value="">{{ t('common.please') }}...</option>
-            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }}</option>
+            <option v-for="s in skins" :key="s.id" :value="s.id">{{ skinDisplayName(s) }}</option>
           </select>
         </div>
         <div class="form-group">
@@ -2736,7 +2742,7 @@
           <label class="form-label">{{ t('portfolio.modal.skin') }}</label>
           <select class="form-select" v-model="newPortfolio.skinId">
             <option value="">{{ t('common.please') }}...</option>
-            <option v-for="s in skins" :key="s.id" :value="s.id">{{ s.name }} (${{ formatPrice(s.price) }})</option>
+            <option v-for="s in skins" :key="s.id" :value="s.id">{{ skinDisplayName(s) }} (${{ formatPrice(s.price) }})</option>
           </select>
         </div>
         <div class="form-group">
@@ -2769,7 +2775,7 @@
           <label class="form-label">{{ t('inventory.modal.skin') }}</label>
           <select class="form-select" v-model="newInventory.skinId">
             <option value="">{{ t('common.please') }}...</option>
-            <option v-for="s in skins" :key="'inv-' + s.id" :value="s.id">{{ s.name }} (${{ formatPrice(s.price) }})</option>
+            <option v-for="s in skins" :key="'inv-' + s.id" :value="s.id">{{ skinDisplayName(s) }} (${{ formatPrice(s.price) }})</option>
           </select>
         </div>
         <div class="form-group">
@@ -2824,7 +2830,7 @@
           <details v-if="steamImportResult.unmatched && steamImportResult.unmatched.length" style="margin-top: 6px;">
             <summary>{{ t('inventory.steamModal.unmatched') }} ({{ steamImportResult.unmatched.length }})</summary>
             <div style="max-height: 120px; overflow:auto; margin-top:4px;">
-              <div v-for="u in steamImportResult.unmatched" :key="u.name">· {{ u.name }} ×{{ u.qty }}</div>
+              <div v-for="u in steamImportResult.unmatched" :key="u.name">· {{ skinDisplayName(u.name) }} ×{{ u.qty }}</div>
             </div>
           </details>
         </div>
@@ -2846,7 +2852,7 @@
           <span>{{ t('inventory.editModal.title') }}</span>
           <button class="modal-close" @click="showInventoryEditModal = false" :aria-label="t('common.close')">×</button>
         </div>
-        <p class="text-muted text-sm mb-3">{{ editingInventory.name }}</p>
+        <p class="text-muted text-sm mb-3">{{ skinDisplayName(editingInventory) }}</p>
         <div class="form-group">
           <label class="form-label">{{ t('inventory.modal.acquirePrice') }}</label>
           <input type="number" class="form-input" v-model.number="editingInventory.acquirePrice" :placeholder="t('inventory.modal.acquirePrice.placeholder')" />
@@ -2978,12 +2984,13 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260726-daily"></script>
-  <script src="i18n.js?v=20260726-icons"></script>
+  <script src="i18n.js?v=20260727-rarity"></script>
+  <script src="js/skin-names-zh.js?v=20260727-skinnames"></script>
   <script src="js/api.js?v=20260725-shap"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
   <script src="js/lucide-icons.js?v=20260726-icons"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260726-icons"></script>
+  <script src="app.js?v=20260727-rarity"></script>
 </body>
 </html>

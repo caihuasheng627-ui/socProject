@@ -39,8 +39,9 @@ const detectBrowserLang = () => {
 };
 const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
-  const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
-  let str = dict[key] || key;
+  const primary = window.I18N[currentLang.value] || {};
+  const fallback = window.I18N[currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN'] || {};
+  let str = primary[key] || fallback[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
     str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
@@ -810,12 +811,14 @@ const app = createApp({
             rawDaily: Array.isArray(p.rawDailyPrices) ? p.rawDailyPrices : null,
           };
         });
-        const levelMap = {
-          very_high: '很高', high: '偏高', medium: '中等', low: '偏低',
-        };
+        const levelKey = res.consensus?.level
+          ? `prediction.level.${res.consensus.level}`
+          : '';
         predictionMeta.value = {
           consensusScore: Math.round(res.consensus?.score ?? 0),
-          consensusLevel: levelMap[res.consensus?.level] || res.consensus?.level || '',
+          consensusLevel: levelKey && (window.I18N['zh-CN']?.[levelKey] || window.I18N['en-US']?.[levelKey])
+            ? levelKey
+            : (res.consensus?.level || ''),
           entryLow: res.entryRange?.low ?? +(curUsd * 0.97).toFixed(2),
           entryHigh: res.entryRange?.high ?? +(curUsd * 0.99).toFixed(2),
           targetPrice: res.targetPrice ?? +(curUsd * 1.05).toFixed(2),
@@ -1663,6 +1666,94 @@ const app = createApp({
       return t('dashboard.category.' + key);
     };
 
+    // CS rarity palette (Steam / BUFF). Rank fallback when rarityName missing.
+    const RARITY_META = {
+      consumer: { rank: 1, color: '#b0c3d9', key: 'rarity.consumer' },
+      industrial: { rank: 2, color: '#5e98d9', key: 'rarity.industrial' },
+      milspec: { rank: 3, color: '#4b69ff', key: 'rarity.milspec' },
+      restricted: { rank: 4, color: '#8847ff', key: 'rarity.restricted' },
+      classified: { rank: 5, color: '#d32ce6', key: 'rarity.classified' },
+      covert: { rank: 6, color: '#eb4b4b', key: 'rarity.covert' },
+      contraband: { rank: 7, color: '#e4ae39', key: 'rarity.contraband' },
+      extraordinary: { rank: 7, color: '#e4ae39', key: 'rarity.extraordinary' },
+      rare: { rank: 7, color: '#e4ae39', key: 'rarity.rare' },
+      base: { rank: 1, color: '#b0c3d9', key: 'rarity.base' },
+    };
+    const RARITY_BY_RANK = {
+      1: RARITY_META.consumer,
+      2: RARITY_META.industrial,
+      3: RARITY_META.milspec,
+      4: RARITY_META.restricted,
+      5: RARITY_META.classified,
+      6: RARITY_META.covert,
+      7: RARITY_META.contraband,
+    };
+    const resolveRarityMeta = (skin) => {
+      const raw = String(skin?.rarityName || skin?.rarity_name || '').toLowerCase();
+      if (raw.includes('contraband')) return RARITY_META.contraband;
+      if (raw.includes('extraordinary')) return RARITY_META.extraordinary;
+      if (raw.includes('covert')) return RARITY_META.covert;
+      if (raw.includes('classified')) return RARITY_META.classified;
+      if (raw.includes('restricted')) return RARITY_META.restricted;
+      if (raw.includes('mil') || raw.includes('milspec')) return RARITY_META.milspec;
+      if (raw.includes('industrial')) return RARITY_META.industrial;
+      if (raw.includes('consumer')) return RARITY_META.consumer;
+      if (raw.includes('rare')) return RARITY_META.rare;
+      if (raw.includes('base')) return RARITY_META.base;
+      const rank = Number(skin?.rarity);
+      return RARITY_BY_RANK[rank] || RARITY_META.restricted;
+    };
+    const rarityLabel = (skin) => {
+      const meta = resolveRarityMeta(skin);
+      return t(meta.key);
+    };
+    const rarityColor = (skin) => resolveRarityMeta(skin).color;
+    const rarityStyle = (skin) => ({ '--rarity-color': rarityColor(skin) });
+
+    // Official CS schinese / BUFF-style names (not machine translation).
+    const WEAR_ZH = {
+      'Factory New': '崭新出厂', FN: '崭新出厂',
+      'Minimal Wear': '略有磨损', MW: '略有磨损',
+      'Field-Tested': '久经沙场', FT: '久经沙场',
+      'Well-Worn': '破损不堪', WW: '破损不堪',
+      'Battle-Scarred': '战痕累累', BS: '战痕累累',
+    };
+    const skinDisplayName = (skinOrName) => {
+      const name = typeof skinOrName === 'string'
+        ? skinOrName
+        : (skinOrName?.name || skinOrName?.market_hash_name || '');
+      if (!name) return '';
+      if (currentLang.value !== 'zh-CN') return name;
+      const map = window.SKIN_NAMES_ZH || {};
+      return map[name] || name;
+    };
+    const wearLabel = (wear) => {
+      if (!wear || wear === 'N/A' || wear === 'nan') return '';
+      if (currentLang.value !== 'zh-CN') return wear;
+      return WEAR_ZH[wear] || wear;
+    };
+    // Community nicknames used in Chinese search (display still uses official schinese).
+    const SKIN_NICK_ZH = [
+      { nick: '火蛇', hint: 'fire serpent' },
+      { nick: '龙狙', hint: 'dragon lore' },
+      { nick: '巨龙传说', hint: 'dragon lore' },
+      { nick: '咆哮', hint: 'howl' },
+      { nick: '杀意', hint: 'howl' },
+      { nick: '二西莫夫', hint: 'asiimov' },
+      { nick: '红线', hint: 'redline' },
+      { nick: '表面淬火', hint: 'case hardened' },
+      { nick: '多普勒', hint: 'doppler' },
+      { nick: '渐变之色', hint: 'fade' },
+      { nick: '血腥运动', hint: 'bloodsport' },
+      { nick: '印花集', hint: 'printstream' },
+    ];
+    const skinSearchText = (s) => {
+      const base = `${s.name || ''} ${skinDisplayName(s)} ${s.wear || ''} ${wearLabel(s.wear)} ${s.category || ''} ${categoryLabel(s.category)}`;
+      const n = String(s.name || '').toLowerCase();
+      const nicks = SKIN_NICK_ZH.filter(x => n.includes(x.hint)).map(x => x.nick).join(' ');
+      return `${base} ${nicks}`.toLowerCase();
+    };
+
     const formatChange = (num) => {
       const v = Number(num);
       if (!Number.isFinite(v)) return '0.00%';
@@ -1716,15 +1807,15 @@ const app = createApp({
       }
       const q = skinSearch.value.trim().toLowerCase();
       if (q) {
-        list = list.filter(s => {
-          const hay = `${s.name || ''} ${s.wear || ''} ${s.category || ''} ${categoryLabel(s.category)}`.toLowerCase();
-          return hay.includes(q);
-        });
+        list = list.filter(s => skinSearchText(s).includes(q));
       }
       const sorted = [...list];
       const sort = skinSort.value;
       sorted.sort((a, b) => {
-        if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'en');
+        if (sort === 'name') {
+          const loc = currentLang.value === 'zh-CN' ? 'zh-CN' : 'en';
+          return skinDisplayName(a).localeCompare(skinDisplayName(b), loc);
+        }
         if (sort === 'price') return (Number(b.price) || 0) - (Number(a.price) || 0);
         if (sort === 'change24h') return (Number(b.change24h) || 0) - (Number(a.change24h) || 0);
         if (sort === 'rarity') return (Number(b.rarity) || 0) - (Number(a.rarity) || 0);
@@ -2940,7 +3031,7 @@ const app = createApp({
         }
         showToast({ title: t('common.confirm'), subtitle: skin?.name || '', type: 'success' });
       } catch (e) {
-        showToast({ title: '创建预警失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('alerts.createFailed'), subtitle: e.message || '', type: 'error' });
       }
       showAlertModal.value = false;
       newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
@@ -2955,7 +3046,7 @@ const app = createApp({
         alerts.value = alerts.value.filter(a => a.id !== id);
         showToast({ title: t('common.delete'), type: 'success' });
       } catch (e) {
-        showToast({ title: '删除失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('alerts.deleteFailed'), subtitle: e.message || '', type: 'error' });
       }
     };
 
@@ -3188,7 +3279,7 @@ const app = createApp({
             itemStyle: { color: '#ff6b00' },
             markLine: predicted7Dates.length ? {
               symbol: 'none',
-              label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
+              label: { show: true, formatter: t('common.forecast'), color: '#9ca3af', fontSize: 10 },
               lineStyle: { color: '#6b7280', type: 'dashed' },
               data: [{ xAxis: dates[dates.length - 1] }],
             } : undefined,
@@ -3323,7 +3414,7 @@ const app = createApp({
         }
         showToast({ title: t('portfolio.addHolding'), subtitle: skin?.name || '', type: 'success' });
       } catch (e) {
-        showToast({ title: '添加持仓失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('portfolio.addFailed'), subtitle: e.message || '', type: 'error' });
       }
       showPortfolioModal.value = false;
       newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' };
@@ -3339,7 +3430,7 @@ const app = createApp({
         showToast({ title: t('portfolio.close'), type: 'success' });
         await loadPortfolioExtras();
       } catch (e) {
-        showToast({ title: '平仓失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('portfolio.closeFailed'), subtitle: e.message || '', type: 'error' });
       }
     };
 
@@ -4021,13 +4112,20 @@ const app = createApp({
     };
 
     watch(currentLang, async () => {
-      if (currentPage.value !== 'models') return;
       await nextTick();
       try {
-        renderRadar();
-        renderBacktest();
-        renderPerDay();
-        renderShap();
+        if (currentPage.value === 'models') {
+          renderRadar();
+          renderBacktest();
+          renderPerDay();
+          renderShap();
+        }
+        if (currentPage.value === 'portfolio') {
+          renderInventoryValueChart();
+        }
+        if (currentPage.value === 'prediction') {
+          renderKline();
+        }
       } catch (_) { /* ignore */ }
     });
 
@@ -4075,13 +4173,13 @@ const app = createApp({
 
       // 饰品命令
       const skinCmds = skins.value
-        .filter(s => match(s.name) || match(s.category))
+        .filter(s => match(skinSearchText(s)) || match(s.category) || match(categoryLabel(s.category)))
         .slice(0, 8)
         .map(s => ({
           id: `skin-${s.id}`,
           icon: s.image,
-          title: s.name,
-          subtitle: `${s.category} · $${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
+          title: skinDisplayName(s),
+          subtitle: `${categoryLabel(s.category)} · $${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
           kbd: '',
           action: () => { viewSkin(s.id); },
         }));
@@ -4386,7 +4484,8 @@ const app = createApp({
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
-      filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      filterCategory, categoryKeys, categoryMap, categoryLabel, skinDisplayName, wearLabel,
+      rarityLabel, rarityColor, rarityStyle, filteredSkins,
       visibleSkins, hasMoreSkins, remainingSkins, showMoreSkins,
       marketLiveQuotes, marketLiveLoading, refreshMarketLive,
       skinSearch, skinSort, marketPulse, formatChange, formatVolume,
@@ -4479,7 +4578,7 @@ const showErrorToast = (title, subtitle = '') => {
 // Vue 组件错误处理
 app.config.errorHandler = (err, instance, info) => {
   console.error('[Vue Error]', err, info);
-  showErrorToast('组件渲染出错', String(err.message || err).slice(0, 80));
+  showErrorToast(t('error.title'), String(err.message || err).slice(0, 80));
 };
 
 // 未捕获的 JS 错误
@@ -4487,13 +4586,13 @@ window.addEventListener('error', (e) => {
   console.error('[Window Error]', e.error);
   // 避免在某些已知错误上刷屏 (CDN 加载失败等)
   if (e.message && e.message.includes('Script error')) return;
-  showErrorToast('运行时错误', String(e.message || '').slice(0, 80));
+  showErrorToast(t('error.runtime'), String(e.message || '').slice(0, 80));
 });
 
 // 未处理的 Promise 拒绝
 window.addEventListener('unhandledrejection', (e) => {
   console.error('[Unhandled Rejection]', e.reason);
-  showErrorToast('异步操作失败', String(e.reason?.message || e.reason || '').slice(0, 80));
+  showErrorToast(t('error.async'), String(e.reason?.message || e.reason || '').slice(0, 80));
   e.preventDefault();
 });
 

@@ -77,7 +77,7 @@ def weapon_to_category(weapon: str) -> str:
 RARITY_RANK = {
     "consumer": 1, "industrial": 2, "milspec": 3, "mil-spec": 3,
     "restricted": 4, "classified": 5, "covert": 6,
-    "contraband": 7, "knife": 7, "gloves": 7, "rare": 7,
+    "contraband": 7, "extraordinary": 7, "knife": 7, "gloves": 7, "rare": 7,
 }
 
 def rarity_to_rank(rarity: str) -> int:

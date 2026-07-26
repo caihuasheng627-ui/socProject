@@ -219,6 +219,7 @@ def _skin_to_dict(conn, row) -> dict:
         "volume24h": vol24,
         "liquidity": liquidity,
         "rarity": row["rarity_rank"],
+        "rarityName": row["rarity"] or "",
         "image": "🎮",
         # Steam CDN 饰品主图 base URL(无尺寸后缀);前端拼 /360fx360f 显示,缺失回落 emoji
         "imageUrl": row["image_url"] or None,
