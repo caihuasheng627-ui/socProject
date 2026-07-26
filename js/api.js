@@ -652,8 +652,8 @@ class CSVestAPI {
       () => this._fetch('/api/portfolio/diagnose', { method: 'POST' }),
       () => ({
         empty: true,
-        summary: '离线演示：请连接后端以获取组合诊断。',
-        aiSummary: '离线演示：请连接后端以获取组合诊断。',
+        summary: 'Offline demo: connect the backend to run portfolio diagnosis.',
+        aiSummary: 'Offline demo: connect the backend to run portfolio diagnosis.',
         valueRange: null,
         adjustments: [],
         riskTopN: [],
