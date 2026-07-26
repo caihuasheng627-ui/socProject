@@ -1712,9 +1712,10 @@ const app = createApp({
         chatMode.value = 'debate';
         chatAgentSession.value = null;
       }
+      const skinLabel = skin?.name || skin?.market_hash_name || skinId;
       const prompt = action === 'predict'
-        ? `Forecast the price trend of ${label} over the next 7 days`
-        : `Ask Bull, Bear and Judge to assess whether I should choose ${label}`;
+        ? `Forecast the price trend of ${skinLabel} over the next 7 days`
+        : `Ask Bull, Bear and Judge to assess whether I should choose ${skinLabel}`;
       await nextTick();
       return sendMessage(prompt, { action, skinId });
     };
@@ -2403,6 +2404,33 @@ const app = createApp({
       if (mode === 'debate') chatAgentSession.value = null;
     };
 
+    // 辩论增强：轮次计数 + 复制结论
+    const debateTotalRounds = computed(() => {
+      const session = chatAgentSession.value;
+      if (!session?.rounds) return 0;
+      return session.rounds.length;
+    });
+
+    const copyDebateResult = async (msg) => {
+      const debate = msg?.debate;
+      if (!debate) return;
+      const round = debate.debateRound || (debate.rounds?.[debate.rounds.length - 1]);
+      const judge = round?.judge || {};
+      const lines = [
+        `=== CSVest Debate: ${debate.skin || 'N/A'} ===`,
+        `Consensus: ${debate.consensus || 'N/A'}`,
+        '',
+        judge.recommendation ? `Judge Recommendation:\n${judge.recommendation}` : '',
+        judge.decision ? `Decision: ${judge.decision}` : '',
+        judge.confidence != null ? `Confidence: ${(judge.confidence * 100).toFixed(0)}%` : '',
+      ].filter(Boolean);
+      try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        if (msg) msg._copied = true;
+        showToast({ title: t('chat.copied') || 'Copied', type: 'success', duration: 2000 });
+      } catch (_) { /* clipboard not available */ }
+    };
+
     const chatNow = () => new Date().toLocaleTimeString(
       currentLang.value === 'zh-CN' ? 'zh-CN' : 'en-US',
       { hour: '2-digit', minute: '2-digit' }
@@ -2480,7 +2508,9 @@ const app = createApp({
           ? skins.value.find(s => s.id === requestOptions.skinId)
           : null);
         if (!text && skin) {
-          text = `Ask Bull, Bear and Judge to assess whether I should choose ${skin.name}`;
+          text = currentLang.value === 'zh-CN'
+            ? `请让 Bull、Bear 和 Judge 评估我是否应该选择 ${skin.name}`
+            : `Ask Bull, Bear and Judge to assess whether I should choose ${skin.name}`;
         }
         if (!text && !chatAgentSession.value && !skin) {
           chatMessages.value.push({
@@ -2545,6 +2575,14 @@ const app = createApp({
           assistantMsg.payload = response || null;
           if (response?.runtime) aiRuntime.value = response.runtime;
           assistantMsg.model = responseModelLabel(response);
+          // 辩论降级/错误反馈
+          if (response?.error) {
+            assistantMsg.content = response.error;
+            assistantMsg.kind = 'error';
+            assistantMsg.model = '⚠ Debate Error';
+          } else if (response?.runtime?.agents?.mode === 'degraded') {
+            assistantMsg.kind = 'degraded';
+          }
           if (response?.agentSession) {
             chatAgentSession.value = response.agentSession;
             if (response.agentSession.userProfile) {
@@ -2552,12 +2590,23 @@ const app = createApp({
               chatRiskLevel.value = response.agentSession.userProfile.risk_level || chatRiskLevel.value;
             }
           }
-          if (response?.rounds && !response?.debateRound) {
+          // 渲染多轮辩论卡片（兼容同时有 rounds 和 debateRound 的情况）
+          if (response?.rounds) {
             assistantMsg.type = 'debate';
             assistantMsg.debate = {
               skin: response.skin || response.skinName || '',
               currentPrice: response.currentPrice,
               rounds: response.rounds,
+              consensus: response.consensus,
+              debateRound: response.debateRound,
+            };
+          } else if (response?.debateRound) {
+            assistantMsg.type = 'debate';
+            assistantMsg.debate = {
+              skin: response.skin || '',
+              currentPrice: response.currentPrice,
+              rounds: [],
+              debateRound: response.debateRound,
               consensus: response.consensus,
             };
           }
@@ -4280,6 +4329,7 @@ const app = createApp({
       chatMode, setChatMode, canSendChat,
       chatAgentSession, chatBudget, chatRiskLevel,
       latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
+      debateTotalRounds, copyDebateResult,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
       regenerateDailyReport, exportDailyReport,

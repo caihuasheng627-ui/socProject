@@ -84,6 +84,14 @@ def debate(
         return {"error": "skin not found", "skinId": skin_id}
     except ValueError as exc:
         return {"error": str(exc), "skinId": skin_id}
+    except Exception as exc:  # noqa: BLE001 — LLM 网络/超时等不可控异常
+        import logging
+        logging.getLogger(__name__).exception("debate failed for %s", skin_id)
+        return {
+            "error": f"debate engine error: {type(exc).__name__}",
+            "skinId": skin_id,
+            "fallback_mode": "structured_mock",
+        }
 
     execution_mode = "live" if live and LLM_ENABLED else "structured_mock"
     return outcome_to_api(

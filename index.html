@@ -1309,29 +1309,48 @@
                     <div class="chat-debate-header">
                       <strong>{{ t('prediction.debateTitle') }}</strong>
                       <span class="tag tag-orange">{{ msg.debate.skin || '' }}</span>
+                      <span v-if="debateTotalRounds" class="debate-round-counter">
+                        {{ debateTotalRounds }} {{ t('chat.rounds') || 'rounds' }}
+                      </span>
+                      <button class="debate-copy-btn" @click="copyDebateResult(msg)" :class="{ copied: msg._copied }">
+                        {{ msg._copied ? '✓' : '⧉' }} {{ t('chat.copy') || 'Copy' }}
+                      </button>
+                    </div>
+                    <div v-if="msg.kind === 'error'" class="debate-error-badge">
+                      ⚠ {{ msg.content }}
+                    </div>
+                    <div v-if="msg.kind === 'degraded'" class="debate-error-badge" style="background: rgba(201,162,39,0.12); border-color: rgba(201,162,39,0.25); color: var(--accent-yellow);">
+                      ⚠ {{ t('chat.degraded') || 'Debated in local fallback mode — results are heuristic, not LLM-driven.' }}
                     </div>
                     <div class="text-muted text-sm mb-3">{{ t('prediction.debateDesc') }}</div>
                     <div class="debate-rounds">
-                      <div v-for="(round, rIdx) in msg.debate.rounds" :key="rIdx" class="debate-round">
+                      <div v-for="(round, rIdx) in (msg.debate.debateRound ? [msg.debate.debateRound] : msg.debate.rounds)" :key="rIdx" class="debate-round" :data-agent="round.judge ? 'judge' : 'bull'">
                         <div class="debate-round-title">
-                          <span>Round {{ round.round }}</span>
-                          <span>·</span>
-                          <span>{{ t('prediction.debate.r' + (rIdx + 1)) }}</span>
+                          <span class="debate-round-counter">R{{ round.round || rIdx + 1 }}</span>
+                          <span v-if="round.round && debateTotalRounds">/ {{ debateTotalRounds }}</span>
                         </div>
-                        <div class="debate-message debate-bull">
-                          <span class="debate-icon">
-                            <i class="ph-duotone ph-trend-up" style="color: var(--accent-green); font-size: 18px;" aria-hidden="true"></i>
-                          </span>
+                        <div v-if="round.bull" class="debate-message debate-bull">
+                          <span class="debate-agent-badge bull">🐂 Bull</span>
                           <span style="flex: 1;">{{ round.bull }}</span>
                         </div>
-                        <div class="debate-message debate-bear">
-                          <span class="debate-icon">
-                            <i class="ph-duotone ph-trend-down" style="color: var(--accent-red); font-size: 18px;" aria-hidden="true"></i>
-                          </span>
+                        <div v-if="round.bear" class="debate-message debate-bear">
+                          <span class="debate-agent-badge bear">🐻 Bear</span>
                           <span style="flex: 1;">{{ round.bear }}</span>
                         </div>
+                        <div v-if="round.judge" class="debate-judge">
+                          <div class="debate-message" style="background: none; border: none; padding: 0;">
+                            <span class="debate-agent-badge judge">⚖ Judge</span>
+                            <span style="flex: 1;">
+                              <strong v-if="round.judge.decision">{{ round.judge.decision }}</strong>
+                              <span v-if="round.judge.confidence != null" class="text-muted text-sm ml-2">
+                                {{ (round.judge.confidence * 100).toFixed(0) }}%
+                              </span>
+                              <div v-if="round.judge.recommendation" class="mt-1">{{ round.judge.recommendation }}</div>
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div class="chat-debate-consensus">
+                      <div v-if="msg.debate.consensus" class="chat-debate-consensus">
                         <div class="text-muted text-sm mb-3">{{ t('prediction.consensus.title') }}</div>
                         <div class="grid grid-2 gap-3 mb-3">
                           <div>

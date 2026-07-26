@@ -370,7 +370,7 @@ class AIOrchestrator:
 
         if intent == "debate":
             profile = UserProfile(
-                budget=budget, horizon_days=7, risk_level=risk_level, locale=locale
+                budget=budget, horizon_days=horizon_days, risk_level=risk_level, locale=locale
             )
             session = self.session_service.create(
                 skin["skinId"], user_profile=profile, rounds=1

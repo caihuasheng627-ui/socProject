@@ -4813,44 +4813,94 @@ i.ph-duotone {
   border-color: var(--border-light);
 }
 
-/* ============ 辩论卡片 ============ */
+/* ============ 辩论增强样式（agent 色条 + judge + 轮次计数） ============ */
 .debate-round {
-  background: var(--gradient-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 18px;
+  position: relative;
+  overflow: hidden;
 }
 
-.debate-round-title {
-  font-size: 12px;
+.debate-round::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+}
+
+.debate-round[data-agent='bull']::before { background: var(--accent-green); }
+.debate-round[data-agent='bear']::before { background: var(--accent-red); }
+.debate-round[data-agent='judge']::before { background: var(--accent-yellow); }
+
+.debate-agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.debate-agent-badge.bull { background: rgba(61,154,110,0.15); color: var(--accent-green); }
+.debate-agent-badge.bear { background: rgba(214,90,90,0.15); color: var(--accent-red); }
+.debate-agent-badge.judge { background: rgba(201,162,39,0.15); color: var(--accent-yellow); }
+
+.debate-judge {
+  background: linear-gradient(135deg, rgba(201,162,39,0.08), rgba(201,162,39,0.02));
+  border: 1px solid rgba(201,162,39,0.18);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+
+.debate-round-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  margin-bottom: 14px;
-  display: flex;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated);
+}
+
+.debate-error-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-xs);
+  background: rgba(214,90,90,0.12);
+  border: 1px solid rgba(214,90,90,0.25);
+  color: var(--accent-red);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
-.debate-message {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  line-height: 1.7;
+.debate-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
-
-.debate-bull {
-  background: var(--gradient-bull);
-  border: 1px solid rgba(34, 199, 146, 0.15);
+.debate-copy-btn:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
-
-.debate-bear {
-  background: var(--gradient-bear);
-  border: 1px solid rgba(247, 85, 85, 0.15);
+.debate-copy-btn.copied {
+  color: var(--accent-green);
+  border-color: rgba(61,154,110,0.3);
 }
 
 /* ============ 表单 ============ */
