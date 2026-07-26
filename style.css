@@ -5220,86 +5220,194 @@ i.ph-duotone {
 .toast-title { font-weight: 500; }
 .toast-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-/* ============ 首次加载遮罩 ============ */
+/* ============ 启动遮罩（真实预加载进度） ============ */
 .app-loader {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeOut 0.4s ease 0.2s forwards;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 35%, rgba(255, 107, 0, 0.16), transparent 58%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(20, 12, 8, 0.9), #07060a 72%),
+    #07060a;
+  color: #f2efe9;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.app-loader.is-leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .app-loader.hidden {
   display: none;
 }
 
-@keyframes fadeOut {
-  to { opacity: 0; visibility: hidden; }
+.loader-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(125deg, transparent 40%, rgba(255, 140, 64, 0.06) 50%, transparent 60%);
+  background-size: 220% 220%;
+  animation: loaderSheen 4.5s ease-in-out infinite;
+}
+
+@keyframes loaderSheen {
+  0% { background-position: 100% 40%; opacity: 0.55; }
+  50% { background-position: 0% 60%; opacity: 1; }
+  100% { background-position: 100% 40%; opacity: 0.55; }
 }
 
 .loader-content {
+  position: relative;
+  z-index: 1;
   text-align: center;
-  max-width: 320px;
-  padding: 0 20px;
+  width: min(340px, calc(100vw - 48px));
+  padding: 8px 8px 0;
+  animation: loaderRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes loaderRise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loader-mark {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+}
+
+.loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 107, 0, 0.35);
+  animation: loaderPulse 2.2s ease-out infinite;
+}
+
+.loader-ring--delay {
+  animation-delay: 0.7s;
+  border-color: rgba(255, 140, 64, 0.22);
+}
+
+@keyframes loaderPulse {
+  0% { transform: scale(0.72); opacity: 0.85; }
+  70% { transform: scale(1.18); opacity: 0; }
+  100% { transform: scale(1.18); opacity: 0; }
 }
 
 .loader-logo {
-  font-size: 64px;
-  margin-bottom: 16px;
-  animation: bounceIn 0.6s ease, pulse 2s ease 0.6s infinite;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #ff8c40;
+  background:
+    linear-gradient(160deg, rgba(255, 107, 0, 0.18), rgba(255, 107, 0, 0.04)),
+    rgba(16, 14, 18, 0.88);
+  border: 1px solid rgba(255, 107, 0, 0.28);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  animation: loaderLogoIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes bounceIn {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(1); }
+@keyframes loaderLogoIn {
+  from { opacity: 0; transform: scale(0.86); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .loader-title {
-  font-size: 24px;
-  font-weight: 700;
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-family: "Instrument Serif", "Noto Serif SC", Georgia, serif;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f6f3ee;
   margin-bottom: 6px;
 }
 
 .loader-subtitle {
+  font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
   font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 2px;
-  margin-bottom: 24px;
+  font-weight: 500;
+  color: rgba(242, 239, 233, 0.48);
+  letter-spacing: 0.18em;
+  margin-bottom: 28px;
 }
 
 .loader-bar {
-  width: 200px;
+  width: 100%;
   height: 3px;
-  background: var(--bg-tertiary);
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
   overflow: hidden;
-  margin: 0 auto 16px;
+  margin: 0 auto 14px;
 }
 
 .loader-bar-fill {
   height: 100%;
-  background: var(--gradient-primary);
-  border-radius: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, #ff6b00, #ffb060);
+  border-radius: 999px;
+  transition: width 0.28s ease;
+  box-shadow: 0 0 16px rgba(255, 107, 0, 0.35);
+}
+
+.loader-bar-fill:not(.is-driven) {
   animation: loaderBar 1.5s ease infinite;
 }
 
 @keyframes loaderBar {
-  0% { transform: translateX(-100%); width: 40%; }
-  50% { width: 60%; }
-  100% { transform: translateX(250%); width: 40%; }
+  0% { transform: translateX(-100%); width: 36%; }
+  50% { width: 52%; }
+  100% { transform: translateX(280%); width: 36%; }
+}
+
+.loader-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 1.2em;
 }
 
 .loader-text {
+  font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
   font-size: 12px;
-  color: var(--text-muted);
+  color: rgba(242, 239, 233, 0.55);
+  text-align: left;
+}
+
+.loader-pct {
+  font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: rgba(255, 140, 64, 0.85);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-atmosphere,
+  .loader-ring,
+  .loader-content,
+  .loader-logo,
+  .loader-bar-fill:not(.is-driven) {
+    animation: none !important;
+  }
+
+  .app-loader {
+    transition: none;
+  }
 }
 
 /* ============ 首屏 Landing (CSVest 品牌色 + 动效) ============ */
@@ -5982,9 +6090,15 @@ i.ph-duotone {
   background-repeat: no-repeat;
   filter: saturate(1.08) contrast(1.05);
   pointer-events: none;
-  opacity: calc(0.22 + var(--reveal, 0.45) * 0.22);
+  opacity: 0;
   transform: scale(calc(1.08 - var(--reveal, 0.45) * 0.04)) translate3d(0, calc(var(--reveal-y, 0) * -18px), 0);
   will-change: transform, opacity;
+  transition: opacity 0.55s ease;
+  background-color: #0c0b10;
+}
+
+.landing-section-bg.is-ready {
+  opacity: calc(0.22 + var(--reveal, 0.45) * 0.22);
 }
 
 .landing-section-veil {

@@ -46,11 +46,41 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260726-debate-ui" />
+  <link rel="stylesheet" href="style.css?v=20260726-boot" />
+
+  <!-- 首屏英雄图优先拉取，缩短白屏等待 -->
+  <link rel="preload" as="image" href="assets/landing/scene-ak-fireserpent.png" fetchpriority="high" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
 <body>
+  <!-- 启动遮罩：在 Vue 之外尽早渲染，绑定真实图片预加载进度 -->
+  <div id="app-loader" class="app-loader" aria-busy="true" aria-live="polite">
+    <div class="loader-atmosphere" aria-hidden="true"></div>
+    <div class="loader-content">
+      <div class="loader-mark" aria-hidden="true">
+        <span class="loader-ring"></span>
+        <span class="loader-ring loader-ring--delay"></span>
+        <span class="loader-logo">
+          <svg width="40" height="40" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path opacity="0.35" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
+            <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
+          </svg>
+        </span>
+      </div>
+      <div class="loader-title">CSVest</div>
+      <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
+      <div class="loader-bar" aria-hidden="true">
+        <div id="boot-progress-fill" class="loader-bar-fill" style="width:0%"></div>
+      </div>
+      <div class="loader-meta">
+        <span id="boot-status" class="loader-text">Warming up the arsenal…</span>
+        <span id="boot-pct" class="loader-pct">0%</span>
+      </div>
+    </div>
+  </div>
+  <script src="js/boot-loader.js?v=20260726-boot"></script>
+
   <a href="#main-content" class="skip-link">{{ t('shortcut.dashboard') }}</a>
 
   <!-- 屏幕阅读器公告区域 -->
@@ -58,24 +88,6 @@
   <div id="aria-live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
 
   <div id="app">
-    <!-- 首次加载遮罩 -->
-    <div id="app-loader" class="app-loader">
-      <div class="loader-content">
-        <div class="loader-logo" style="color: var(--accent-orange);">
-          <svg width="56" height="56" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
-            <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
-          </svg>
-        </div>
-        <div class="loader-title">CSVest</div>
-        <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
-        <div class="loader-bar">
-          <div class="loader-bar-fill"></div>
-        </div>
-        <div class="loader-text">Loading market data · ML models · RAG knowledge base...</div>
-      </div>
-    </div>
-
     <!-- ============ 首屏 Landing ============ -->
     <section
       v-if="showLanding && !showAdmin"
@@ -166,7 +178,7 @@
 
       <!-- 板块一：价格预测 · M4A1-S Printstream -->
       <section id="landing-forecast" class="landing-section landing-section--stage" data-skin="M4A1-S | Printstream">
-        <div class="landing-section-bg" style="background-image:url('assets/landing/section-m4-printstream.png')" aria-hidden="true"></div>
+        <div class="landing-section-bg" data-bg="assets/landing/section-m4-printstream.png" aria-hidden="true"></div>
         <div class="landing-section-veil" aria-hidden="true"></div>
         <div class="landing-section-inner">
           <p class="landing-skin-badge">M4A1-S | Printstream · FT</p>
@@ -202,7 +214,7 @@
 
       <!-- 板块二：双 Agent 辩论 · Deagle Printstream -->
       <section id="landing-debate" class="landing-section landing-section--stage" data-skin="Desert Eagle | Printstream">
-        <div class="landing-section-bg" style="background-image:url('assets/landing/section-deagle-printstream.png')" aria-hidden="true"></div>
+        <div class="landing-section-bg" data-bg="assets/landing/section-deagle-printstream.png" aria-hidden="true"></div>
         <div class="landing-section-veil" aria-hidden="true"></div>
         <div class="landing-section-inner">
           <p class="landing-skin-badge">Desert Eagle | Printstream · FT</p>
@@ -227,7 +239,7 @@
 
       <!-- 板块三：持仓组合 · Butterfly Northern Forest -->
       <section id="landing-portfolio" class="landing-section landing-section--stage" data-skin="Butterfly Knife | Northern Forest">
-        <div class="landing-section-bg" style="background-image:url('assets/landing/section-butterfly-forest.png')" aria-hidden="true"></div>
+        <div class="landing-section-bg" data-bg="assets/landing/section-butterfly-forest.png" aria-hidden="true"></div>
         <div class="landing-section-veil" aria-hidden="true"></div>
         <div class="landing-section-inner">
           <p class="landing-skin-badge">Butterfly Knife | Northern Forest · FN</p>
@@ -3109,8 +3121,8 @@
   <script src="js/api.js?v=20260726-debate-ui"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
   <script src="js/lucide-icons.js?v=20260726-icons"></script>
-  <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
+  <script src="js/landing-scenes.js?v=20260726-boot"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260726-debate-ui"></script>
+  <script src="app.js?v=20260726-boot"></script>
 </body>
 </html>
