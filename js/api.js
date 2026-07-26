@@ -413,7 +413,7 @@ class CSVestAPI {
     );
   }
 
-  async chat(message, sessionId, onChunk) {
+  async chat(message, sessionId, onChunk, locale = null) {
     if (this.useMock) {
       return this._mockChatStream(message, onChunk);
     }
@@ -424,7 +424,11 @@ class CSVestAPI {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({
+          message,
+          sessionId,
+          locale: locale || localStorage.getItem('sv_lang') || 'zh-CN',
+        }),
       });
 
       if (!response.ok) throw new APIError('对话请求失败', response.status);
@@ -456,6 +460,234 @@ class CSVestAPI {
     }
   }
 
+
+  async orchestrateAI(payload) {
+    if (this.useMock) {
+      return this._mockOrchestrate(payload, { mode: 'mock', reason: 'manual_mock' });
+    }
+    try {
+      const result = await this._fetch('/api/ai/orchestrate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      this.online = true;
+      return result;
+    } catch (err) {
+      console.warn('[API] orchestrate request failed, using explicit fallback:', err.message);
+      this.online = false;
+      return this._mockOrchestrate(payload, {
+        mode: 'degraded',
+        reason: 'request_failed',
+        errorType: err?.name || 'APIError',
+      });
+    }
+  }
+
+  async createAgentSession(payload) {
+    return this._fetch('/api/agent/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        locale: payload.locale || localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  async getAgentSession(sessionId) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  async sendAgentMessage(sessionId, message, targetAgent) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/message`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        targetAgent,
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  async runAgentRound(sessionId, message) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/round`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
+  _mockOrchestrate(payload, fallback = {}) {
+    const message = String(payload.message || '');
+    const action = payload.action || 'auto';
+    const english = payload.locale === 'en-US';
+    const fallbackMode = fallback.mode || 'mock';
+    const runtime = {
+      llm: {
+        mode: fallbackMode,
+        configured: false,
+        provider: 'Local',
+        model: 'browser-fallback',
+        lastError: fallback.errorType || null,
+      },
+      agents: {
+        mode: fallbackMode,
+        bullModel: 'local-fallback',
+        bearModel: 'local-fallback',
+        judgeModel: 'local-fallback',
+      },
+      hybrid: { mode: 'mock', model: 'browser-trend-fallback' },
+    };
+    const pool = window.CSVestData.SKINS_POOL || [];
+    const skin = pool.find(item => item.id === payload.skinId);
+    const wantsRecommendation = action === 'recommend'
+      || /推荐|recommend|suggest/i.test(message);
+    const wantsDebate = action === 'debate'
+      || /辩论|debate|牛熊|多空/i.test(message);
+
+    if (wantsRecommendation) {
+      const budget = Number(payload.budget) || Infinity;
+      const recommendations = pool
+        .filter(item => Number(item.price) <= budget)
+        .sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))
+        .slice(0, 5)
+        .map(item => ({
+          skinId: item.id,
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          change7d: item.change7d || 0,
+          liquidity: item.liquidity || 0,
+          risk: 'medium',
+          score: Math.min(99, 60 + (item.liquidity || 0) * 0.3),
+          reasons: english
+            ? ['Offline demo ranking', 'Start the backend for evidence-based results']
+            : ['离线演示排序', '启动后端后将使用真实市场证据'],
+        }));
+      return Promise.resolve({
+        type: 'recommendation',
+        message: english
+          ? 'This is an offline demo ranking. Start the backend for evidence-based recommendations.'
+          : '当前是离线演示推荐；启动后端后将使用真实市场证据排序。',
+        recommendations,
+        runtime,
+        fallbackReason: fallback.reason || 'manual_mock',
+      });
+    }
+
+    if (action === 'predict' && skin) {
+      return Promise.resolve({
+        type: 'prediction',
+        message: english
+          ? 'An offline demo forecast has been generated.'
+          : '已生成离线演示预测。',
+        skin: { skinId: skin.id, name: skin.name, price: skin.price },
+        prediction: this._mockPredict(skin.id, payload.horizonDays || 7),
+        runtime,
+        fallbackReason: fallback.reason || 'manual_mock',
+      });
+    }
+
+    if (wantsDebate) {
+      const target = skin || pool[0] || { id: 'demo-skin', name: english ? 'Demo Skin' : '演示饰品', price: 100 };
+      return Promise.resolve({
+        type: 'debate',
+        message: english
+          ? `Offline demo debate for ${target.name}. Start the backend for Bull / Bear / Judge live rounds.`
+          : `已生成 ${target.name} 的离线演示辩论。启动后端后可跑 Bull / Bear / Judge 实况。`,
+        agentSession: {
+          sessionId: 'mock-debate-session',
+          userProfile: {
+            horizon_days: payload.horizonDays || 7,
+            risk_level: payload.riskLevel || 'medium',
+            purpose: 'investment',
+            liquidity_priority: 'medium',
+            budget: payload.budget ?? null,
+            loss_tolerance_pct: null,
+          },
+          evidenceGuide: [],
+        },
+        debateRound: {
+          roundNo: 1,
+          userMessage: message,
+          bull: {
+            position: 'bullish',
+            confidence: 68,
+            arguments: [{
+              claim: english ? 'Momentum and liquidity still favor buyers' : '动量与流动性仍偏向买方',
+              explanation: english ? 'Offline demo argument from Bull.' : '离线演示中的多头论点。',
+              decision_impact: english ? 'Supports a small trial entry.' : '支持小仓试探。',
+            }],
+          },
+          bear: {
+            position: 'bearish',
+            confidence: 62,
+            arguments: [{
+              claim: english ? 'Drawdown and thin order books remain risks' : '回撤与簿册深度不足仍是风险',
+              explanation: english ? 'Offline demo argument from Bear.' : '离线演示中的空头论点。',
+              decision_impact: english ? 'Keep position size capped.' : '仓位需要严格上限。',
+            }],
+          },
+          judge: {
+            strategy_action: 'scale_in',
+            confidence: 64,
+            summary: english
+              ? 'Mixed evidence: scale in only with a clear invalidation level.'
+              : '证据分化：仅在有明确失效位时小仓试探。',
+            recommendation: english
+              ? 'Start with a limited position and recheck after 7 days.'
+              : '先以有限仓位试探，7 天后复盘。',
+            key_conflict: english
+              ? 'Bull momentum vs Bear liquidity risk.'
+              : '多头动量与空头流动性风险的冲突。',
+            agreed_facts: [english ? 'Price is near recent range mid.' : '价格接近近期区间中部。'],
+            complementary_views: [english ? 'Combine trend with strict risk caps.' : '把趋势与严格风控结合。'],
+            true_conflicts: [english ? 'Whether liquidity can absorb size.' : '流动性能否承接仓位。'],
+            evidence_verdicts: [english ? 'Momentum supported; depth uncertain.' : '动量成立，深度不确定。'],
+            opportunity_score: 58,
+            risk_score: 54,
+            decision_score: 52,
+            position_size_pct: 15,
+            recheck_after_days: 7,
+            stop_loss: Number(target.price || 100) * 0.92,
+            policy_threshold: english ? 'Medium risk policy' : '中等风险策略',
+            policy_explanation: [english ? 'Caps size when liquidity is unclear.' : '流动性不明时限制仓位。'],
+            entry_strategy: [english ? 'Split entries across two sessions.' : '分两次建仓。'],
+            confidence_basis: [english ? 'Based on mock local rules, not live LLM.' : '基于本地 Mock 规则，非实时 LLM。'],
+            buy_triggers: [english ? 'Hold above support for 24h.' : '支撑位上方站稳 24 小时。'],
+            exit_triggers: [english ? 'Break below stop loss.' : '跌破止损位。'],
+            conditions_to_buy: [],
+            conditions_to_wait: [],
+            alternative_action: english ? 'Wait for a clearer breakout.' : '等待更清晰突破。',
+            profile_fit: english ? 'Fits a medium-risk profile.' : '匹配中等风险画像。',
+            risk_warning: english ? 'Offline demo only.' : '仅离线演示。',
+            user_view_considered: message || (english ? 'No extra user constraint.' : '无额外用户约束。'),
+            changed_from_previous: false,
+            change_summary: english ? 'Initial mock round.' : '初始 Mock 轮次。',
+            reasoning: [english ? 'Local fallback debate completed.' : '本地降级辩论已完成。'],
+          },
+        },
+        runtime,
+        fallbackReason: fallback.reason || 'manual_mock',
+      });
+    }
+
+    return Promise.resolve({
+      type: 'chat',
+      message: english
+        ? (fallback.reason === 'request_failed'
+          ? 'The live backend request failed, so this reply used the browser fallback. Retry after checking the backend log; no DeepSeek result was produced for this message.'
+          : 'The app is using the offline demo assistant. Start the backend for live AI output.')
+        : (fallback.reason === 'request_failed'
+          ? '本次后端实时请求失败，因此明确使用了浏览器降级回复。请检查后端日志后重试；这条消息没有产生 DeepSeek 结果。'
+          : (window.CSVestData.AI_PRESET_RESPONSES.default
+            || '当前为离线演示模式。')),
+      runtime,
+      fallbackReason: fallback.reason || 'manual_mock',
+    });
+  }
+
   async _mockChatStream(message, onChunk) {
     const response = window.CSVestData.AI_PRESET_RESPONSES['default']
       || '抱歉，当前为离线演示模式。请启动后端并关闭 Mock 后重试。';
@@ -467,8 +699,9 @@ class CSVestAPI {
   }
 
   async debate(skinId, mode = 'bull_bear') {
+    const locale = localStorage.getItem('sv_lang') || 'zh-CN';
     return this._safeCall(
-      () => this._fetch(`/api/debate/${skinId}?mode=${mode}`, { method: 'POST' }),
+      () => this._fetch(`/api/debate/${skinId}?mode=${mode}&locale=${encodeURIComponent(locale)}`, { method: 'POST' }),
       () => null
     );
   }
