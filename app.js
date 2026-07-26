@@ -46,7 +46,7 @@ const detectBrowserLang = () => {
 const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
   const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
-  let str = dict[key] || window.I18N['zh-CN']?.[key] || window.I18N['en-US']?.[key] || key;
+  let str = dict[key] || window.I18N['en-US']?.[key] || window.I18N['zh-CN']?.[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
     str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
@@ -1712,15 +1712,9 @@ const app = createApp({
         chatMode.value = 'debate';
         chatAgentSession.value = null;
       }
-      const label = skin?.name || skinId;
-      const english = currentLang.value === 'en-US';
       const prompt = action === 'predict'
-        ? (english
-          ? `Forecast the price trend of ${label} over the next 7 days`
-          : `预测 ${label} 未来 7 天的价格走势`)
-        : (english
-          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
-          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
+        ? `Forecast the price trend of ${label} over the next 7 days`
+        : `Ask Bull, Bear and Judge to assess whether I should choose ${label}`;
       await nextTick();
       return sendMessage(prompt, { action, skinId });
     };
@@ -2394,8 +2388,8 @@ const app = createApp({
       {
         role: 'assistant',
         content: '__WELCOME__',
-        time: '刚刚',
-        model: 'DeepSeek-V3',
+        time: 'Just now',
+        model: 'CSVest AI',
       }
     ]);
     const chatInput = ref('');
@@ -2409,7 +2403,10 @@ const app = createApp({
       if (mode === 'debate') chatAgentSession.value = null;
     };
 
-    const chatNow = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const chatNow = () => new Date().toLocaleTimeString(
+      currentLang.value === 'zh-CN' ? 'zh-CN' : 'en-US',
+      { hour: '2-digit', minute: '2-digit' }
+    );
 
     const SKIN_ALIASES = [
       { keys: ['火蛇', 'fireserpent', 'fire serpent', 'ak47-fireserpent'], idHint: 'fireserpent' },
@@ -2480,9 +2477,7 @@ const app = createApp({
           ? skins.value.find(s => s.id === requestOptions.skinId)
           : null);
         if (!text && skin) {
-          text = currentLang.value === 'en-US'
-            ? `Ask Bull, Bear and Judge to assess whether I should choose ${skin.name}`
-            : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${skin.name}`;
+          text = `Ask Bull, Bear and Judge to assess whether I should choose ${skin.name}`;
         }
         if (!text && !chatAgentSession.value && !skin) {
           chatMessages.value.push({

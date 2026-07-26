@@ -427,7 +427,7 @@ class CSVestAPI {
         body: JSON.stringify({
           message,
           sessionId,
-          locale: locale || localStorage.getItem('sv_lang') || 'zh-CN',
+          locale: locale || localStorage.getItem('sv_lang') || 'en-US',
         }),
       });
 
@@ -488,7 +488,7 @@ class CSVestAPI {
       method: 'POST',
       body: JSON.stringify({
         ...payload,
-        locale: payload.locale || localStorage.getItem('sv_lang') || 'zh-CN',
+        locale: payload.locale || localStorage.getItem('sv_lang') || 'en-US',
       }),
     });
   }
@@ -503,7 +503,7 @@ class CSVestAPI {
       body: JSON.stringify({
         message,
         targetAgent,
-        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+        locale: localStorage.getItem('sv_lang') || 'en-US',
       }),
     });
   }
@@ -513,7 +513,7 @@ class CSVestAPI {
       method: 'POST',
       body: JSON.stringify({
         message,
-        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+        locale: localStorage.getItem('sv_lang') || 'en-US',
       }),
     });
   }
@@ -699,7 +699,7 @@ class CSVestAPI {
   }
 
   async debate(skinId, mode = 'bull_bear') {
-    const locale = localStorage.getItem('sv_lang') || 'zh-CN';
+    const locale = localStorage.getItem('sv_lang') || 'en-US';
     return this._safeCall(
       () => this._fetch(`/api/debate/${skinId}?mode=${mode}&locale=${encodeURIComponent(locale)}`, { method: 'POST' }),
       () => null
