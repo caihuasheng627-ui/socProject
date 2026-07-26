@@ -584,19 +584,25 @@ class CSVestAPI {
     return this._fetch(`/api/news/fetch?${qs}`, { method: 'POST', body: '{}' });
   }
 
-  async getDailyReport(date, { refresh = false } = {}) {
+  async getDailyReport(date, { refresh = false, locale } = {}) {
+    const lang = locale || localStorage.getItem('sv_lang') || 'zh-CN';
     const params = new URLSearchParams();
     if (date) params.set('date', date);
     if (refresh) params.set('refresh', '1');
+    params.set('locale', lang);
     const qs = params.toString();
+    const english = String(lang).toLowerCase().startsWith('en');
     return this._safeCall(
       () => this._fetch(`/api/daily-report${qs ? `?${qs}` : ''}`),
       () => ({
         date: date || new Date().toISOString().slice(0, 10),
         generatedAt: new Date().toISOString(),
+        locale: english ? 'en-US' : 'zh-CN',
         metrics: { monitored: 20, gainers: 14, losers: 6 },
         hotVolume: window.CSVestData.HOT_VOLUME,
-        aiSummary: 'CS2 skin market brief 闁?monitored demo universe is mostly advancing, with breadth skewed constructive [1]. Event calendars and sticker liquidity remain the main near-term drivers; watch post-Major mean reversion [2].\n\nPrefer liquid rifles/SMGs over thin knife/glove books when scaling risk. Skin markets are highly volatile 闁?this is not investment advice.',
+        aiSummary: english
+          ? 'CS2 skin market brief — monitored demo universe is mostly advancing, with breadth skewed constructive [1]. Event calendars and sticker liquidity remain the main near-term drivers; watch post-Major mean reversion [2].\n\nPrefer liquid rifles/SMGs over thin knife/glove books when scaling risk. Skin markets are highly volatile — this is not investment advice.'
+          : 'CS2 饰品市场简报——演示监控样本整体偏多，市场宽度偏暖 [1]。近端主驱动仍是赛程与贴纸流动性；关注 Major 后的均值回归 [2]。\n\n放大仓位时优先高流动性步枪/冲锋枪，回避簿子薄的刀/手套。饰品市场波动剧烈——以上内容不构成投资建议。',
         sources: this._mockRagSources(),
         news: window.CSVestData.NEWS_FEED,
       })
@@ -643,6 +649,60 @@ class CSVestAPI {
   }
 
   */
+
+  _mockRagSources() {
+    const news = (window.CSVestData?.NEWS_FEED || []).slice(0, 4);
+    const kb = [
+      {
+        type: 'kb',
+        title: 'CS2 市场知识库 · Major 与价格',
+        source: 'kb',
+        snippet: 'Major 前后 7–14 天，高曝光步枪/贴纸流动性通常上升；赛后常见均值回归。StatTrak 因供给更少，相对同款常有 1.5–3× 溢价，但买卖价差也更大。',
+        score: 3,
+        relevance: 1,
+      },
+      {
+        type: 'kb',
+        title: 'CS2 市场知识库 · 磨损与流动性',
+        source: 'kb',
+        snippet: 'FN/MW 溢价更高、簿子更薄；FT 往往流动性最好。刀/手套成交稀疏时价差扩大，短线预测噪声更大。',
+        score: 2,
+        relevance: 0.67,
+      },
+    ];
+    const newsSrc = news.map((n, i) => ({
+      type: 'news',
+      title: n.title,
+      snippet: n.summary || n.title,
+      source: n.source || 'news',
+      date: n.time || n.published_at || null,
+      sentiment: n.sentiment,
+      url: n.url || null,
+      score: Math.max(1, 2 - i * 0.5),
+      relevance: Math.max(0.2, 0.9 - i * 0.2),
+    }));
+    return [...kb, ...newsSrc].map((s, i) => ({ ...s, id: i + 1 }));
+  }
+
+  async ragAsk(query, topK = 5) {
+    return this._safeCall(
+      () => this._fetch('/api/rag/ask', {
+        method: 'POST',
+        body: JSON.stringify({ query, topK }),
+      }),
+      () => {
+        const sources = this._mockRagSources().slice(0, topK);
+        const q = String(query || '');
+        return {
+          query: q,
+          answer: `（离线演示）根据知识库摘要：与「${q}」相关的常见因素包括赛事日程、StatTrak 稀缺溢价、磨损档位与流动性 [1][2]。饰品市场波动大，以上不构成投资建议。`,
+          sources,
+          retrieval: { mode: 'keyword', provider: 'mock', model: null, enabled: false },
+        };
+      }
+    );
+  }
+
   _mockAlerts() {
     if (this._alerts) return this._alerts;
     this._alerts = [

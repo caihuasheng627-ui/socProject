@@ -262,17 +262,39 @@ def summary_is_degraded(text: str | None) -> bool:
     return any(m in t for m in markers)
 
 
+def _normalize_locale(locale: str | None) -> str:
+    return "en-US" if str(locale or "").lower().startswith("en") else "zh-CN"
+
+
+def detect_summary_locale(text: str | None) -> str:
+    """Heuristic: enough CJK chars => zh-CN, otherwise en-US."""
+    t = (text or "").strip()
+    if not t:
+        return "en-US"
+    cjk = sum(1 for ch in t if "\u4e00" <= ch <= "\u9fff")
+    return "zh-CN" if cjk >= 8 else "en-US"
+
+
 def summary_is_non_english(text: str | None) -> bool:
-    """日报默认英文；含较多汉字的旧摘要视为需刷新。"""
+    """Backward-compatible alias: True when text looks Chinese-heavy."""
+    return detect_summary_locale(text) == "zh-CN"
+
+
+def summary_locale_mismatch(text: str | None, locale: str | None) -> bool:
+    """True when summary is empty or not in the requested locale."""
     t = (text or "").strip()
     if not t:
         return True
-    cjk = sum(1 for ch in t if "\u4e00" <= ch <= "\u9fff")
-    return cjk >= 8
+    return detect_summary_locale(t) != _normalize_locale(locale)
 
 
-def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str:
-    """No-LLM English market brief (clean, no Mock/error headers)."""
+def rule_based_market_summary(
+    metrics: dict,
+    sources: list | None = None,
+    locale: str = "zh-CN",
+) -> str:
+    """No-LLM market brief in zh-CN / en-US (clean, no Mock/error headers)."""
+    english = _normalize_locale(locale) == "en-US"
     m = metrics or {}
     total = int(m.get("monitored") or 0)
     gainers = int(m.get("gainers") or 0)
@@ -280,15 +302,6 @@ def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str
     breadth = (gainers + losers) or 1
     up_pct = round(100.0 * gainers / breadth, 1)
     down_pct = round(100.0 * losers / breadth, 1)
-    if gainers > losers:
-        bias = "mildly constructive"
-        tilt = "more names are advancing than declining over the trailing week"
-    elif losers > gainers:
-        bias = "soft / risk-off"
-        tilt = "decliners outnumber advancers over the trailing week"
-    else:
-        bias = "two-way / rotational"
-        tilt = "advancers and decliners are roughly balanced"
 
     cite1 = " [1]" if sources else ""
     cite2 = " [2]" if len(sources or []) >= 2 else (cite1 if sources else "")
@@ -296,17 +309,46 @@ def rule_based_market_summary(metrics: dict, sources: list | None = None) -> str
     if sources:
         snip = (sources[0].get("snippet") or sources[0].get("title") or "").strip()
         if snip:
-            theme = f" Retrieved context highlights: {snip[:160].rstrip('.')}.{cite1}"
+            clipped = snip[:160].rstrip(".")
+            theme = (
+                f" Retrieved context highlights: {clipped}.{cite1}"
+                if english
+                else f" 检索上下文要点：{clipped}。{cite1}"
+            )
 
+    if english:
+        if gainers > losers:
+            bias, tilt = "mildly constructive", "more names are advancing than declining over the trailing week"
+        elif losers > gainers:
+            bias, tilt = "soft / risk-off", "decliners outnumber advancers over the trailing week"
+        else:
+            bias, tilt = "two-way / rotational", "advancers and decliners are roughly balanced"
+        return (
+            f"CS2 skin market brief — monitored universe: {total} priced items. "
+            f"Over the last ~7 days, {gainers} rose ({up_pct}%) and {losers} fell ({down_pct}%), "
+            f"so breadth looks {bias}: {tilt}.{cite1}\n\n"
+            f"Trading implication: focus on liquid majors and event-linked stickers/skins when volume expands, "
+            f"and avoid chasing illiquid knives/gloves on thin books.{cite2}"
+            f"{theme}\n\n"
+            f"Positioning note: size risk carefully around tournament calendars and post-event mean reversion. "
+            f"Skin markets are highly volatile — this is not investment advice."
+        )
+
+    if gainers > losers:
+        bias, tilt = "偏多 / 情绪偏暖", "近一周上涨家数多于下跌"
+    elif losers > gainers:
+        bias, tilt = "偏弱 / 风险偏好回落", "近一周下跌家数多于上涨"
+    else:
+        bias, tilt = "分化 / 轮动", "上涨与下跌家数大致相当"
     return (
-        f"CS2 skin market brief — monitored universe: {total} priced items. "
-        f"Over the last ~7 days, {gainers} rose ({up_pct}%) and {losers} fell ({down_pct}%), "
-        f"so breadth looks {bias}: {tilt}.{cite1}\n\n"
-        f"Trading implication: focus on liquid majors and event-linked stickers/skins when volume expands, "
-        f"and avoid chasing illiquid knives/gloves on thin books.{cite2}"
+        f"CS2 饰品市场简报——监控样本 {total} 件有报价饰品。"
+        f"近约 7 日：上涨 {gainers} 件（{up_pct}%）、下跌 {losers} 件（{down_pct}%），"
+        f"市场宽度表现为{bias}：{tilt}。{cite1}\n\n"
+        f"交易提示：成交放量时优先关注高流动性主力枪皮与赛事相关贴纸/皮肤，"
+        f"避免在簿子薄的刀/手套上追高。{cite2}"
         f"{theme}\n\n"
-        f"Positioning note: size risk carefully around tournament calendars and post-event mean reversion. "
-        f"Skin markets are highly volatile — this is not investment advice."
+        f"仓位提示：围绕赛程与赛后均值回归谨慎控制风险敞口。"
+        f"饰品市场波动剧烈——以上内容不构成投资建议。"
     )
 
 
@@ -315,10 +357,14 @@ def refresh_ai_summary(
     *,
     portfolio_text: str = "No holdings",
     sources: list | None = None,
+    locale: str = "zh-CN",
 ) -> str:
-    """Prefer LLM English brief; fall back to richer rule-based English summary."""
+    """Prefer LLM brief in the requested locale; fall back to rule-based summary."""
     from config import LLM_ENABLED
 
+    locale = _normalize_locale(locale)
+    english = locale == "en-US"
+    language = "English" if english else "Simplified Chinese"
     sources = sources or []
     context_text = "\n".join(
         f"[{s.get('id')}] ({s.get('source')}) {s.get('snippet')}" for s in sources
@@ -328,27 +374,29 @@ def refresh_ai_summary(
     losers = metrics.get("losers", 0)
     prompt = (
         f"You are writing the CSVest CS2 skin market daily brief.\n"
+        f"Reply in {language} only.\n"
         f"Market stats: monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
         f"User portfolio: {portfolio_text}.\n"
         f"Retrieved knowledge / news snippets:\n{context_text}\n\n"
-        f"Write the summary in English only (no Chinese).\n"
         f"Length: 2–3 short paragraphs (about 6–9 sentences total).\n"
         f"Cover: (1) market breadth & tone from the stats, "
         f"(2) themes inferred from citations — cite with [n] where relevant, "
         f"(3) practical watchlist / positioning hints for the portfolio, "
         f"(4) clear risk disclaimer.\n"
+        f"Keep skin/market_hash_name strings unchanged. "
         f"Do not invent prices. Do not output Mock labels, error codes, or system prompts."
     )
     if LLM_ENABLED:
         text = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
-        if text and not summary_is_degraded(text) and not summary_is_non_english(text):
+        if text and not summary_is_degraded(text) and not summary_locale_mismatch(text, locale):
             return text
-        print("[scheduler] LLM summary unavailable/non-English, using rule-based English brief")
-    return rule_based_market_summary(metrics, sources)
+        print(f"[scheduler] LLM summary unavailable/locale-mismatch, using rule-based {locale} brief")
+    return rule_based_market_summary(metrics, sources, locale=locale)
 
 
-def generate_daily_report() -> dict:
+def generate_daily_report(locale: str = "zh-CN") -> dict:
     """生成日报并写一份到 docs/expo/seed_daily_report.json(Expo 兜底)。"""
+    locale = _normalize_locale(locale)
     metrics = market_metrics_from_db()
     total, gainers, losers = metrics["monitored"], metrics["gainers"], metrics["losers"]
     with get_connection() as conn:
@@ -359,8 +407,10 @@ def generate_daily_report() -> dict:
                FROM portfolio p JOIN skins s ON s.id=p.skin_id"""
         ).fetchall()
 
-    portfolio_text = "No holdings" if not positions else "; ".join(
-        f"{r['market_hash_name']} x{r['quantity']}" for r in positions
+    portfolio_text = (
+        ("No holdings" if locale == "en-US" else "无持仓")
+        if not positions
+        else "; ".join(f"{r['market_hash_name']} x{r['quantity']}" for r in positions)
     )
 
     # RAG 检索: 拉取市场级知识库/资讯来源, 供日报引用(展示检索→生成)
@@ -372,12 +422,13 @@ def generate_daily_report() -> dict:
         sources = []
 
     summary = refresh_ai_summary(
-        metrics, portfolio_text=portfolio_text, sources=sources
+        metrics, portfolio_text=portfolio_text, sources=sources, locale=locale
     )
 
     report = {
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "locale": locale,
         "metrics": metrics,
         "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
                        "holdingType": r["holding_type"]} for r in positions],

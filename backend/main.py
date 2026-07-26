@@ -1071,13 +1071,17 @@ def fetch_news(aggressive: bool = Query(default=True)):
     return {"ok": True, **result}
 
 @app.get("/api/daily-report")
-def daily_report(date: str | None = None, refresh: bool = False):
+def daily_report(
+    date: str | None = None,
+    refresh: bool = False,
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+):
     # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；
-    # aiSummary 若是旧的 Mock/调用失败文案，则现场刷新（LLM 可用则重生成）。
+    # aiSummary 若是旧的 Mock/调用失败文案，或与请求 locale 不符，则现场刷新。
     # refresh=1 时强制重新生成整份日报（「重新生成」按钮）。
     import scheduler
     if refresh:
-        return scheduler.generate_daily_report()
+        return scheduler.generate_daily_report(locale=locale)
 
     live_metrics = scheduler.market_metrics_from_db()
 
@@ -1092,18 +1096,26 @@ def daily_report(date: str | None = None, refresh: bool = False):
                     rep["sources"] = rag.retrieve_daily_sources(limit=6)
                 except Exception:
                     rep["sources"] = []
-            if scheduler.summary_is_degraded(rep.get("aiSummary")) or scheduler.summary_is_non_english(
-                rep.get("aiSummary")
-            ):
+            need_summary_refresh = (
+                scheduler.summary_is_degraded(rep.get("aiSummary"))
+                or scheduler.summary_locale_mismatch(rep.get("aiSummary"), locale)
+            )
+            if need_summary_refresh:
                 portfolio = rep.get("portfolio") or []
-                portfolio_text = "No holdings" if not portfolio else "; ".join(
-                    f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
+                portfolio_text = (
+                    ("No holdings" if str(locale).startswith("en") else "无持仓")
+                    if not portfolio
+                    else "; ".join(
+                        f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
+                    )
                 )
                 rep["aiSummary"] = scheduler.refresh_ai_summary(
                     live_metrics,
                     portfolio_text=portfolio_text,
                     sources=rep.get("sources") or [],
+                    locale=locale,
                 )
+                rep["locale"] = locale
                 try:
                     seed.write_text(
                         json.dumps(rep, ensure_ascii=False, indent=2),
@@ -1111,11 +1123,12 @@ def daily_report(date: str | None = None, refresh: bool = False):
                     )
                 except Exception:
                     pass
+            else:
+                rep["locale"] = locale
             return rep
         except Exception:
             pass
-    return scheduler.generate_daily_report()
-
+    return scheduler.generate_daily_report(locale=locale)
 
 @app.post("/api/rag/ask")
 def rag_ask(req: RagAskReq):

@@ -1,6 +1,7 @@
 {
   "date": "2026-07-26",
-  "generatedAt": "2026-07-26T18:47:52+00:00",
+  "generatedAt": "2026-07-26T20:03:40+00:00",
+  "locale": "zh-CN",
   "metrics": {
     "monitored": 681,
     "gainers": 304,
@@ -43,7 +44,7 @@
       "holdingType": "sim"
     }
   ],
-  "aiSummary": "**Market Overview**  \nThe market shows a slightly bearish tilt: among 681 monitored skins, 304 gained over 7 days while 358 declined, indicating more downward pressure. Near-term catalysts include Valve’s recent wear and texture rework [1][2], which is expected to temporarily boost liquidity but also amplify volatility, especially for affected skins. Additionally, the post-Major window (7–14 days) typically sees a 15–30% volume spike for sticker capsules [3][6], though a subsequent correction is common.\n\n**Thematic Highlights & Portfolio Guidance**  \nThe rework theme [2] may increase short-term trading activity, but high-value items like the ★ Driver Gloves | Rezan the Red (Field-Tested) face lower liquidity and larger price swings [5]—position sizing and exit planning are key. Your other skins (e.g., M4A4 Aeolian Dark, Glock-18 Block-18) are mid-to-low tier, which could see moderate weekend activity but lack strong event catalysts. The post-Major sticker capsule opportunity [3][6] is worth a tactical watch for short-term swings, but avoid holding through the eventual dilution.\n\n**Risk Disclaimer**  \nThis brief is for informational purposes only. CS2 skin prices are highly volatile and influenced by game updates, player sentiment, and speculative flows. Past performance does not guarantee future results. None of this constitutes investment advice.",
+  "aiSummary": "今日CS2皮肤市场整体偏弱，监控681个饰品中7日上涨304个、下跌358个，跌多涨少，市场情绪谨慎。Valve近期更新涉及武器磨损与贴图重做（[1][2]），短期流动性与换手率有所提升，但方向不明；同时Major赛事后7-14天内相关贴纸/胶囊成交量虽曾上升15-30%（[3][6]），目前退潮阶段需警惕回调压力。\n\n您的持仓中，**★ Driver Gloves | Rezan the Red（FT）** 属于高价值饰品，根据近期数据其流动性下降、短期波动可能加大（[5]），建议关注周末跳价风险并避免追高锚定。其余FT/ MW皮肤如**M4A1-S | Emphorosaur-S（MW）**、**MP7 | Fade（MW）**等受贴图重做影响，市场偏好尚在消化，暂以观望为主，可留意低流动性标的在周末的异常价格（[4]），但不宜以极值作为成交参考。\n\n⚠️ 风险声明：CS2皮肤市场为高波动非理性市场，以上分析基于模型与公开信息，不构成投资建议，请自行评估持仓风险。",
   "sources": [
     {
       "type": "news",
@@ -176,7 +177,7 @@
       "method": "hybrid",
       "uid": "news:43:c1",
       "parentUid": "news:43",
-      "vectorScore": 0.5598,
+      "vectorScore": 0.5597,
       "keywordScore": 1.0,
       "relevance": 0.09,
       "id": 8
@@ -201,33 +202,33 @@
   ],
   "news": [
     {
-      "title": "When autocorrect kicks your ass",
-      "summary": "submitted by     /u/MandrewTheMan       [link]       [comments]",
+      "title": "2.84-rated donk Dust2 decider fires Spirit to 13-0 win against 100 Thieves",
+      "summary": "Spirit brushed aside two quiet T sides with a statement on the decider, as they booked their tickets to the Bounty LAN Finals.",
+      "source": "hltv",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "shiro 7.88 rating with 1 ct round vs 100T",
+      "summary": "submitted by     /u/vAgrnX       [link]       [comments]",
       "source": "reddit",
       "sentiment": "neutral"
     },
     {
-      "title": "Is there something like a reverse fraudwatch?",
-      "summary": "submitted by     /u/New_Manufacturer8333       [link]       [comments]",
+      "title": "In the 13-0 win vs 100 Thieves on Dust2, donk has posted a 2.84 rating - his highest-rated map of his entire career",
+      "summary": "submitted by     /u/Vitosi4ek       [link]       [comments]",
       "source": "reddit",
       "sentiment": "neutral"
     },
     {
-      "title": "Hally masterclass (fails) (Donk’s back is sore)",
-      "summary": "submitted by     /u/Several-Smell-2402       [link]       [comments]",
+      "title": "100 Thieves vs Spirit / BLAST Bounty 2026 Season 2 - Stage 2 Round Of 16 / Post-Match Discussion",
+      "summary": "100 Thieves   🇪🇺   1-2   🇷🇺   Spirit     Anubis:  11-13   Mirage:  13-4   Dust2:  0-13          Spirit qualifies for LAN Finals.          Setting :  🇪🇺  Europe ($1.15m Online)    Predicted  VRS  Impact        Team   Rank   Diff   Total           🇪🇺    100 Thieves     #41 → #41   -2 pts   1293 pts        🇷🇺    Spirit     #1 → #1   -2 pts   2022 pts         Note:   VRS   officially   updates   once   per   month.   This   is   simply   a   prediction   that   might   not   take   into   account   all   factors   that   go   into   VRS   calculations.         Map picks:        100 Thieves    MAP    Spirit           X    Cache             Inferno    X         ✔    Anubis             Mirage    ✔         X    Ancient             Nuke    X           Dust2                Full Match Stats:        Team   K-D   ADR   Swing   Rating           🇪🇺   100 Thieves               🇩🇰   sirah    38-31   73.4   +2.83%   1.23        🇳🇴   rain    37-33   73.3   -1.36%   1.00        🇸🇪   poiii    35-38   76.6   -2.42%   0.96        🇩🇰   device    33-33   59.4   +0.18%   0.92        🇬🇧   Gizmy    28-38   65.0   -2.83%   0.79        🇷🇺   Spirit               🇷🇺   donk    59-35   100.5   +4.83%   1.61        🇧🇾   tN1R    29-33   68.3   +0.73%   1.04        🇷🇺   sh1ro    33-31   61.2   +1.37%   1.02        🇺🇦   zont1x    24-36   58.8   -1.19%   0.84        🇷🇺   magixx    28-38   54.9   -2.15%   0.80             Individual Map Stats:   Map 1: Anubis        Team    CT     T    Total           🇪🇺   100 Thieves    6   5   11           T     CT            🇷🇺   Spirit    6   7   13                  Team   K-D   ADR   Swing   Rating           🇪🇺   100 Thieves               🇩🇰   sirah    19-13   80.6   +2.85%   1.32        🇩🇰   device    13-14   59.2   +3.22%   1.11        🇳🇴   rain    17-14   71.7   +0.24%   1.04        🇬🇧   Gizmy    11-17   55.8   -2.87%   0.72        🇸🇪   poiii    9-17   45.8   -4.93%   0.65        🇷🇺   Spirit               🇷🇺   donk    25-13   96.0   +5.83%   1.65        🇧🇾   tN1R ",
       "source": "reddit",
       "sentiment": "neutral"
     },
     {
-      "title": "Why is 75% of all the games above 25k vs wallhackers?",
-      "summary": "It is unplayable.  We are a 5 stack, and are seeing so many wallhackers, they are all horrible at the game, and are not even trying to hide it.       submitted by     /u/Inno-Samsoee       [link]       [comments]",
-      "source": "reddit",
-      "sentiment": "neutral"
-    },
-    {
-      "title": "\"you muted MFer\" on blast stream lol",
-      "summary": "submitted by     /u/Trrenchy       [link]       [comments]",
-      "source": "reddit",
+      "title": "Aurora and magic qualify for StarSeries Fall",
+      "summary": "NIP missed out on both a BLAST Bounty LAN finals spot and a StarSeries Fall spot in the same day.",
+      "source": "hltv",
       "sentiment": "neutral"
     }
   ]

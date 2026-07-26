@@ -1062,7 +1062,10 @@ const app = createApp({
       try {
         const news = await client.getNews({ limit: 40 });
         const items = Array.isArray(news) ? news : (news?.items || []);
-        if (items.length) newsFeed.value = items;
+        if (items.length) {
+          newsFeed.value = items;
+          await localizeDailyHeadlines(currentLang.value);
+        }
       } catch (_) { /* keep mock */ }
     };
 
@@ -1183,11 +1186,104 @@ const app = createApp({
       sources: [],
     });
     const dailyReportLoading = ref(false);
+    const dailyTab = ref('report'); // report | rag
+    const dailySourcesOpen = ref(true);
     const dailyReportLocaleVersions = ref({});
     let dailyReportTranslationRequest = 0;
+    const setDailyTab = (tab) => {
+      dailyTab.value = tab === 'rag' ? 'rag' : 'report';
+    };
     const dailySummaryLocale = (summary) => /[\u3400-\u9fff]/.test(String(summary || ''))
       ? 'zh-CN'
       : 'en-US';
+    // 英文 RSS / 种子标题 → 中文显示缓存（key = 原文 title）
+    const headlineZhCache = ref({});
+    let headlineTranslationRequest = 0;
+    const HEADLINE_ZH_FALLBACK = {
+      'CS2-Bot-Improver v1.4.3: Stickers, Charms & Bot Inspects':
+        'CS2-Bot-Improver v1.4.3：贴纸、挂件与 Bot 检视',
+      'SmokePractice got a big update: Nuke, Cache, better physics and more':
+        'SmokePractice 大更新：Nuke、Cache、更佳物理效果等',
+      "Donk broke his personal Faceit CS2 elo record today. He's now 48 elo away from reclaiming the all-time record from Mail09.":
+        'donk 刷新个人 Faceit CS2 Elo 纪录，距 Mail09 历史纪录仅差 48 分',
+      '2.84-rated donk Dust2 decider fires Spirit to 13-0 win against 100 Thieves':
+        'donk Dust2 决胜图 2.84 评分，Spirit 13-0 横扫 100 Thieves',
+      'shiro 7.88 rating with 1 ct round vs 100T':
+        'shiro 对阵 100T 仅 1 个 CT 回合打出 7.88 评分',
+      'In the 13-0 win vs 100 Thieves on Dust2, donk has posted a 2.84 rating - his highest-rated map of his entire career':
+        'Spirit 在 Dust2 以 13-0 击败 100 Thieves，donk 打出生涯最高单图评分 2.84',
+      '100 Thieves vs Spirit / BLAST Bounty 2026 Season 2 - Stage 2 Round Of 16 / Post-Match Discussion':
+        '100 Thieves vs Spirit｜BLAST Bounty 2026 第二季 十六强赛后讨论',
+      'Aurora and magic qualify for StarSeries Fall':
+        'Aurora 与 magic 晋级 StarSeries Fall',
+    };
+    const headlineNeedsZh = (text) => {
+      const s = String(text || '').trim();
+      if (!s) return false;
+      if (/[\u3400-\u9fff]/.test(s)) return false;
+      return /[A-Za-z]/.test(s);
+    };
+    const localizedHeadline = (title) => {
+      const raw = String(title || '');
+      if (currentLang.value !== 'zh-CN' || !headlineNeedsZh(raw)) return raw;
+      return headlineZhCache.value[raw] || HEADLINE_ZH_FALLBACK[raw] || raw;
+    };
+    const localizedNewsImpact = (impact) => {
+      const raw = String(impact || '').trim();
+      if (!raw) return '';
+      const key = `daily.impact.${raw.toLowerCase()}`;
+      const mapped = t(key);
+      return mapped === key ? raw : mapped;
+    };
+    const collectDailyHeadlines = () => {
+      const titles = [];
+      const push = (title) => {
+        const s = String(title || '').trim();
+        if (s && headlineNeedsZh(s)) titles.push(s);
+      };
+      (newsFeed.value || []).forEach((n) => push(n?.title));
+      (dailyReport.value?.sources || []).forEach((s) => push(s?.title));
+      (dailyReport.value?.news || []).forEach((n) => push(n?.title));
+      (ragAnswerSources.value || []).forEach((s) => push(s?.title));
+      return [...new Set(titles)];
+    };
+    const localizeDailyHeadlines = async (locale = currentLang.value) => {
+      if (locale !== 'zh-CN') return;
+      const pending = collectDailyHeadlines().filter(
+        (title) => !headlineZhCache.value[title] && !HEADLINE_ZH_FALLBACK[title]
+      );
+      // 静态兜底先写入缓存，立刻可显示
+      const fallbackHits = collectDailyHeadlines().filter((title) => HEADLINE_ZH_FALLBACK[title]);
+      if (fallbackHits.length) {
+        const next = { ...headlineZhCache.value };
+        fallbackHits.forEach((title) => {
+          if (!next[title]) next[title] = HEADLINE_ZH_FALLBACK[title];
+        });
+        headlineZhCache.value = next;
+      }
+      if (!pending.length) return;
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      const requestId = ++headlineTranslationRequest;
+      try {
+        const response = await client.translateAIContent(
+          { items: pending.map((title, i) => ({ id: String(i), title })) },
+          'zh-CN'
+        );
+        if (requestId !== headlineTranslationRequest) return;
+        const items = response?.content?.items;
+        if (!Array.isArray(items)) return;
+        const next = { ...headlineZhCache.value };
+        items.forEach((item, i) => {
+          const src = pending[Number(item?.id)] ?? pending[i];
+          const zh = typeof item?.title === 'string' ? item.title.trim() : '';
+          if (src && zh && zh !== src) next[src] = zh;
+        });
+        headlineZhCache.value = next;
+      } catch (error) {
+        console.warn('[daily-headlines] translation unavailable:', error?.message || error);
+      }
+    };
     const dailyBreadth = computed(() => {
       const g = Number(dailyReport.value?.metrics?.gainers) || 0;
       const l = Number(dailyReport.value?.metrics?.losers) || 0;
@@ -1205,12 +1301,14 @@ const app = createApp({
     let portfolioDiagnoseTranslationRequest = 0;
     const portfolioValueHistory = ref({ dates: [], values: [] });
 
-    const applyDailyReport = (rep) => {
+    const applyDailyReport = (rep, { resetLocaleCache = false } = {}) => {
       if (!rep) return;
       const summary = rep.aiSummary || rep.summary || '';
+      const localeKey = rep.locale || dailySummaryLocale(summary);
       dailyReport.value = {
         date: rep.date || '',
         generatedAt: rep.generatedAt || '',
+        locale: localeKey,
         metrics: {
           monitored: rep.metrics?.monitored ?? skins.value.length,
           gainers: rep.metrics?.gainers ?? topGainers.value.length,
@@ -1221,16 +1319,24 @@ const app = createApp({
         news: Array.isArray(rep.news) ? rep.news : [],
         portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
       };
-      dailyReportLocaleVersions.value = summary
-        ? { [dailySummaryLocale(summary)]: summary }
-        : {};
+      if (resetLocaleCache) {
+        dailyReportLocaleVersions.value = summary ? { [localeKey]: summary } : {};
+      } else if (summary) {
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [localeKey]: summary,
+        };
+      }
       if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
         hotVolume.value = rep.hotVolume;
       } else {
         reconnectLeaders();
       }
       const news = Array.isArray(rep.news) ? rep.news : [];
-      if (news.length) newsFeed.value = news;
+      // 日报种子新闻常无 url；资讯流优先保留 API 抓取结果（可点开原文）
+      if (news.length && !(newsFeed.value || []).some((n) => n?.url)) {
+        newsFeed.value = news;
+      }
     };
 
     const localizeDailyReport = async (locale) => {
@@ -1238,10 +1344,37 @@ const app = createApp({
       if (!summary) return;
       const cached = dailyReportLocaleVersions.value?.[locale];
       if (cached) {
-        dailyReport.value = { ...dailyReport.value, aiSummary: cached };
+        dailyReport.value = { ...dailyReport.value, aiSummary: cached, locale };
         return;
       }
+      // Already in target language — cache and skip translate
+      if (dailySummaryLocale(summary) === locale) {
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [locale]: summary,
+        };
+        dailyReport.value = { ...dailyReport.value, locale };
+        return;
+      }
+      // Primary path: ask backend to regenerate summary in the requested locale
       const client = api();
+      if (client) {
+        try {
+          const rep = await client.getDailyReport(undefined, { locale });
+          const next = rep?.aiSummary || rep?.summary || '';
+          if (typeof next === 'string' && next.trim()) {
+            dailyReportLocaleVersions.value = {
+              ...dailyReportLocaleVersions.value,
+              [rep.locale || locale]: next,
+            };
+            applyDailyReport({ ...dailyReport.value, ...rep, aiSummary: next });
+            if (dailySummaryLocale(next) === locale) return;
+          }
+        } catch (error) {
+          console.warn('[daily-report] locale reload failed:', error?.message || error);
+        }
+      }
+      // Fallback: DeepSeek translate of existing summary
       if (!client || typeof client.translateAIContent !== 'function') return;
       const source = Object.values(dailyReportLocaleVersions.value || {})[0] || summary;
       const requestId = ++dailyReportTranslationRequest;
@@ -1254,7 +1387,7 @@ const app = createApp({
           ...dailyReportLocaleVersions.value,
           [locale]: translated,
         };
-        dailyReport.value = { ...dailyReport.value, aiSummary: translated };
+        dailyReport.value = { ...dailyReport.value, aiSummary: translated, locale };
       } catch (error) {
         console.warn('[daily-report] translation unavailable:', error?.message || error);
       }
@@ -1264,9 +1397,13 @@ const app = createApp({
       const client = api();
       if (!client) return;
       try {
-        const rep = await client.getDailyReport(undefined, { refresh });
-        applyDailyReport(rep);
+        const rep = await client.getDailyReport(undefined, {
+          refresh,
+          locale: currentLang.value,
+        });
+        applyDailyReport(rep, { resetLocaleCache: refresh });
         await localizeDailyReport(currentLang.value);
+        await localizeDailyHeadlines(currentLang.value);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
       }
@@ -1293,32 +1430,33 @@ const app = createApp({
     watch(currentLang, async (locale) => {
       if (currentPage.value !== 'daily') return;
       await localizeDailyReport(locale);
+      await localizeDailyHeadlines(locale);
     });
 
     const exportDailyReport = () => {
       const r = dailyReport.value || {};
       const m = r.metrics || {};
       const lines = [
-        `# CSVest AI 市场日报`,
-        `日期: ${r.date || '-'}`,
-        `生成: ${r.generatedAt || '-'}`,
+        `# CSVest ${t('daily.titleClean')}`,
+        `${t('daily.export.date')}: ${r.date || '-'}`,
+        `${t('daily.export.generated')}: ${r.generatedAt || '-'}`,
         '',
-        `## 指标`,
-        `- 监控: ${m.monitored ?? '-'}`,
-        `- 上涨: ${m.gainers ?? '-'}`,
-        `- 下跌: ${m.losers ?? '-'}`,
+        `## ${t('daily.export.metrics')}`,
+        `- ${t('daily.metricMonitor')}: ${m.monitored ?? '-'}`,
+        `- ${t('daily.metricGainers')}: ${m.gainers ?? '-'}`,
+        `- ${t('daily.metricLosers')}: ${m.losers ?? '-'}`,
         '',
-        `## AI 市场总结`,
-        r.aiSummary || '(暂无)',
+        `## ${t('daily.aiSummary')}`,
+        r.aiSummary || t('daily.export.empty'),
         '',
-        `## 引用来源`,
+        `## ${t('daily.rag.sourcesBadge')}`,
         ...((r.sources || []).map((s, i) =>
-          `${i + 1}. [${s.source || s.type || 'source'}] ${s.snippet || s.title || ''}`
+          `${i + 1}. [${s.source || s.type || 'source'}] ${localizedHeadline(s.title) || s.snippet || ''}`
         )),
         '',
-        `## 资讯`,
+        `## ${t('daily.newsStream')}`,
         ...((r.news || newsFeed.value || []).slice(0, 8).map((n) =>
-          `- ${n.title || ''} (${n.source || ''})`
+          `- ${localizedHeadline(n.title)}${n.source ? ` (${n.source})` : ''}`
         )),
       ];
       const filename = `CSVest_daily_${(r.date || new Date().toISOString().slice(0, 10))}.md`;
@@ -1371,9 +1509,17 @@ const app = createApp({
         ragAnswer.value = res?.answer || '';
         ragAnswerSources.value = Array.isArray(res?.sources) ? res.sources : [];
         ragRetrieval.value = res?.retrieval || { mode: '', model: null };
+        await localizeDailyHeadlines(currentLang.value);
       } catch (err) {
         console.warn('[rag]', err);
         ragAnswer.value = t('daily.rag.error');
+        if (err?.message) {
+          showToast({
+            title: t('daily.rag.error'),
+            subtitle: String(err.message).slice(0, 120),
+            type: 'error',
+          });
+        }
       } finally {
         ragLoading.value = false;
       }
@@ -1629,12 +1775,78 @@ const app = createApp({
     const selectedRadarModel = ref('LSTM-C');
     const shapModel = ref('xgboost');
     const shapEmpty = ref(false);
+    const shapFeatureRows = ref([]);
+    const modelsInfoOpen = ref(null); // 'reg' | 'clf' | 'shap' | null
     const backtestEmpty = ref(false);
     const shapModelOptions = [
       { id: 'xgboost', label: 'XGBoost' },
       { id: 'lightgbm', label: 'LightGBM' },
       { id: 'average', label: 'Avg' },
     ];
+
+    const toggleModelsInfo = (id) => {
+      modelsInfoOpen.value = modelsInfoOpen.value === id ? null : id;
+    };
+
+    const regressionGuideItems = computed(() => {
+      void currentLang.value;
+      return [
+        { key: 'task', label: t('models.guide.reg.taskLabel'), desc: t('models.guide.reg.task') },
+        { key: 'rmse', label: 'RMSE', desc: t('models.guide.reg.rmse') },
+        { key: 'mae', label: 'MAE', desc: t('models.guide.reg.mae') },
+        { key: 'mape', label: 'MAPE', desc: t('models.guide.reg.mape') },
+        { key: 'r2', label: 'R²', desc: t('models.guide.reg.r2') },
+        { key: 'ret', label: t('models.col.returnPct'), desc: t('models.guide.reg.return') },
+        { key: 'route', label: t('models.kpi.route'), desc: t('models.guide.reg.route') },
+        { key: 'hybrid', label: 'Hybrid', desc: t('models.guide.reg.hybrid') },
+      ];
+    });
+
+    const classificationGuideItems = computed(() => {
+      void currentLang.value;
+      return [
+        { key: 'task', label: t('models.guide.clf.taskLabel'), desc: t('models.guide.clf.task') },
+        { key: 'acc', label: 'ACC', desc: t('models.guide.clf.acc') },
+        { key: 'auc', label: 'AUC', desc: t('models.guide.clf.auc') },
+        { key: 'ret', label: t('models.col.returnPct'), desc: t('models.guide.clf.return') },
+        { key: 'bh', label: t('models.buyHold'), desc: t('models.guide.clf.buyHold') },
+      ];
+    });
+
+    const shapFeatureDesc = (name) => {
+      const key = `models.shap.feat.${String(name || '').trim()}`;
+      const label = t(key);
+      if (label && label !== key) return label;
+      return t('models.shap.feat.fallback');
+    };
+
+    const shapFeatureGuide = computed(() => {
+      void currentLang.value;
+      return (shapFeatureRows.value || []).map((row) => ({
+        name: row.name,
+        desc: shapFeatureDesc(row.name),
+      }));
+    });
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('click', (e) => {
+        if (!modelsInfoOpen.value) return;
+        const pop = e.target?.closest?.('.models-lab__info-pop');
+        if (!pop) modelsInfoOpen.value = null;
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modelsInfoOpen.value) {
+          modelsInfoOpen.value = null;
+        }
+      });
+    }
+
+    watch(currentPage, (page) => {
+      if (page !== 'models') modelsInfoOpen.value = null;
+    });
+    watch(modelTrack, () => {
+      modelsInfoOpen.value = null;
+    });
 
     const applyModelTrack = (track) => {
       const selected = modelTracks.value?.[track];
@@ -2413,6 +2625,27 @@ const app = createApp({
       if (sentiment === 'positive') return '📈';
       if (sentiment === 'negative') return '📉';
       return '📰';
+    };
+
+    const resolveNewsUrl = (news) => {
+      const direct = String(news?.url || '').trim();
+      if (direct) return direct;
+      const title = String(news?.title || '').trim().toLowerCase();
+      if (!title) return '';
+      const hit = (newsFeed.value || []).find((n) => {
+        const u = String(n?.url || '').trim();
+        return u && String(n?.title || '').trim().toLowerCase() === title;
+      });
+      return hit?.url ? String(hit.url).trim() : '';
+    };
+
+    const openNewsItem = (news) => {
+      const url = resolveNewsUrl(news);
+      if (url) {
+        openExternalUrl(url);
+        return;
+      }
+      showToast({ title: t('daily.newsNoLink'), type: 'info' });
     };
 
     const openExternalUrl = (url) => {
@@ -3423,7 +3656,31 @@ const app = createApp({
     ]);
 
     const showAlertModal = ref(false);
+    const alertSkinLocked = ref(false);
     const newAlert = ref({ skinId: '', type: 'above', targetPrice: null, note: '' });
+
+    const alertLockedSkinName = computed(() => {
+      const skin = skins.value.find(s => s.id === newAlert.value.skinId);
+      return skin ? skinDisplayName(skin) : (selectedSkin.value ? skinDisplayName(selectedSkin.value) : '');
+    });
+
+    const openAlertModal = (skinId = null) => {
+      const lockedId = skinId || '';
+      newAlert.value = {
+        skinId: lockedId,
+        type: 'above',
+        targetPrice: null,
+        note: '',
+      };
+      alertSkinLocked.value = Boolean(lockedId);
+      showAlertModal.value = true;
+    };
+
+    const closeAlertModal = () => {
+      showAlertModal.value = false;
+      alertSkinLocked.value = false;
+      newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
+    };
 
     const addAlert = async () => {
       if (!newAlert.value.skinId || !newAlert.value.targetPrice) return;
@@ -3469,8 +3726,7 @@ const app = createApp({
       } catch (e) {
         showToast({ title: t('alerts.createFailed'), subtitle: e.message || '', type: 'error' });
       }
-      showAlertModal.value = false;
-      newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
+      closeAlertModal();
     };
 
     const deleteAlert = async (id) => {
@@ -4652,6 +4908,7 @@ const app = createApp({
       }
       // 真实 SHAP 量级跨度大：只展示 Top 12，避免尾部条几乎看不见
       rows = rows.slice().sort((a, b) => b.value - a.value).slice(0, 12);
+      shapFeatureRows.value = rows;
       shapEmpty.value = !rows.length;
       const data = rows.slice().sort((a, b) => a.value - b.value);
       const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 1e-9);
@@ -4816,7 +5073,7 @@ const app = createApp({
         { id: 'act-theme', icon: theme.value === 'dark' ? 'sun' : 'moon', iconStyle: 'duotone', title: t('cmd.action.theme'), subtitle: `${t('cmd.action.themeCurrent')}: ${theme.value === 'dark' ? t('theme.dark') : t('theme.light')}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
         { id: 'act-help', icon: 'keyboard', iconStyle: 'duotone', title: t('cmd.action.help'), subtitle: t('shortcut.title'), kbd: '?', action: () => { showShortcutHelp.value = true; } },
         { id: 'act-refresh', icon: 'arrows-clockwise', iconStyle: 'duotone', title: t('cmd.action.refresh'), subtitle: '', kbd: '', action: refreshData },
-        { id: 'act-alert', icon: 'bell-ringing', iconStyle: 'duotone', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
+        { id: 'act-alert', icon: 'bell-ringing', iconStyle: 'duotone', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => openAlertModal(), 100); } },
       ].filter(c => match(c.title) || match(c.subtitle));
       if (actionCmds.length) groups.push({ title: t('cmd.group.actions'), items: actionCmds });
 
@@ -4889,7 +5146,7 @@ const app = createApp({
       if (e.key === 'Escape') {
         if (showCommandPalette.value) { showCommandPalette.value = false; return; }
         if (showShortcutHelp.value) { showShortcutHelp.value = false; return; }
-        if (showAlertModal.value) { showAlertModal.value = false; return; }
+        if (showAlertModal.value) { closeAlertModal(); return; }
         if (showPortfolioModal.value) { showPortfolioModal.value = false; return; }
       }
       // 数字键切换页面 (无 Toast,直接跳转)
@@ -4931,7 +5188,7 @@ const app = createApp({
           perDayInstance?.resize();
         }, 100);
       } else if (page === 'daily') {
-        await loadDailyReport();
+        await Promise.all([loadDailyReport(), loadNewsFromApi()]);
       } else if (page === 'admin') {
         if (adminIsAuthed.value) await loadAdminPanel();
       } else if (page === 'alerts') {
@@ -5125,7 +5382,7 @@ const app = createApp({
       modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
       predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
       displayConsensusScore, consensusModelsLabel,
-      relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
+      relatedNews, newsIcon, openExternalUrl, openNewsItem, resolveNewsUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
@@ -5135,7 +5392,9 @@ const app = createApp({
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, continueDebate,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
+      dailyTab, setDailyTab, dailySourcesOpen,
       regenerateDailyReport, exportDailyReport,
+      localizedHeadline, localizedNewsImpact,
       newsFetchLoading, fetchNewsNow,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
@@ -5143,7 +5402,8 @@ const app = createApp({
       adminSaving, adminLoading, adminConfigForm,
       adminLogin, adminLogout, loadAdminPanel, saveAdminConfig, refreshAdminStatus, runProbeLlm, runProbeEmbed,
       // 预警
-      alerts, showAlertModal, newAlert, addAlert, deleteAlert,
+      alerts, showAlertModal, alertSkinLocked, alertLockedSkinName, newAlert,
+      openAlertModal, closeAlertModal, addAlert, deleteAlert,
       // 持仓 / 库存
       portfolioTab, setPortfolioTab,
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
@@ -5164,7 +5424,8 @@ const app = createApp({
       modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
       selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
-      shapEmpty, backtestEmpty,
+      shapEmpty, shapFeatureGuide, modelsInfoOpen, toggleModelsInfo,
+      regressionGuideItems, classificationGuideItems, backtestEmpty,
       radarChart, backtestChart, shapChart,
       perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具

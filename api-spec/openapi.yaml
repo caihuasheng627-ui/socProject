@@ -878,6 +878,19 @@ paths:
           schema:
             type: string
             format: date
+        - name: refresh
+          in: query
+          description: Force regenerate the full daily report
+          schema:
+            type: boolean
+            default: false
+        - name: locale
+          in: query
+          description: Language for the AI market summary
+          schema:
+            type: string
+            enum: [zh-CN, en-US]
+            default: zh-CN
       responses:
         '200':
           description: 成功
