@@ -442,7 +442,7 @@ const I18N = {
     // ============ 模拟持仓 / 我的库存 ============
     'portfolio.tab.inventory': '我的库存',
     'portfolio.tab.sim': '模拟持仓',
-    'portfolio.title': '📋 Portfolio Simulator',
+    'portfolio.title': 'Portfolio Simulator',
     'portfolio.subtitle': '实时盈亏计算 · 风险指标监控 · 收益归因分析',
     'portfolio.addHolding': '添加持仓',
     'portfolio.alertsEntry': '持仓预警',
@@ -1220,7 +1220,7 @@ const I18N = {
     // ============ Portfolio / Inventory ============
     'portfolio.tab.inventory': 'My Inventory',
     'portfolio.tab.sim': 'Paper Positions',
-    'portfolio.title': '📋 Portfolio Simulator',
+    'portfolio.title': 'Portfolio Simulator',
     'portfolio.subtitle': 'Real-time P&L · Risk metrics · Return attribution',
     'portfolio.addHolding': 'Add Holding',
     'portfolio.alertsEntry': 'Holdings Alerts',

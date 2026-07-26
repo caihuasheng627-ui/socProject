@@ -2348,11 +2348,50 @@ body.sidebar-open {
   justify-content: flex-end;
 }
 
+.sim-portfolio-header {
+  gap: 16px;
+}
+
+.sim-portfolio-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sim-portfolio-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sim-portfolio-title span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sim-portfolio-actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  max-width: 100%;
+}
+
 @media (max-width: 960px) {
-  .inventory-header {
+  .inventory-header,
+  .sim-portfolio-header {
     flex-direction: column;
     align-items: flex-start !important;
     gap: 12px;
+  }
+
+  .inventory-actions,
+  .sim-portfolio-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .inv-item-grid {
@@ -2373,6 +2412,30 @@ body.sidebar-open {
   .portfolio-tab {
     flex: 1;
     justify-content: center;
+    min-width: 0;
+    padding: 10px 10px;
+    font-size: 12.5px;
+  }
+
+  .portfolio-tab-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .export-group.sim-portfolio-export {
+    display: none !important;
+  }
+
+  .sim-portfolio-actions .btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    min-height: 40px;
+    white-space: nowrap;
+  }
+
+  .sim-portfolio-title {
+    font-size: 18px;
   }
 }
 
