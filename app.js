@@ -2452,7 +2452,10 @@ const app = createApp({
       if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(q)) {
         return selectedSkin.value;
       }
-      return selectedSkin.value || null;
+      // 不再用 selectedSkin 兜底——用户新问"AWP 西莫夫"时若 best 为 null，
+      // 表示该输入与已有皮肤不匹配，必须交给后端重新解析，而不是悄悄套上
+      // 上次点击的皮肤。
+      return null;
     };
 
     const canSendChat = computed(() => {
