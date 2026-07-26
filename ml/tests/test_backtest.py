@@ -34,10 +34,37 @@ def test_fee_reduces_backtest_value():
     assert with_fee["returnPct"] < no_fee["returnPct"]
 
 
-def test_backtest_rejects_inconsistent_contract_values_for_same_row():
+def test_backtest_rejects_when_no_common_rows_have_matching_contract_values():
     first = make_prices([10.0], [11.0])
     second = make_prices([10.0], [11.0])
     second.loc[0, "actual_future_price"] = 12.0
 
-    with pytest.raises(ValueError, match="contract values"):
+    with pytest.raises(ValueError, match="no common rows with matching contract values"):
         align_common_prediction_frames({"first": first, "second": second})
+
+
+def test_backtest_drops_only_mismatched_contract_rows():
+    first = make_prices([10.0, 20.0], [11.0, 21.0])
+    second = make_prices([10.0, 20.0], [11.0, 21.0])
+    second.loc[1, "actual_future_price"] = 999.0
+
+    aligned = align_common_prediction_frames({"first": first, "second": second})
+
+    assert {name: len(frame) for name, frame in aligned.items()} == {
+        "first": 1,
+        "second": 1,
+    }
+    assert all(frame.iloc[0]["date"] == pd.Timestamp("2026-01-01")
+               for frame in aligned.values())
+
+
+def test_backtest_drops_rows_with_different_target_dates():
+    first = make_prices([10.0, 20.0], [11.0, 21.0])
+    second = make_prices([10.0, 20.0], [11.0, 21.0])
+    second.loc[1, "target_date"] += pd.Timedelta(days=1)
+
+    aligned = align_common_prediction_frames({"first": first, "second": second})
+
+    assert all(len(frame) == 1 for frame in aligned.values())
+    assert all(frame.iloc[0]["target_date"] == pd.Timestamp("2026-01-08")
+               for frame in aligned.values())

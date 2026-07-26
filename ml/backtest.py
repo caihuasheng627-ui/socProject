@@ -8,26 +8,53 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from forecast_contract import validate_prediction_frame
+from forecast_contract import validate_prediction_frame, validate_prediction_frame_seq
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 BASE_DIR = Path(__file__).resolve().parent
 OUT_DIR = BASE_DIR / "outputs" / "backtest"
 HOLD_STEPS = 7
+MAX_HOLD_STEPS = 28       # 强制平仓天数 (模型一直看涨也不无限持仓)
+MIN_ITEM_PRICE = 0.50     # 物品在测试期最低价格须 ≥ 此值 (排除无流动性垃圾皮)
+
+
+def _resolve_pred_col(frame):
+    """Resolve the day-7 prediction column name."""
+    if "predicted_price_d7" in frame.columns:
+        return "predicted_price_d7"
+    if "predicted_price" in frame.columns:
+        return "predicted_price"
+    raise KeyError("frame has neither 'predicted_price' nor 'predicted_price_d7'")
 
 
 def load_prediction(path):
-    return validate_prediction_frame(pd.read_csv(path), path)
+    df = pd.read_csv(path)
+    if "predicted_price_d1" in df.columns:
+        frame = validate_prediction_frame_seq(df, path)
+    else:
+        frame = validate_prediction_frame(df, path)
+    # Ensure canonical "predicted_price" column exists for backtest logic
+    if "predicted_price" not in frame.columns:
+        frame["predicted_price"] = frame[_resolve_pred_col(frame)]
+    return frame
 
 
 def align_common_prediction_frames(frames):
     """Restrict every model to the same item/decision-date observations."""
     if not frames:
         raise ValueError("at least one prediction frame is required")
-    normalized = {
-        name: validate_prediction_frame(frame, name) for name, frame in frames.items()
-    }
+    normalized = {}
+    for name, frame in frames.items():
+        # Re-validate with correct validator
+        if "predicted_price_d1" in frame.columns:
+            normalized[name] = validate_prediction_frame_seq(frame, name)
+        else:
+            normalized[name] = validate_prediction_frame(frame, name)
+        # Ensure predicted_price column
+        if "predicted_price" not in normalized[name].columns:
+            normalized[name]["predicted_price"] = normalized[name][_resolve_pred_col(normalized[name])]
+
     splits = {frame["split"].iloc[0] for frame in normalized.values()}
     if len(splits) != 1:
         raise ValueError(f"all backtest inputs must share one split, got {sorted(splits)}")
@@ -49,29 +76,45 @@ def align_common_prediction_frames(frames):
             ["date", "market_hash_name"]
         ).reset_index(drop=True)
 
-    contract_columns = [
-        "split",
-        "date",
-        "target_date",
-        "market_hash_name",
-        "current_price",
-        "actual_future_price",
-        "horizon_steps",
-    ]
+    # Drop rows where shared contract values differ between models.
     reference_name, reference = next(iter(aligned.items()))
+    keep = np.ones(len(reference), dtype=bool)
     for name, frame in aligned.items():
-        if not frame[contract_columns].equals(reference[contract_columns]):
-            raise ValueError(
-                f"{name} contract values differ from {reference_name} on common prediction rows"
+        if name == reference_name:
+            continue
+        if len(frame) != len(reference):
+            raise ValueError(f"{name}: aligned length mismatch vs {reference_name}")
+        keep &= (
+            np.isclose(frame["current_price"].to_numpy(dtype=float),
+                       reference["current_price"].to_numpy(dtype=float),
+                       rtol=0, atol=1e-4)
+            & np.isclose(frame["actual_future_price"].to_numpy(dtype=float),
+                         reference["actual_future_price"].to_numpy(dtype=float),
+                         rtol=0, atol=1e-4)
+            & (
+                pd.to_datetime(frame["target_date"]).to_numpy()
+                == pd.to_datetime(reference["target_date"]).to_numpy()
             )
+        )
+    if not keep.any():
+        raise ValueError("no common rows with matching contract values")
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"  dropped {dropped} mismatched-truth rows for fair backtest", flush=True)
+    for name in list(aligned.keys()):
+        aligned[name] = aligned[name].loc[keep].sort_values(
+            ["date", "market_hash_name"]
+        ).reset_index(drop=True)
     return aligned
 
 
 def simulate_item(group, budget, fee, buy_th, sell_th):
-    cash = float(budget)
+    """Per-item simulation — fixed trade sizing, profits go to reserve (no compounding)."""
+    trade_capital = float(budget)  # Always use this amount per trade
+    reserve = 0.0                  # Accumulated profits (NEVER re-invested)
     units = 0.0
     buy_step = None
-    entry_value = None
+    entry_cost = None
     values = {}
     closed_pnl = []
     buy_count = 0
@@ -79,38 +122,61 @@ def simulate_item(group, budget, fee, buy_th, sell_th):
 
     for observation, row in enumerate(group.sort_values("date").itertuples(index=False)):
         price = float(row.current_price)
-        expected_return = (float(row.predicted_price) - price) / price
+        trade_allowed = price >= MIN_ITEM_PRICE
+        if trade_allowed:
+            expected_return = (float(row.predicted_price) - price) / price
         held_steps = observation - buy_step if buy_step is not None else 0
 
-        if units == 0 and expected_return >= buy_th:
-            entry_value = cash
-            units = cash * (1 - fee) / price
-            cash = 0.0
+        if trade_allowed and units == 0 and expected_return >= buy_th:
+            entry_cost = trade_capital
+            units = trade_capital * (1 - fee) / price
             buy_step = observation
             buy_count += 1
-        elif units > 0 and held_steps >= HOLD_STEPS and expected_return <= -sell_th:
-            cash = units * price * (1 - fee)
-            closed_pnl.append(cash - entry_value)
+        elif units > 0 and (
+            (trade_allowed and held_steps >= HOLD_STEPS and expected_return <= -sell_th)
+            or held_steps >= MAX_HOLD_STEPS
+        ):
+            proceeds = units * price * (1 - fee)
+            pnl = proceeds - entry_cost
+            closed_pnl.append(pnl)
+            reserve += pnl
             units = 0.0
             buy_step = None
-            entry_value = None
+            entry_cost = None
             sell_count += 1
 
-        values[pd.Timestamp(row.date)] = cash + units * price
+        position_value = units * price
+        total = position_value + (trade_capital if units == 0 else 0) + reserve
+        values[pd.Timestamp(row.date)] = total
+
+    # If still holding at end, liquidate at last price
+    if units > 0:
+        proceeds = units * group.sort_values("date")["current_price"].iloc[-1] * (1 - fee)
+        pnl = proceeds - entry_cost
+        closed_pnl.append(pnl)
+        reserve += pnl
 
     return {
         "values": values,
         "closed_pnl": closed_pnl,
         "buy_count": buy_count,
         "sell_count": sell_count,
-        "open_position": int(units > 0),
+        "open_position": 0,
     }
 
 
 def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
-    frame = validate_prediction_frame(pred_df)
-    items = sorted(frame["market_hash_name"].unique())
-    budget = capital / len(items)
+    frame = pred_df if isinstance(pred_df, pd.DataFrame) else pd.DataFrame()
+    # Ensure predicted_price column exists
+    if "predicted_price" not in frame.columns:
+        frame["predicted_price"] = frame[_resolve_pred_col(frame)]
+    # Exclude ultra-cheap items by their minimum price in this period
+    item_mins = frame.groupby("market_hash_name")["current_price"].min()
+    eligible = item_mins[item_mins >= MIN_ITEM_PRICE].index
+    frame = frame[frame["market_hash_name"].isin(eligible)]
+    items = sorted(eligible)
+    budget = capital / len(items) if len(items) > 0 else capital
+    print(f"  {len(items)} items (min price >= ${MIN_ITEM_PRICE})", flush=True)
 
     curves = {}
     closed_pnl = []
@@ -123,6 +189,7 @@ def run_backtest(pred_df, capital=10_000.0, fee=0.0, buy_th=0.02, sell_th=0.02):
         sell_count += result["sell_count"]
         open_positions += result["open_position"]
 
+    # Unstarted items hold initial budget as cash; gaps carry last value forward
     value_frame = pd.DataFrame(curves).sort_index().ffill().fillna(budget)
     equity = value_frame.sum(axis=1)
     peak = equity.cummax()
@@ -159,6 +226,7 @@ def buy_hold(frame, capital):
         curves[item] = {
             row.date: units * row.current_price for row in group.itertuples(index=False)
         }
+    # fillna(budget): items not yet started hold initial budget as cash
     equity = pd.DataFrame(curves).sort_index().ffill().fillna(budget).sum(axis=1)
     return pd.DataFrame({"date": equity.index, "capital": equity.to_numpy()})
 
@@ -177,6 +245,10 @@ def run_models(frames, capital=10_000.0, fees=(0.0,)):
             curves[scenario][model] = curve
     first_frame = next(iter(aligned.values()))
     curves["buy_hold"] = buy_hold(first_frame, capital)
+    # Print baseline
+    bh_equity = curves["buy_hold"]["capital"].iloc[-1]
+    bh_return = round(float((bh_equity / capital - 1) * 100), 2)
+    print(f"  buy-hold baseline: {bh_return}%", flush=True)
     return curves, results
 
 

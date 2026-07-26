@@ -1,0 +1,81 @@
+{
+  "contractVersion": "hybrid-v2-calibration-evaluation-v1",
+  "dataSource": "sqlite-price-history-rolling-180d",
+  "split": "test",
+  "dateRange": {
+    "start": "2026-06-28",
+    "end": "2026-07-15"
+  },
+  "items": 665,
+  "decisions": 9967,
+  "metrics": {
+    "LSTM-C": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 8.47420365619352,
+      "rmse": 42.89933493022198,
+      "mapePct": 15.003424776336619,
+      "r2": 0.9331668112743721,
+      "p95ApePct": 36.077204058295386,
+      "directionAccuracy": 0.5130502085453424,
+      "over30Count": 5499,
+      "over30Rate": 0.07881723974831228,
+      "d7Mae": 8.858593419213761,
+      "d7P95ApePct": 37.01664263556571
+    },
+    "LSTM-D": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 12.688874614725247,
+      "rmse": 48.146235715666855,
+      "mapePct": 15.559315992280041,
+      "r2": 0.9158186784651718,
+      "p95ApePct": 61.70233496932645,
+      "directionAccuracy": 0.498860525448265,
+      "over30Count": 6255,
+      "over30Rate": 0.08965299774971693,
+      "d7Mae": 13.418767601514698,
+      "d7P95ApePct": 61.65744612064868
+    },
+    "Hybrid-V2-Raw": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 6.338154403883842,
+      "rmse": 27.489994930653843,
+      "mapePct": 6.717297526480153,
+      "r2": 0.9725564440667255,
+      "p95ApePct": 21.10633899047319,
+      "directionAccuracy": 0.4812882512290559,
+      "over30Count": 60,
+      "over30Rate": 0.0008599807937622727,
+      "d7Mae": 6.856135956774102,
+      "d7P95ApePct": 24.281399278929175
+    },
+    "Hybrid-V2-Calibrated": {
+      "rows": 69769,
+      "decisions": 9967,
+      "mae": 6.3336418796968825,
+      "rmse": 27.480642714349997,
+      "mapePct": 6.713371846513746,
+      "r2": 0.9725751137255438,
+      "p95ApePct": 21.116962666998162,
+      "directionAccuracy": 0.4802992733162293,
+      "over30Count": 0,
+      "over30Rate": 0.0,
+      "d7Mae": 6.816906870790356,
+      "d7P95ApePct": 24.322107813446365
+    }
+  },
+  "calibrationReasonCounts": {
+    "RECENT_TREND_ADJUSTMENT": 9512,
+    "MODEL_DISAGREEMENT": 3530,
+    "SMOOTH_DEVIATION_COMPRESSION": 1336,
+    "PRICE_LEVEL_REBASE": 61
+  },
+  "acceptance": {
+    "zeroDisplayedOver30": true,
+    "maeImprovedVsC": true,
+    "maeImprovedVsD": true,
+    "p95ImprovedVsRaw": false
+  }
+}

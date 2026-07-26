@@ -82,39 +82,71 @@ function calculateMA(data, period) {
 
 // 新闻数据（RAG 知识库）
 const NEWS_FEED = [
-  { id: 1, time: '2小时前', source: 'Valve 官方', title: 'CS2 7月更新:武器平衡性调整', summary: 'Valve 发布最新 CS2 更新,AK-47 后坐力微调,无削弱操作。', impact: 'AK 系列利好', sentiment: 'positive', relatedSkins: ['ak47-redline-ft', 'ak47-fireserpent-fn'] },
-  { id: 2, time: '5小时前', source: 'HLTV', title: 'IEM Cologne 2026 即将开赛', summary: 'IEM Cologne 即将于 7月25日开赛,Major 级别赛事带动饰品经济。', impact: '整体利好', sentiment: 'positive', relatedSkins: ['awp-dragonlore-ft', 'ak47-fireserpent-fn'] },
-  { id: 3, time: '1天前', source: 'Reddit r/csgomarketforum', title: '手套市场流通性下降讨论', summary: '社区热议近期高端手套成交稀疏,价格短期承压。', impact: '手套类利空', sentiment: 'negative', relatedSkins: ['gloves-pandora-ft', 'gloves-crimson-ft'] },
-  { id: 4, time: '2天前', source: 'Steam 公告', title: 'Dreams & Nightmares Case 掉宝率提升', summary: 'Valve 临时提升 D&N Case 掉宝率,箱子价格短期波动。', impact: '箱子价格波动', sentiment: 'neutral', relatedSkins: ['case-dreams'] },
-  { id: 5, time: '3天前', source: 'HLTV', title: 'Top 战队偏爱 AWP Dragon Lore', summary: '近期多场重要比赛中,职业选手频繁使用 AWP Dragon Lore。', impact: 'AWP 龙狙利好', sentiment: 'positive', relatedSkins: ['awp-dragonlore-ft'] },
-  { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', relatedSkins: [] },
+  { id: 1, time: '2小时前', source: 'Valve 官方', title: 'CS2 7月更新:武器平衡性调整', summary: 'Valve 发布最新 CS2 更新,AK-47 后坐力微调,无削弱操作。', impact: 'AK 系列利好', sentiment: 'positive', url: 'https://blog.counter-strike.net/', relatedSkins: ['ak47-redline-ft', 'ak47-fireserpent-fn'] },
+  { id: 2, time: '5小时前', source: 'HLTV', title: 'IEM Cologne 2026 即将开赛', summary: 'IEM Cologne 即将于 7月25日开赛,Major 级别赛事带动饰品经济。', impact: '整体利好', sentiment: 'positive', url: 'https://www.hltv.org/', relatedSkins: ['awp-dragonlore-ft', 'ak47-fireserpent-fn'] },
+  { id: 3, time: '1天前', source: 'Reddit r/csgomarketforum', title: '手套市场流通性下降讨论', summary: '社区热议近期高端手套成交稀疏,价格短期承压。', impact: '手套类利空', sentiment: 'negative', url: 'https://www.reddit.com/r/GlobalOffensive/', relatedSkins: ['gloves-pandora-ft', 'gloves-crimson-ft'] },
+  { id: 4, time: '2天前', source: 'Steam 公告', title: 'Dreams & Nightmares Case 掉宝率提升', summary: 'Valve 临时提升 D&N Case 掉宝率,箱子价格短期波动。', impact: '箱子价格波动', sentiment: 'neutral', url: '', relatedSkins: ['case-dreams'] },
+  { id: 5, time: '3天前', source: 'HLTV', title: 'Top 战队偏爱 AWP Dragon Lore', summary: '近期多场重要比赛中,职业选手频繁使用 AWP Dragon Lore。', impact: 'AWP 龙狙利好', sentiment: 'positive', url: 'https://www.hltv.org/', relatedSkins: ['awp-dragonlore-ft'] },
+  { id: 6, time: '4天前', source: 'BUFF 公告', title: '交易手续费限时减免活动', summary: 'BUFF 推出限时交易手续费减免,提高市场活跃度。', impact: '整体利好', sentiment: 'positive', url: '', relatedSkins: [] },
 ];
 
-// 模型对比：公平 test（35,229 行 · 154 件 · horizon=7）
-// 来源 ml/outputs/compare_results_test.json · 2026-07-20
-// returnPct 来自同契约回测 fee=0（10 件子集演示曲线，非 154 件主结论）
+// 模型对比：volume-free fair test（~35k 行 · 155 件 · horizon=7）
+// 来源 ml/outputs/compare_results_test.json · volume-free 重训后覆盖 155 件
+// returnPct 来自同契约回测 fee=0（子集演示曲线，非主结论）
 const MODEL_COMPARISON = {
   split: 'test',
   horizonSteps: 7,
-  nItems: 154,
-  nRows: 35229,
+  nItems: 155,
+  nRows: 35322,
   hybridRoute: { low: 'LSTM-C', mid: 'LSTM-D', high: 'LSTM-D' },
-  note: 'Fair test metrics. Hybrid route frozen on val: low→C, mid/high→D. LSTM-C best RMSE/MAE/R²; RF best MAPE. Hybrid is NOT strictly best on all metrics.',
+  note: 'Fair test after 2026-07-23 tree retrain. Rows with mismatched truth vs LSTM panel dropped. LSTM-C best RMSE/MAE/R²; RF best MAPE.',
   regression: [
-    { name: 'LSTM-C', rmse: 44.37, mae: 6.27, mape: 10.95, r2: 0.9374, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, type: 'DL · 共享面板' },
-    { name: 'LSTM-D', rmse: 52.09, mae: 7.02, mape: 7.72, r2: 0.9137, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, type: 'DL · 分组' },
-    { name: 'Hybrid', rmse: 52.09, mae: 7.02, mape: 10.69, r2: 0.9137, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, type: '部署路由' },
-    { name: 'Random Forest', rmse: 52.82, mae: 7.26, mape: 6.26, r2: 0.9113, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, type: '树 · MAPE最优' },
-    { name: 'LightGBM', rmse: 58.36, mae: 8.46, mape: 6.34, r2: 0.8917, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '树模型' },
-    { name: 'XGBoost', rmse: 61.76, mae: 9.17, mape: 7.93, r2: 0.8787, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '树模型' },
+    { name: 'LSTM-C', rmse: 46.43, mae: 7.87, mape: 9.66, r2: 0.9488, accuracy: null, auc: null, returnPct: 47.7, speed: '慢', interpretability: 1, typeKey: 'dl_panel', type: 'DL · 共享面板', course: 'DL · panel Embedding' },
+    { name: 'LSTM-D', rmse: 60.95, mae: 9.59, mape: 9.40, r2: 0.9118, accuracy: null, auc: null, returnPct: 52.4, speed: '慢', interpretability: 1, typeKey: 'dl_tier', type: 'DL · 分组', course: 'DL · price tiers' },
+    { name: 'Hybrid', rmse: 60.95, mae: 9.58, mape: 9.63, r2: 0.9118, accuracy: null, auc: null, returnPct: 36.5, speed: '慢', interpretability: 1, typeKey: 'route', type: '部署路由', course: 'Route: low→C, mid/high→D' },
+    { name: 'Random Forest', rmse: 62.42, mae: 9.92, mape: 7.84, r2: 0.9075, accuracy: null, auc: null, returnPct: 133.8, speed: '快', interpretability: 2, typeKey: 'tree_mape', type: '树 · MAPE最优', course: 'Best MAPE on fair test' },
+    { name: 'LightGBM', rmse: 70.70, mae: 11.78, mape: 7.93, r2: 0.8814, accuracy: null, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
+    { name: 'XGBoost', rmse: 71.61, mae: 12.19, mape: 8.01, r2: 0.8783, accuracy: null, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'tree', type: '树模型', course: 'Tree ensemble' },
   ],
   classification: [
-    { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, type: '线性基线' },
-    { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.65, auc: 0.69, returnPct: 12.4, speed: '快', interpretability: 2, type: '集成基线' },
-    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.47, auc: null, returnPct: 26.1, speed: '快', interpretability: 2, type: '方向分类' },
-    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.52, auc: null, returnPct: 32.7, speed: '极快', interpretability: 2, type: '方向分类' },
+    { name: 'Logistic Regression', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.58, auc: 0.61, returnPct: 6.2, speed: '快', interpretability: 3, typeKey: 'linear', type: '线性基线' },
+    { name: 'Random Forest', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6837, auc: 0.8551, returnPct: 12.4, speed: '快', interpretability: 2, typeKey: 'ensemble', type: '集成基线' },
+    { name: 'XGBoost', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6798, auc: 0.8536, returnPct: 26.1, speed: '快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
+    { name: 'LightGBM', rmse: null, mae: null, mape: null, r2: null, accuracy: 0.6805, auc: 0.8537, returnPct: 32.7, speed: '极快', interpretability: 2, typeKey: 'direction', type: '方向分类' },
   ],
-  buyAndHold: { name: '买入持有', returnPct: 4.16 }
+  buyAndHold: { name: '买入持有', returnPct: 194.65 },
+  tracks: {
+    historical: null, // filled below
+    online: {
+      track: 'online',
+      horizonSteps: 7,
+      metadata: {
+        dateRange: { start: '2026-06-28', end: '2026-07-15' },
+        items: 665,
+        decisions: 9967,
+        modelVersion: 'hybrid-v2-volume-free-v1',
+      },
+      regression: [
+        { name: 'LSTM-C', type: 'DL', course: 'recent 180d online holdout', rmse: 42.9, mae: 8.47, mape: 15.0, r2: 0.933, returnPct: 5.58 },
+        { name: 'LSTM-D', type: 'DL', course: 'recent 180d online holdout', rmse: 48.15, mae: 12.69, mape: 15.56, r2: 0.916, returnPct: 4.11 },
+        { name: 'Hybrid-V2-Raw', type: 'Fusion', course: 'recent 180d online holdout', rmse: 27.49, mae: 6.34, mape: 6.72, r2: 0.973, returnPct: 3.79 },
+        { name: 'Hybrid-V2-Calibrated', type: 'Fusion', course: 'recent 180d online holdout', rmse: 27.48, mae: 6.33, mape: 6.71, r2: 0.973, returnPct: 3.63 },
+      ],
+      classification: [],
+      trend30: {
+        name: 'Keras-Seq2Seq-30D', horizonSteps: 30, items: 155,
+        rmse: 46.9, mae: 7.68, mape: 57.9, r2: 0.92,
+      },
+    },
+  },
+};
+MODEL_COMPARISON.tracks.historical = {
+  track: 'historical',
+  regression: MODEL_COMPARISON.regression,
+  classification: MODEL_COMPARISON.classification,
+  buyAndHold: MODEL_COMPARISON.buyAndHold,
+  horizonSteps: MODEL_COMPARISON.horizonSteps,
+  metadata: { label: '2019-2023 canonical fair test', items: MODEL_COMPARISON.nItems },
 };
 
 // 回测曲线 Mock（演示用；真实曲线见 ml/outputs/backtest/backtest_curves.json）
@@ -143,21 +175,21 @@ function generateBacktestData(days = 60) {
   return data;
 }
 
-// SHAP 特征重要性（来自策划书 5.3 节）
+// SHAP 特征重要性（离线演示兜底；在线优先 /api/models/shap → shap_results.json）
 const SHAP_FEATURES = [
-  { name: 'MA_30 偏离度', value: 0.245, importance: 0.245 },
-  { name: 'RSI_14', value: 0.198, importance: 0.198 },
-  { name: 'Volume_Change_Ratio', value: 0.167, importance: 0.167 },
-  { name: 'Return_7d', value: 0.142, importance: 0.142 },
-  { name: 'MACD', value: 0.098, importance: 0.098 },
-  { name: 'BB_position', value: 0.076, importance: 0.076 },
-  { name: 'Days_To_Major', value: 0.045, importance: 0.045 },
-  { name: 'Steam_CCU', value: 0.029, importance: 0.029 },
+  { name: 'MA_90', value: 0.867687, importance: 0.867687 },
+  { name: 'log_price', value: 0.363003, importance: 0.363003 },
+  { name: 'MA_7', value: 0.076831, importance: 0.076831 },
+  { name: 'MA_30', value: 0.055029, importance: 0.055029 },
+  { name: 'Volume_MA_7', value: 0.012936, importance: 0.012936 },
+  { name: 'days_since_cs2_announce', value: 0.00771, importance: 0.00771 },
+  { name: 'Volatility_30', value: 0.001627, importance: 0.001627 },
+  { name: 'MACD', value: 0.001268, importance: 0.001268 },
 ];
 
 // 涨跌榜数据
-const TOP_GAINERS = [...SKINS_POOL].sort((a, b) => b.change7d - a.change7d).slice(0, 8);
-const TOP_LOSERS = [...SKINS_POOL].sort((a, b) => a.change7d - b.change7d).slice(0, 8);
+const TOP_GAINERS = [...SKINS_POOL].filter((a) => a.change7d > 0).sort((a, b) => b.change7d - a.change7d).slice(0, 8);
+const TOP_LOSERS = [...SKINS_POOL].filter((a) => a.change7d < 0).sort((a, b) => a.change7d - b.change7d).slice(0, 8);
 const HOT_VOLUME = [...SKINS_POOL].sort((a, b) => b.volume24h - a.volume24h).slice(0, 8);
 
 // 双 Agent 辩论示例
@@ -192,22 +224,109 @@ const DEBATE_SAMPLE = {
   }
 };
 
-// 模拟持仓（默认数据）
-const DEFAULT_PORTFOLIO = [
-  { id: 1, skinId: 'ak47-redline-ft', name: 'AK-47 | Redline (FT)', buyPrice: 52.78, quantity: 5, buyDate: '2026-06-15' },
-  { id: 2, skinId: 'm4a1s-printstream-ft', name: 'M4A1-S | Printstream (FT)', buyPrice: 118.06, quantity: 2, buyDate: '2026-06-28' },
-  { id: 3, skinId: 'awp-asiimov-ft', name: 'AWP | Asiimov (FT)', buyPrice: 166.67, quantity: 1, buyDate: '2026-07-05' },
-];
+// 模拟持仓 / 我的库存默认均为空,由用户自行添加或 Steam 导入
+const DEFAULT_PORTFOLIO = [];
+
+const DEFAULT_INVENTORY = [];
+
+/** 根据库存与饰品现价，生成库存总价值历史 + 预测曲线（前端 mock / API 降级） */
+function generateInventoryValueHistory(inventory, days = 90, forecastDays = 7) {
+  const items = (inventory || []).filter((item) => (item.quantity || 0) > 0);
+  // 无库存:不伪造曲线(旧逻辑用 || 1000 会画出假走势)
+  if (!items.length) {
+    return {
+      dates: [],
+      values: [],
+      predictedDates: [],
+      predictedValues: [],
+      total: 0,
+    };
+  }
+
+  const dates = [];
+  const values = [];
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const baseTotal = items.reduce((sum, item) => {
+    const skin = SKINS_POOL.find(s => s.id === item.skinId);
+    const price = skin?.price ?? item.acquirePrice ?? 0;
+    return sum + price * (item.quantity || 1);
+  }, 0);
+
+  // 按市值加权的 24h 涨跌，用于预测段斜率（日均变化率）
+  let weightSum = 0;
+  let weightedChange = 0;
+  items.forEach((item) => {
+    const skin = SKINS_POOL.find(s => s.id === item.skinId);
+    const price = skin?.price ?? item.acquirePrice ?? 0;
+    const w = price * (item.quantity || 1);
+    weightSum += w;
+    weightedChange += w * ((skin?.change24h ?? 0) / 100);
+  });
+  // 将 24h 涨跌摊到预测区间，并限制幅度，避免曲线失真
+  const avgChange = weightSum > 0 ? weightedChange / weightSum : 0;
+  const horizonMove = Math.max(-0.08, Math.min(0.08, avgChange * 0.85));
+
+  let cursor = Math.max(baseTotal * 0.88, 0);
+  for (let i = days; i >= 0; i--) {
+    const d = new Date(now - i * dayMs);
+    dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
+    const drift = (Math.random() - 0.48) * 0.012 * cursor;
+    cursor = Math.max(cursor + drift, baseTotal * 0.6);
+    values.push(+cursor.toFixed(2));
+  }
+  // 末日对齐当前总市值
+  if (values.length) values[values.length - 1] = +baseTotal.toFixed(2);
+
+  const predictedDates = [];
+  const predictedValues = [];
+  let seed = Math.round(baseTotal) % 997;
+  const rand = () => {
+    seed = (seed * 137 + 71) % 997;
+    return seed / 997 - 0.5;
+  };
+  for (let i = 1; i <= forecastDays; i++) {
+    const d = new Date(now + i * dayMs);
+    predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
+    const t = i / forecastDays;
+    const eased = 1 - Math.pow(1 - t, 2);
+    const wiggle = i === forecastDays ? 0 : rand() * 0.004;
+    const predCursor = baseTotal * (1 + horizonMove * eased + wiggle);
+    predictedValues.push(+predCursor.toFixed(2));
+  }
+
+  return {
+    dates,
+    values,
+    predictedDates,
+    predictedValues,
+    total: +baseTotal.toFixed(2),
+  };
+}
 
 // 风险指标生成
 function calculateRiskMetrics(portfolio, currentPrices) {
+  const empty = {
+    totalCost: '0.00',
+    totalValue: '0.00',
+    pnl: '0.00',
+    pnlPct: '0.00',
+    sharpeRatio: '—',
+    maxDrawdown: '—',
+    volatility: '—',
+  };
+  if (!portfolio || !portfolio.length) return empty;
+
   let totalCost = 0, totalValue = 0;
   portfolio.forEach(item => {
-    totalCost += item.buyPrice * item.quantity;
-    totalValue += (currentPrices[item.skinId] || item.buyPrice) * item.quantity;
+    const qty = item.quantity || 1;
+    const buy = Number(item.buyPrice) || 0;
+    const cur = Number(currentPrices[item.skinId] ?? item.buyPrice) || 0;
+    totalCost += buy * qty;
+    totalValue += cur * qty;
   });
   const pnl = totalValue - totalCost;
-  const pnlPct = (pnl / totalCost) * 100;
+  const pnlPct = totalCost ? (pnl / totalCost) * 100 : 0;
   return {
     totalCost: totalCost.toFixed(2),
     totalValue: totalValue.toFixed(2),
@@ -264,6 +383,13 @@ const SUGGESTED_QUESTIONS = [
   '📊 模型对比结果怎么样?',
 ];
 
+const DEBATE_SUGGESTED_QUESTIONS = [
+  '🐂🐻 对 AK-47 火蛇发起牛熊辩论',
+  '🐂🐻 龙狙现在多空怎么看?',
+  '🐂🐻 红线该不该买?开辩论',
+  '🐂🐻 Asiimov 三轮多空对决',
+];
+
 // 导出到全局
 window.CSVestData = {
   SKINS_POOL,
@@ -278,9 +404,12 @@ window.CSVestData = {
   HOT_VOLUME,
   DEBATE_SAMPLE,
   DEFAULT_PORTFOLIO,
+  DEFAULT_INVENTORY,
+  generateInventoryValueHistory,
   calculateRiskMetrics,
   AI_PRESET_RESPONSES,
   SUGGESTED_QUESTIONS,
+  DEBATE_SUGGESTED_QUESTIONS,
   HYBRID_ROUTE: MODEL_COMPARISON.hybridRoute,
 };
 // Legacy alias (pre-rebrand)

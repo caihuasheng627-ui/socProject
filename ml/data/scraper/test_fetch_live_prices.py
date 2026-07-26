@@ -1,0 +1,256 @@
+"""Unit tests for multi-platform live price scraper (mocked HTTP)."""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+import httpx
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from platforms import (  # noqa: E402
+    BuffClient,
+    CsfloatClient,
+    CsgoTraderClient,
+    LootfarmClient,
+    MarketCsgoClient,
+    Quote,
+    SkinportClient,
+    SteamClient,
+    WaxpeerClient,
+    load_names_from_docs,
+    parse_money,
+)
+from fetch_live_prices import (  # noqa: E402
+    quotes_to_rows,
+    resolve_names,
+    write_csv,
+)
+
+
+def test_parse_money():
+    assert parse_money("$1,234.56") == 1234.56
+    assert parse_money("¥89.1") == 89.1
+    assert parse_money(12) == 12.0
+    assert parse_money(None) is None
+    assert parse_money("") is None
+
+
+def test_skinport_fetch_quotes():
+    payload = [
+        {
+            "market_hash_name": "AK-47 | Redline (Field-Tested)",
+            "currency": "USD",
+            "min_price": 28.42,
+            "median_price": 35.91,
+            "mean_price": 57.86,
+            "suggested_price": 41.42,
+            "max_price": 100.0,
+            "quantity": 84,
+            "item_page": "https://skinport.com/item/x",
+        },
+        {
+            "market_hash_name": "Other Item",
+            "currency": "USD",
+            "min_price": 1.0,
+            "quantity": 1,
+        },
+    ]
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    client = httpx.Client(transport=transport)
+    sp = SkinportClient(client=client)
+    quotes = sp.fetch_quotes(["AK-47 | Redline (Field-Tested)", "Missing Item"])
+    assert quotes[0].ok and quotes[0].price == 28.42
+    assert quotes[0].volume == 84
+    assert quotes[0].platform == "skinport"
+    assert not quotes[1].ok and quotes[1].error == "NOT_FOUND"
+    sp.close()
+
+
+def test_buff_requires_session():
+    buff = BuffClient(session="")
+    q = buff.fetch_one("AK-47 | Redline (Field-Tested)")
+    assert not q.ok
+    assert "BUFF_SESSION" in (q.error or "")
+    buff.close()
+
+
+def test_buff_fetch_one_ok():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "goods/sell_order" in str(request.url):
+            return httpx.Response(
+                200,
+                json={
+                    "code": "OK",
+                    "data": {
+                        "total_count": 12,
+                        "goods": {
+                            "market_hash_name": "AK-47 | Redline (Field-Tested)",
+                            "sell_min_price": "210.5",
+                            "buy_max_price": "200.0",
+                            "sell_num": 12,
+                        },
+                    },
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "code": "OK",
+                "data": {
+                    "items": [
+                        {
+                            "id": 12345,
+                            "market_hash_name": "AK-47 | Redline (Field-Tested)",
+                        }
+                    ]
+                },
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.Client(transport=transport)
+    buff = BuffClient(
+        client=client, session="fake-session", usd_cny_rate=7.0, request_interval=0
+    )
+    q = buff.fetch_one("AK-47 | Redline (Field-Tested)")
+    assert q.ok
+    assert q.price_native == 210.5
+    assert abs(q.price - round(210.5 / 7.0, 4)) < 1e-9
+    assert q.volume == 12
+    buff.close()
+
+
+def test_steam_fetch_one_ok():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "success": True,
+                "lowest_price": "$29.41",
+                "volume": "1,234",
+                "median_price": "$30.12",
+            },
+        )
+    )
+    client = httpx.Client(transport=transport)
+    steam = SteamClient(client=client, request_interval=0, max_retries=1)
+    q = steam.fetch_one("AK-47 | Redline (Field-Tested)")
+    assert q.ok and q.price == 29.41 and q.volume == 1234
+    steam.close()
+
+
+def test_waxpeer_marketcsgo_lootfarm_csgotrader_csfloat():
+    name = "AK-47 | Redline (Field-Tested)"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "waxpeer" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "items": [
+                        {"name": name, "min": 31450, "steam_price": 29802, "count": 10}
+                    ],
+                },
+            )
+        if "market.csgo.com" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "items": [
+                        {"market_hash_name": name, "price": "29.759", "volume": "452"}
+                    ],
+                },
+            )
+        if "loot.farm" in url:
+            return httpx.Response(
+                200,
+                json=[{"name": name, "price": 5135, "have": 2, "max": 5, "rate": 122}],
+            )
+        if "csgotrader" in url:
+            return httpx.Response(
+                200,
+                json={name: {"last_24h": 30.1, "last_7d": 29.8, "last_30d": 28.0}},
+            )
+        if "csfloat" in url:
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "abc",
+                        "price": 2842,
+                        "item": {"market_hash_name": name, "float_value": 0.18},
+                    }
+                ],
+            )
+        return httpx.Response(404, json={"error": "unexpected"})
+
+    transport = httpx.MockTransport(handler)
+
+    w = WaxpeerClient(client=httpx.Client(transport=transport))
+    assert abs(w.fetch_quotes([name])[0].price - 31.45) < 1e-6
+    w.close()
+
+    m = MarketCsgoClient(client=httpx.Client(transport=transport))
+    q = m.fetch_quotes([name])[0]
+    assert q.ok and q.price == 29.759 and q.volume == 452
+    m.close()
+
+    lf = LootfarmClient(client=httpx.Client(transport=transport))
+    q = lf.fetch_quotes([name])[0]
+    assert q.ok and abs(q.price - 51.35) < 1e-6
+    lf.close()
+
+    ct = CsgoTraderClient(client=httpx.Client(transport=transport))
+    q = ct.fetch_quotes([name])[0]
+    assert q.ok and q.price == 30.1
+    ct.close()
+
+    cf = CsfloatClient(client=httpx.Client(transport=transport), request_interval=0)
+    q = cf.fetch_one(name)
+    assert q.ok and abs(q.price - 28.42) < 1e-6
+    cf.close()
+
+
+def test_load_names_from_docs():
+    names = load_names_from_docs()
+    assert "AK-47 | Elite Build (Minimal Wear)" in names
+    assert "AWP | Asiimov (Field-Tested)" in names
+    assert "★ Karambit | Doppler (Factory New)" in names
+    assert "★ Driver Gloves | Overtake (Field-Tested)" in names
+    assert len(names) == 6
+
+
+def test_resolve_names_defaults_to_docs():
+    args = argparse.Namespace(items=None, from_csv=None, from_docs=None, limit=0)
+    names = resolve_names(args)
+    assert names[0] == "AK-47 | Elite Build (Minimal Wear)"
+    assert len(names) == 6
+
+
+def test_write_csv_and_resolve_names(tmp_path: Path):
+    args = argparse.Namespace(items=["A", "B", "C"], from_csv=None, from_docs=None, limit=2)
+    assert resolve_names(args) == ["A", "B"]
+
+    rows = quotes_to_rows(
+        [
+            Quote(
+                market_hash_name="A",
+                platform="skinport",
+                currency="USD",
+                price=1.5,
+                volume=3,
+            )
+        ]
+    )
+    out = tmp_path / "q.csv"
+    write_csv(out, rows, append=False)
+    write_csv(out, rows, append=True)
+    text = out.read_text(encoding="utf-8")
+    assert text.count("skinport") == 2
+    assert "market_hash_name" in text.splitlines()[0]

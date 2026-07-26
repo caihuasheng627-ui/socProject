@@ -21,6 +21,8 @@ CSVest — 模型加载 + 推理(组员 3 主线第 3 步)
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sys
 import threading
@@ -41,6 +43,18 @@ warnings.filterwarnings("ignore")
 # 让 import 能找到 ml/ 下的 feature_engineering / train_lstm_c
 sys.path.insert(0, str(ML_DIR))
 
+from hybrid_v2_contract import validate_hybrid_v2_adapter
+from hybrid_v2_transform import ULTRA_PRICE_THRESHOLD
+
+
+def _read_hybrid_v2_adapter(path: Path) -> dict[str, Any] | None:
+    """Read one validated adapter without affecting the loaded base models."""
+    try:
+        candidate = json.loads(path.read_text(encoding="utf-8"))
+        return validate_hybrid_v2_adapter(candidate)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
 
 # ============================================================
 # 面板特征缓存(进程级单例)
@@ -48,7 +62,6 @@ sys.path.insert(0, str(ML_DIR))
 _PANEL_LOCK = threading.Lock()
 _PANEL_CACHE: pd.DataFrame | None = None
 _PANEL_FEATURE_COLS: list[str] | None = None
-_RAW_PRICE_CACHE: pd.DataFrame | None = None
 
 
 def _load_panel() -> tuple[pd.DataFrame, list[str]]:
@@ -97,6 +110,64 @@ def _skin_window(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
     return X, cur_price, cur_date
 
 
+def _skin_window_from_db(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
+    """新物品(不在 CSV 面板)从 price_history 表构建 60 天特征窗口。
+    BUFF 爬取数据只有 price/volume,缺的 exogenous 特征(major/steam_ccu)用默认值。
+    供 LSTM-C 的 __UNK__ embedding 路径使用。"""
+    try:
+        from feature_engineering import build_features
+        from train_lstm_c import FEATURE_COLS
+        from database import get_connection
+    except Exception as e:
+        print(f"[model_loader] DB 窗口构建依赖缺失: {e}")
+        return None
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT date, price, daily_volume FROM price_history WHERE skin_id IN "
+            "(SELECT id FROM skins WHERE market_hash_name=?) ORDER BY date",
+            (market_hash_name,),
+        ).fetchall()
+        if len(rows) < LOOKBACK + 1:
+            return None
+        skin = conn.execute(
+            "SELECT weapon_type, rarity, wear, is_stattrak FROM skins WHERE market_hash_name=?",
+            (market_hash_name,),
+        ).fetchone()
+    if skin is None:
+        return None
+
+    import pandas as _pd
+    df = _pd.DataFrame([dict(date=r["date"], price=r["price"],
+                             daily_volume=r["daily_volume"] or 0) for r in rows])
+    df["market_hash_name"] = market_hash_name
+    df["date"] = _pd.to_datetime(df["date"])
+    # 元数据(从 skins 表,由 800 目录导入)
+    df["weapon_type"] = skin["weapon_type"] or ""
+    df["rarity"] = skin["rarity"] or ""
+    df["wear"] = skin["wear"] or ""
+    df["is_stattrak"] = int(skin["is_stattrak"] or 0)
+    # exogenous 默认值(BUFF 不提供;中性填充)
+    df["is_floor_price"] = 0
+    df["days_to_next_major"] = 0
+    df["days_since_last_major"] = 0
+    df["is_major_active"] = 0
+    df["days_since_cs2_announce"] = 0
+    df["steam_ccu"] = 0.0
+
+    feat_df = build_features(df, drop_na_target=False)
+    g = feat_df.sort_values("date")
+    if len(g) < LOOKBACK + 1:
+        return None
+    feat = g[list(FEATURE_COLS)].values.astype(np.float32)
+    price = g["price"].values
+    dates = g["date"].values
+    i = len(g) - 1
+    X = np.nan_to_num(feat[i - LOOKBACK + 1:i + 1][None, ...], nan=0.0)
+    return X, float(price[i]), str(_pd.Timestamp(dates[i]).strftime("%Y-%m-%d"))
+
+
+
 # ============================================================
 # 模型加载(懒加载,失败降级)
 # ============================================================
@@ -121,7 +192,10 @@ class ModelLoader:
         self.scalers: dict[str, Any] = {}
         self.item_map: dict[str, int] = {}
         self.group_map: dict[str, str] = {}
+        self.group_boundaries: tuple[float, float] = (20.0, 100.0)
         self.hybrid_route: dict[str, str] = {"low": "LSTM-C", "mid": "LSTM-D", "high": "LSTM-D"}
+        self.hybrid_v2_adapter: dict[str, Any] = {}
+        self._hybrid_v2_mtime_ns: int | None = None
         self.gru_items: set[str] = set()
         self._load()
 
@@ -160,11 +234,18 @@ class ModelLoader:
                 gm = _pkl("lstm_d_group_map.pkl")
                 # gm 结构: {"item_group": {name: "low"/"mid"/"high"}, ...}
                 self.group_map = gm.get("item_group", gm) if isinstance(gm, dict) else {}
+                if isinstance(gm, dict) and len(gm.get("boundaries", ())) == 2:
+                    self.group_boundaries = tuple(float(v) for v in gm["boundaries"])
+
+            adapter_path = MODEL_DIR / "hybrid_v2_adapter.json"
+            adapter = _read_hybrid_v2_adapter(adapter_path)
+            if adapter is not None:
+                self.hybrid_v2_adapter = adapter
+                self._hybrid_v2_mtime_ns = adapter_path.stat().st_mtime_ns
 
             # Hybrid 路由(val 冻结);缺失则默认 low→C mid/high→D
             route_path = MODEL_DIR / "lstm_hybrid_route.json"
             if route_path.exists():
-                import json
                 meta = json.loads(route_path.read_text(encoding="utf-8"))
                 route = meta.get("route") or {}
                 if isinstance(route, dict) and route:
@@ -180,6 +261,30 @@ class ModelLoader:
                 self.scalers["gru"] = _pkl("gru_scaler.pkl")
                 self.gru_items = set(_pkl("gru_items.pkl"))
 
+            # 30-day probabilistic trend model. Keep this optional so a missing
+            # or incompatible trend artifact cannot disable the 7-day LSTM.
+            trend_model = MODEL_DIR / "seq2seq_30d.keras"
+            trend_scaler = MODEL_DIR / "seq2seq_30d_scaler.pkl"
+            if trend_model.exists() and trend_scaler.exists():
+                try:
+                    self.models["seq2seq_30d"] = keras.models.load_model(
+                        trend_model, compile=False
+                    )
+                    scaler_bundle = _pkl("seq2seq_30d_scaler.pkl")
+                    if (
+                        isinstance(scaler_bundle, dict)
+                        and scaler_bundle.get("feature_contract_version") == "volume-free-v1"
+                        and len(scaler_bundle.get("feature_cols", ())) == 13
+                    ):
+                        self.scalers["seq2seq_30d"] = scaler_bundle
+                    else:
+                        self.models.pop("seq2seq_30d", None)
+                        print("[model_loader] WARN invalid 30-day scaler bundle")
+                except Exception as e:
+                    self.models.pop("seq2seq_30d", None)
+                    self.scalers.pop("seq2seq_30d", None)
+                    print(f"[model_loader] WARN 30-day trend load failed: {e}")
+
             print(f"[model_loader] OK models loaded: {list(self.models.keys())} | "
                   f"item_map={len(self.item_map)} group_map={len(self.group_map)} "
                   f"gru_items={len(self.gru_items)} route={self.hybrid_route}")
@@ -194,12 +299,58 @@ class ModelLoader:
         return scaler.transform(X.reshape(-1, f)).reshape(n, t, f)
 
     @staticmethod
-    def _to_price(pred_log_2d: np.ndarray, y_scaler) -> float:
-        inv = y_scaler.inverse_transform(pred_log_2d.reshape(-1, 1)).ravel()
-        return float(np.expm1(inv[0]))
+    def _to_prices(pred_log_2d: np.ndarray, y_scaler) -> list[float]:
+        """把模型输出(log_price, 旧 Dense(1) 或新 Dense(7))还原成每日 USD 价列表。
+        v5 契约的 y_scaler 按 7 维拟合(每天独立 mean/scale),需按 (n, 7) 形状还原;
+        旧单维 scaler 仍按 (n, 1) 还原。"""
+        n_feat = int(getattr(y_scaler, "n_features_in_", 1) or 1)
+        inv = y_scaler.inverse_transform(pred_log_2d.reshape(-1, n_feat)).ravel()
+        return [float(v) for v in np.expm1(inv)]
 
-    # ---------- 单模型推理 ----------
-    def _predict_lstm_c(self, X: np.ndarray, name: str) -> float | None:
+    def live_model_version(self) -> str:
+        """Return a stable cache identity for deployed 7-day and 30-day artifacts."""
+        digest = hashlib.sha256()
+        artifacts = {
+            artifact.name: artifact
+            for pattern in ("lstm*", "seq2seq_30d*", "hybrid_v2*")
+            for artifact in MODEL_DIR.glob(pattern)
+        }
+        for artifact in sorted(artifacts.values(), key=lambda path: path.name):
+            try:
+                stat = artifact.stat()
+            except OSError:
+                continue
+            digest.update(
+                f"{artifact.name}:{stat.st_size}:{stat.st_mtime_ns}\n".encode("utf-8")
+            )
+        return f"lstm-live-{digest.hexdigest()[:16]}"
+
+    @staticmethod
+    def _inverse_trend_output(values: np.ndarray, y_scaler: Any) -> np.ndarray | None:
+        """Invert a (30, 3) log-price tensor for common sklearn scaler shapes."""
+        n_features = int(getattr(y_scaler, "n_features_in_", 1) or 1)
+        try:
+            if n_features == 1:
+                restored = y_scaler.inverse_transform(values.reshape(-1, 1)).reshape(30, 3)
+            elif n_features == 3:
+                restored = y_scaler.inverse_transform(values)
+            elif n_features == 30:
+                restored = np.empty_like(values, dtype=np.float64)
+                for quantile_index in range(3):
+                    restored[:, quantile_index] = y_scaler.inverse_transform(
+                        values[:, quantile_index].reshape(1, 30)
+                    )[0]
+            elif n_features == 90:
+                restored = y_scaler.inverse_transform(values.reshape(1, -1)).reshape(30, 3)
+            else:
+                return None
+            prices = np.expm1(np.asarray(restored, dtype=np.float64))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return prices if np.isfinite(prices).all() else None
+
+    # ---------- 单模型推理(v5 契约: 返回 7 天每日价格列表) ----------
+    def _predict_lstm_c(self, X: np.ndarray, name: str) -> list[float] | None:
         if "lstm_c" not in self.models:
             return None
         item_id = self.item_map.get(name)
@@ -212,88 +363,288 @@ class ModelLoader:
         p = self.models["lstm_c"].predict(
             [self._scale_X(X, sc["x_scaler"]), Xi], verbose=0, batch_size=1
         ).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
 
-    def _predict_lstm_d(self, X: np.ndarray, name: str) -> float | None:
-        grp = self.group_map.get(name)
+    def _predict_lstm_d_for_group(self, X: np.ndarray, grp: str) -> list[float] | None:
         key = f"lstm_d_{grp}"
-        if key not in self.models or grp is None:
+        if key not in self.models:
             return None
         sc = self.scalers["lstm_d"].get(grp) if isinstance(self.scalers.get("lstm_d"), dict) else None
         if sc is None:
             return None
         p = self.models[key].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
 
-    def _predict_gru(self, X: np.ndarray, name: str) -> float | None:
+    def _route_lstm_d_group(self, name: str, current_price: float) -> str:
+        known = self.group_map.get(name)
+        if known in {"low", "mid", "high"}:
+            return known
+        lower, upper = self.group_boundaries
+        if current_price <= lower:
+            return "low"
+        if current_price <= upper:
+            return "mid"
+        return "high"
+
+    def _refresh_hybrid_v2_adapter(self) -> None:
+        """Hot reload an atomically published adapter without restarting FastAPI."""
+        path = MODEL_DIR / "hybrid_v2_adapter.json"
+        try:
+            mtime = path.stat().st_mtime_ns
+        except OSError:
+            return
+        if getattr(self, "_hybrid_v2_mtime_ns", None) == mtime:
+            return
+        candidate = _read_hybrid_v2_adapter(path)
+        if candidate is None:
+            return
+        self.hybrid_v2_adapter = candidate
+        self._hybrid_v2_mtime_ns = mtime
+
+    def _predict_lstm_d(
+        self, X: np.ndarray, name: str, current_price: float | None = None
+    ) -> list[float] | None:
+        group = self.group_map.get(name)
+        if group is None and current_price is not None:
+            group = self._route_lstm_d_group(name, current_price)
+        if group is None:
+            return None
+        return self._predict_lstm_d_for_group(X, group)
+
+    def _predict_gru(self, X: np.ndarray, name: str) -> list[float] | None:
         if "gru" not in self.models or name not in self.gru_items:
             return None
         sc = self.scalers["gru"]
         p = self.models["gru"].predict(self._scale_X(X, sc["x_scaler"]), verbose=0, batch_size=1).ravel()
-        return self._to_price(p, sc["y_scaler"])
+        return self._to_prices(p, sc["y_scaler"])
+
+    def predict_live_lstm(self, market_hash_name: str) -> dict | None:
+        """Run only the deployed LSTM against the latest database window.
+
+        This online path intentionally excludes offline prediction CSVs, the
+        2019-2023 feature panel, and synthetic trend fallbacks.
+        """
+        win = _skin_window_from_db(market_hash_name)
+        if win is None or not self.tf_available:
+            return None
+
+        X, cur_price, cur_date = win
+        is_known_item = (
+            market_hash_name in self.item_map or market_hash_name in self.group_map
+        )
+
+        if not is_known_item:
+            grp = "new"
+            prefer = "LSTM-C"
+            daily = self._predict_lstm_c(X, market_hash_name)
+            model_tag = "LSTM-C(__UNK__)"
+        else:
+            grp = self.group_map.get(market_hash_name, "mid")
+            prefer = self.hybrid_route.get(grp, "LSTM-D")
+            if prefer == "LSTM-C":
+                daily = self._predict_lstm_c(X, market_hash_name)
+                model_tag = "LSTM-C"
+            else:
+                daily = self._predict_lstm_d(X, market_hash_name)
+                model_tag = "LSTM-D"
+
+        if daily is None:
+            if prefer == "LSTM-C":
+                daily = self._predict_lstm_d(X, market_hash_name)
+                fallback_tag = "LSTM-D"
+            else:
+                daily = self._predict_lstm_c(X, market_hash_name)
+                fallback_tag = "LSTM-C(__UNK__)" if not is_known_item else "LSTM-C"
+            model_tag = f"{fallback_tag}(fallback)"
+        if daily is None:
+            return None
+
+        return {
+            "current_price": round(cur_price, 2),
+            **self._daily_payload(daily, cur_price),
+            "model": model_tag,
+            "date": cur_date,
+            "confidence": self._confidence(model_tag),
+            "price_tier": grp,
+            "route": prefer,
+        }
+
+    def predict_live_ensemble(self, market_hash_name: str) -> dict | None:
+        """Return simultaneous C/D paths for authoritative Hybrid V2 calibration."""
+        self._refresh_hybrid_v2_adapter()
+        win = _skin_window_from_db(market_hash_name)
+        if win is None or not self.tf_available:
+            return None
+        X, cur_price, cur_date = win
+        model_group = self._route_lstm_d_group(market_hash_name, cur_price)
+        price_tier = "ultra" if cur_price >= ULTRA_PRICE_THRESHOLD else model_group
+        c_path = self._predict_lstm_c(X, market_hash_name)
+        d_path = self._predict_lstm_d_for_group(X, model_group)
+        if c_path is None and d_path is None:
+            return None
+        fallback_models = []
+        if c_path is None:
+            c_path = list(d_path or [])
+            fallback_models.append("LSTM-C")
+        if d_path is None:
+            d_path = list(c_path or [])
+            fallback_models.append("LSTM-D")
+        return {
+            "current_price": round(cur_price, 2),
+            "date": cur_date,
+            "model": "Hybrid-V2",
+            "confidence": self._confidence("LSTM-Hybrid"),
+            "price_tier": price_tier,
+            "model_group": model_group,
+            "lstm_c_prices": c_path,
+            "lstm_d_prices": d_path,
+            "adapter": self.hybrid_v2_adapter,
+            "fallbackModels": fallback_models,
+        }
+
+    def predict_live_trend_30d(self, market_hash_name: str) -> dict | None:
+        """Run the Keras 30-day quantile model on the latest database window."""
+        if (
+            not self.tf_available
+            or "seq2seq_30d" not in self.models
+            or "seq2seq_30d" not in self.scalers
+        ):
+            return None
+        win = _skin_window_from_db(market_hash_name)
+        if win is None:
+            return None
+        X, cur_price, cur_date = win
+        if X.shape != (1, LOOKBACK, 13):
+            return None
+
+        scalers = self.scalers["seq2seq_30d"]
+        if not isinstance(scalers, dict):
+            return None
+        artifact_features = scalers.get("feature_cols")
+        try:
+            from model_features import FEATURE_CONTRACT_VERSION, SEQUENCE_FEATURE_COLS
+        except ImportError:
+            return None
+        if (
+            tuple(artifact_features or ()) != tuple(SEQUENCE_FEATURE_COLS)
+            or scalers.get("feature_contract_version") != FEATURE_CONTRACT_VERSION
+        ):
+            return None
+        x_scaler = scalers.get("x_scaler")
+        y_scaler = scalers.get("y_scaler")
+        if x_scaler is None or y_scaler is None:
+            return None
+        try:
+            scaled = self._scale_X(X, x_scaler)
+            raw = np.asarray(
+                self.models["seq2seq_30d"].predict(
+                    scaled, verbose=0, batch_size=1
+                ),
+                dtype=np.float64,
+            )
+        except (TypeError, ValueError, RuntimeError):
+            return None
+        if raw.shape != (1, 30, 3):
+            return None
+
+        prices = self._inverse_trend_output(raw[0], y_scaler)
+        if prices is None:
+            return None
+        # Quantile crossing is sanitized per forecast day before the API
+        # applies its stricter contract validation.
+        ordered = np.sort(np.maximum(prices, 0.01), axis=1)
+        median = ordered[:, 1]
+        ordered[:, 0] = np.clip(ordered[:, 0], median * 0.60, median)
+        ordered[:, 2] = np.clip(ordered[:, 2], median, median * 1.40)
+        ordered = np.sort(ordered, axis=1)
+        return {
+            "current_price": round(float(cur_price), 2),
+            "date": cur_date,
+            "model": "Keras-Seq2Seq-30D",
+            "horizon": 30,
+            "p10": [round(float(value), 4) for value in ordered[:, 0]],
+            "p50": [round(float(value), 4) for value in ordered[:, 1]],
+            "p90": [round(float(value), 4) for value in ordered[:, 2]],
+        }
+
+    @staticmethod
+    def _daily_payload(daily: list[float], cur_price: float) -> dict:
+        """由 7 天每日价格列表构造统一输出字段。
+        predicted_price 取第 7 天(与 v4 单点口径兼容),daily_prices 提供完整路径。"""
+        daily = [round(max(float(v), 0.01), 4) for v in daily]
+        pred = daily[-1]
+        change = round((pred - cur_price) / cur_price * 100, 2) if cur_price else 0.0
+        return {
+            "predicted_price": round(pred, 2),
+            "daily_prices": daily,
+            "change_pct": change,
+        }
 
     # ---------- Hybrid 主入口 ----------
     def predict_hybrid(self, market_hash_name: str) -> dict | None:
         """
-        返回 {current_price, predicted_price(7天), model, date, change_pct} 或 None。
+        返回 {current_price, predicted_price(第7天), daily_prices(7天路径), model, date, change_pct} 或 None。
         Hybrid 路由默认: low→C, mid/high→D(可被 lstm_hybrid_route.json 覆盖)。
+        新物品(不在 item_map / CSV 面板)→ 强制走 LSTM-C(__UNK__ embedding),
+        窗口从 price_history 表(BUFF 爬取)构建。
         """
-        # Do not import the TensorFlow training module before checking the
-        # fallback. Otherwise a machine without TensorFlow gets a 500 instead
-        # of the advertised trend-based mock prediction.
-        if not self.tf_available:
-            return self._mock_trend(market_hash_name)
-
         win = _skin_window(market_hash_name)
+        is_new_item = win is None
+        if is_new_item:
+            win = _skin_window_from_db(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
 
-        grp = self.group_map.get(market_hash_name, "mid")
-        prefer = self.hybrid_route.get(grp, "LSTM-D")
-        if prefer == "LSTM-C":
-            pred = self._predict_lstm_c(X, market_hash_name)
-            model_tag = "LSTM-C"
-        else:
-            pred = self._predict_lstm_d(X, market_hash_name)
-            model_tag = "LSTM-D"
-        # 兜底:C/D 任一失败换另一个
-        if pred is None:
-            pred = self._predict_lstm_c(X, market_hash_name) or self._predict_lstm_d(X, market_hash_name)
-            model_tag = "LSTM-Hybrid(fallback)"
-        if pred is None:
+        if not self.tf_available:
             return self._mock_trend(market_hash_name, cur_price, cur_date)
 
-        pred = max(pred, 0.01)
-        change = round((pred - cur_price) / cur_price * 100, 2)
+        # 新物品强制 LSTM-C(__UNK__);已知物品按 group 路由
+        if is_new_item:
+            prefer = "LSTM-C"
+            grp = "new"
+        else:
+            grp = self.group_map.get(market_hash_name, "mid")
+            prefer = self.hybrid_route.get(grp, "LSTM-D")
+
+        if prefer == "LSTM-C":
+            daily = self._predict_lstm_c(X, market_hash_name)
+            model_tag = "LSTM-C(__UNK__)" if is_new_item else "LSTM-C"
+        else:
+            daily = self._predict_lstm_d(X, market_hash_name)
+            model_tag = "LSTM-D"
+        # 兜底:C/D 任一失败换另一个
+        if daily is None:
+            daily = self._predict_lstm_c(X, market_hash_name) or self._predict_lstm_d(X, market_hash_name)
+            model_tag = "LSTM-Hybrid(fallback)"
+        if daily is None:
+            return self._mock_trend(market_hash_name, cur_price, cur_date)
+
         return {
             "current_price": round(cur_price, 2),
-            "predicted_price": round(pred, 2),
+            **self._daily_payload(daily, cur_price),
             "model": model_tag,
             "date": cur_date,
-            "change_pct": change,
             "confidence": self._confidence(model_tag),
             "price_tier": grp,
             "route": prefer,
         }
 
     def predict_gru_for(self, market_hash_name: str) -> dict | None:
-        if not self.tf_available or market_hash_name not in self.gru_items:
-            return None
         win = _skin_window(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
-        pred = self._predict_gru(X, market_hash_name)
-        if pred is None:
+        if not self.tf_available or market_hash_name not in self.gru_items:
             return None
-        pred = max(pred, 0.01)
+        daily = self._predict_gru(X, market_hash_name)
+        if daily is None:
+            return None
         return {
             "current_price": round(cur_price, 2),
-            "predicted_price": round(pred, 2),
+            **self._daily_payload(daily, cur_price),
             "model": "GRU",
             "date": cur_date,
-            "change_pct": round((pred - cur_price) / cur_price * 100, 2),
             "confidence": self._confidence("GRU"),
         }
 
@@ -329,8 +680,24 @@ class ModelLoader:
             return None
         row = sub.sort_values("date").iloc[-1]
         cur = float(row["current_price"])
-        pred = max(float(row["predicted_price"]), 0.01)
-        return {
+
+        # v5 契约: LSTM/GRU 系列多列格式 predicted_price_d1..d7(逐日精确预测)
+        day_cols = [c for c in df.columns if c.startswith("predicted_price_d")]
+        daily: list[float] | None = None
+        if day_cols:
+            day_cols = sorted(day_cols, key=lambda c: int(c.rsplit("d", 1)[-1]))
+            vals = [row[c] for c in day_cols]
+            if all(pd.notna(v) for v in vals):
+                daily = [max(float(v), 0.01) for v in vals]
+        if daily:
+            pred = daily[-1]
+        elif "predicted_price" in df.columns and pd.notna(row["predicted_price"]):
+            # 旧单列格式(树模型 / ARIMA)
+            pred = max(float(row["predicted_price"]), 0.01)
+        else:
+            return None
+
+        out = {
             "current_price": round(cur, 2),
             "predicted_price": round(pred, 2),
             "model": model_name,
@@ -339,6 +706,11 @@ class ModelLoader:
             "change_pct": round((pred - cur) / cur * 100, 2) if cur else 0.0,
             "confidence": self._confidence(model_name),
         }
+        if daily:
+            out["daily_prices"] = [round(v, 4) for v in daily]
+        if "target_date" in df.columns and pd.notna(row.get("target_date")):
+            out["target_date"] = str(pd.Timestamp(row["target_date"]).date())
+        return out
 
     def predict_all_models(self, market_hash_name: str, horizon: int = 7) -> list[dict]:
         """返回多模型预测列表(供 /api/predict)。
@@ -365,17 +737,25 @@ class ModelLoader:
                 results.append(r)
 
         have = {r["model"] for r in results}
-        # CSV 无 Hybrid 时: live Hybrid 兜底
+        # CSV 无 Hybrid 时: live Hybrid 兜底(推理失败不拖垮整个端点)
         if "LSTM" not in have:
-            h = self.predict_hybrid(market_hash_name)
+            try:
+                h = self.predict_hybrid(market_hash_name)
+            except Exception as e:
+                print(f"[model_loader] live hybrid 兜底失败: {e}")
+                h = None
             if h:
                 results.insert(0, {**h, "model": "LSTM", "type": "DL"})
         if "GRU" not in have:
-            g = self.predict_gru_for(market_hash_name)
+            try:
+                g = self.predict_gru_for(market_hash_name)
+            except Exception as e:
+                print(f"[model_loader] live GRU 兜底失败: {e}")
+                g = None
             if g:
                 results.append({**g, "type": "DL"})
 
-        # horizon=30 时把 7 天预测外推(标注)
+        # horizon=30 时把 7 天预测外推(标注);daily_prices 仍为 7 天精确路径
         if horizon == 30:
             for r in results:
                 cur = r["current_price"]
@@ -391,53 +771,27 @@ class ModelLoader:
     def _confidence(self, model_name: str) -> float:
         """按各模型历史 MAPE 反推置信度(MAPE 越低置信越高)。"""
         mape = {
-            "LSTM-C": 5.56, "LSTM-D": 4.39, "LSTM": 4.5, "LSTM-Hybrid(fallback)": 4.5,
+            "LSTM-C": 5.56, "LSTM-C(__UNK__)": 12.0, "LSTM-D": 4.39, "LSTM": 4.5, "LSTM-Hybrid(fallback)": 4.5,
             "GRU": 11.02, "XGBoost": 7.5, "LightGBM": 12.67,
             "RandomForest": 9.0, "ARIMA": 18.17,
         }.get(model_name, 10.0)
         return round(max(35.0, min(95.0, 100.0 - mape * 2.2)), 1)
 
-    def _mock_trend(
-        self,
-        market_hash_name: str,
-        cur_price: float | None = None,
-        cur_date: str | None = None,
-    ) -> dict | None:
-        """TF 不可用时的趋势外推(近 7 日收益率 ×7)。"""
-        global _RAW_PRICE_CACHE
-        if _RAW_PRICE_CACHE is None:
-            frames = []
-            for split in ("train", "val", "test"):
-                path = DATA_DIR / f"{split}.csv"
-                if path.exists():
-                    frames.append(
-                        pd.read_csv(
-                            path,
-                            usecols=["date", "market_hash_name", "price"],
-                            parse_dates=["date"],
-                        )
-                    )
-            if not frames:
-                return None
-            _RAW_PRICE_CACHE = pd.concat(frames, ignore_index=True)
-        g = _RAW_PRICE_CACHE[
-            _RAW_PRICE_CACHE["market_hash_name"] == market_hash_name
-        ].sort_values("date")
-        if g.empty:
-            return None
-        cur_price = float(cur_price if cur_price is not None else g["price"].iloc[-1])
-        cur_date = cur_date or str(pd.Timestamp(g["date"].iloc[-1]).strftime("%Y-%m-%d"))
+    def _mock_trend(self, market_hash_name: str, cur_price: float, cur_date: str) -> dict:
+        """TF 不可用时的趋势外推(近 7 日收益率 ×7);同样给出 7 天线性路径保持契约一致。"""
+        panel, _ = _load_panel()
+        g = panel[panel["market_hash_name"] == market_hash_name].sort_values("date")
         if len(g) < 8:
+            daily = [round(max(cur_price, 0.01), 4)] * 7
             return {"current_price": round(cur_price, 2), "predicted_price": round(cur_price, 2),
+                    "daily_prices": daily,
                     "model": "Mock(趋势)", "date": cur_date, "change_pct": 0.0, "confidence": 40.0}
         ret7 = (g["price"].iloc[-1] - g["price"].iloc[-8]) / g["price"].iloc[-8]
-        if abs(ret7) < 0.0001 and len(g) >= 31:
-            ret30 = (g["price"].iloc[-1] - g["price"].iloc[-31]) / g["price"].iloc[-31]
-            ret = ret30 if abs(ret30) > 0.0001 else ret7
-        else:
-            ret = ret7
-        pred = max(cur_price * (1 + ret), 0.01)
+        pred = max(cur_price * (1 + ret7), 0.01)
+        daily = [round(max(cur_price + (pred - cur_price) * (i / 7.0), 0.01), 4)
+                 for i in range(1, 8)]
         return {"current_price": round(cur_price, 2), "predicted_price": round(pred, 2),
+                "daily_prices": daily,
                 "model": "Mock(趋势)", "date": cur_date,
                 "change_pct": round((pred - cur_price) / cur_price * 100, 2), "confidence": 45.0}
 

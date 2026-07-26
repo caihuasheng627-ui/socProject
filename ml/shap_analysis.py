@@ -28,23 +28,14 @@ MODEL_PATH = BASE_DIR / "models" / "xgb_reg.pkl"
 OUT_DIR = BASE_DIR / "outputs"
 
 from tree_features import (  # noqa: E402
-    FEATURE_COLS,
     assert_held_out,
     load_tree_split,
     regression_arrays,
 )
+from model_features import TREE_FEATURE_COLS  # noqa: E402
 
-# 23 特征列名 (与 utils.py FEATURE_COLS 对齐)
-FEATURE_NAMES = [
-    "log_price", "MA_7", "MA_30", "MA_90",
-    "Return_1d", "Return_7d", "Volatility_30",
-    "RSI_14", "MACD", "Volume_MA_7",
-    "MA_30_dev", "BB_position", "Volume_Change_Ratio",
-    "is_stattrak", "is_floor_price",
-    "days_to_next_major", "days_since_last_major", "is_major_active",
-    "steam_ccu", "days_since_cs2_announce",
-    "weapon_type_enc", "rarity_enc", "wear_enc",
-]
+# Keep plotting labels aligned exactly with the tree model input order.
+FEATURE_NAMES = TREE_FEATURE_COLS
 
 
 def main(model_path=MODEL_PATH, split="test", allow_in_sample=False):
@@ -116,21 +107,41 @@ def main(model_path=MODEL_PATH, split="test", allow_in_sample=False):
     print(f"  ✅ {OUT_DIR / 'shap_bar.png'}")
 
     # --- JSON 导出 (前端模型实验室用) ---
+    feature_importance = [
+        {"rank": i + 1, "feature": name, "mean_abs_shap": round(float(val), 6)}
+        for i, (name, val) in enumerate(ranked)
+    ]
     shap_export = {
         "model": "XGBoost Regression",
         "model_fit_split": fit_split,
         "explanation_split": split,
         "n_features": len(FEATURE_NAMES),
         "n_samples": n_sample,
-        "feature_importance": [
-            {"rank": i + 1, "feature": name, "mean_abs_shap": round(float(val), 6)}
-            for i, (name, val) in enumerate(ranked)
-        ],
+        "feature_importance": feature_importance,
         "top3_features": [ranked[0][0], ranked[1][0], ranked[2][0]],
     }
     with open(OUT_DIR / "shap_results.json", "w", encoding="utf-8") as f:
         json.dump(shap_export, f, ensure_ascii=False, indent=2)
     print(f"  ✅ {OUT_DIR / 'shap_results.json'}")
+
+    # 同步写入 shap_features.json（兼容旧 API / 前端回退）
+    compat_rows = [
+        {"feature": r["feature"], "importance": r["mean_abs_shap"]}
+        for r in feature_importance
+    ]
+    shap_features_path = OUT_DIR / "shap_features.json"
+    shap_features = {}
+    if shap_features_path.exists():
+        try:
+            shap_features = json.loads(shap_features_path.read_text(encoding="utf-8"))
+        except Exception:
+            shap_features = {}
+    if not isinstance(shap_features, dict):
+        shap_features = {}
+    shap_features["xgboost"] = compat_rows
+    with open(shap_features_path, "w", encoding="utf-8") as f:
+        json.dump(shap_features, f, ensure_ascii=False, indent=2)
+    print(f"  ✅ {shap_features_path} (xgboost synced)")
 
     # ---------- 总结 ----------
     print("\n" + "=" * 60)

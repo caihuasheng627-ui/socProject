@@ -25,24 +25,16 @@ from sklearn.metrics import (
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from feature_engineering import build_features, fit_categoricals, transform_categoricals
+from model_features import TREE_FEATURE_COLS
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
 
-FEATURE_COLS = [
-    "log_price", "MA_7", "MA_30", "MA_90",
-    "Return_1d", "Return_7d", "Volatility_30",
-    "RSI_14", "MACD", "Volume_MA_7",
-    "MA_30_dev", "BB_position", "Volume_Change_Ratio",
-    "is_stattrak", "is_floor_price",
-    "days_to_next_major", "days_since_last_major", "is_major_active",
-    "steam_ccu", "days_since_cs2_announce",
-    "weapon_type_enc", "rarity_enc", "wear_enc",
-]
+FEATURE_COLS = TREE_FEATURE_COLS
 
 SHAP_FEATURE_NAMES = [
-    "MA_30_dev", "RSI_14", "Volume_Change_Ratio", "Return_7d",
-    "MACD", "BB_position", "days_to_next_major", "steam_ccu",
+    "MA_30_dev", "RSI_14", "Return_7d", "MACD",
+    "BB_position", "days_to_next_major", "steam_ccu",
 ]
 
 CLASS_LABELS = {0: "die", 1: "ping", 2: "zhang"}
@@ -118,7 +110,7 @@ def _sort_by_date(df):
 def make_regression_target(df):
     """回归: y = Target (7天后 log_price), X = 特征矩阵（按 date 排序）"""
     valid = _sort_by_date(df.dropna(subset=["Target"]))
-    X = valid[FEATURE_COLS].values
+    X = valid[list(FEATURE_COLS)].values
     y = valid["Target"].values
     dates = valid["date"].values
     skins = valid["market_hash_name"].values
@@ -132,7 +124,7 @@ def make_classification_target(df, threshold=CLASS_THRESHOLD):
     future_return = np.exp(valid["Target"].values - valid["log_price"].values) - 1
     y = np.where(future_return >= threshold, 2,
          np.where(future_return <= -threshold, 0, 1))
-    X = valid[FEATURE_COLS].values
+    X = valid[list(FEATURE_COLS)].values
     dates = valid["date"].values
     skins = valid["market_hash_name"].values
     prices = valid["price"].values

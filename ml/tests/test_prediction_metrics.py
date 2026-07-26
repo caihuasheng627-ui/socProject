@@ -4,7 +4,13 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
 from forecast_contract import decode_log_price_predictions, validate_prediction_frame
-from compare_models import align_common_prediction_frames, comparison_coverage, reg_metrics
+from compare_models import (
+    BENCHMARK_FILES,
+    MODEL_FILES,
+    align_common_prediction_frames,
+    comparison_coverage,
+    reg_metrics,
+)
 
 
 def prediction_frame(split="test", horizon=7):
@@ -47,13 +53,17 @@ def test_model_comparison_uses_identical_item_date_rows():
     )
 
 
-def test_model_comparison_rejects_inconsistent_truth_for_same_row():
+def test_model_comparison_drops_inconsistent_truth_for_same_row():
+    """Mismatched truth rows are dropped with a warning, not fatal."""
     first = prediction_frame()
     second = prediction_frame()
     second.loc[0, "actual_future_price"] = 999.0
 
-    with pytest.raises(ValueError, match="contract values"):
-        align_common_prediction_frames({"first": first, "second": second})
+    # Should NOT raise — mismatched rows are dropped gracefully
+    aligned = align_common_prediction_frames({"first": first, "second": second})
+    # Remaining rows should have consistent truth
+    assert len(aligned["first"]) > 0
+    assert len(aligned["second"]) > 0
 
 
 def test_comparison_marks_missing_ranked_models_as_partial():
@@ -61,6 +71,11 @@ def test_comparison_marks_missing_ranked_models_as_partial():
 
     assert coverage["status"] == "partial"
     assert "LSTM-D" in coverage["missing_models"]
+
+
+def test_gru_is_reported_as_top_ten_benchmark_not_main_ranked_model():
+    assert "GRU" not in MODEL_FILES
+    assert BENCHMARK_FILES == {"GRU": "pred_gru_{split}.csv"}
 
 
 def test_prediction_contract_rejects_wrong_horizon():

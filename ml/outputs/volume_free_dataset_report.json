@@ -1,0 +1,171 @@
+{
+  "dataset": {
+    "status": "passed",
+    "items": 155,
+    "duplicate_item_dates": 0,
+    "chronological_violations": 0,
+    "splits": {
+      "train": {
+        "rows": 157011,
+        "items": 148,
+        "date_min": "2019-01-01",
+        "date_max": "2022-01-29"
+      },
+      "val": {
+        "rows": 36446,
+        "items": 155,
+        "date_min": "2022-01-26",
+        "date_max": "2022-09-27"
+      },
+      "test": {
+        "rows": 36407,
+        "items": 155,
+        "date_min": "2022-09-23",
+        "date_max": "2023-05-26"
+      }
+    }
+  },
+  "features": {
+    "rows": 229864,
+    "sequence": {
+      "shape": [
+        229864,
+        13
+      ],
+      "features": [
+        "log_price",
+        "MA_7",
+        "MA_30",
+        "MA_90",
+        "Return_1d",
+        "Return_7d",
+        "Volatility_30",
+        "RSI_14",
+        "MACD",
+        "is_floor_price",
+        "is_stattrak",
+        "is_major_active",
+        "steam_ccu"
+      ]
+    },
+    "tree": {
+      "shape": [
+        229864,
+        21
+      ],
+      "features": [
+        "log_price",
+        "MA_7",
+        "MA_30",
+        "MA_90",
+        "Return_1d",
+        "Return_7d",
+        "Volatility_30",
+        "RSI_14",
+        "MACD",
+        "MA_30_dev",
+        "BB_position",
+        "is_stattrak",
+        "is_floor_price",
+        "days_to_next_major",
+        "days_since_last_major",
+        "is_major_active",
+        "steam_ccu",
+        "days_since_cs2_announce",
+        "weapon_type_enc",
+        "rarity_enc",
+        "wear_enc"
+      ]
+    },
+    "frozen_gru_items": [
+      "CZ75-Auto | Circaetus (Battle-Scarred)",
+      "R8 Revolver | Amber Fade (Factory New)",
+      "Danger Zone Case",
+      "R8 Revolver | Amber Fade (Minimal Wear)",
+      "Dreams & Nightmares Case",
+      "CZ75-Auto | Framework (Battle-Scarred)",
+      "Glock-18 | Blue Fissure (Factory New)",
+      "FAMAS | CaliCamo (Factory New)",
+      "CZ75-Auto | Army Sheen (Factory New)",
+      "AK-47 | Safari Mesh (Minimal Wear)"
+    ],
+    "missing_gru_items": []
+  },
+  "training_smoke": {
+    "keras": {
+      "lstm_c": {
+        "status": "passed",
+        "prediction_shape": [
+          8,
+          7
+        ]
+      },
+      "lstm_d": {
+        "status": "passed",
+        "prediction_shape": [
+          8,
+          7
+        ]
+      },
+      "gru": {
+        "status": "passed",
+        "prediction_shape": [
+          8,
+          7
+        ]
+      },
+      "trend_30d": {
+        "status": "passed",
+        "prediction_shape": [
+          8,
+          30,
+          3
+        ]
+      }
+    },
+    "trees": {
+      "rf_reg": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      },
+      "lightgbm_reg": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      },
+      "xgboost_reg": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      },
+      "rf_cls": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      },
+      "lightgbm_cls": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      },
+      "xgboost_cls": {
+        "status": "passed",
+        "prediction_shape": [
+          24
+        ]
+      }
+    },
+    "csv": {
+      "forecast_7d": "passed",
+      "trend_30d": "passed"
+    },
+    "status": "passed"
+  },
+  "status": "passed"
+}

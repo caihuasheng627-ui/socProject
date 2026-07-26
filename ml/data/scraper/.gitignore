@@ -1,0 +1,6 @@
+# 多平台实时采集产物(本地生成,不入库)
+live_quotes.csv
+live_quotes.json
+*.pyc
+__pycache__/
+.pytest_cache/

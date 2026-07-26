@@ -9,7 +9,7 @@ SQLite 建表 + 导入 + 种子(组员 3 主线第 1 步)。
 数据来源(课程演示,策划书 §13.2 降级口径):
   - skins        : train.csv 去重导入(weapon_type/rarity/wear/is_stattrak)
   - price_history: train+val+test 回填(BUFF 实时爬虫关闭,训练 CSV 兜底)
-  - portfolio    : Expo 种子 3-5 件预置持仓(real/sim 混合)
+  - portfolio    : 默认空(不再预置 Expo 演示持仓)
   - news         : 几条种子资讯(RSS 采集由 scheduler 增量补充)
   - model_registry: 8 模型指标(读 ml/outputs/*.json)
 
@@ -32,6 +32,7 @@ from config import (
     OUTPUT_DIR,
     PRED_CACHE_TTL_HOURS,
     SEED_DIR,
+    CATALOG_800_CSV,
     ensure_dirs,
 )
 
@@ -122,7 +123,10 @@ CREATE TABLE IF NOT EXISTS skins (
     wear_full        TEXT,
     is_stattrak      INTEGER DEFAULT 0,
     is_floor_price   INTEGER DEFAULT 0,
-    category         TEXT
+    category         TEXT,
+    price_tier       TEXT,             -- 🆕 高价/中价/低价(800 目录;LSTM-D 路由用)
+    source           TEXT DEFAULT 'csv',  -- 🆕 csv=训练数据 / buff=BUFF 目录
+    image_url        TEXT              -- 🆕 Steam CDN 饰品主图 base URL(无尺寸后缀,前端拼 /360fx360f)
 );
 
 CREATE TABLE IF NOT EXISTS price_history (
@@ -131,6 +135,9 @@ CREATE TABLE IF NOT EXISTS price_history (
     date          TEXT NOT NULL,
     price         REAL NOT NULL,        -- USD 原价(与训练同口径)
     daily_volume  INTEGER DEFAULT 0,
+    raw_price     REAL,                 -- 清洗前的原始价格
+    is_outlier    INTEGER DEFAULT 0,    -- 1=price 已替换为稳健价格
+    outlier_reason TEXT,
     FOREIGN KEY (skin_id) REFERENCES skins(id),
     UNIQUE (skin_id, date)
 );
@@ -148,6 +155,10 @@ CREATE TABLE IF NOT EXISTS predictions (
     confidence      REAL,
     generated_at    TEXT,
     expires_at      TEXT,
+    daily_json      TEXT,               -- v5: 7 天逐日预测路径(JSON 数组)
+    decision_date   TEXT,               -- 在线推理使用的最后观测日期
+    model_version   TEXT,               -- 模型产物身份,变更后缓存失效
+    data_through    TEXT,               -- 特征数据截止日期
     FOREIGN KEY (skin_id) REFERENCES skins(id)
 );
 CREATE INDEX IF NOT EXISTS idx_pred_skin ON predictions(skin_id, horizon, model);
@@ -178,6 +189,7 @@ CREATE TABLE IF NOT EXISTS model_registry (
 
 CREATE TABLE IF NOT EXISTS alerts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER,                -- 🆕 所属用户(NULL=旧数据,归 demo)
     skin_id      INTEGER NOT NULL,
     type         TEXT,                  -- above / below
     target_price REAL,
@@ -191,6 +203,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 -- 🆕 portfolio 转正(P0 核心表),加 holding_type(real/sim)
 CREATE TABLE IF NOT EXISTS portfolio (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER,               -- 🆕 所属用户(NULL=旧数据,归 demo)
     skin_id       INTEGER NOT NULL,
     holding_type  TEXT DEFAULT 'real',   -- real=真实持仓 / sim=模拟持仓
     buy_price     REAL,                  -- 可空(模拟持仓可不填成本)
@@ -200,12 +213,295 @@ CREATE TABLE IF NOT EXISTS portfolio (
     created_at    TEXT,
     FOREIGN KEY (skin_id) REFERENCES skins(id)
 );
+
+-- 🆕 用户表(注册/登录)
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,         -- bcrypt(sha256(p)) base64
+    created_at    TEXT,
+    is_demo       INTEGER DEFAULT 0      -- 1=内置 demo 用户
+);
 """
+
+
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    return column in cols
+
+
+def migrate_price_history_quality(
+    conn: sqlite3.Connection | None = None,
+    *,
+    force: bool = False,
+) -> dict[str, int]:
+    """Add price-quality fields and clean legacy rows once per affected item."""
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            db.execute("ALTER TABLE price_history ADD COLUMN raw_price REAL")
+        if not _column_exists(db, "price_history", "is_outlier"):
+            db.execute(
+                "ALTER TABLE price_history ADD COLUMN is_outlier INTEGER DEFAULT 0"
+            )
+        if not _column_exists(db, "price_history", "outlier_reason"):
+            db.execute("ALTER TABLE price_history ADD COLUMN outlier_reason TEXT")
+
+        affected_query = (
+            "SELECT DISTINCT skin_id FROM price_history"
+            if force
+            else "SELECT DISTINCT skin_id FROM price_history WHERE raw_price IS NULL"
+        )
+        affected_ids = [row[0] for row in db.execute(affected_query).fetchall()]
+        if not affected_ids:
+            db.commit()
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        updated_rows = 0
+        outlier_count = 0
+        for skin_id in affected_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            updates = []
+            for row, point in zip(history, cleaned):
+                updates.append(
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    )
+                )
+                outlier_count += int(point.is_outlier)
+            db.executemany(
+                """UPDATE price_history
+                   SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                   WHERE id=?""",
+                updates,
+            )
+            updated_rows += len(updates)
+        db.commit()
+        return {
+            "items": len(affected_ids),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
+
+
+def repair_endpoint_price_outliers(
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, int]:
+    """Re-check first/last prices against the updated endpoint cleaner.
+
+    Idempotent: only writes rows whose effective price / outlier flags change.
+    Clears prediction cache for skins whose latest price was repaired, so the
+    next /predict call does not reuse a poisoned current_price.
+    """
+    from price_cleaning import clean_price_points
+
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        if not _column_exists(db, "price_history", "raw_price"):
+            return {"items": 0, "rows": 0, "outliers": 0}
+
+        skin_ids = [
+            row[0]
+            for row in db.execute("SELECT DISTINCT skin_id FROM price_history")
+        ]
+        updated_rows = 0
+        outlier_count = 0
+        touched_skins: list[int] = []
+        for skin_id in skin_ids:
+            skin = db.execute(
+                "SELECT market_hash_name FROM skins WHERE id=?", (skin_id,)
+            ).fetchone()
+            if skin is None:
+                continue
+            history = db.execute(
+                """SELECT id, date, COALESCE(raw_price, price) AS raw_price,
+                          price, is_outlier, outlier_reason
+                   FROM price_history WHERE skin_id=? ORDER BY date""",
+                (skin_id,),
+            ).fetchall()
+            if len(history) < 4:
+                continue
+            cleaned = clean_price_points(
+                skin[0], [(row[1], row[2]) for row in history]
+            )
+            skin_changed = False
+            for row, point in zip(history, cleaned):
+                old_price = float(row[3])
+                old_outlier = int(row[4] or 0)
+                old_reason = row[5]
+                if (
+                    abs(old_price - point.price) < 1e-9
+                    and old_outlier == int(point.is_outlier)
+                    and (old_reason or None) == point.outlier_reason
+                ):
+                    continue
+                db.execute(
+                    """UPDATE price_history
+                       SET price=?, raw_price=?, is_outlier=?, outlier_reason=?
+                       WHERE id=?""",
+                    (
+                        point.price,
+                        point.raw_price,
+                        int(point.is_outlier),
+                        point.outlier_reason,
+                        row[0],
+                    ),
+                )
+                updated_rows += 1
+                outlier_count += int(point.is_outlier)
+                skin_changed = True
+            if skin_changed:
+                touched_skins.append(skin_id)
+
+        if touched_skins:
+            db.executemany(
+                "DELETE FROM predictions WHERE skin_id=?",
+                [(sid,) for sid in touched_skins],
+            )
+        db.commit()
+        return {
+            "items": len(touched_skins),
+            "rows": updated_rows,
+            "outliers": outlier_count,
+        }
+    finally:
+        if owns_connection:
+            db.close()
+
+
+def migrate_add_user_columns() -> None:
+    """幂等:给已存在的 portfolio/alerts 表补 user_id 列 + 索引(新库由 CREATE TABLE 已带列)。"""
+    with get_connection() as conn:
+        if not _column_exists(conn, "portfolio", "user_id"):
+            conn.execute("ALTER TABLE portfolio ADD COLUMN user_id INTEGER")
+        if not _column_exists(conn, "alerts", "user_id"):
+            conn.execute("ALTER TABLE alerts ADD COLUMN user_id INTEGER")
+        if not _column_exists(conn, "skins", "price_tier"):
+            conn.execute("ALTER TABLE skins ADD COLUMN price_tier TEXT")
+        if not _column_exists(conn, "skins", "source"):
+            conn.execute("ALTER TABLE skins ADD COLUMN source TEXT DEFAULT 'csv'")
+        if not _column_exists(conn, "skins", "image_url"):
+            conn.execute("ALTER TABLE skins ADD COLUMN image_url TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_user ON portfolio(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)")
+        # 管理员标记
+        if not _column_exists(conn, "users", "is_admin"):
+            conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+        # v5 预测契约: 缓存 7 天逐日预测路径(JSON 数组)
+        if not _column_exists(conn, "predictions", "daily_json"):
+            conn.execute("ALTER TABLE predictions ADD COLUMN daily_json TEXT")
+        conn.commit()
+
+
+def migrate_prediction_cache_contract(
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Add data/model identity to prediction cache and drop unverifiable rows."""
+    owns_connection = conn is None
+    db = conn or get_connection()
+    try:
+        for name in ("decision_date", "model_version", "data_through"):
+            if not _column_exists(db, "predictions", name):
+                db.execute(f"ALTER TABLE predictions ADD COLUMN {name} TEXT")
+        db.execute(
+            """DELETE FROM predictions
+               WHERE decision_date IS NULL
+                  OR model_version IS NULL
+                  OR data_through IS NULL"""
+        )
+        db.commit()
+    finally:
+        if owns_connection:
+            db.close()
+
+
+def ensure_demo_user() -> int:
+    """创建内置 demo 用户(若缺),并把 user_id IS NULL 的 portfolio/alerts 行归给它。"""
+    from config import DEMO_USERNAME, DEMO_PASSWORD
+    from auth import hash_password  # 延迟 import,避免循环依赖
+    with get_connection() as conn:
+        row = conn.execute("SELECT id FROM users WHERE username=?", (DEMO_USERNAME,)).fetchone()
+        if row:
+            demo_id = row["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO users(username, password_hash, created_at, is_demo) VALUES (?,?,?,1)",
+                (DEMO_USERNAME, hash_password(DEMO_PASSWORD), _utcnow().isoformat()),
+            )
+            demo_id = cur.lastrowid
+        # 把旧的无主持仓/预警归给 demo(仅对已有库生效一次)
+        conn.execute("UPDATE portfolio SET user_id=? WHERE user_id IS NULL", (demo_id,))
+        conn.execute("UPDATE alerts SET user_id=? WHERE user_id IS NULL", (demo_id,))
+        conn.commit()
+        return demo_id
+
+
+def ensure_admin_user() -> int | None:
+    """确保有管理员账号: ADMIN_USERNAME/PASSWORD; 可选把 demo 提权。"""
+    from config import (
+        ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_PROMOTE_DEMO, DEMO_USERNAME,
+    )
+    from auth import hash_password
+
+    migrate_add_user_columns()
+    admin_id = None
+    with get_connection() as conn:
+        if ADMIN_USERNAME:
+            row = conn.execute(
+                "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,)
+            ).fetchone()
+            if row:
+                conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+                admin_id = row["id"]
+            else:
+                pwd = ADMIN_PASSWORD or "admin123"
+                cur = conn.execute(
+                    """INSERT INTO users(username, password_hash, created_at, is_demo, is_admin)
+                       VALUES (?,?,?,0,1)""",
+                    (ADMIN_USERNAME, hash_password(pwd), _utcnow().isoformat()),
+                )
+                admin_id = cur.lastrowid
+                print(f"[db] 已创建管理员账号: {ADMIN_USERNAME}")
+        if ADMIN_PROMOTE_DEMO:
+            conn.execute(
+                "UPDATE users SET is_admin=1 WHERE username=?", (DEMO_USERNAME,)
+            )
+        conn.commit()
+    return admin_id
 
 
 def init_schema() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+    migrate_add_user_columns()
+    try:
+        from settings_store import ensure_settings_table
+        ensure_settings_table()
+    except Exception as e:
+        print(f"[db] app_settings 初始化跳过: {e}")
 
 
 # ============================================================
@@ -289,6 +585,54 @@ def import_skins_and_prices(force: bool = False) -> None:
 
 
 # ============================================================
+# 导入 800 件 BUFF 目标目录
+# ============================================================
+# 目录 price_tier(中文)→ LSTM-D 分组
+TIER_TO_GROUP = {"高价": "high", "中高": "high", "主流": "mid", "入门": "low"}
+
+
+def import_catalog_800() -> int:
+    """从 docs/catalog_800_buff_target.csv 导入 800 件目标饰品到 skins 表。
+    已存在的(market_hash_name 唯一)跳过。返回新增件数。"""
+    if not CATALOG_800_CSV.exists():
+        print(f"[db] ⚠ 找不到 800 目录: {CATALOG_800_CSV}")
+        return 0
+    df = pd.read_csv(CATALOG_800_CSV)
+    rows = []
+    for _, r in df.iterrows():
+        name = str(r["market_hash_name"])
+        wear = str(r.get("wear") or "")
+        rows.append((
+            name,
+            slugify(name),
+            str(r.get("weapon") or ""),
+            str(r.get("rarity") or ""),
+            rarity_to_rank(str(r.get("rarity") or "")),
+            wear,
+            WEAR_FULL.get(wear.upper(), wear),
+            int(bool(r.get("is_stattrak"))),
+            0,   # is_floor_price 未知
+            weapon_to_category(str(r.get("weapon") or "")),
+            str(r.get("price_tier") or ""),
+            "buff",
+        ))
+    with get_connection() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+        conn.executemany(
+            """INSERT OR IGNORE INTO skins
+               (market_hash_name, slug, weapon_type, rarity, rarity_rank, wear, wear_full,
+                is_stattrak, is_floor_price, category, price_tier, source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            rows,
+        )
+        after = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+        conn.commit()
+    added = after - before
+    print(f"[db] 800 目录导入: 新增 {added} 件(总 {after})")
+    return after
+
+
+# ============================================================
 # 种子:portfolio / news / model_registry
 # ============================================================
 SEED_PORTFOLIO_NAMES = [
@@ -302,58 +646,88 @@ SEED_PORTFOLIO_NAMES = [
 ]
 
 SEED_NEWS = [
-    ("Valve 发布 CS2 春季更新,饰品市场活跃度提升", "更新涉及武器磨损与贴图重做,市场流动性短期上升。", "valve", "positive", "medium"),
-    ("BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖", "Major 后 7-14 天相关饰品成交量通常上升 15-30%。", "hltv", "positive", "high"),
-    ("BUFF 平台部分高价值饰品挂单减少", "高价值饰品流动性下降,短期价格波动可能加大。", "internal", "neutral", "low"),
-    ("社区热议新箱子掉落率调整", "若掉落率下调,箱子价格可能上行。", "reddit", "positive", "medium"),
+    (
+        "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
+        "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
+        "valve",
+        "https://blog.counter-strike.net/",
+        "positive",
+        "medium",
+    ),
+    (
+        "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
+        "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
+        "hltv",
+        "https://www.hltv.org/",
+        "positive",
+        "high",
+    ),
+    (
+        "BUFF 平台部分高价值饰品挂单减少",
+        "高价值饰品流动性下降,短期价格波动可能加大。",
+        "internal",
+        "",
+        "neutral",
+        "low",
+    ),
+    (
+        "社区热议新箱子掉落率调整",
+        "若掉落率下调,箱子价格可能上行。",
+        "reddit",
+        "https://www.reddit.com/r/GlobalOffensive/",
+        "positive",
+        "medium",
+    ),
 ]
 
 
 def seed_portfolio() -> None:
-    """Expo 预置 3-5 件持仓(real/sim 混合)。"""
+    """默认空库存:不再写入 Expo 演示持仓。"""
+    print("[db] 种子 portfolio=跳过(默认空库存)")
+
+
+def clear_demo_seed_portfolio() -> int:
+    """清除内置演示持仓(按种子备注匹配),用户自建持仓保留。"""
+    notes = tuple(item[-1] for item in SEED_PORTFOLIO_NAMES)
+    if not notes:
+        return 0
+    placeholders = ",".join("?" * len(notes))
     with get_connection() as conn:
-        if conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0] > 0:
-            return
-        today = _utcnow().strftime("%Y-%m-%d")
-        for frag, htype, buy_mult, qty, note in SEED_PORTFOLIO_NAMES:
-            row = conn.execute(
-                "SELECT id, market_hash_name FROM skins WHERE market_hash_name LIKE ? LIMIT 1",
-                (f"{frag}%",),
-            ).fetchone()
-            if not row:
-                continue
-            skin_id = row["id"]
-            # 最新价
-            p = conn.execute(
-                "SELECT price FROM price_history WHERE skin_id=? ORDER BY date DESC LIMIT 1",
-                (skin_id,),
-            ).fetchone()
-            cur = p["price"] if p else None
-            buy_price = round(cur * buy_mult, 2) if (buy_mult and cur) else None
-            buy_date = (_utcnow() - timedelta(days=45)).strftime("%Y-%m-%d")
-            conn.execute(
-                """INSERT INTO portfolio(skin_id, holding_type, buy_price, buy_date, quantity, note, created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (skin_id, htype, buy_price, buy_date, qty, note, today),
-            )
-        n = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        print(f"[db] 种子 portfolio={n} 件")
+        cur = conn.execute(
+            f"DELETE FROM portfolio WHERE note IN ({placeholders})",
+            notes,
+        )
         conn.commit()
+        return int(cur.rowcount)
 
 
 def seed_news() -> None:
     with get_connection() as conn:
-        if conn.execute("SELECT COUNT(*) FROM news").fetchone()[0] > 0:
+        n = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
+        if n == 0:
+            now = _utcnow()
+            for i, (title, summary, source, url, sent, impact) in enumerate(SEED_NEWS):
+                conn.execute(
+                    """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (title, summary, source, url or "", (now - timedelta(days=i)).isoformat(), sent, impact, ""),
+                )
+            conn.commit()
+            print(f"[db] 种子 news={len(SEED_NEWS)} 条")
             return
-        now = _utcnow()
-        for i, (title, summary, source, sent, impact) in enumerate(SEED_NEWS):
-            conn.execute(
-                """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (title, summary, source, "", (now - timedelta(days=i)).isoformat(), sent, impact, ""),
+        # 已有库:给种子标题补外链(仅 url 为空时),方便本地点击跳转演示
+        patched = 0
+        for title, _summary, _source, url, _sent, _impact in SEED_NEWS:
+            if not url:
+                continue
+            cur = conn.execute(
+                "UPDATE news SET url=? WHERE title=? AND (url IS NULL OR url='')",
+                (url, title),
             )
-        conn.commit()
-        print(f"[db] 种子 news={len(SEED_NEWS)} 条")
+            patched += cur.rowcount
+        if patched:
+            conn.commit()
+            print(f"[db] 种子 news 补全 url={patched} 条")
 
 
 def seed_model_registry() -> None:
@@ -453,16 +827,86 @@ def change_pct(conn: sqlite3.Connection, skin_id: int, days: int) -> float | Non
 
 # ============================================================
 # 启动入口
+def apply_seed_skin_images() -> int:
+    """从 backend/seed/skin_image_urls.json 回填空 image_url(幂等,不覆盖已有)。"""
+    path = Path(__file__).resolve().parent / "seed" / "skin_image_urls.json"
+    if not path.exists():
+        return 0
+    try:
+        mapping = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[db] skin_image_urls.json 读取失败: {e}")
+        return 0
+    if not isinstance(mapping, dict) or not mapping:
+        return 0
+
+    updated = 0
+    with get_connection() as conn:
+        if not _column_exists(conn, "skins", "image_url"):
+            conn.execute("ALTER TABLE skins ADD COLUMN image_url TEXT")
+        for name, url in mapping.items():
+            if not name or not url:
+                continue
+            cur = conn.execute(
+                "UPDATE skins SET image_url=? WHERE market_hash_name=? "
+                "AND (image_url IS NULL OR image_url='')",
+                (str(url), str(name)),
+            )
+            updated += int(cur.rowcount)
+        conn.commit()
+    return updated
+
+
 # ============================================================
+def clear_fake_daily_volumes() -> int:
+    """清空由挂单数 sell_num 污染的假 daily_volume(恒为常数、非真成交量)。"""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE price_history SET daily_volume=0 WHERE daily_volume != 0"
+        )
+        conn.commit()
+        return int(cur.rowcount)
+
+
 def run_init() -> None:
     ensure_dirs()
     init_schema()
+    migrate_prediction_cache_contract()
     import_skins_and_prices()
+    import_catalog_800()    # 🆕 导入 800 件 BUFF 目标目录
+    filled = apply_seed_skin_images()
+    if filled:
+        print(f"[db] 已回填 Steam 饰品图 image_url: {filled} 件")
+    quality = migrate_price_history_quality()
+    if quality["rows"]:
+        print(
+            f"[db] 价格质量迁移: {quality['items']} 件 / {quality['rows']} 行 / "
+            f"{quality['outliers']} 个异常点"
+        )
+    endpoint = repair_endpoint_price_outliers()
+    if endpoint["rows"]:
+        print(
+            f"[db] 末端价格修复: {endpoint['items']} 件 / {endpoint['rows']} 行 / "
+            f"{endpoint['outliers']} 个异常点"
+        )
+    cleared = clear_fake_daily_volumes()
+    if cleared:
+        print(f"[db] 已清空假成交量 daily_volume: {cleared} 行")
+    ensure_demo_user()      # 创建 demo 用户 + 回填无主 portfolio/alerts(须在 seed_portfolio 前)
+    ensure_admin_user()     # 管理员账号 / demo 提权
+    cleared = clear_demo_seed_portfolio()
+    if cleared:
+        print(f"[db] 已清除演示持仓 {cleared} 件")
     seed_portfolio()
     seed_news()
     seed_model_registry()
     # 确保 Expo 种子目录存在(seed_data.py 会写入)
     SEED_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        from settings_store import apply_runtime_settings
+        apply_runtime_settings()
+    except Exception as e:
+        print(f"[db] 运行时配置加载跳过: {e}")
     print(f"[db] 初始化完成 → {DB_PATH}")
 
 

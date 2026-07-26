@@ -18,17 +18,29 @@ function getOrCreateChart(existingInstance, dom) {
   return echarts.init(dom);
 }
 
+/** 让图表不抢走手机纵向滑动 */
+function allowPageScrollOverChart(chart) {
+  try {
+    const dom = chart?.getDom?.();
+    if (!dom) return;
+    dom.style.touchAction = 'pan-y';
+    dom.querySelectorAll('canvas').forEach((c) => {
+      c.style.touchAction = 'pan-y';
+    });
+  } catch (_) { /* ignore */ }
+}
+
 // ============ i18n 国际化 ============
 const SUPPORTED_LANGS = ['zh-CN', 'en-US'];
 const detectBrowserLang = () => {
-  const browser = (navigator.language || 'zh-CN').toLowerCase();
-  if (browser.startsWith('en')) return 'en-US';
-  return 'zh-CN';
+  const browser = (navigator.language || 'en-US').toLowerCase();
+  if (browser.startsWith('zh')) return 'zh-CN';
+  return 'en-US';
 };
-const currentLang = ref(localStorage.getItem('sv_lang') || detectBrowserLang());
+const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
-  const dict = window.I18N[currentLang.value] || window.I18N['zh-CN'];
-  let str = dict[key] || window.I18N['zh-CN']?.[key] || key;
+  const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
+  let str = dict[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
     str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
@@ -39,108 +51,51 @@ const setLang = (lang) => {
   if (!SUPPORTED_LANGS.includes(lang)) return;
   currentLang.value = lang;
   localStorage.setItem('sv_lang', lang);
+  document.documentElement.lang = lang === 'zh-CN' ? 'zh-CN' : 'en';
 };
 const toggleLang = () => {
   setLang(currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN');
 };
-
-const QUICK_QUESTION_DEFS = [
-  {
-    key: 'chat.q1',
-    action: 'debate',
-    skinId: 'ak-47-slate-minimal-wear',
-    fallback: {
-      'zh-CN': '🔍 AK-47 | Slate（略有磨损）现在该买吗？',
-      'en-US': '🔍 Should I buy AK-47 | Slate (Minimal Wear) now?',
-    },
-  },
-  {
-    key: 'chat.q2',
-    action: 'recommend',
-    budget: 700,
-    riskLevel: 'medium',
-    fallback: {
-      'zh-CN': '💰 $700 预算、中等风险，推荐什么？',
-      'en-US': '💰 What do you recommend for a $700 medium-risk budget?',
-    },
-  },
-  {
-    key: 'chat.q3',
-    action: 'chat',
-    fallback: {
-      'zh-CN': '📈 今天哪些饰品在涨？',
-      'en-US': '📈 Which skins are rising today?',
-    },
-  },
-  {
-    key: 'chat.q4',
-    action: 'recommend',
-    fallback: {
-      'zh-CN': '🎯 哪个饰品更适合长期持有？',
-      'en-US': '🎯 Which skin is better suited to long-term holding?',
-    },
-  },
-  {
-    key: 'chat.q5',
-    action: 'chat',
-    fallback: {
-      'zh-CN': '⚠️ 帮我设置价格预警',
-      'en-US': '⚠️ Help me set a price alert',
-    },
-  },
-  {
-    key: 'chat.q6',
-    action: 'chat',
-    fallback: {
-      'zh-CN': '📊 模型对比结果怎么样？',
-      'en-US': '📊 How do the models compare?',
-    },
-  },
-];
+setLang(currentLang.value);
 
 const app = createApp({
   setup() {
     // ============ 菜单 ============
-    // 7 大菜单 - Lucide Icons (专业开源图标库)
-    const menu = computed(() => [
-      {
-        id: 'dashboard',
-        label: t('menu.dashboard'),
-        iconName: 'chart-line',
-      },
-      {
-        id: 'prediction',
-        label: t('menu.prediction'),
-        badge: t('menu.badge.core'),
-        iconName: 'target',
-      },
-      {
-        id: 'chat',
-        label: t('menu.chat'),
-        badge: t('menu.badge.highlight'),
-        iconName: 'message-circle',
-      },
-      {
-        id: 'daily',
-        label: t('menu.daily'),
-        iconName: 'newspaper',
-      },
-      {
-        id: 'alerts',
-        label: t('menu.alerts'),
-        iconName: 'bell',
-      },
-      {
-        id: 'portfolio',
-        label: t('menu.portfolio'),
-        iconName: 'clipboard-list',
-      },
-      {
-        id: 'models',
-        label: t('menu.models'),
-        iconName: 'cpu',
-      },
-    ]);
+    // 5 页信息架构(策划书 §5):行情中心 / 我的库存 / AI 对话 / AI 日报 / 模型实验室
+    // 物品详情(prediction)与价格预警(alerts)为二级视图,不入侧边栏
+    const menu = computed(() => {
+      // 管理端不进侧边栏 / 命令面板 / 数字快捷键,仅通过 #admin 隐藏入口进入
+      return [
+        {
+          id: 'dashboard',
+          label: t('menu.dashboard'),
+          iconName: 'chart-line',
+        },
+        {
+          id: 'portfolio',
+          label: t('menu.portfolio'),
+          iconName: 'clipboard-list',
+        },
+        {
+          id: 'chat',
+          label: t('menu.chat'),
+          iconName: 'message-circle',
+        },
+        {
+          id: 'daily',
+          label: t('menu.daily'),
+          iconName: 'newspaper',
+        },
+        {
+          id: 'models',
+          label: t('menu.models'),
+          iconName: 'cpu',
+        },
+      ];
+    });
+
+    // 二级视图 → 所属一级页面(侧边栏高亮 + 面包屑)
+    const PARENT_PAGE = { prediction: 'dashboard', alerts: 'portfolio' };
 
     // 渲染菜单图标 SVG
     const renderMenuIcon = (name) => {
@@ -162,8 +117,42 @@ const app = createApp({
       }
     };
 
-    const currentPage = ref('dashboard');
-    const currentMenu = computed(() => menu.value.find(m => m.id === currentPage.value));
+    const currentPage = ref((() => {
+      try {
+        // 隐藏入口: URL hash #admin
+        if (typeof location !== 'undefined' && (location.hash || '').replace(/^#/, '') === 'admin') {
+          return 'admin';
+        }
+        const saved = sessionStorage.getItem('sv_page');
+        // 管理端不从 session 恢复,避免普通用户刷新后停在管理页
+        if (saved && saved !== 'admin' && typeof saved === 'string') return saved;
+      } catch (_) { /* ignore */ }
+      return 'dashboard';
+    })());
+    watch(currentPage, (pageId) => {
+      try {
+        if (pageId === 'admin') {
+          sessionStorage.removeItem('sv_page');
+          if (typeof location !== 'undefined' && location.hash !== '#admin') {
+            history.replaceState(null, '', '#admin');
+          }
+        } else {
+          sessionStorage.setItem('sv_page', pageId);
+          if (typeof location !== 'undefined' && (location.hash || '').replace(/^#/, '') === 'admin') {
+            history.replaceState(null, '', location.pathname + location.search);
+          }
+        }
+      } catch (_) { /* ignore */ }
+    });
+    const showAdmin = computed(() => currentPage.value === 'admin');
+    const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
+    const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
+    // 二级视图在面包屑中的子标题
+    const subPageLabel = computed(() => {
+      if (currentPage.value === 'prediction') return t('menu.prediction');
+      if (currentPage.value === 'alerts') return t('menu.alerts');
+      return '';
+    });
 
     // ============ 用户认证（前端本地，后端未接入） ============
     // 启动页提供「登录进入」与「游客体验」两个入口
@@ -184,16 +173,97 @@ const app = createApp({
     });
 
     const canEnter = () => !!(currentUser.value || isGuest.value);
-    const showLanding = ref(!canEnter() || sessionStorage.getItem('sv_entered') !== '1');
+    const showLanding = ref(
+      currentPage.value === 'admin'
+        ? false
+        : (!canEnter() || sessionStorage.getItem('sv_entered') !== '1')
+    );
     const landingExiting = ref(false);
+    const landingHeroIndex = ref(0);
+    const landingHeroSlides = computed(() => {
+      // touch currentLang so language toggle refreshes slide copy
+      void currentLang.value;
+      return [0, 1, 2, 3].map((i) => ({
+        kicker: t(`landing.hero.s${i}.kicker`),
+        title: t(`landing.hero.s${i}.title`),
+        lead: t(`landing.hero.s${i}.lead`),
+      }));
+    });
+    const landingCoarsePointer =
+      typeof matchMedia === 'function' &&
+      (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 720px)').matches);
+    const landingSceneHint = computed(() => {
+      void currentLang.value;
+      return t(landingCoarsePointer ? 'landing.sceneHintTouch' : 'landing.sceneHint');
+    });
+    let landingScenesApi = null;
+    let landingScrollApi = null;
 
-    // 无登录且非游客时，强制停留在启动页
-    if (!canEnter()) {
+    const destroyLandingCanvas = () => {
+      try {
+        landingScenesApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScenesApi = null;
+      try {
+        landingScrollApi?.destroy?.();
+      } catch (_) { /* ignore */ }
+      landingScrollApi = null;
+    };
+
+    const mountLandingCanvas = async () => {
+      await nextTick();
+      destroyLandingCanvas();
+      if (!showLanding.value) return;
+      const sceneRoot = document.getElementById('landing-scene-root');
+      if (typeof window.initLandingScenes === 'function' && sceneRoot) {
+        const landingRoot = document.querySelector('.landing');
+        const hero = document.querySelector('.landing-hero');
+        landingScenesApi = window.initLandingScenes(sceneRoot, {
+          wheelHost: landingRoot || hero || window,
+          captionEl: document.getElementById('landing-scene-caption'),
+          nameEl: document.getElementById('landing-scene-name'),
+          mapEl: document.getElementById('landing-scene-map'),
+          priceEl: document.getElementById('landing-scene-price'),
+          dotsEl: document.getElementById('landing-scene-dots'),
+          copyViewportEl: document.getElementById('landing-hero-copy-viewport'),
+          copyTrackEl: document.getElementById('landing-hero-copy-track'),
+          onSceneChange: (idx) => {
+            landingHeroIndex.value = idx;
+          },
+        });
+      }
+      if (typeof window.initLandingScroll === 'function') {
+        const landingRoot = document.querySelector('.landing');
+        if (landingRoot) {
+          landingScrollApi = window.initLandingScroll(landingRoot);
+        }
+      }
+    };
+
+    watch(showLanding, (on) => {
+      if (on) mountLandingCanvas();
+      else destroyLandingCanvas();
+    });
+
+    watch(currentLang, async () => {
+      await nextTick();
+      try {
+        landingScenesApi?.refreshLang?.();
+      } catch (_) { /* ignore */ }
+    });
+
+    // 无登录且非游客时，强制停留在启动页（管理端除外）
+    if (!canEnter() && currentPage.value !== 'admin') {
       sessionStorage.removeItem('sv_entered');
       sessionStorage.removeItem('sv_guest');
       isGuest.value = false;
       showLanding.value = true;
     }
+
+    // 进入管理端时隐藏 Landing（独立全页）
+    watch(showAdmin, (on) => {
+      if (on) showLanding.value = false;
+    });
 
     const enterSystem = (asGuest = false) => {
       if (landingExiting.value || !showLanding.value) return;
@@ -214,16 +284,20 @@ const app = createApp({
       sessionStorage.setItem('sv_entered', '1');
       userMenuOpen.value = false;
       showAuthPanel.value = false;
+      destroyLandingCanvas();
       const done = () => {
         showLanding.value = false;
         landingExiting.value = false;
-        nextTick(() => {
+        nextTick(async () => {
           renderKline();
+          await hydrateCurrentPage(currentPage.value);
           setTimeout(() => {
             klineChartInstance?.resize();
             radarInstance?.resize();
             backtestInstance?.resize();
             shapInstance?.resize();
+            perDayInstance?.resize();
+            inventoryValueChartInstance?.resize();
           }, 80);
         });
       };
@@ -252,44 +326,74 @@ const app = createApp({
         EMAIL: 'auth.err.email',
         WEAK: 'auth.err.weak',
         EXISTS: 'auth.err.exists',
+        GENERIC: 'auth.err.generic',
       };
       return t(map[code] || 'auth.err.generic');
     };
 
-    const submitLogin = () => {
-      if (!Auth || authSubmitting.value) return;
-      authSubmitting.value = true;
-      authError.value = '';
-      const result = Auth.login(authForm.value.email, authForm.value.password);
-      authSubmitting.value = false;
-      if (!result.ok) {
-        authError.value = authErrorMessage(result.code);
-        return;
-      }
-      currentUser.value = result.user;
-      isGuest.value = false;
-      sessionStorage.removeItem('sv_guest');
-      authForm.value.password = '';
-      showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
-      enterSystem();
+    const refreshPersonalDataAfterAuth = async () => {
+      if (!currentUser.value || !apiOnline.value) return;
+      try {
+        await Promise.all([
+          loadAlertsFromApi(),
+          loadPortfolioFromApi(),
+          loadInventoryFromApi().catch(() => null),
+        ]);
+      } catch (_) { /* ignore */ }
     };
 
-    const submitRegister = () => {
+    const submitLogin = async () => {
       if (!Auth || authSubmitting.value) return;
       authSubmitting.value = true;
       authError.value = '';
-      const result = Auth.register(authForm.value.name, authForm.value.email, authForm.value.password);
-      authSubmitting.value = false;
-      if (!result.ok) {
-        authError.value = authErrorMessage(result.code);
-        return;
+      try {
+        const result = await Auth.login(authForm.value.email, authForm.value.password);
+        if (!result.ok) {
+          authError.value = authErrorMessage(result.code);
+          return;
+        }
+        currentUser.value = result.user;
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
+        authForm.value.password = '';
+        showToast({ title: t('auth.toast.loginOk'), subtitle: result.user.name, type: 'success' });
+        await refreshPersonalDataAfterAuth();
+        enterSystem();
+      } catch (err) {
+        authError.value = authErrorMessage('GENERIC');
+        console.warn('[Auth] login error:', err);
+      } finally {
+        authSubmitting.value = false;
       }
-      currentUser.value = result.user;
-      isGuest.value = false;
-      sessionStorage.removeItem('sv_guest');
-      authForm.value.password = '';
-      showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
-      enterSystem();
+    };
+
+    const submitRegister = async () => {
+      if (!Auth || authSubmitting.value) return;
+      authSubmitting.value = true;
+      authError.value = '';
+      try {
+        const result = await Auth.register(
+          authForm.value.name,
+          authForm.value.email,
+          authForm.value.password
+        );
+        if (!result.ok) {
+          authError.value = authErrorMessage(result.code);
+          return;
+        }
+        currentUser.value = result.user;
+        isGuest.value = false;
+        sessionStorage.removeItem('sv_guest');
+        authForm.value.password = '';
+        showToast({ title: t('auth.toast.registerOk'), subtitle: result.user.name, type: 'success' });
+        await refreshPersonalDataAfterAuth();
+        enterSystem();
+      } catch (err) {
+        authError.value = authErrorMessage('GENERIC');
+        console.warn('[Auth] register error:', err);
+      } finally {
+        authSubmitting.value = false;
+      }
     };
 
     const enterAsGuest = () => {
@@ -299,6 +403,7 @@ const app = createApp({
 
     const logoutUser = () => {
       Auth?.logout?.();
+      try { api()?.clearToken?.(); } catch (_) { /* ignore */ }
       currentUser.value = null;
       isGuest.value = false;
       userMenuOpen.value = false;
@@ -325,7 +430,7 @@ const app = createApp({
       landingExiting.value = false;
     };
 
-    // 模拟持仓（库存）仅登录用户可用
+    // 我的库存仅登录用户可用；模拟持仓保持原有体验
     const requirePortfolioLogin = () => {
       if (currentUser.value) return true;
       showToast({
@@ -336,12 +441,20 @@ const app = createApp({
       return false;
     };
 
+    const requireInventoryLogin = () => {
+      if (currentUser.value) return true;
+      showToast({
+        title: t('inventory.loginRequired.title'),
+        subtitle: t('inventory.loginRequired.toast'),
+        type: 'info',
+      });
+      return false;
+    };
+
     const goToPage = (pageId) => {
-      if (pageId === 'portfolio' && !currentUser.value) {
-        // 仍允许进入页面，但展示登录引导（不展示持仓数据）
-        currentPage.value = 'portfolio';
-        sidebarOpen.value = false;
-        return;
+      // 侧边栏/快捷键不应切到管理端; 管理端仅 #admin 进入
+      if (pageId === 'admin' && (location.hash || '').replace(/^#/, '') !== 'admin') {
+        try { history.replaceState(null, '', '#admin'); } catch (_) { /* ignore */ }
       }
       currentPage.value = pageId;
       sidebarOpen.value = false;
@@ -393,6 +506,8 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
+        inventoryValueChartInstance?.resize();
       }, 250);
     };
 
@@ -406,6 +521,8 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
+        inventoryValueChartInstance?.resize();
       }, 300);
     });
     watch(currentPage, () => {
@@ -417,7 +534,7 @@ const app = createApp({
     const toasts = ref([]);
     const showToast = ({ title, subtitle = '', type = 'info', icon = null, duration = 3000 }) => {
       const id = Date.now() + Math.random();
-      const typeIcon = { success: '✅', error: '❌', info: 'ℹ️' }[type] || 'ℹ️';
+      const typeIcon = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' }[type] || 'ℹ️';
       toasts.value.push({ id, title, subtitle, type, icon: icon || typeIcon });
       setTimeout(() => {
         toasts.value = toasts.value.filter(t => t.id !== id);
@@ -426,7 +543,6 @@ const app = createApp({
 
     // ============ 数据导出 ============
     const exportData = (type, format) => {
-      if (type === 'portfolio' && !requirePortfolioLogin()) return;
       let data, filename;
       if (type === 'skins') {
         data = skins.value;
@@ -442,6 +558,14 @@ const app = createApp({
           pnlPct: getItemPnlPct(p).toFixed(2) + '%',
         }));
         filename = `CSVest_portfolio_${new Date().toISOString().slice(0,10)}`;
+      } else if (type === 'inventory') {
+        if (!requireInventoryLogin()) return;
+        data = myInventory.value.map(p => ({
+          ...p,
+          currentPrice: getCurrentPrice(p.skinId),
+          marketValue: getCurrentPrice(p.skinId) * (p.quantity || 1),
+        }));
+        filename = `CSVest_inventory_${new Date().toISOString().slice(0,10)}`;
       } else if (type === 'models') {
         data = [...regressionModels.value, ...classificationModels.value.map(m => ({...m, course: '分类模型'}))];
         filename = `CSVest_models_${new Date().toISOString().slice(0,10)}`;
@@ -476,11 +600,6 @@ const app = createApp({
 
     // ============ 数据 ============
     const apiOnline = ref(false);
-    const aiRuntime = ref({
-      llm: { mode: 'unknown', model: 'unknown' },
-      agents: { mode: 'unknown' },
-      hybrid: { mode: 'unknown', model: 'unknown' },
-    });
     const skins = ref(window.CSVestData.SKINS_POOL);
     const topGainers = ref(window.CSVestData.TOP_GAINERS);
     const topLosers = ref(window.CSVestData.TOP_LOSERS);
@@ -574,16 +693,32 @@ const app = createApp({
     const api = () => window.CSVestAPI || window.SkinVisionAPI;
 
     const reconnectLeaders = () => {
-      topGainers.value = [...skins.value].sort((a, b) => (b.change7d || 0) - (a.change7d || 0)).slice(0, 8);
-      topLosers.value = [...skins.value].sort((a, b) => (a.change7d || 0) - (b.change7d || 0)).slice(0, 8);
-      hotVolume.value = [...skins.value].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).slice(0, 8);
+      // 后端已接入 800+ 件 BUFF 实时数据；涨跌/热度榜只统计实时更新的饰品，
+      // 避免与训练 CSV 的历史静态价(已停更)混排产生失真榜单
+      const liveOnly = skins.value.filter((s) => s.isLive !== false);
+      const pool = liveOnly.length >= 10 ? liveOnly : skins.value;
+      topGainers.value = [...pool]
+        .filter((s) => (s.change7d || 0) > 0)
+        .sort((a, b) => (b.change7d || 0) - (a.change7d || 0))
+        .slice(0, 8);
+      topLosers.value = [...pool]
+        .filter((s) => (s.change7d || 0) < 0)
+        .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
+        .slice(0, 8);
+      hotVolume.value = [...pool]
+        .sort((a, b) => Math.abs(Number(b.change24h) || 0) - Math.abs(Number(a.change24h) || 0))
+        .slice(0, 8);
     };
 
     const loadSkinsFromApi = async () => {
       const client = api();
       if (!client) return false;
-      // 后端全集约 154 件; 旧 limit=100 + 按成交量排序会把刀/手套挤掉
-      const res = await client.getSkins({ limit: 500, sort: 'volume_desc' });
+      // 后端全集 681 件(132 csv + 549 buff); limit 调大到 1000 以全量展示
+      // 连真实后端时禁止静默退回 Mock，避免行情中心“看起来在线实则演示”
+      const res = await client.getSkins(
+        { limit: 1000, sort: 'change7d_desc' },
+        { fallback: false }
+      );
       const items = res?.items || [];
       if (!items.length) return false;
       skins.value = items.map(s => ({
@@ -599,6 +734,10 @@ const app = createApp({
         volume24h: s.volume24h ?? 0,
         liquidity: s.liquidity ?? 0,
         wear: (s.wear && String(s.wear).toLowerCase() !== 'nan') ? s.wear : '—',
+        // 数据新鲜度: BUFF 爬取(滚动实时) vs 训练 CSV(历史静态)
+        source: s.source || 'BUFF',
+        priceDate: s.priceDate || null,
+        isLive: s.isLive != null ? !!s.isLive : inferIsLive(s.priceDate),
       }));
       reconnectLeaders();
       const prefer = skins.value.find(s => /ak-47|ak47/i.test(s.id || s.name || ''))
@@ -606,6 +745,14 @@ const app = createApp({
         || skins.value[0];
       if (prefer) selectedSkin.value = prefer;
       return true;
+    };
+
+    // priceDate 距今 ≤7 天视为实时数据(与后端 isLive 口径一致;旧后端无该字段时前端兜底)
+    const inferIsLive = (priceDate) => {
+      if (!priceDate) return true;
+      const d = new Date(priceDate);
+      if (Number.isNaN(d.getTime())) return true;
+      return (Date.now() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
     };
 
     const inferCategory = (s) => {
@@ -623,22 +770,44 @@ const app = createApp({
       if (!client || !skinId) return;
       try {
         const res = await client.predict(skinId, 7);
+        predictionStatus.value = res.status || 'demo';
+        predictionReason.value = res.reason || '';
+        predictionCalibration.value = res.calibration || null;
+        if (predictionStatus.value === 'unavailable') {
+          modelPredictions.value = [];
+          predictionDaily.value = null;
+          predictionTrend30d.value = null;
+          predictionCalibration.value = null;
+          predictionMeta.value = {
+            consensusScore: 0,
+            consensusLevel: '',
+            entryLow: null,
+            entryHigh: null,
+            targetPrice: null,
+          };
+          return res;
+        }
         const curUsd = res.currentPrice
           ?? res.currentPriceUsd
           ?? selectedSkin.value?.price
           ?? 0;
-        // 后端返回 USD 预测价
+        // 后端返回 USD 预测价;LSTM 系列(v5 契约)带 dailyPrices = 7 天逐日精确预测
         modelPredictions.value = (res.predictions || []).map(p => {
           const change = +(p.change || 0);
           const price = (p.price != null && p.price > 0)
             ? +(+p.price).toFixed(2)
             : +(curUsd * (1 + change / 100)).toFixed(2);
+          const daily = (Array.isArray(p.dailyPrices) && p.dailyPrices.length)
+            ? p.dailyPrices.map(v => +(+v).toFixed(4))
+            : null;
           return {
-            name: p.model,
+            name: p.routeModel || p.model,
             type: p.type || 'ML',
             price,
             change: +change.toFixed(2),
             confidence: Math.round(p.confidence || 0),
+            daily,
+            rawDaily: Array.isArray(p.rawDailyPrices) ? p.rawDailyPrices : null,
           };
         });
         const levelMap = {
@@ -651,9 +820,40 @@ const app = createApp({
           entryHigh: res.entryRange?.high ?? +(curUsd * 0.99).toFixed(2),
           targetPrice: res.targetPrice ?? +(curUsd * 1.05).toFixed(2),
         };
+        // 逐日预测主路径: 优先 LSTM(部署主力),否则任一带 daily 的模型
+        const withDaily = modelPredictions.value.filter(p => p.daily && p.daily.length);
+        const primary = withDaily.find(p => /lstm/i.test(p.name)) || withDaily[0] || null;
+        const forecastAnchor = Number(res.forecastAnchorPrice || curUsd);
+        predictionDaily.value = primary
+          ? {
+            model: primary.name,
+            base: Number.isFinite(forecastAnchor) && forecastAnchor > 0 ? forecastAnchor : curUsd,
+            prices: primary.daily,
+            anchorApplied: Boolean(
+              Array.isArray(res.calibration?.reasonCodes)
+              && res.calibration.reasonCodes.includes('UNCONFIRMED_PRICE_SHOCK')
+            ),
+          }
+          : null;
+        predictionTrend30d.value = null;
+        if (
+          res.trend30d
+          && res.trend30d.horizon === 30
+          && ['p10', 'p50', 'p90'].every(
+            key => Array.isArray(res.trend30d[key]) && res.trend30d[key].length === 30
+          )
+        ) {
+          predictionTrend30d.value = res.trend30d;
+        }
         return res;
       } catch (err) {
         console.warn('[CSVest] predict failed', err);
+        predictionStatus.value = 'error';
+        predictionReason.value = 'REQUEST_FAILED';
+        predictionCalibration.value = null;
+        modelPredictions.value = [];
+        predictionDaily.value = null;
+        predictionTrend30d.value = null;
         return null;
       }
     };
@@ -664,33 +864,83 @@ const app = createApp({
         console.warn('[CSVest] js/api.js not loaded');
         return false;
       }
+      const isLocalHost = (h) => !h || h === 'localhost' || h === '127.0.0.1';
+      const isStaticPages = (() => {
+        const h = (location.hostname || '').toLowerCase();
+        return h.endsWith('github.io') || h.endsWith('gitlab.io') || h.endsWith('pages.dev');
+      })();
       try {
-        client.setBaseURL(client.baseURL || localStorage.getItem('sv_api_url') || 'http://localhost:8000');
-        const health = await client.health();
-        aiRuntime.value = health?.aiRuntime || aiRuntime.value;
+        // 与 js/api.js 一致：公网同源 /api（nginx 反代）；Pages 无反代；忽略误存的 localhost
+        const remote = !isLocalHost(location.hostname);
+        let apiBase = localStorage.getItem('sv_api_url') || '';
+        if (remote) {
+          try {
+            if (apiBase) {
+              const u = new URL(apiBase, location.href);
+              if (isLocalHost(u.hostname)) apiBase = '';
+            }
+          } catch (_) {
+            apiBase = '';
+          }
+          // GitHub Pages 等静态站：没有 /api 反代，未配置公网 API 时保持 Mock
+          if (isStaticPages && !apiBase) {
+            client.setUseMock(true);
+            apiOnline.value = false;
+            console.info('[CSVest] static Pages: no public API configured, using mock');
+            return false;
+          }
+          // 其它公网页默认同源；仍兼容显式配置的公网 API
+          if (!apiBase) apiBase = '';
+        } else if (!apiBase) {
+          apiBase = 'http://localhost:8000';
+        }
+        client.setBaseURL(apiBase);
         client.setUseMock(false);
+        await client.health();
+        const skinsOk = await loadSkinsFromApi();
+        if (!skinsOk) throw new Error('skins empty');
         apiOnline.value = true;
-        await loadSkinsFromApi();
         await Promise.all([
           loadNewsFromApi(),
           loadAlertsFromApi(),
           currentUser.value ? loadPortfolioFromApi() : Promise.resolve(),
           loadModelsFromApi(),
         ]);
-        showToast({ title: '已连接后端', subtitle: client.baseURL, type: 'success' });
+        const shown = client.baseURL || location.origin;
+        showToast({ title: t('dashboard.connected'), subtitle: `${shown} · ${skins.value.length}`, type: 'success' });
         return true;
       } catch (err) {
         apiOnline.value = false;
+        try { client.setUseMock(true); } catch (_) { /* ignore */ }
         console.warn('[CSVest] backend offline, mock data:', err?.message || err);
         return false;
       }
     };
 
+    const reconnectBackend = async () => {
+      const ok = await connectBackend();
+      if (!ok) {
+        showToast({
+          title: t('topbar.dataSource.offline'),
+          subtitle: t('dashboard.backendHint'),
+          type: 'warning',
+        });
+      }
+      return ok;
+    };
+
+    const dataSourceLabel = computed(() => {
+      if (apiOnline.value) {
+        return t('topbar.dataSource.online', { count: skins.value.length || 0 });
+      }
+      return t('topbar.dataSource.mock');
+    });
+
     const loadNewsFromApi = async () => {
       const client = api();
       if (!client) return;
       try {
-        const news = await client.getNews({ limit: 20 });
+        const news = await client.getNews({ limit: 40 });
         const items = Array.isArray(news) ? news : (news?.items || []);
         if (items.length) newsFeed.value = items;
       } catch (_) { /* keep mock */ }
@@ -712,18 +962,42 @@ const app = createApp({
       try {
         const res = await client.getPortfolio();
         const items = Array.isArray(res) ? res : (res?.items || []);
+        // 在线时以服务端为准(含空列表);模拟持仓页只展示 sim,绝不回退成真实库存
         if (items.length || apiOnline.value) {
-          portfolio.value = items.map(p => ({
+          const mapped = items.map(p => ({
             id: p.id,
             skinId: p.skinId,
             name: p.name,
             buyPrice: p.buyPrice,
             quantity: p.quantity || 1,
             buyDate: p.buyDate,
+            // 无标记视为 real,避免真实库存误入模拟持仓页
             holdingType: p.holdingType || 'real',
             currentPrice: p.currentPrice,
             pnl: p.pnl,
             pnlPct: p.pnlPct,
+          }));
+          portfolio.value = mapped.filter(p => p.holdingType === 'sim');
+        }
+      } catch (_) { /* keep local */ }
+    };
+
+    const loadInventoryFromApi = async () => {
+      const client = api();
+      if (!client) return;
+      try {
+        const res = await client.getInventory();
+        const items = Array.isArray(res) ? res : (res?.items || []);
+        if (items.length || apiOnline.value) {
+          myInventory.value = items.map(p => ({
+            id: p.id,
+            skinId: p.skinId,
+            name: p.name,
+            acquirePrice: p.acquirePrice ?? p.buyPrice ?? null,
+            quantity: p.quantity || 1,
+            acquireDate: p.acquireDate || p.buyDate || '',
+            source: p.source || 'manual',
+            currentPrice: p.currentPrice,
           }));
         }
       } catch (_) { /* keep mock */ }
@@ -731,55 +1005,161 @@ const app = createApp({
 
     const loadModelsFromApi = async () => {
       const client = api();
-      if (!client) return;
+      modelsLoading.value = true;
       try {
+        if (!client) {
+          modelsDataSource.value = 'demo';
+          return;
+        }
         const cmp = await client.getModelComparison();
-        if (cmp?.regression?.length) {
-          regressionModels.value = cmp.regression.map(r => ({
-            ...r,
-            course: r.course || r.type || '',
-          }));
+        const courseByName = Object.fromEntries(
+          (modelComparison.regression || []).map((r) => [r.name, r.course || ''])
+        );
+        let usedLive = false;
+        if (cmp?.tracks) {
+          modelTracks.value = cmp.tracks;
+          applyModelTrack(modelTrack.value);
+          await enrichOnlineReturnsFromBacktest();
+          usedLive = true;
+        } else if (cmp?.regression?.length) {
+          regressionModels.value = cmp.regression.map((r) => {
+            const course = r.course && r.course !== r.type
+              ? r.course
+              : (courseByName[r.name] || r.course || '');
+            return { ...r, course };
+          });
+          usedLive = true;
         }
-        if (cmp?.classification?.length) {
+        if (!cmp?.tracks && cmp?.classification?.length) {
           classificationModels.value = cmp.classification;
+          usedLive = true;
         }
-      } catch (_) { /* keep mock */ }
+        if (cmp?.buyAndHold && typeof cmp.buyAndHold === 'object') {
+          modelComparison.buyAndHold = {
+            ...modelComparison.buyAndHold,
+            ...cmp.buyAndHold,
+          };
+        }
+        if (cmp?.nItems != null) {
+          modelsNItems.value = Number(cmp.nItems) || modelsNItems.value;
+        }
+        // v5 契约: Seq2Seq 多步模型带 perDay 逐日指标(D1..D7)
+        if (!cmp?.tracks) modelsPerDay.value = (cmp?.regression || [])
+          .filter((r) => Array.isArray(r.perDay) && r.perDay.length)
+          .map((r) => ({ name: r.name, perDay: r.perDay }));
+        modelsDataSource.value = (usedLive && apiOnline.value) ? 'live' : 'demo';
+      } catch (_) {
+        modelsDataSource.value = 'demo';
+      } finally {
+        modelsLoading.value = false;
+      }
     };
 
     const dailyReport = ref({
       date: '',
+      generatedAt: '',
       metrics: { monitored: 20, gainers: 14, losers: 6 },
       aiSummary: '',
+      sources: [],
+    });
+    const dailyReportLoading = ref(false);
+    const dailyBreadth = computed(() => {
+      const g = Number(dailyReport.value?.metrics?.gainers) || 0;
+      const l = Number(dailyReport.value?.metrics?.losers) || 0;
+      const total = g + l;
+      if (!total) return { upPct: 0, downPct: 0 };
+      return {
+        upPct: Math.round((g / total) * 100),
+        downPct: Math.round((l / total) * 100),
+      };
     });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
+    const portfolioDiagnoseLoading = ref(false);
     const portfolioValueHistory = ref({ dates: [], values: [] });
 
-    const loadDailyReport = async () => {
+    const applyDailyReport = (rep) => {
+      if (!rep) return;
+      dailyReport.value = {
+        date: rep.date || '',
+        generatedAt: rep.generatedAt || '',
+        metrics: {
+          monitored: rep.metrics?.monitored ?? skins.value.length,
+          gainers: rep.metrics?.gainers ?? topGainers.value.length,
+          losers: rep.metrics?.losers ?? topLosers.value.length,
+        },
+        aiSummary: rep.aiSummary || rep.summary || '',
+        sources: Array.isArray(rep.sources) ? rep.sources : [],
+        news: Array.isArray(rep.news) ? rep.news : [],
+        portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
+      };
+      if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
+        hotVolume.value = rep.hotVolume;
+      } else {
+        reconnectLeaders();
+      }
+      const news = Array.isArray(rep.news) ? rep.news : [];
+      if (news.length) newsFeed.value = news;
+    };
+
+    const loadDailyReport = async ({ refresh = false } = {}) => {
       const client = api();
       if (!client) return;
       try {
-        const rep = await client.getDailyReport();
-        if (!rep) return;
-        dailyReport.value = {
-          date: rep.date || '',
-          metrics: {
-            monitored: rep.metrics?.monitored ?? skins.value.length,
-            gainers: rep.metrics?.gainers ?? topGainers.value.length,
-            losers: rep.metrics?.losers ?? topLosers.value.length,
-          },
-          aiSummary: rep.aiSummary || rep.summary || '',
-        };
-        if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
-          hotVolume.value = rep.hotVolume;
-        } else {
-          reconnectLeaders();
-        }
-        const news = Array.isArray(rep.news) ? rep.news : [];
-        if (news.length) newsFeed.value = news;
+        const rep = await client.getDailyReport(undefined, { refresh });
+        applyDailyReport(rep);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
       }
+    };
+
+    const regenerateDailyReport = async () => {
+      if (dailyReportLoading.value) return;
+      dailyReportLoading.value = true;
+      showToast({ title: t('daily.regenerating'), type: 'info' });
+      try {
+        await loadDailyReport({ refresh: true });
+        showToast({ title: t('daily.regenerateDone'), type: 'success' });
+      } catch (e) {
+        showToast({
+          title: t('daily.regenerateFail'),
+          subtitle: e?.message || String(e),
+          type: 'error',
+        });
+      } finally {
+        dailyReportLoading.value = false;
+      }
+    };
+
+    const exportDailyReport = () => {
+      const r = dailyReport.value || {};
+      const m = r.metrics || {};
+      const lines = [
+        `# CSVest AI 市场日报`,
+        `日期: ${r.date || '-'}`,
+        `生成: ${r.generatedAt || '-'}`,
+        '',
+        `## 指标`,
+        `- 监控: ${m.monitored ?? '-'}`,
+        `- 上涨: ${m.gainers ?? '-'}`,
+        `- 下跌: ${m.losers ?? '-'}`,
+        '',
+        `## AI 市场总结`,
+        r.aiSummary || '(暂无)',
+        '',
+        `## 引用来源`,
+        ...((r.sources || []).map((s, i) =>
+          `${i + 1}. [${s.source || s.type || 'source'}] ${s.snippet || s.title || ''}`
+        )),
+        '',
+        `## 资讯`,
+        ...((r.news || newsFeed.value || []).slice(0, 8).map((n) =>
+          `- ${n.title || ''} (${n.source || ''})`
+        )),
+      ];
+      const filename = `CSVest_daily_${(r.date || new Date().toISOString().slice(0, 10))}.md`;
+      downloadFile(lines.join('\n'), filename, 'text/markdown;charset=utf-8;');
+      showToast({ title: t('export.success'), subtitle: filename, type: 'success' });
     };
 
     const loadExplanation = async (skinId) => {
@@ -797,28 +1177,468 @@ const app = createApp({
       }
     };
     const relatedNewsOverride = ref(null);
-    const regressionModels = ref([
-      { ...modelComparison.regression[0], course: 'DL · panel Embedding' },
-      { ...modelComparison.regression[1], course: 'DL · price tiers' },
-      { ...modelComparison.regression[2], course: 'Route: low→C, mid/high→D' },
-      { ...modelComparison.regression[3], course: 'Best MAPE on fair test' },
-      { ...modelComparison.regression[4], course: 'Tree ensemble' },
-      { ...modelComparison.regression[5], course: 'Tree ensemble' },
+
+    // ============ RAG 智能问答(市场日报内) ============
+    const ragQuery = ref('');
+    const ragAnswer = ref('');
+    const ragAnswerSources = ref([]);
+    const ragLoading = ref(false);
+    const ragAsked = ref(false);
+    const ragRetrieval = ref({ mode: '', model: null });
+    const ragSuggestions = computed(() => [
+      t('daily.rag.sug1'),
+      t('daily.rag.sug2'),
+      t('daily.rag.sug3'),
+      t('daily.rag.sug4'),
     ]);
+
+    const askRag = async (q) => {
+      const query = (q ?? ragQuery.value ?? '').trim();
+      if (!query || ragLoading.value) return;
+      ragQuery.value = query;
+      ragLoading.value = true;
+      ragAsked.value = true;
+      ragAnswer.value = '';
+      ragAnswerSources.value = [];
+      try {
+        const client = api();
+        if (!client) throw new Error('api client missing');
+        const res = await client.ragAsk(query, 5);
+        ragAnswer.value = res?.answer || '';
+        ragAnswerSources.value = Array.isArray(res?.sources) ? res.sources : [];
+        ragRetrieval.value = res?.retrieval || { mode: '', model: null };
+      } catch (err) {
+        console.warn('[rag]', err);
+        ragAnswer.value = t('daily.rag.error');
+      } finally {
+        ragLoading.value = false;
+      }
+    };
+
+    const newsFetchLoading = ref(false);
+    const fetchNewsNow = async () => {
+      if (newsFetchLoading.value) return;
+      const client = api();
+      if (!client || !apiOnline.value) {
+        showToast({ title: t('daily.rag.fetchOffline'), type: 'warning' });
+        return;
+      }
+      newsFetchLoading.value = true;
+      showToast({ title: t('daily.rag.fetching'), type: 'info' });
+      try {
+        const res = await client.fetchNews({ aggressive: true });
+        await loadNewsFromApi();
+        const inserted = res?.inserted ?? 0;
+        showToast({
+          title: t('daily.rag.fetchDone'),
+          subtitle: t('daily.rag.fetchDoneSub', {
+            n: inserted,
+            scanned: res?.scanned ?? 0,
+            feeds: res?.feeds ?? 0,
+          }),
+          type: 'success',
+        });
+      } catch (e) {
+        showToast({
+          title: t('daily.rag.fetchFail'),
+          subtitle: e?.message || String(e),
+          type: 'error',
+        });
+      } finally {
+        newsFetchLoading.value = false;
+      }
+    };
+
+    // 把答案里的 [n] 引用高亮为角标(返回可 v-html 的安全片段)
+    const renderCitations = (text) => {
+      const esc = String(text || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return esc.replace(/\[(\d+)\]/g, '<sup class="rag-cite">[$1]</sup>');
+    };
+
+    // ============ 管理员端 ============
+    const ADMIN_SESSION_KEY = 'sv_admin_session';
+    const loadAdminSession = () => {
+      try {
+        const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    };
+    const adminSession = ref(loadAdminSession());
+    const adminIsAuthed = computed(() => !!(adminSession.value?.token && adminSession.value?.user?.is_admin));
+    const adminLoginForm = ref({ username: 'admin', password: '' });
+    const adminLoginError = ref('');
+    const adminLoginLoading = ref(false);
+    const adminUsers = ref([]);
+    const adminConfig = ref(null);
+    const adminStatus = ref(null);
+    const adminProbeLlm = ref(null);
+    const adminProbeEmbed = ref(null);
+    const adminSaving = ref(false);
+    const adminLoading = ref(false);
+    const adminConfigForm = ref({
+      deepseekApiKey: '',
+      deepseekBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      deepseekModel: 'deepseek-v3',
+      dashscopeApiKey: '',
+      dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      ragEmbedModel: 'text-embedding-v3',
+      ragEmbedDim: 1024,
+      ragUseVector: true,
+    });
+
+    const persistAdminSession = (payload) => {
+      adminSession.value = payload;
+      if (payload?.token) {
+        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(payload));
+        localStorage.setItem('sv_token', payload.token);
+        try { api()?.setToken?.(payload.token); } catch (_) { /* ignore */ }
+      } else {
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+      }
+    };
+
+    const adminLogout = () => {
+      persistAdminSession(null);
+      adminUsers.value = [];
+      adminConfig.value = null;
+      adminStatus.value = null;
+      adminProbeLlm.value = null;
+      adminProbeEmbed.value = null;
+    };
+
+    /** 离开独立管理页：有会话则回用户端，否则回 Landing */
+    const leaveAdmin = () => {
+      const entered = canEnter() && sessionStorage.getItem('sv_entered') === '1';
+      currentPage.value = 'dashboard';
+      showLanding.value = !entered;
+      try {
+        if ((location.hash || '').replace(/^#/, '') === 'admin') {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      } catch (_) { /* ignore */ }
+    };
+
+    const adminLogin = async () => {
+      adminLoginLoading.value = true;
+      adminLoginError.value = '';
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        const res = await client.login(
+          (adminLoginForm.value.username || '').trim(),
+          adminLoginForm.value.password || ''
+        );
+        if (!res?.user?.is_admin) {
+          adminLoginError.value = t('admin.err.notAdmin');
+          return;
+        }
+        persistAdminSession({ token: res.token, user: res.user, expiresIn: res.expires_in });
+        adminLoginForm.value.password = '';
+        showToast({ title: t('admin.toast.loginOk'), type: 'success' });
+        await loadAdminPanel();
+      } catch (err) {
+        adminLoginError.value = err?.message || t('admin.err.login');
+      } finally {
+        adminLoginLoading.value = false;
+      }
+    };
+
+    const fillAdminConfigForm = (cfg) => {
+      if (!cfg) return;
+      adminConfigForm.value = {
+        deepseekApiKey: '',
+        deepseekBaseUrl: cfg.deepseek?.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        deepseekModel: cfg.deepseek?.model || 'deepseek-v3',
+        dashscopeApiKey: '',
+        dashscopeBaseUrl: cfg.dashscope?.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        ragEmbedModel: cfg.dashscope?.embedModel || 'text-embedding-v3',
+        ragEmbedDim: cfg.dashscope?.embedDim || 1024,
+        ragUseVector: cfg.dashscope?.useVector !== false,
+      };
+    };
+
+    const loadAdminPanel = async () => {
+      if (!adminIsAuthed.value) return;
+      adminLoading.value = true;
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        // 确保 Bearer 用管理员 token
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const [usersRes, cfg, status] = await Promise.all([
+          client.adminUsers(),
+          client.adminGetConfig(),
+          client.adminStatus(),
+        ]);
+        adminUsers.value = Array.isArray(usersRes?.items) ? usersRes.items : [];
+        adminConfig.value = cfg;
+        adminStatus.value = status;
+        fillAdminConfigForm(cfg);
+      } catch (err) {
+        console.warn('[admin]', err);
+        if (String(err?.message || '').includes('403') || err?.status === 403) {
+          adminLogout();
+          adminLoginError.value = t('admin.err.notAdmin');
+        }
+        showToast({ title: t('admin.err.load'), subtitle: err?.message || '', type: 'warning' });
+      } finally {
+        adminLoading.value = false;
+      }
+    };
+
+    const saveAdminConfig = async () => {
+      if (!adminIsAuthed.value) return;
+      adminSaving.value = true;
+      try {
+        const client = api();
+        if (!client) throw new Error('api offline');
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        const f = adminConfigForm.value;
+        const body = {
+          deepseekBaseUrl: f.deepseekBaseUrl,
+          deepseekModel: f.deepseekModel,
+          dashscopeBaseUrl: f.dashscopeBaseUrl,
+          ragEmbedModel: f.ragEmbedModel,
+          ragEmbedDim: Number(f.ragEmbedDim) || 1024,
+          ragUseVector: !!f.ragUseVector,
+        };
+        // 仅当输入了新 Key 才覆盖(空=不改)
+        if ((f.deepseekApiKey || '').trim()) body.deepseekApiKey = f.deepseekApiKey.trim();
+        if ((f.dashscopeApiKey || '').trim()) body.dashscopeApiKey = f.dashscopeApiKey.trim();
+        const res = await client.adminPutConfig(body);
+        adminConfig.value = res?.config || res;
+        fillAdminConfigForm(adminConfig.value);
+        showToast({ title: t('admin.toast.saved'), type: 'success' });
+        await refreshAdminStatus();
+      } catch (err) {
+        showToast({ title: t('admin.err.save'), subtitle: err?.message || '', type: 'warning' });
+      } finally {
+        adminSaving.value = false;
+      }
+    };
+
+    const refreshAdminStatus = async () => {
+      try {
+        const client = api();
+        if (!client || !adminIsAuthed.value) return;
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminStatus.value = await client.adminStatus();
+      } catch (err) {
+        console.warn('[admin-status]', err);
+      }
+    };
+
+    const runProbeLlm = async () => {
+      adminProbeLlm.value = { loading: true };
+      try {
+        const client = api();
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminProbeLlm.value = await client.adminProbeLlm();
+      } catch (err) {
+        adminProbeLlm.value = { ok: false, error: err?.message || String(err) };
+      }
+    };
+
+    const runProbeEmbed = async () => {
+      adminProbeEmbed.value = { loading: true };
+      try {
+        const client = api();
+        if (adminSession.value?.token) client.setToken(adminSession.value.token);
+        adminProbeEmbed.value = await client.adminProbeEmbed();
+      } catch (err) {
+        adminProbeEmbed.value = { ok: false, error: err?.message || String(err) };
+      }
+    };
+    const regressionModels = ref(
+      (modelComparison.regression || []).map((r) => ({ ...r }))
+    );
+    const modelTrack = ref('historical');
+    const modelTracks = ref(null);
+    const modelTrackMetadata = ref({});
+    const trend30Metrics = ref(null);
     const hybridRoute = modelComparison.hybridRoute;
     const classificationModels = ref(modelComparison.classification);
-    const suggestedQuestions = computed(() => QUICK_QUESTION_DEFS.map((question) => {
-      const translated = t(question.key);
+    const modelsLoading = ref(false);
+    const modelsDataSource = ref('demo');
+    const modelsNItems = ref(Number(modelComparison.nItems) || 155);
+    const selectedRadarModel = ref('LSTM-C');
+    const shapModel = ref('xgboost');
+    const shapEmpty = ref(false);
+    const backtestEmpty = ref(false);
+    const shapModelOptions = [
+      { id: 'xgboost', label: 'XGBoost' },
+      { id: 'lightgbm', label: 'LightGBM' },
+      { id: 'average', label: 'Avg' },
+    ];
+
+    const applyModelTrack = (track) => {
+      const selected = modelTracks.value?.[track];
+      if (!selected) return;
+      regressionModels.value = (selected.regression || []).map((row) => ({ ...row }));
+      classificationModels.value = (selected.classification || []).map((row) => ({ ...row }));
+      modelsPerDay.value = regressionModels.value
+        .filter((row) => Array.isArray(row.perDay) && row.perDay.length)
+        .map((row) => ({ name: row.name, perDay: row.perDay }));
+      modelTrackMetadata.value = selected.metadata || {};
+      trend30Metrics.value = selected.trend30 || null;
+    };
+
+    /** 旧后端 online 缺 returnPct 时，用回测净值曲线补齐 */
+    const enrichOnlineReturnsFromBacktest = async () => {
+      if (modelTrack.value !== 'online') return;
+      const rows = regressionModels.value || [];
+      if (!rows.length || rows.every((r) => r.returnPct != null)) return;
+      const client = api();
+      if (!client?.getBacktest) return;
+      try {
+        const bt = await client.getBacktest(0, 'online');
+        const series = bt?.series || {};
+        let changed = false;
+        const next = rows.map((r) => {
+          if (r.returnPct != null) return r;
+          const arr = series[r.name];
+          if (!Array.isArray(arr) || arr.length < 2) return r;
+          const first = Number(arr.find((v) => v != null));
+          const last = Number([...arr].reverse().find((v) => v != null));
+          if (!first || last == null || Number.isNaN(first) || Number.isNaN(last)) return r;
+          changed = true;
+          return { ...r, returnPct: +(((last / first) - 1) * 100).toFixed(2) };
+        });
+        if (!changed) return;
+        regressionModels.value = next;
+        if (modelTracks.value?.online) {
+          modelTracks.value = {
+            ...modelTracks.value,
+            online: { ...modelTracks.value.online, regression: next.map((r) => ({ ...r })) },
+          };
+        }
+      } catch (err) {
+        console.warn('[Models] enrich online returns failed:', err?.message || err);
+      }
+    };
+
+    const setModelTrack = async (track) => {
+      if (!['historical', 'online'].includes(track) || modelTrack.value === track) return;
+      modelTrack.value = track;
+      applyModelTrack(track);
+      await enrichOnlineReturnsFromBacktest();
+      await nextTick();
+      renderRadar();
+      renderPerDay();
+      renderBacktest();
+    };
+
+    const modelsBest = computed(() => {
+      const rows = regressionModels.value || [];
+      let bestRmse = null;
+      let bestMape = null;
+      let bestReturn = null;
+      for (const r of rows) {
+        if (r.rmse != null && (bestRmse == null || r.rmse < bestRmse.rmse)) bestRmse = r;
+        if (r.mape != null && (bestMape == null || r.mape < bestMape.mape)) bestMape = r;
+        if (r.returnPct != null && (bestReturn == null || r.returnPct > bestReturn.returnPct)) bestReturn = r;
+      }
       return {
-        ...question,
-        label: translated === question.key
-          ? question.fallback[currentLang.value]
-          : translated,
+        rmse: bestRmse?.name || '',
+        mape: bestMape?.name || '',
+        returnName: bestReturn?.name || '',
+        returnPct: bestReturn?.returnPct ?? null,
+        rmseVal: bestRmse?.rmse ?? null,
+        mapeVal: bestMape?.mape ?? null,
       };
-    }));
+    });
+
+    const modelsFindingsPct = computed(() => {
+      const rows = (regressionModels.value || [])
+        .filter((r) => r.rmse != null)
+        .slice()
+        .sort((a, b) => a.rmse - b.rmse);
+      if (rows.length < 2 || !rows[0].rmse) return '—';
+      const lead = ((rows[1].rmse - rows[0].rmse) / rows[0].rmse) * 100;
+      return `${lead.toFixed(1)}%`;
+    });
+
+    const formatModelReturn = (value) => {
+      if (value == null || Number.isNaN(Number(value))) return '—';
+      const n = Number(value);
+      return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+    };
+
+    const modelsKpis = computed(() => {
+      void currentLang.value;
+      const b = modelsBest.value;
+      const route = hybridRoute || {};
+      const routeText = `low→${route.low || 'C'} · mid/high→${route.mid || route.high || 'D'}`;
+      const meta = modelTrackMetadata.value || {};
+      const onlineMeta = meta.items != null
+        ? `${meta.items} items`
+        : (meta.modelVersion || '');
+      return [
+        {
+          id: 'rmse',
+          label: t('models.kpi.bestRmse'),
+          value: b.rmseVal != null ? b.rmseVal.toFixed(2) : '—',
+          meta: b.rmse || '',
+        },
+        {
+          id: 'mape',
+          label: t('models.kpi.bestMape'),
+          value: b.mapeVal != null ? `${b.mapeVal.toFixed(2)}%` : '—',
+          meta: b.mape || '',
+        },
+        {
+          id: 'ret',
+          label: t('models.kpi.bestReturn'),
+          value: formatModelReturn(b.returnPct),
+          meta: b.returnName || '',
+        },
+        modelTrack.value === 'online'
+          ? {
+              id: 'online',
+              label: t('models.kpi.onlineCoverage'),
+              value: meta.decisions != null ? String(meta.decisions) : '—',
+              meta: onlineMeta,
+            }
+          : {
+              id: 'route',
+              label: t('models.kpi.route'),
+              value: routeText,
+              meta: '',
+            },
+      ];
+    });
+
+    const selectRadarModel = (name) => {
+      selectedRadarModel.value = name;
+      try { renderRadar(); } catch (_) { /* charts may not be ready */ }
+    };
+
+    const setShapModel = async (id) => {
+      shapModel.value = id;
+      try { await renderShap(); } catch (_) { /* charts may not be ready */ }
+    };
+    const modelTypeLabel = (m) => {
+      if (!m) return '—';
+      if (m.typeKey) {
+        const key = 'models.type.' + m.typeKey;
+        const label = t(key);
+        if (label && label !== key) return label;
+      }
+      return m.type || '—';
+    };
+    const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
+    const debateSuggestedQuestions = window.CSVestData.DEBATE_SUGGESTED_QUESTIONS || [];
+    const chatMode = ref('qa'); // 'qa' | 'debate'
+
+    const activeSuggestedQuestions = computed(() => (
+      chatMode.value === 'debate' ? debateSuggestedQuestions : suggestedQuestions
+    ));
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
+    const skinSearch = ref('');
+    const skinSort = ref('change7d');
     const categoryKeys = ['all', 'rifle', 'sniper', 'pistol', 'knife', 'gloves', 'case'];
     // 中文类别 → i18n key 映射
     const categoryMap = {
@@ -829,24 +1649,119 @@ const app = createApp({
       '手套': 'gloves',
       '箱子': 'case',
     };
+
+    const categoryLabel = (cat) => {
+      if (!cat) return '';
+      const key = categoryMap[cat] || (categoryKeys.includes(cat) ? cat : null);
+      if (!key) return cat;
+      return t('dashboard.category.' + key);
+    };
+
+    const formatChange = (num) => {
+      const v = Number(num);
+      if (!Number.isFinite(v)) return '0.00%';
+      const sign = v > 0 ? '+' : '';
+      return `${sign}${v.toFixed(2)}%`;
+    };
+
+    const formatVolume = (num) => {
+      const v = Number(num);
+      // 无真实日成交量时不展示伪造数字
+      if (!Number.isFinite(v) || v <= 0) return '—';
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+      if (v >= 10000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+      return Math.round(v).toLocaleString('en-US');
+    };
+
+    const marketPulse = computed(() => {
+      const list = skins.value || [];
+      let up = 0;
+      let down = 0;
+      let sum = 0;
+      let live = 0;
+      for (const s of list) {
+        const ch = Number(s.change7d) || 0;
+        if (ch > 0) up += 1;
+        else if (ch < 0) down += 1;
+        sum += ch;
+        if (s.isLive !== false) live += 1;
+      }
+      return {
+        total: list.length,
+        live,
+        up,
+        down,
+        avg: list.length ? sum / list.length : 0,
+      };
+    });
+
+    // 800+ 件全量渲染会卡顿：默认渲染前 SKIN_PAGE_SIZE 条，点“加载更多”翻页
+    const SKIN_PAGE_SIZE = 60;
+    const skinDisplayLimit = ref(SKIN_PAGE_SIZE);
+
     const filteredSkins = computed(() => {
-      if (filterCategory.value === 'all') return skins.value;
-      const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
-      return skins.value.filter(s => {
-        const cat = s.category || inferCategory(s);
-        return cat === zhLabel || categoryMap[cat] === filterCategory.value;
+      let list = skins.value || [];
+      if (filterCategory.value !== 'all') {
+        const zhLabel = Object.keys(categoryMap).find(k => categoryMap[k] === filterCategory.value);
+        list = list.filter(s => {
+          const cat = s.category || inferCategory(s);
+          return cat === zhLabel || categoryMap[cat] === filterCategory.value;
+        });
+      }
+      const q = skinSearch.value.trim().toLowerCase();
+      if (q) {
+        list = list.filter(s => {
+          const hay = `${s.name || ''} ${s.wear || ''} ${s.category || ''} ${categoryLabel(s.category)}`.toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      const sorted = [...list];
+      const sort = skinSort.value;
+      sorted.sort((a, b) => {
+        if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'en');
+        if (sort === 'price') return (Number(b.price) || 0) - (Number(a.price) || 0);
+        if (sort === 'change24h') return (Number(b.change24h) || 0) - (Number(a.change24h) || 0);
+        if (sort === 'rarity') return (Number(b.rarity) || 0) - (Number(a.rarity) || 0);
+        // default: change7d
+        return (Number(b.change7d) || 0) - (Number(a.change7d) || 0);
       });
+      return sorted;
+    });
+
+    // 实际渲染的分页切片(全量数据仍保留在 filteredSkins 供计数/导出)
+    const visibleSkins = computed(() => filteredSkins.value.slice(0, skinDisplayLimit.value));
+    const hasMoreSkins = computed(() => filteredSkins.value.length > skinDisplayLimit.value);
+    const remainingSkins = computed(() => Math.max(filteredSkins.value.length - skinDisplayLimit.value, 0));
+    const showMoreSkins = () => {
+      skinDisplayLimit.value += SKIN_PAGE_SIZE * 2;
+    };
+    // 筛选/搜索/排序变化时回到第一页
+    watch([filterCategory, skinSearch, skinSort], () => {
+      skinDisplayLimit.value = SKIN_PAGE_SIZE;
     });
 
     const refreshData = async () => {
+      if (!apiOnline.value) {
+        const ok = await reconnectBackend();
+        if (ok) return;
+      }
       if (apiOnline.value) {
         try {
           await loadSkinsFromApi();
           if (selectedSkin.value?.id) await loadPredictions(selectedSkin.value.id);
-          showToast({ title: t('network.online') || '已刷新', type: 'success' });
+          // 看板刷新顺带对前 N 个饰品抓真实市场价(行内“实时”标签展示)
+          refreshMarketLive();
+          showToast({ title: t('dashboard.connected'), type: 'success' });
           return;
         } catch (err) {
           console.warn('[CSVest] refresh failed', err);
+          apiOnline.value = false;
+          try { api()?.setUseMock(true); } catch (_) { /* ignore */ }
+          showToast({
+            title: t('topbar.dataSource.offline'),
+            subtitle: err?.message || '',
+            type: 'warning',
+          });
         }
       }
       // Mock 波动兜底
@@ -866,12 +1781,181 @@ const app = createApp({
     const klineLoading = ref(false);
     let klineChartInstance = null;
     const modelPredictions = ref([]);
+    const predictionStatus = ref('idle');
+    const predictionReason = ref('');
+    const predictionCalibration = ref(null);
+    // v5 契约: LSTM 系列返回 7 天逐日精确预测 { model, base(决策日价), prices[7] }
+    const predictionDaily = ref(null);
+    // Optional Keras probability trend from the live API; never synthesized.
+    const predictionTrend30d = ref(null);
+    const calibrationEvidence = computed(() => {
+      const calibration = predictionCalibration.value;
+      if (!calibration) return null;
+      const weights = calibration.weights?.d7 || {};
+      const reasons = Array.isArray(calibration.reasonCodes) ? calibration.reasonCodes : [];
+      return {
+        c: Math.round(Number(weights.c || 0) * 100),
+        d: Math.round(Number(weights.d || 0) * 100),
+        recent: Math.round(Number(weights.recent || 0) * 100),
+        disagreement: (Number(calibration.modelDisagreement || 0) * 100).toFixed(1),
+        compressed: reasons.includes('SMOOTH_DEVIATION_COMPRESSION'),
+      };
+    });
     const predictionMeta = ref({
       consensusScore: 76,
       consensusLevel: '',
       entryLow: 0,
       entryHigh: 0,
       targetPrice: 0,
+    });
+    const platformQuotes = ref([]);
+    const platformQuotesLoading = ref(false);
+    const platformQuotesMeta = ref({ mode: '', spread: null, fetchedAt: '' });
+
+    const PLATFORM_LABELS = {
+      buff: 'BUFF',
+      skinport: 'Skinport',
+      steam: 'Steam',
+      waxpeer: 'Waxpeer',
+      marketcsgo: 'Market.CSGO',
+      lootfarm: 'Loot.farm',
+      csgotrader: 'CSGOTrader',
+      csfloat: 'CSFloat',
+    };
+    const platformLabel = (key) => PLATFORM_LABELS[key] || key;
+
+    const platformQuotesSorted = computed(() => {
+      return [...platformQuotes.value].sort((a, b) => {
+        if (a.ok && b.ok) return (a.price ?? 0) - (b.price ?? 0);
+        if (a.ok) return -1;
+        if (b.ok) return 1;
+        return String(a.platform).localeCompare(String(b.platform));
+      });
+    });
+
+    // 报价基准 = 当前展示报价的中位数(自洽), 避免用合成量纲的库内价导致离谱百分比
+    const platformQuotesRef = computed(() => {
+      const prices = platformQuotes.value
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price))
+        .sort((a, b) => a - b);
+      if (!prices.length) return null;
+      const mid = Math.floor(prices.length / 2);
+      return prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+    });
+
+    // 是否已切到真实市场价(点“刷新”后)
+    const platformQuotesLive = computed(() => platformQuotesMeta.value.mode === 'live');
+
+    // 实时均价 = 各平台真实报价的算术平均(仅 live 模式有效)
+    const livePriceAvg = computed(() => {
+      if (platformQuotesMeta.value.mode !== 'live') return null;
+      const prices = platformQuotes.value
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price));
+      if (!prices.length) return null;
+      return prices.reduce((a, b) => a + b, 0) / prices.length;
+    });
+
+    const loadPlatformQuotes = async (skinId, { live = false } = {}) => {
+      if (!skinId) return;
+      platformQuotesLoading.value = true;
+      try {
+        const client = api();
+        if (!client) throw new Error('api client missing');
+        // 默认演示价(与 App 价同量纲, 秒开); 点“刷新”才抓真实市场价(免登录平台)
+        const data = await client.getPlatformQuotes(skinId, { live });
+        platformQuotes.value = Array.isArray(data?.quotes) ? data.quotes : [];
+        platformQuotesMeta.value = {
+          mode: data?.mode || '',
+          spread: data?.spread || null,
+          fetchedAt: data?.fetchedAt || '',
+        };
+      } catch (err) {
+        console.warn('[quotes]', err);
+        platformQuotes.value = [];
+        platformQuotesMeta.value = { mode: '', spread: null, fetchedAt: '' };
+      } finally {
+        platformQuotesLoading.value = false;
+      }
+    };
+
+    const refreshPlatformQuotes = () => {
+      if (selectedSkin.value?.id) loadPlatformQuotes(selectedSkin.value.id, { live: true });
+    };
+
+    // 看板行内“实时价”缓存: { [skinId]: { price, at } }
+    const marketLiveQuotes = ref({});
+    const marketLiveLoading = ref(false);
+
+    const _quotesMedian = (quotes) => {
+      const prices = (quotes || [])
+        .filter(q => q.ok && q.price != null)
+        .map(q => Number(q.price))
+        .sort((a, b) => a - b);
+      if (!prices.length) return null;
+      const mid = Math.floor(prices.length / 2);
+      return prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+    };
+
+    // 行情中心刷新: 对看板靠前的前 N 个饰品抓真实市场价(并发有限, 90s 缓存兜底)
+    const refreshMarketLive = async (limit = 12) => {
+      const client = api();
+      if (!client || !apiOnline.value) return;
+      const targets = (filteredSkins.value || []).slice(0, limit).filter(s => s?.id);
+      if (!targets.length) return;
+      marketLiveLoading.value = true;
+      try {
+        // 有限并发(4), 避免同时打爆各平台全表接口(Skinport 限流很严)
+        const map = { ...marketLiveQuotes.value };
+        const now = Date.now();
+        let hits = 0;
+        const pool = 4;
+        const queue = [...targets];
+        const worker = async () => {
+          while (queue.length) {
+            const s = queue.shift();
+            if (!s) break;
+            try {
+              const d = await client.getPlatformQuotes(s.id, { live: true });
+              const median = _quotesMedian(d?.quotes);
+              if (median != null) {
+                map[s.id] = { price: median, at: now };
+                hits += 1;
+              }
+            } catch (_) { /* 单个失败不影响其余 */ }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(pool, targets.length) }, worker));
+        marketLiveQuotes.value = { ...map };
+        showToast({
+          title: t('dashboard.liveDone', { count: hits }),
+          type: hits ? 'success' : 'warning',
+        });
+      } catch (err) {
+        console.warn('[market-live]', err);
+      } finally {
+        marketLiveLoading.value = false;
+      }
+    };
+
+    // 7 天逐日预测明细行(供预测页逐日面板渲染)
+    const predictionDailyRows = computed(() => {
+      const dp = predictionDaily.value;
+      if (!dp?.prices?.length) return [];
+      const baseDateRaw = selectedSkin.value?.priceDate;
+      const baseDate = baseDateRaw ? new Date(baseDateRaw) : new Date();
+      const anchor = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+      return dp.prices.map((price, i) => {
+        const d = new Date(anchor.getTime() + (i + 1) * 24 * 60 * 60 * 1000);
+        const change = dp.base > 0 ? ((price - dp.base) / dp.base) * 100 : 0;
+        return {
+          day: i + 1,
+          date: `${d.getMonth() + 1}/${d.getDate()}`,
+          price: +(+price).toFixed(2),
+          change: +change.toFixed(2),
+        };
+      });
     });
 
     const syncPredictionMetaFromSkin = (skin) => {
@@ -890,6 +1974,7 @@ const app = createApp({
       if (skin) {
         selectedSkin.value = skin;
         currentPage.value = 'prediction';
+        loadPlatformQuotes(skinId, { live: true });
       }
     };
 
@@ -909,7 +1994,29 @@ const app = createApp({
     });
 
     const newsIcon = (sentiment) => {
-      return sentiment === 'positive' ? '📈' : sentiment === 'negative' ? '📉' : '📰';
+      if (sentiment === 'positive') return '📈';
+      if (sentiment === 'negative') return '📉';
+      return '📰';
+    };
+
+    const openExternalUrl = (url) => {
+      const u = (url || '').trim();
+      if (!u) return;
+      try {
+        const parsed = new URL(u, location.href);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+        const w = window.open(parsed.href, '_blank', 'noopener,noreferrer');
+        // 部分环境拦截 window.open:退化为同页跳转提示
+        if (!w) {
+          const a = document.createElement('a');
+          a.href = parsed.href;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+      } catch (_) { /* ignore bad urls */ }
     };
 
     // K线图渲染（优先后端真实 K 线 + 模型预测）
@@ -921,7 +2028,6 @@ const app = createApp({
 
       const days = { '7D': 7, '30D': 30, '90D': 90, '180D': 180 }[timeframe.value] || 90;
       let kline = [];
-      let volumes = [];
       let ma7 = [];
       let ma30 = [];
       let predChange = 0.02;
@@ -941,7 +2047,6 @@ const app = createApp({
             +(+d.low).toFixed(2),
             +(+d.high).toFixed(2),
           ]);
-          volumes = (kl.volumes || []).map((v, i) => [i, v.volume, v.direction]);
           ma7 = (kl.ma7 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
           ma30 = (kl.ma30 || []).map(v => v == null ? '-' : +(+v).toFixed(2));
           // 用全模型涨跌幅中位数，抗单模型（如 LSTM）离群值
@@ -968,10 +2073,9 @@ const app = createApp({
           selectedSkin.value.category === '箱子' ? 0.02 : 0.035
         );
         kline = mock.kline;
-        volumes = mock.volumes;
         ma7 = window.CSVestData.calculateMA(kline, 7);
         ma30 = window.CSVestData.calculateMA(kline, 30);
-        if (!modelPredictions.value.length) {
+        if (!modelPredictions.value.length && predictionStatus.value !== 'unavailable') {
           const base = selectedSkin.value.price;
           modelPredictions.value = [
             { name: 'ARIMA', type: '统计', price: +(base * 1.012).toFixed(2), change: 1.2, confidence: 65 },
@@ -988,37 +2092,90 @@ const app = createApp({
       const lastClose = parseFloat(kline[kline.length - 1][2]);
       const predictedDates = [];
       const predictedValues = [];
-      const horizon = 7;
+      const dailyPath = predictionDaily.value;
+      const trendPath = predictionTrend30d.value;
+      const predictionUnavailable = predictionStatus.value === 'unavailable';
+      const hasTrend = !predictionUnavailable
+        && trendPath?.horizon === 30
+        && ['p10', 'p50', 'p90'].every(
+          key => Array.isArray(trendPath[key]) && trendPath[key].length === 30
+        );
+      const exactHorizon = predictionUnavailable ? 0 : ((dailyPath?.prices?.length) || 7);
+      const horizon = Math.max(exactHorizon, hasTrend ? 30 : 0);
       // 预测日期从最后一根 K 线的日期顺延，而不是从今天开始（历史数据可能止于更早日期）
       const lastLabel = String(kline[kline.length - 1][0]);
       const [lm, ld] = lastLabel.split('/').map(Number);
       const baseDate = (lm >= 1 && lm <= 12 && ld >= 1 && ld <= 31)
         ? new Date(new Date().getFullYear(), lm - 1, ld)
         : new Date();
-      // 简单确定性伪随机（按饰品 id 播种），避免每次渲染曲线抖动
-      let seed = 0;
-      for (const ch of String(selectedSkin.value.id || '')) seed = (seed * 31 + ch.charCodeAt(0)) % 997;
-      const rand = () => {
-        seed = (seed * 137 + 71) % 997;
-        return seed / 997 - 0.5;
-      };
-      // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
-      const absPct = Math.abs(predChange);
-      const dailyVol = Math.max(0.006, Math.min(0.030, absPct * 0.35 + 0.006));
       for (let i = 1; i <= horizon; i++) {
         const d = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
         predictedDates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-        const t = i / horizon;
-        const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
-        const wiggle = i === horizon ? 0 : rand() * dailyVol;
-        predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
       }
+      // 预测线与最后一根 K 线在 x 轴上衔接,避免视觉断层。
+      // 桥接点取值:正常用 lastClose;若 lastClose 相对首日预测偏离过大
+      // (末端脏价),改用首日预测价,既不断层也不把异常收盘画成 AI 预测尖峰。
+      let bridgeValue = lastClose;
+      let dirtyAnchor = false;
+      if (dailyPath?.prices?.length && dailyPath.base > 0) {
+        const firstPred = Number(dailyPath.prices[0]);
+        dirtyAnchor = Boolean(dailyPath.anchorApplied) || (
+          firstPred > 0
+          && Math.max(lastClose / firstPred, firstPred / lastClose) >= 1.5
+        );
+        if (dirtyAnchor) bridgeValue = Number(dailyPath.base || firstPred);
+        for (const p of dailyPath.prices) {
+          const value = dirtyAnchor
+            ? Number(p)
+            : lastClose * (Number(p) / dailyPath.base);
+          predictedValues.push(value.toFixed(2));
+        }
+      } else {
+        // 无逐日数据(旧模型/树模型)时退回合成路径:
+        // 简单确定性伪随机（按饰品 id 播种），避免每次渲染曲线抖动
+        let seed = 0;
+        for (const ch of String(selectedSkin.value.id || '')) seed = (seed * 31 + ch.charCodeAt(0)) % 997;
+        const rand = () => {
+          seed = (seed * 137 + 71) % 997;
+          return seed / 997 - 0.5;
+        };
+        // 缓动逼近目标价 + 小幅波动，模拟逐日预测路径而非直线
+        const dailyVol = Math.min(0.012, Math.abs(predChange) * 0.35 + 0.003);
+        for (let i = 1; i <= exactHorizon; i++) {
+          const t = i / exactHorizon;
+          const eased = 1 - Math.pow(1 - t, 2); // ease-out：前快后缓
+          const wiggle = i === horizon ? 0 : rand() * dailyVol;
+          predictedValues.push((lastClose * (1 + predChange * eased + wiggle)).toFixed(2));
+        }
+      }
+      const bridgePoint = Number(bridgeValue).toFixed(2);
 
+      // 无真实日成交量:只画主图,不再渲染量能副图
+      const forecastPad = predictedDates.map(() => '-');
+      const categoryDates = kline.map(d => d[0]).concat(predictedDates);
+      const emptySeries = () => new Array(categoryDates.length).fill('-');
+      const exactTail = new Array(Math.max(horizon - predictedValues.length, 0)).fill('-');
+      const exactSeries = predictionUnavailable
+        ? emptySeries()
+        : new Array(kline.length - 1).fill('-')
+          .concat([bridgePoint], predictedValues, exactTail);
+      const trendPrefix = new Array(kline.length + Math.max(exactHorizon - 1, 0)).fill('-');
+      const trendSeries = (values = []) => hasTrend
+        ? trendPrefix.concat(values)
+        : emptySeries();
+      const authoritativeTrend = hasTrend
+        ? trendPath.p50.slice(Math.max(exactHorizon - 1, 0)).map(Number)
+        : [];
+      const forecast7Name = t('prediction.chart.forecast7d');
+      const trendMedianName = t('prediction.chart.trend30d');
+      const legendData = ['K线', 'MA7', 'MA30', forecast7Name];
+      if (hasTrend) legendData.push(trendMedianName);
       const option = {
         backgroundColor: 'transparent',
         animation: false,
         legend: {
-          data: ['K线', 'MA7', 'MA30', 'AI 预测'],
+          type: 'scroll',
+          data: legendData,
           textStyle: { color: '#9ca3af', fontSize: 11 },
           top: 0,
         },
@@ -1029,57 +2186,29 @@ const app = createApp({
           borderColor: '#374151',
           textStyle: { color: '#f3f4f6' },
         },
-        axisPointer: {
-          link: [{ xAxisIndex: 'all' }],
-          label: { backgroundColor: '#ff6b00' },
+        grid: { left: 52, right: 16, top: 48, bottom: 36 },
+        xAxis: {
+          type: 'category',
+          data: categoryDates,
+          boundaryGap: true,
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          splitLine: { show: false },
         },
-        grid: [
-          { left: 60, right: 30, top: 40, height: '60%' },
-          { left: 60, right: 30, top: '75%', height: '15%' },
-        ],
-        xAxis: [
-          {
-            type: 'category',
-            data: kline.map(d => d[0]).concat(predictedDates),
-            boundaryGap: false,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-          {
-            type: 'category',
-            gridIndex: 1,
-            data: kline.map(d => d[0]).concat(predictedDates),
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { show: false },
-            splitLine: { show: false },
-          },
-        ],
-        yAxis: [
-          {
-            scale: true,
-            splitArea: { show: false },
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
-          },
-          {
-            scale: true,
-            gridIndex: 1,
-            splitNumber: 2,
-            axisLine: { lineStyle: { color: '#374151' } },
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            splitLine: { show: false },
-          },
-        ],
+        yAxis: {
+          scale: true,
+          splitArea: { show: false },
+          axisLine: { lineStyle: { color: '#374151' } },
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+        },
         dataZoom: [
-          { type: 'inside', xAxisIndex: [0, 1], start: 50, end: 100 },
+          { type: 'inside', start: 50, end: 100 },
         ],
         series: [
           {
             name: 'K线',
             type: 'candlestick',
-            // ECharts candlestick: [open, close, low, high]
             data: kline.map(d => [d[1], d[2], d[3], d[4]]),
             itemStyle: {
               color: '#ef4444',
@@ -1091,7 +2220,7 @@ const app = createApp({
           {
             name: 'MA7',
             type: 'line',
-            data: ma7,
+            data: ma7.concat(forecastPad),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#fbbf24', width: 1 },
@@ -1099,15 +2228,15 @@ const app = createApp({
           {
             name: 'MA30',
             type: 'line',
-            data: ma30,
+            data: ma30.concat(forecastPad),
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#8b5cf6', width: 1 },
           },
           {
-            name: 'AI 预测',
+            name: forecast7Name,
             type: 'line',
-            data: new Array(kline.length - 1).fill('-').concat([kline[kline.length - 1][2]]).concat(predictedValues),
+            data: exactSeries,
             smooth: true,
             showSymbol: false,
             lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
@@ -1122,22 +2251,37 @@ const app = createApp({
             },
             markArea: {
               itemStyle: { color: 'rgba(255, 107, 0, 0.05)' },
-              data: [[
+              data: predictionUnavailable || !predictedDates.length ? [] : [[
                 { xAxis: kline[kline.length - 1][0] },
-                { xAxis: predictedDates[predictedDates.length - 1] },
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
               ]],
             },
           },
           {
-            name: 'Volume',
-            type: 'bar',
-            xAxisIndex: 1,
-            yAxisIndex: 1,
-            data: volumes,
-            itemStyle: {
-              color: (params) => params.data[2] > 0 ? '#ef4444' : '#10b981',
-              opacity: 0.6,
+            name: trendMedianName,
+            type: 'line',
+            data: trendSeries(authoritativeTrend),
+            smooth: true,
+            showSymbol: false,
+            connectNulls: false,
+            lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+                  { offset: 1, color: 'rgba(34, 197, 94, 0)' },
+                ],
+              },
             },
+            markArea: {
+              itemStyle: { color: 'rgba(34, 197, 94, 0.05)' },
+              data: !hasTrend || !predictedDates.length ? [] : [[
+                { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
+                { xAxis: predictedDates[Math.min(29, predictedDates.length - 1)] },
+              ]],
+            },
+            emphasis: { focus: 'series' },
           },
         ],
       };
@@ -1151,108 +2295,162 @@ const app = createApp({
         role: 'assistant',
         content: '__WELCOME__',
         time: '刚刚',
-        model: 'CSVest AI',
+        model: 'DeepSeek-V3',
       }
     ]);
     const chatInput = ref('');
     const chatLoading = ref(false);
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
-    const chatAgentSession = ref(null);
-    const chatBudget = ref(null);
-    const chatRiskLevel = ref('medium');
 
-    const responseModelLabel = (response) => {
-      const runtime = response?.runtime || aiRuntime.value || {};
-      const type = response?.type || 'chat';
-      if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
-        if (runtime.agents?.mode === 'live') {
-          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
+    const setChatMode = (mode) => {
+      chatMode.value = mode === 'debate' ? 'debate' : 'qa';
+      chatSuggestedIndex.value = -1;
+    };
+
+    const chatNow = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    const SKIN_ALIASES = [
+      { keys: ['火蛇', 'fireserpent', 'fire serpent', 'ak47-fireserpent'], idHint: 'fireserpent' },
+      { keys: ['龙狙', 'dragonlore', 'dragon lore', 'awp-dragonlore'], idHint: 'dragonlore' },
+      { keys: ['红线', 'redline', 'ak47-redline'], idHint: 'redline' },
+      { keys: ['asiimov', '二西莫夫', 'awp-asiimov'], idHint: 'asiimov' },
+      { keys: ['蝴蝶刀', 'butterfly'], idHint: 'butterfly' },
+      { keys: ['多普勒', 'doppler'], idHint: 'doppler' },
+    ];
+
+    const resolveSkinFromQuery = (query) => {
+      const q = String(query || '').trim().toLowerCase();
+      const list = skins.value || [];
+      if (!q) return selectedSkin.value || null;
+
+      const byId = list.find(s => String(s.id || '').toLowerCase() === q);
+      if (byId) return byId;
+
+      for (const alias of SKIN_ALIASES) {
+        if (alias.keys.some(k => q.includes(k))) {
+          const hit = list.find(s => String(s.id || '').toLowerCase().includes(alias.idHint)
+            || String(s.name || '').toLowerCase().includes(alias.idHint));
+          if (hit) return hit;
         }
-        return runtime.agents?.mode === 'degraded'
-          ? 'Bull / Bear / Judge · Degraded to Local Rules'
-          : 'Bull / Bear / Judge · Mock Rules';
       }
-      if (type === 'debate_answer') {
-        if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
-          return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'} · Grounded Q&A`;
+
+      // 名称子串匹配：优先更长命中
+      let best = null;
+      let bestScore = 0;
+      for (const s of list) {
+        const name = String(s.name || '').toLowerCase();
+        const id = String(s.id || '').toLowerCase();
+        if (!name && !id) continue;
+        if (q.includes(name) || name.includes(q) || q.includes(id) || id.includes(q.replace(/\s+/g, '-'))) {
+          const score = Math.max(name.length, id.length);
+          if (score > bestScore) {
+            best = s;
+            bestScore = score;
+          }
         }
-        return runtime.llm?.mode === 'degraded'
-          ? 'Main AI · Degraded Local Grounded Q&A'
-          : 'Main AI · Local Grounded Q&A';
       }
-      if (type === 'profile_update') return 'Main AI · Local Profile Parser';
-      if (type === 'clarification') return 'Main AI · Local Skin Resolver';
-      if (type === 'prediction') {
-        return runtime.hybrid?.mode === 'live'
-          ? `Hybrid · Live (${runtime.hybrid.model})`
-          : 'Hybrid · Mock Trend';
+      if (best) return best;
+
+      // 泛化请求 + 已选饰品
+      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(q)) {
+        return selectedSkin.value;
       }
-      if (type === 'recommendation') return 'Recommendation Agent · Local Rules';
-      if (runtime.llm?.mode === 'live') {
-        return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'}`;
+      return selectedSkin.value || null;
+    };
+
+    const canSendChat = computed(() => {
+      if (chatLoading.value) return false;
+      const text = chatInput.value.trim();
+      if (chatMode.value === 'debate') {
+        return !!(text || selectedSkin.value);
       }
-      if (runtime.llm?.mode === 'configured') {
-        return `${runtime.llm.provider || 'LLM'} · Configured`;
-      }
-      return runtime.llm?.mode === 'degraded'
-        ? 'Live request failed · Browser fallback'
-        : 'Mock · Local Template';
+      return !!text;
+    });
+
+    const ensureDebateLoaded = async (skin) => {
+      if (!skin?.id) return null;
+      await loadDebate(skin.id);
+      return debateData.value;
     };
 
-    const latestAgentResult = (session, agentName) => {
-      if (!session) return null;
-      const key = `${agentName}History`;
-      const history = session[key] || [];
-      return history.length ? history[history.length - 1] : null;
-    };
+    const sendDebateMessage = async (overrideText) => {
+      const raw = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
+      const skin = resolveSkinFromQuery(raw);
+      const displayText = raw || (skin ? t('chat.debateHintSkin', { name: skin.name }).replace(/；.*/, '') : '');
 
-    const agentResultLines = (result) => {
-      if (!result) return [];
-      if (Array.isArray(result.arguments)) {
-        return result.arguments.map(item => item.claim).filter(Boolean);
-      }
-      return Array.isArray(result.reasoning) ? result.reasoning : [];
-    };
-
-    const runSkinAction = async (skinId, action) => {
-      const skin = skins.value.find(item => item.id === skinId);
-      if (skin) selectedSkin.value = skin;
-      currentPage.value = 'chat';
-      if (action === 'debate') chatAgentSession.value = null;
-      const label = skin?.name || skinId;
-      const english = currentLang.value === 'en-US';
-      const prompt = action === 'predict'
-        ? (english
-          ? `Forecast the price trend of ${label} over the next 7 days`
-          : `预测 ${label} 未来 7 天的价格走势`)
-        : (english
-          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
-          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
-      await nextTick();
-      return sendMessage(prompt, { action, skinId });
-    };
-
-    const openPredictionResult = (skinId) => {
-      if (skinId) viewSkin(skinId);
-    };
-
-    const continueDebate = (message) => {
-      if (!chatAgentSession.value || chatLoading.value) return;
-      sendMessage(message);
-    };
-
-    const sendMessage = async (overrideText, requestOptions = {}) => {
-      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
-      if (!text || chatLoading.value) return;
-      if (!requestOptions || typeof requestOptions !== 'object' || requestOptions instanceof Event) {
-        requestOptions = {};
+      if (!skin) {
+        chatMessages.value.push({
+          role: 'user',
+          content: raw || t('chat.startDebate'),
+          time: chatNow(),
+        });
+        chatInput.value = '';
+        chatMessages.value.push({
+          role: 'assistant',
+          content: t('chat.debateNeedSkin'),
+          time: chatNow(),
+          model: 'CSVest',
+        });
+        await scrollChatBottom();
+        return;
       }
 
       chatMessages.value.push({
         role: 'user',
+        content: displayText || t('chat.debateHintSkin', { name: skin.name }),
+        time: chatNow(),
+      });
+      chatInput.value = '';
+      chatLoading.value = true;
+      await scrollChatBottom();
+
+      try {
+        const data = await ensureDebateLoaded(skin);
+        chatMessages.value.push({
+          role: 'assistant',
+          type: 'debate',
+          content: `${t('prediction.debateTitle')} · ${skin.name}`,
+          debate: {
+            skin: data?.skin || skin.name,
+            currentPrice: data?.currentPrice ?? skin.price,
+            rounds: data?.rounds || [],
+            consensus: data?.consensus || {
+              recommendation: '观望',
+              entryRange: '—',
+              stopLoss: '—',
+              targetPrice: '—',
+              risks: [],
+            },
+          },
+          time: chatNow(),
+          model: apiOnline.value ? 'Bull/Bear Agents' : 'Mock Debate',
+        });
+      } catch (e) {
+        chatMessages.value.push({
+          role: 'assistant',
+          content: t('chat.debateNeedSkin'),
+          time: chatNow(),
+          model: 'Mock',
+        });
+      }
+      chatLoading.value = false;
+      await scrollChatBottom();
+    };
+
+    const sendMessage = async (overrideText) => {
+      if (chatMode.value === 'debate') {
+        await sendDebateMessage(overrideText);
+        return;
+      }
+
+      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
+      if (!text || chatLoading.value) return;
+
+      chatMessages.value.push({
+        role: 'user',
         content: text,
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        time: chatNow(),
       });
       chatInput.value = '';
       chatLoading.value = true;
@@ -1261,54 +2459,30 @@ const app = createApp({
       const assistantMsg = {
         role: 'assistant',
         content: '',
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        model: t('chat.thinking'),
+        time: chatNow(),
+        model: apiOnline.value ? 'DeepSeek-V3' : 'Mock',
       };
       chatMessages.value.push(assistantMsg);
 
       try {
         const client = api();
-        if (client?.orchestrateAI) {
-          const continueActiveDebate = chatAgentSession.value
-            && !requestOptions.action && !requestOptions.skinId;
-          const response = await client.orchestrateAI({
-            message: text,
-            action: requestOptions.action || 'auto',
-            skinId: requestOptions.skinId || null,
-            sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
-            targetAgent: null,
-            budget: requestOptions.budget ?? (chatBudget.value ? Number(chatBudget.value) : null),
-            horizonDays: 7,
-            riskLevel: requestOptions.riskLevel || chatRiskLevel.value,
-            locale: currentLang.value,
-            // The current user message and its empty assistant placeholder are
-            // already the last two entries; the backend appends the current
-            // message itself, so only send earlier public chat history.
-            history: chatMessages.value.slice(1, -2).slice(-8)
-              .filter(item => item.content && item.content !== '__WELCOME__')
-              .map(item => ({ role: item.role, content: item.content })),
+        if (client && apiOnline.value) {
+          await client.chat(text, null, (chunk) => {
+            assistantMsg.content += chunk;
+            scrollChatBottom();
           });
-          assistantMsg.content = response?.message || generateAIResponse(text);
-          assistantMsg.kind = response?.type || 'chat';
-          assistantMsg.payload = response || null;
-          if (response?.runtime) aiRuntime.value = response.runtime;
-          assistantMsg.model = responseModelLabel(response);
-          if (response?.agentSession) {
-            chatAgentSession.value = response.agentSession;
-            if (response.agentSession.userProfile) {
-              chatBudget.value = response.agentSession.userProfile.budget;
-              chatRiskLevel.value = response.agentSession.userProfile.risk_level || chatRiskLevel.value;
-            }
+          if (!assistantMsg.content.trim()) {
+            assistantMsg.content = generateAIResponse(text);
           }
         } else {
           // 离线：模拟延迟后本地回复
           await new Promise(r => setTimeout(r, 600));
           assistantMsg.content = generateAIResponse(text);
-          assistantMsg.model = 'Mock · Browser Fallback';
+          assistantMsg.model = 'Mock';
         }
       } catch (e) {
         assistantMsg.content = generateAIResponse(text);
-        assistantMsg.model = 'Mock · Browser Fallback';
+        assistantMsg.model = 'Mock';
       }
       chatLoading.value = false;
       await scrollChatBottom();
@@ -1316,18 +2490,19 @@ const app = createApp({
 
     // 监听聊天输入框的键盘事件
     const onChatKeydown = (e) => {
+      const suggestions = activeSuggestedQuestions.value;
       // 输入框为空时,支持上下方向键选择建议问题
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestedQuestions.value.length - 1);
+          chatSuggestedIndex.value = Math.min(chatSuggestedIndex.value + 1, suggestions.length - 1);
           if (chatSuggestedIndex.value < 0) chatSuggestedIndex.value = 0;
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           chatSuggestedIndex.value = Math.max(chatSuggestedIndex.value - 1, 0);
         } else if (e.key === 'Enter' && chatSuggestedIndex.value >= 0) {
           e.preventDefault();
-          askQuestion(suggestedQuestions.value[chatSuggestedIndex.value]);
+          sendMessage(suggestions[chatSuggestedIndex.value]);
           chatSuggestedIndex.value = -1;
           return;
         }
@@ -1335,26 +2510,13 @@ const app = createApp({
       // 默认 Enter 发送
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        if (canSendChat.value) sendMessage();
         chatSuggestedIndex.value = -1;
       }
     };
 
-    const askQuestion = (question) => {
-      const quickQuestion = typeof question === 'string'
-        ? suggestedQuestions.value.find(item => item.key === question || item.label === question)
-        : question;
-      if (!quickQuestion) {
-        sendMessage(String(question || ''));
-        chatSuggestedIndex.value = -1;
-        return;
-      }
-      sendMessage(quickQuestion.label, {
-        action: quickQuestion.action,
-        skinId: quickQuestion.skinId || null,
-        budget: quickQuestion.budget ?? null,
-        riskLevel: quickQuestion.riskLevel || null,
-      });
+    const askQuestion = (q) => {
+      sendMessage(q);
       chatSuggestedIndex.value = -1;
     };
 
@@ -1571,36 +2733,97 @@ const app = createApp({
       }
     };
 
-    // ============ 持仓 ============
+    // ============ 持仓 / 库存 ============
+    const portfolioTab = ref('inventory'); // inventory | sim
     const portfolio = ref([...window.CSVestData.DEFAULT_PORTFOLIO]);
     const showPortfolioModal = ref(false);
-    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' });
+    const newPortfolio = ref({ skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' });
+
+    const myInventory = ref([...(window.CSVestData.DEFAULT_INVENTORY || [])]);
+    const showInventoryModal = ref(false);
+    const newInventory = ref({
+      skinId: '',
+      acquirePrice: 0,
+      quantity: 1,
+      acquireDate: new Date().toISOString().slice(0, 10),
+      source: 'manual',
+    });
+    const selectedInventoryItem = ref(null);
+    const inventoryMenuId = ref(null);
+    const showInventoryEditModal = ref(false);
+    const editingInventory = ref({ id: null, name: '', acquirePrice: 0 });
+    // Steam 库存导入
+    const showSteamImportModal = ref(false);
+    const steamImportLoading = ref(false);
+    const steamImportForm = ref({ steamUrl: '', cookie: '' });
+    const steamImportResult = ref(null);
+    const inventoryValueHistory = ref({ dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 });
+    const inventoryValueChart = ref(null);
+    let inventoryValueChartInstance = null;
+
+    const getSkinMeta = (skinId) => skins.value.find(s => s.id === skinId) || null;
+
+    const getSkinImage = (skinId) => getSkinMeta(skinId)?.image || '🎯';
+
+    // Steam 真图 URL(无尺寸后缀);前端拼 /360fx360f 显示。无图返回 null,模板回落 emoji。
+    const getSkinImageUrl = (skinId) => getSkinMeta(skinId)?.imageUrl || null;
+
+    const getSkinChange24h = (skinId) => {
+      const ch = Number(getSkinMeta(skinId)?.change24h);
+      return Number.isFinite(ch) ? ch : 0;
+    };
 
     const getCurrentPrice = (skinId) => {
       const fromPortfolio = portfolio.value.find(p => p.skinId === skinId);
       if (fromPortfolio?.currentPrice != null) return fromPortfolio.currentPrice;
+      const fromInv = myInventory.value.find(p => p.skinId === skinId);
+      if (fromInv?.currentPrice != null) return fromInv.currentPrice;
       return skins.value.find(s => s.id === skinId)?.price || 0;
     };
 
     const getItemPnl = (item) => {
       if (item.pnl != null) return item.pnl;
+      const buy = Number(item.buyPrice);
+      if (!Number.isFinite(buy)) return 0;
       const current = getCurrentPrice(item.skinId);
-      return (current - item.buyPrice) * item.quantity;
+      return (current - buy) * (item.quantity || 1);
     };
 
     const getItemPnlPct = (item) => {
       if (item.pnlPct != null) return item.pnlPct;
-      return ((getCurrentPrice(item.skinId) - item.buyPrice) / item.buyPrice) * 100;
+      const buy = Number(item.buyPrice);
+      if (!Number.isFinite(buy) || buy === 0) return 0;
+      return ((getCurrentPrice(item.skinId) - buy) / buy) * 100;
     };
 
     const portfolioMetrics = computed(() => {
       const prices = {};
       portfolio.value.forEach(p => prices[p.skinId] = getCurrentPrice(p.skinId));
-      if (window.CSVestData?.calculateRiskMetrics) {
-        return window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+      if (!portfolio.value.length) {
+        return {
+          totalCost: 0,
+          totalValue: 0,
+          pnl: 0,
+          pnlPct: 0,
+          sharpeRatio: '—',
+          maxDrawdown: '—',
+          volatility: '—',
+        };
       }
-      const totalCost = portfolio.value.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
-      const totalValue = portfolio.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * p.quantity, 0);
+      if (window.CSVestData?.calculateRiskMetrics) {
+        const m = window.CSVestData.calculateRiskMetrics(portfolio.value, prices);
+        return {
+          totalCost: Number(m.totalCost) || 0,
+          totalValue: Number(m.totalValue) || 0,
+          pnl: Number(m.pnl) || 0,
+          pnlPct: Number(m.pnlPct) || 0,
+          sharpeRatio: m.sharpeRatio ?? '—',
+          maxDrawdown: m.maxDrawdown ?? '—',
+          volatility: m.volatility ?? '—',
+        };
+      }
+      const totalCost = portfolio.value.reduce((s, p) => s + (Number(p.buyPrice) || 0) * (p.quantity || 1), 0);
+      const totalValue = portfolio.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0);
       const pnl = totalValue - totalCost;
       return {
         totalCost: +totalCost.toFixed(2),
@@ -1613,8 +2836,242 @@ const app = createApp({
       };
     });
 
+    const inventoryItemCount = computed(() =>
+      myInventory.value.reduce((s, p) => s + (p.quantity || 1), 0)
+    );
+
+    const inventoryTotalValue = computed(() =>
+      myInventory.value.reduce((s, p) => s + getCurrentPrice(p.skinId) * (p.quantity || 1), 0)
+    );
+
+    /** 库存总价值较昨日涨跌（按市值加权） */
+    const inventoryTotalChange24h = computed(() => {
+      let weight = 0;
+      let weighted = 0;
+      myInventory.value.forEach((item) => {
+        const value = getCurrentPrice(item.skinId) * (item.quantity || 1);
+        if (!value) return;
+        weight += value;
+        weighted += value * getSkinChange24h(item.skinId);
+      });
+      if (!weight) return 0;
+      return +(weighted / weight).toFixed(2);
+    });
+
+    const inventorySourceLabel = (source, short = false) => {
+      if (source === 'steam') return short ? 'Steam' : t('inventory.source.steam');
+      return short ? t('inventory.source.manual.short') : t('inventory.source.manual');
+    };
+
+    const renderInventoryValueChart = () => {
+      if (!inventoryValueChart.value) return;
+      inventoryValueChartInstance = getOrCreateChart(inventoryValueChartInstance, inventoryValueChart.value);
+      const hist = inventoryValueHistory.value || {};
+      const dates = hist.dates || [];
+      const values = hist.values || [];
+      const predictedDates = hist.predictedDates || [];
+      const predictedValues = hist.predictedValues || [];
+      const predicted7Dates = hist.predicted7Dates || predictedDates;
+      const predicted7Values = hist.predicted7Values || predictedValues;
+      const trend30Dates = hist.trend30Dates || [];
+      const trend30Values = hist.trend30Values || [];
+      const hasData = dates.length > 0 && values.length > 0;
+
+      if (!hasData) {
+        inventoryValueChartInstance.clear();
+        inventoryValueChartInstance.setOption({
+          backgroundColor: 'transparent',
+          title: {
+            text: t('inventory.valueTrendEmpty'),
+            left: 'center',
+            top: 'middle',
+            textStyle: { color: '#6b7280', fontSize: 13, fontWeight: 400 },
+          },
+          xAxis: { show: false },
+          yAxis: { show: false },
+          series: [],
+        }, true);
+        allowPageScrollOverChart(inventoryValueChartInstance);
+        return;
+      }
+
+      const forecastAnchor = Number(hist.forecastAnchorTotal ?? values[values.length - 1]);
+      const futureDates = trend30Dates.length ? trend30Dates : predicted7Dates;
+      const exactTail = new Array(Math.max(futureDates.length - predicted7Values.length, 0)).fill('-');
+      const exactSeries = new Array(Math.max(dates.length - 1, 0))
+        .fill('-').concat([forecastAnchor], predicted7Values, exactTail);
+      const trendStart = Math.min(7, trend30Values.length);
+      const trendSeries = new Array(dates.length + trendStart).fill('-')
+        .concat([
+          predicted7Values.length ? predicted7Values[predicted7Values.length - 1] : forecastAnchor,
+          ...trend30Values.slice(trendStart),
+        ]);
+
+      inventoryValueChartInstance.setOption({
+        backgroundColor: 'transparent',
+        animation: true,
+        title: { show: false },
+        legend: {
+          data: [t('inventory.valueTrend'), t('inventory.forecast7d'), t('inventory.trend30d')],
+          textStyle: { color: '#9ca3af', fontSize: 11 },
+          top: 0,
+        },
+        grid: { left: 52, right: 16, top: 36, bottom: 32 },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: '#1f2937',
+          borderColor: '#374151',
+          textStyle: { color: '#f3f4f6' },
+          valueFormatter: (v) => (v == null || v === '-' ? '-' : `$${Number(v).toFixed(2)}`),
+        },
+        xAxis: {
+          type: 'category',
+          data: dates.concat(futureDates),
+          boundaryGap: false,
+          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          axisLine: { lineStyle: { color: '#374151' } },
+        },
+        yAxis: {
+          type: 'value',
+          scale: true,
+          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => `$${v}` },
+          splitLine: { lineStyle: { color: '#2a3447' } },
+        },
+        series: [
+          {
+            name: t('inventory.valueTrend'),
+            type: 'line',
+            data: values.concat(futureDates.map(() => '-')),
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#3b82f6' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(59,130,246,0.22)' },
+                { offset: 1, color: 'rgba(59,130,246,0.02)' },
+              ]),
+            },
+          },
+          {
+            name: t('inventory.forecast7d'),
+            type: 'line',
+            data: exactSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#ff6b00', type: 'dashed' },
+            itemStyle: { color: '#ff6b00' },
+            markLine: predicted7Dates.length ? {
+              symbol: 'none',
+              label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
+              lineStyle: { color: '#6b7280', type: 'dashed' },
+              data: [{ xAxis: dates[dates.length - 1] }],
+            } : undefined,
+          },
+          {
+            name: t('inventory.trend30d'),
+            type: 'line',
+            data: trendSeries,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 2.5, color: '#22c55e', type: 'dashed' },
+            itemStyle: { color: '#22c55e' },
+          },
+        ],
+      }, true);
+      allowPageScrollOverChart(inventoryValueChartInstance);
+    };
+
+    const refreshInventoryCharts = async () => {
+      if (!currentUser.value) return;
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], predicted7Dates: [], predicted7Values: [], trend30Dates: [], trend30Values: [], total: 0 };
+      // 本地库存为空:直接空态,不走会伪造曲线的 mock
+      if (!myInventory.value.length) {
+        inventoryValueHistory.value = emptyHist;
+        nextTick(() => {
+          renderInventoryValueChart();
+          inventoryValueChartInstance?.resize();
+        });
+        return;
+      }
+      const client = api();
+      try {
+        if (client) {
+          const hist = await client.getInventoryValueHistory(90);
+          inventoryValueHistory.value = hist || emptyHist;
+        } else if (window.CSVestData.generateInventoryValueHistory) {
+          inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        } else {
+          inventoryValueHistory.value = emptyHist;
+        }
+      } catch (_) {
+        if (window.CSVestData.generateInventoryValueHistory) {
+          inventoryValueHistory.value = window.CSVestData.generateInventoryValueHistory(myInventory.value, 90);
+        } else {
+          inventoryValueHistory.value = emptyHist;
+        }
+      }
+      nextTick(() => {
+        renderInventoryValueChart();
+        inventoryValueChartInstance?.resize();
+      });
+    };
+
+    const setPortfolioTab = (tab) => {
+      portfolioTab.value = tab;
+      inventoryMenuId.value = null;
+      if (tab === 'inventory' && currentUser.value) {
+        loadInventoryFromApi().then(() => refreshInventoryCharts());
+      } else if (tab === 'sim') {
+        loadPortfolioFromApi();
+        loadPortfolioExtras();
+      }
+    };
+
+    const openInventoryItem = (item) => {
+      inventoryMenuId.value = null;
+      if (item?.skinId) viewSkin(item.skinId);
+    };
+
+    const toggleInventoryMenu = (id) => {
+      inventoryMenuId.value = inventoryMenuId.value === id ? null : id;
+    };
+
+    const closeInventoryMenu = () => {
+      inventoryMenuId.value = null;
+    };
+
+    const openEditInventoryPrice = (item) => {
+      if (!item) return;
+      inventoryMenuId.value = null;
+      editingInventory.value = {
+        id: item.id,
+        name: item.name,
+        acquirePrice: item.acquirePrice != null ? +item.acquirePrice : 0,
+      };
+      showInventoryEditModal.value = true;
+    };
+
+    const saveInventoryPrice = async () => {
+      if (!requireInventoryLogin()) return;
+      const id = editingInventory.value.id;
+      if (id == null) return;
+      const price = Number(editingInventory.value.acquirePrice);
+      const nextPrice = Number.isFinite(price) ? price : 0;
+      const idx = myInventory.value.findIndex(p => p.id === id);
+      if (idx >= 0) {
+        myInventory.value[idx] = {
+          ...myInventory.value[idx],
+          acquirePrice: nextPrice,
+        };
+        // 预留：后端对接后在此调用 PATCH /api/inventory/{id}
+        showToast({ title: t('inventory.updated'), subtitle: editingInventory.value.name || '', type: 'success' });
+        await refreshInventoryCharts();
+      }
+      showInventoryEditModal.value = false;
+      editingInventory.value = { id: null, name: '', acquirePrice: 0 };
+    };
+
     const addPortfolio = async () => {
-      if (!requirePortfolioLogin()) return;
       if (!newPortfolio.value.skinId || !newPortfolio.value.buyPrice) return;
       const skin = skins.value.find(s => s.id === newPortfolio.value.skinId);
       const payload = {
@@ -1622,18 +3079,20 @@ const app = createApp({
         buyPrice: +newPortfolio.value.buyPrice,
         quantity: +newPortfolio.value.quantity || 1,
         buyDate: newPortfolio.value.buyDate,
-        holdingType: newPortfolio.value.holdingType || 'real',
+        holdingType: 'sim',
       };
       try {
         const client = api();
         if (client && apiOnline.value) {
           await client.addPortfolioItem(payload);
           await loadPortfolioFromApi();
+          await loadPortfolioExtras();
         } else {
           portfolio.value.push({
             id: Date.now(),
             ...payload,
             name: skin?.name || '',
+            holdingType: 'sim',
           });
         }
         showToast({ title: t('portfolio.addHolding'), subtitle: skin?.name || '', type: 'success' });
@@ -1641,11 +3100,10 @@ const app = createApp({
         showToast({ title: '添加持仓失败', subtitle: e.message || '', type: 'error' });
       }
       showPortfolioModal.value = false;
-      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'real' };
+      newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' };
     };
 
     const removePortfolio = async (id) => {
-      if (!requirePortfolioLogin()) return;
       try {
         const client = api();
         if (client && apiOnline.value) {
@@ -1653,24 +3111,187 @@ const app = createApp({
         }
         portfolio.value = portfolio.value.filter(p => p.id !== id);
         showToast({ title: t('portfolio.close'), type: 'success' });
+        await loadPortfolioExtras();
       } catch (e) {
         showToast({ title: '平仓失败', subtitle: e.message || '', type: 'error' });
       }
     };
 
+    const addInventoryItem = async () => {
+      if (!requireInventoryLogin()) return;
+      if (!newInventory.value.skinId) return;
+      const skin = skins.value.find(s => s.id === newInventory.value.skinId);
+      const rawPrice = newInventory.value.acquirePrice;
+      const payload = {
+        skinId: newInventory.value.skinId,
+        acquirePrice: rawPrice != null && rawPrice !== '' && Number.isFinite(+rawPrice) ? +rawPrice : 0,
+        quantity: +newInventory.value.quantity || 1,
+        acquireDate: newInventory.value.acquireDate,
+        source: 'manual',
+      };
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.addInventoryItem(payload);
+          await loadInventoryFromApi();
+        } else {
+          myInventory.value.push({
+            id: Date.now(),
+            ...payload,
+            name: skin?.name || '',
+          });
+        }
+        showToast({ title: t('inventory.added'), subtitle: skin?.name || '', type: 'success' });
+        await refreshInventoryCharts();
+      } catch (e) {
+        showToast({ title: t('common.error'), subtitle: e.message || '', type: 'error' });
+      }
+      showInventoryModal.value = false;
+      newInventory.value = {
+        skinId: '',
+        acquirePrice: 0,
+        quantity: 1,
+        acquireDate: new Date().toISOString().slice(0, 10),
+        source: 'manual',
+      };
+    };
+
+    const removeInventoryItem = async (id) => {
+      if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
+      try {
+        const client = api();
+        if (client && apiOnline.value) {
+          await client.deleteInventoryItem(id);
+        }
+        myInventory.value = myInventory.value.filter(p => p.id !== id);
+        if (selectedInventoryItem.value?.id === id) selectedInventoryItem.value = null;
+        showToast({ title: t('inventory.removed'), type: 'success' });
+        await refreshInventoryCharts();
+      } catch (e) {
+        showToast({ title: t('common.error'), subtitle: e.message || '', type: 'error' });
+      }
+    };
+
+    const importSteamInventory = () => {
+      if (!requireInventoryLogin()) return;
+      inventoryMenuId.value = null;
+      steamImportForm.value = { steamUrl: '', cookie: '' };
+      steamImportResult.value = null;
+      showSteamImportModal.value = true;
+    };
+
+    const submitSteamImport = async () => {
+      if (!steamImportForm.value.steamUrl.trim()) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('inventory.steamModal.urlRequired'), type: 'error' });
+        return;
+      }
+      if (!steamImportForm.value.cookie.trim()) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('inventory.steamModal.cookieRequired'), type: 'error' });
+        return;
+      }
+      const client = api();
+      if (!client || !apiOnline.value) {
+        showToast({ title: t('inventory.steamModal.failed'), subtitle: t('network.offline') || '后端未连接', type: 'error' });
+        return;
+      }
+      steamImportLoading.value = true;
+      steamImportResult.value = null;
+      try {
+        const res = await client.importSteamInventory({
+          steamUrl: steamImportForm.value.steamUrl.trim(),
+          cookie: steamImportForm.value.cookie.trim(),
+        });
+        steamImportResult.value = res;
+        await loadInventoryFromApi();
+        await refreshInventoryCharts();
+        const imported = res?.imported ?? 0;
+        const skipped = res?.skipped ?? 0;
+        const unmatched = res?.unmatched?.length ?? 0;
+        showToast({
+          title: t('inventory.steamModal.success'),
+          subtitle: t('inventory.steamModal.summary', { imported, skipped, unmatched }),
+          type: imported > 0 ? 'success' : 'info',
+        });
+      } catch (e) {
+        const msg = e?.message || '';
+        let title = t('inventory.steamModal.failed');
+        if (/403|private|私有|cookie/i.test(msg)) title = t('inventory.steamModal.private');
+        else if (/429|限流|rate/i.test(msg)) title = t('inventory.steamModal.rateLimited');
+        else if (/400|格式|链接/i.test(msg)) title = t('inventory.steamModal.badUrl');
+        showToast({ title, subtitle: msg, type: 'error' });
+      } finally {
+        steamImportLoading.value = false;
+      }
+    };
+
+    const diagnoseActionLabel = (action) => {
+      const a = String(action || '');
+      if (/卖出|sell/i.test(a)) return t('portfolio.diag.action.sell');
+      if (/加仓|add/i.test(a)) return t('portfolio.diag.action.add');
+      if (/减仓|trim|观察/i.test(a)) return t('portfolio.diag.action.trim');
+      if (/持有|hold/i.test(a)) return t('portfolio.diag.action.hold');
+      return a || '—';
+    };
+
+    const diagnoseActionClass = (action) => {
+      const a = String(action || '');
+      if (/卖出|sell/i.test(a)) return 'is-sell';
+      if (/加仓|add/i.test(a)) return 'is-add';
+      if (/减仓|trim|观察/i.test(a)) return 'is-trim';
+      return 'is-hold';
+    };
+
+    const formatDiagnoseTime = (iso) => {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso).slice(0, 19);
+        return d.toLocaleString(currentLang.value === 'zh-CN' ? 'zh-CN' : 'en-US', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+      } catch (_) {
+        return String(iso).slice(0, 19);
+      }
+    };
+
     const loadPortfolioExtras = async () => {
-      if (!requirePortfolioLogin()) return;
       const client = api();
       if (!client || !apiOnline.value) return;
+      const emptyHist = { dates: [], values: [], predictedDates: [], predictedValues: [], total: 0 };
+      // 无模拟持仓:不请求诊断/走势,避免空仓报错或混入真实库存曲线
+      if (!portfolio.value.length) {
+        portfolioValueHistory.value = emptyHist;
+        portfolioDiagnose.value = {
+          empty: true,
+          summary: t('portfolio.emptyDiagnose'),
+        };
+        return;
+      }
+      portfolioDiagnoseLoading.value = true;
       try {
         const [hist, diag] = await Promise.all([
           client.getPortfolioValueHistory(90),
           client.diagnosePortfolio(),
         ]);
-        portfolioValueHistory.value = hist || { dates: [], values: [] };
-        portfolioDiagnose.value = diag;
+        portfolioValueHistory.value = hist || emptyHist;
+        if (diag?.error || diag?.empty) {
+          portfolioDiagnose.value = {
+            empty: true,
+            summary: diag.error || t('portfolio.emptyDiagnose'),
+          };
+        } else {
+          portfolioDiagnose.value = diag;
+        }
       } catch (e) {
         console.warn('[CSVest] portfolio extras failed', e);
+        showToast({
+          title: t('portfolio.diagnoseFailed'),
+          subtitle: e?.message || '',
+          type: 'error',
+        });
+      } finally {
+        portfolioDiagnoseLoading.value = false;
       }
     };
 
@@ -1678,71 +3299,167 @@ const app = createApp({
     const radarChart = ref(null);
     const backtestChart = ref(null);
     const shapChart = ref(null);
-    let radarInstance = null, backtestInstance = null, shapInstance = null;
+    const perDayChart = ref(null);
+    // v5 契约: LSTM 系列 Seq2Seq Dense(7) 的逐日(D1-D7)误差指标
+    const modelsPerDay = ref([]);
+    const perDayMetric = ref('rmse'); // rmse | mae | mape
+    let radarInstance = null, backtestInstance = null, shapInstance = null, perDayInstance = null;
+
+    const modelsChartTheme = () => {
+      const narrow = typeof window !== 'undefined' && window.innerWidth <= 768;
+      return {
+        narrow,
+        tooltipBg: 'rgba(16, 16, 24, 0.96)',
+        tooltipBorder: 'rgba(255, 140, 64, 0.35)',
+        axis: '#9a96a0',
+        split: 'rgba(154, 150, 160, 0.22)',
+        axisLine: '#6d6875',
+        palette: ['#e07a28', '#1fa89a', '#4f7cff', '#d63b6a', '#c9a227', '#8b9cb3', '#5a8f7b'],
+        tooltipBase: {
+          backgroundColor: 'rgba(14, 16, 20, 0.96)',
+          borderColor: 'rgba(255, 255, 255, 0.14)',
+          borderWidth: 1,
+          textStyle: { color: '#f2efe9', fontSize: 12 },
+          extraCssText: 'border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.35);',
+        },
+      };
+    };
 
     const renderRadar = () => {
       if (!radarChart.value) return;
       radarInstance = getOrCreateChart(radarInstance, radarChart.value);
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
 
-      const option = {
+      // 从当前 ML 输出动态计算雷达分数，避免硬编码指标与重训结果脱节
+      const rows = regressionModels.value.slice(0, 4);
+      if (!rows.length) {
+        radarInstance.clear();
+        return;
+      }
+      const maxRmse = Math.max(...rows.map(r => Number(r.rmse) || 0), 1);
+      const posReturns = rows.map((r) => Math.max(0, Number(r.returnPct) || 0));
+      const maxPosReturn = Math.max(...posReturns, 1);
+      const speedScore = (speed) => {
+        const s = String(speed || '').toLowerCase();
+        if (/极快|very fast/.test(s)) return 100;
+        if (/快|fast/.test(s)) return 82;
+        if (/中|medium/.test(s)) return 58;
+        return 30;
+      };
+      // 高对比四色 + 线型区分：铜橙实线 / 青绿虚线 / 靛蓝点线 / 玫红短划
+      const colors = [
+        { stroke: '#e07a28', fill: 'rgba(224, 122, 40, 0.18)', dash: null },
+        { stroke: '#12b5a0', fill: 'rgba(18, 181, 160, 0.14)', dash: [6, 4] },
+        { stroke: '#4f7cff', fill: 'rgba(79, 124, 255, 0.12)', dash: [2, 4] },
+        { stroke: '#e23d6e', fill: 'rgba(226, 61, 110, 0.12)', dash: [8, 3, 2, 3] },
+      ];
+      const selected = selectedRadarModel.value;
+      const radarData = rows.map((r, i) => {
+        const rmseScore = Math.max(0, 100 - ((Number(r.rmse) || maxRmse) / maxRmse) * 55);
+        const r2Score = Math.max(0, Math.min(100, (Number(r.r2) || 0) * 100));
+        const explainScore = Math.max(20, Math.min(100, ((Number(r.interpretability) || 1) / 3) * 100));
+        const ret = Number(r.returnPct) || 0;
+        const returnScore = Math.max(0, Math.min(100, (Math.max(0, ret) / maxPosReturn) * 100));
+        const generalize = (rmseScore + r2Score) / 2;
+        const isSel = !selected || selected === r.name;
+        const c = colors[i % colors.length];
+        return {
+          value: [
+            +rmseScore.toFixed(1),
+            speedScore(r.speed),
+            +explainScore.toFixed(1),
+            +returnScore.toFixed(1),
+            +r2Score.toFixed(1),
+            +generalize.toFixed(1),
+          ],
+          name: r.name,
+          _raw: r,
+          areaStyle: { color: isSel ? c.fill : 'rgba(148,163,184,0.02)' },
+          lineStyle: {
+            color: c.stroke,
+            width: isSel ? 3.2 : 2,
+            opacity: isSel ? 1 : 0.62,
+            type: c.dash || 'solid',
+          },
+          itemStyle: {
+            color: c.stroke,
+            opacity: isSel ? 1 : 0.7,
+            borderWidth: isSel ? 2 : 1,
+            borderColor: '#fff',
+          },
+          z: isSel ? 3 : 1,
+        };
+      });
+
+      radarInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        animationDuration: 420,
+        color: colors.map((c) => c.stroke),
+        tooltip: {
+          ...th.tooltipBase,
+          formatter: (params) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const row = radarData.find((d) => d.name === p.name);
+            const raw = row?._raw;
+            if (!raw) return p.name;
+            return [
+              `<strong>${raw.name}</strong>`,
+              `RMSE ${raw.rmse?.toFixed?.(2) ?? '—'} · R² ${raw.r2?.toFixed?.(2) ?? '—'}`,
+              `${t('models.col.returnPct')} ${formatModelReturn(raw.returnPct)}`,
+              `MAPE ${raw.mape?.toFixed?.(2) ?? '—'}%`,
+            ].join('<br/>');
+          },
+        },
         legend: {
-          data: ['LSTM', 'XGBoost', 'ARIMA', 'Random Forest'],
-          textStyle: { color: '#9ca3af', fontSize: 11 },
-          top: 0,
+          data: rows.map((r, i) => ({
+            name: r.name,
+            itemStyle: { color: colors[i % colors.length].stroke },
+            lineStyle: { color: colors[i % colors.length].stroke, width: 2 },
+          })),
+          textStyle: { color: th.axis, fontSize: narrow ? 10 : 12, fontWeight: 500 },
+          itemWidth: 14,
+          itemHeight: 10,
+          itemGap: narrow ? 10 : 16,
+          top: narrow ? undefined : 4,
+          bottom: narrow ? 0 : undefined,
+          type: 'scroll',
+          width: narrow ? '92%' : undefined,
+          selectedMode: true,
         },
         radar: {
           indicator: [
-            { name: 'RMSE 精度', max: 100 },
-            { name: '训练速度', max: 100 },
-            { name: '可解释性', max: 100 },
-            { name: '回测收益', max: 100 },
-            { name: 'R²', max: 100 },
-            { name: '泛化能力', max: 100 },
+            { name: narrow ? t('models.radar.rmseShort') : t('models.radar.rmse'), max: 100 },
+            { name: t('models.radar.speed'), max: 100 },
+            { name: t('models.radar.explain'), max: 100 },
+            { name: t('models.radar.return'), max: 100 },
+            { name: t('models.radar.r2'), max: 100 },
+            { name: t('models.radar.generalize'), max: 100 },
           ],
-          center: ['50%', '55%'],
-          radius: '60%',
-          axisName: { color: '#9ca3af', fontSize: 11 },
-          splitLine: { lineStyle: { color: '#2a3447' } },
-          splitArea: { areaStyle: { color: ['rgba(255,107,0,0.02)', 'rgba(255,107,0,0.05)'] } },
-          axisLine: { lineStyle: { color: '#374151' } },
+          center: ['50%', narrow ? '48%' : '55%'],
+          radius: narrow ? '48%' : '56%',
+          axisName: { color: th.axis, fontSize: narrow ? 10 : 11 },
+          splitLine: { lineStyle: { color: th.split } },
+          splitArea: { areaStyle: { color: ['rgba(255,255,255,0.015)', 'rgba(255,255,255,0.04)'] } },
+          axisLine: { lineStyle: { color: th.axisLine } },
         },
-        series: [{
-          type: 'radar',
-          data: [
-            { value: [88, 30, 35, 95, 92, 90], name: 'LSTM',
-              areaStyle: { color: 'rgba(255, 107, 0, 0.2)' },
-              lineStyle: { color: '#ff6b00', width: 2 },
-              itemStyle: { color: '#ff6b00' } },
-            { value: [80, 85, 70, 78, 89, 85], name: 'XGBoost',
-              areaStyle: { color: 'rgba(59, 130, 246, 0.2)' },
-              lineStyle: { color: '#3b82f6', width: 2 },
-              itemStyle: { color: '#3b82f6' } },
-            { value: [55, 95, 95, 35, 72, 60], name: 'ARIMA',
-              areaStyle: { color: 'rgba(16, 185, 129, 0.2)' },
-              lineStyle: { color: '#10b981', width: 2 },
-              itemStyle: { color: '#10b981' } },
-            { value: [70, 75, 65, 50, 84, 80], name: 'Random Forest',
-              areaStyle: { color: 'rgba(139, 92, 246, 0.2)' },
-              lineStyle: { color: '#8b5cf6', width: 2 },
-              itemStyle: { color: '#8b5cf6' } },
-          ],
-        }],
-      };
-      radarInstance.setOption(option);
+        series: [{ type: 'radar', data: radarData, symbol: 'circle', symbolSize: 7 }],
+      }, true);
+      allowPageScrollOverChart(radarInstance);
     };
 
     const renderBacktest = async () => {
       if (!backtestChart.value) return;
       backtestInstance = getOrCreateChart(backtestInstance, backtestChart.value);
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
 
       let dates = [];
       let seriesMap = {};
       try {
         const client = api();
         if (client && apiOnline.value) {
-          const bt = await client.getBacktest(90);
+          const bt = await client.getBacktest(90, modelTrack.value);
           dates = bt.dates || [];
           seriesMap = bt.series || {};
         }
@@ -1754,106 +3471,339 @@ const app = createApp({
           return `${d.getMonth() + 1}/${d.getDate()}`;
         });
       }
+      backtestEmpty.value = !dates.length;
 
-      const palette = ['#ff6b00', '#3b82f6', '#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#6b7280', '#ec4899'];
+      const toWindowIndex = (arr) => {
+        if (!Array.isArray(arr) || !arr.length) return arr || [];
+        const base = arr.find((v) => v != null && Number(v) !== 0);
+        const b = (base == null || Number(base) === 0) ? 1 : Number(base);
+        return arr.map((v) => (v == null ? null : +((Number(v) / b) * 100).toFixed(2)));
+      };
+
       const names = Object.keys(seriesMap);
-      const series = names.map((name, i) => ({
-        name,
-        type: 'line',
-        data: seriesMap[name],
-        smooth: true,
-        showSymbol: false,
-        lineStyle: {
-          color: palette[i % palette.length],
-          width: /hybrid|lstm/i.test(name) ? 3 : 2,
-        },
-        emphasis: { focus: 'series' },
-      }));
+      const strategyNames = names.filter((n) => !/buy|hold|持有/i.test(n));
+      const benchNames = names.filter((n) => /buy|hold|持有/i.test(n));
+      const hasBench = benchNames.length > 0;
 
-      const option = {
+      const preferOn = new Set(['Hybrid', 'LSTM-C', 'Buy&Hold', '买入持有']);
+      const selected = Object.fromEntries(
+        [...strategyNames, ...benchNames].map((n) => {
+          if (!narrow) return [n, true];
+          return [n, preferOn.has(n) || /hybrid|lstm-c|buy|hold|持有/i.test(n)];
+        })
+      );
+
+      let colorIdx = 0;
+      const series = [];
+      for (const name of strategyNames) {
+        const color = th.palette[colorIdx++ % th.palette.length];
+        const isHero = /hybrid|lstm-c/i.test(name);
+        series.push({
+          name,
+          type: 'line',
+          yAxisIndex: 0,
+          data: toWindowIndex(seriesMap[name]),
+          smooth: 0.15,
+          showSymbol: false,
+          lineStyle: { color, width: isHero ? 2.8 : 1.8 },
+          itemStyle: { color },
+          areaStyle: isHero
+            ? {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: color + '33' },
+                  { offset: 1, color: color + '00' },
+                ]),
+              }
+            : undefined,
+          emphasis: { focus: 'series' },
+        });
+      }
+      for (const name of benchNames) {
+        series.push({
+          name,
+          type: 'line',
+          yAxisIndex: hasBench ? 1 : 0,
+          data: toWindowIndex(seriesMap[name]),
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { color: '#9ca3af', width: 2, type: 'dashed' },
+          itemStyle: { color: '#9ca3af' },
+          emphasis: { focus: 'series' },
+        });
+      }
+
+      backtestInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { trigger: 'axis', backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
+        animationDuration: 480,
+        tooltip: {
+          ...th.tooltipBase,
+          trigger: 'axis',
+          axisPointer: { type: 'cross', crossStyle: { color: 'rgba(255,140,64,0.45)' } },
+          order: 'valueDesc',
+          valueFormatter: (v) => (v == null ? '-' : Number(v).toFixed(2)),
+        },
         legend: {
-          data: names,
-          textStyle: { color: '#9ca3af', fontSize: 11 },
+          data: [...strategyNames, ...benchNames],
+          textStyle: { color: th.axis, fontSize: 11 },
           top: 0,
           type: 'scroll',
+          selected,
         },
-        grid: { left: 60, right: 30, top: 40, bottom: 30 },
+        grid: { left: narrow ? 44 : 56, right: hasBench ? (narrow ? 44 : 56) : 24, top: 42, bottom: narrow ? 36 : 48 },
+        dataZoom: narrow
+          ? [{ type: 'inside', start: 0, end: 100 }]
+          : [
+              { type: 'inside', start: 0, end: 100 },
+              { type: 'slider', height: 18, bottom: 8, borderColor: 'transparent', fillerColor: 'rgba(255,107,0,0.18)', handleSize: 14 },
+            ],
         xAxis: {
           type: 'category',
           data: dates,
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10, hideOverlap: true },
+        },
+        yAxis: hasBench
+          ? [
+              {
+                type: 'value',
+                name: t('models.backtestAxisModels'),
+                scale: true,
+                nameTextStyle: { color: '#6b7280', fontSize: 10 },
+                axisLine: { lineStyle: { color: th.axisLine } },
+                axisLabel: { color: th.axis, fontSize: 10 },
+                splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
+              },
+              {
+                type: 'value',
+                name: 'Buy&Hold',
+                scale: true,
+                nameTextStyle: { color: '#6b7280', fontSize: 10 },
+                axisLine: { lineStyle: { color: th.axisLine } },
+                axisLabel: { color: th.axis, fontSize: 10 },
+                splitLine: { show: false },
+              },
+            ]
+          : {
+              type: 'value',
+              name: t('models.backtestAxisModels'),
+              scale: true,
+              nameTextStyle: { color: '#6b7280', fontSize: 10 },
+              axisLine: { lineStyle: { color: th.axisLine } },
+              axisLabel: { color: th.axis, fontSize: 10 },
+              splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
+            },
+        series,
+      }, true);
+      allowPageScrollOverChart(backtestInstance);
+    };
+
+    const renderPerDay = () => {
+      if (!perDayChart.value) return;
+      if (!modelsPerDay.value.length) {
+        try { perDayInstance?.dispose(); } catch (_) { /* ignore */ }
+        perDayInstance = null;
+        return;
+      }
+      perDayInstance = getOrCreateChart(perDayInstance, perDayChart.value);
+      const th = modelsChartTheme();
+      const metric = perDayMetric.value;
+      const days = modelsPerDay.value[0].perDay.map((d) => `D${d.day}`);
+      const series = modelsPerDay.value.map((m, i) => {
+        const color = th.palette[i % th.palette.length];
+        return {
+          name: m.name,
+          type: 'line',
+          data: m.perDay.map((d) => (d[metric] != null ? +Number(d[metric]).toFixed(4) : null)),
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 7,
+          lineStyle: { color, width: 2.2 },
+          itemStyle: { color },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: color + '30' },
+              { offset: 1, color: color + '00' },
+            ]),
+          },
+          emphasis: { focus: 'series' },
+        };
+      });
+      perDayInstance.setOption({
+        backgroundColor: 'transparent',
+        animationDuration: 360,
+        tooltip: {
+          ...th.tooltipBase,
+          trigger: 'axis',
+          valueFormatter: (v) => {
+            if (v == null) return '-';
+            return metric === 'mape' ? `${Number(v).toFixed(2)}%` : Number(v).toFixed(3);
+          },
+        },
+        legend: {
+          data: modelsPerDay.value.map((m) => m.name),
+          textStyle: { color: th.axis, fontSize: 11 },
+          top: 0,
+          type: 'scroll',
+        },
+        grid: { left: th.narrow ? 44 : 56, right: 20, top: 40, bottom: 28 },
+        xAxis: {
+          type: 'category',
+          data: days,
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10 },
         },
         yAxis: {
           type: 'value',
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: '{value}' },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+          scale: true,
+          name: metric === 'mape' ? 'MAPE %' : metric.toUpperCase(),
+          nameTextStyle: { color: '#6b7280', fontSize: 10 },
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: { color: th.axis, fontSize: 10 },
+          splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
         },
         series,
-      };
-      backtestInstance.setOption(option, true);
+      }, true);
+      allowPageScrollOverChart(perDayInstance);
+    };
+
+    const setPerDayMetric = (metric) => {
+      perDayMetric.value = metric;
+      renderPerDay();
     };
 
     const renderShap = async () => {
       if (!shapChart.value) return;
       shapInstance = getOrCreateChart(shapInstance, shapChart.value);
+      const th = modelsChartTheme();
+      const narrow = th.narrow;
+
+      const normalizeShapRows = (raw) => {
+        const list = Array.isArray(raw)
+          ? raw
+          : (raw?.feature_importance || raw?.features || []);
+        return (Array.isArray(list) ? list : [])
+          .map((d) => {
+            const name = d.feature || d.name;
+            const value = Number(
+              d.meanAbsShap ?? d.mean_abs_shap ?? d.importance ?? d.value ?? NaN
+            );
+            return { name, value };
+          })
+          .filter((d) => d.name && Number.isFinite(d.value) && d.value >= 0);
+      };
 
       let rows = [];
+      let usedLive = false;
       try {
         const client = api();
         if (client && apiOnline.value) {
-          const shap = await client.getShap('xgboost');
-          rows = (Array.isArray(shap) ? shap : []).map(d => ({
-            name: d.feature || d.name,
-            value: d.importance ?? d.value ?? 0,
-          }));
+          const shap = await client.getShap(shapModel.value);
+          rows = normalizeShapRows(shap);
+          usedLive = rows.length > 0;
         }
       } catch (_) { /* mock */ }
       if (!rows.length) {
-        rows = (window.CSVestData.SHAP_FEATURES || []).map(d => ({ name: d.name, value: d.value }));
+        rows = normalizeShapRows(window.CSVestData.SHAP_FEATURES || []);
       }
+      // 真实 SHAP 量级跨度大：只展示 Top 12，避免尾部条几乎看不见
+      rows = rows.slice().sort((a, b) => b.value - a.value).slice(0, 12);
+      shapEmpty.value = !rows.length;
       const data = rows.slice().sort((a, b) => a.value - b.value);
+      const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 1e-9);
+      const fmtShap = (v) => {
+        const n = Number(v) || 0;
+        if (n >= 0.1) return n.toFixed(3);
+        if (n >= 0.01) return n.toFixed(4);
+        if (n >= 0.001) return n.toFixed(4);
+        if (n > 0) return n.toExponential(2);
+        return '0';
+      };
 
-      const option = {
+      shapInstance.setOption({
         backgroundColor: 'transparent',
-        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } },
-        grid: { left: 130, right: 30, top: 20, bottom: 30 },
+        animationDuration: 420,
+        tooltip: {
+          ...th.tooltipBase,
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: (params) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const src = usedLive ? 'SHAP' : 'Demo';
+            return `<strong>${p.name}</strong><br/>${t('models.shapUnit')}: ${fmtShap(p.value)}<br/><span style="opacity:.7">${src}</span>`;
+          },
+        },
+        grid: {
+          left: narrow ? 96 : 148,
+          right: narrow ? 48 : 64,
+          top: 16,
+          bottom: 28,
+          containLabel: false,
+        },
         xAxis: {
           type: 'value',
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
+          name: t('models.shapUnit'),
+          nameLocation: 'end',
+          nameTextStyle: { color: '#6b7280', fontSize: 10 },
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: {
+            color: th.axis,
+            fontSize: 10,
+            formatter: (v) => fmtShap(v),
+          },
+          splitLine: { lineStyle: { color: th.split, type: 'dashed' } },
         },
         yAxis: {
           type: 'category',
-          data: data.map(d => d.name),
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 11 },
+          data: data.map((d) => d.name),
+          axisLine: { lineStyle: { color: th.axisLine } },
+          axisLabel: {
+            color: th.axis,
+            fontSize: narrow ? 10 : 11,
+            width: narrow ? 84 : 130,
+            overflow: 'truncate',
+            ellipsis: '…',
+          },
         },
         series: [{
           type: 'bar',
-          data: data.map((d, i) => ({
-            value: d.value,
-            itemStyle: {
-              color: i % 2 === 0 ? '#ff6b00' : '#ff8c3a',
-              borderRadius: [0, 4, 4, 0],
-            },
-          })),
-          barWidth: 18,
+          data: data.map((d) => {
+            const ratio = Math.max(0.22, Math.sqrt((Number(d.value) || 0) / maxV));
+            return {
+              value: d.value,
+              itemStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                  { offset: 0, color: `rgba(201, 106, 43, ${0.35 + ratio * 0.25})` },
+                  { offset: 1, color: `rgba(219, 138, 74, ${0.55 + ratio * 0.45})` },
+                ]),
+                borderRadius: [0, 5, 5, 0],
+              },
+            };
+          }),
+          barWidth: narrow ? 14 : 18,
           label: {
             show: true,
             position: 'right',
             color: '#9ca3af',
             fontSize: 10,
-            formatter: (p) => Number(p.value).toFixed(3),
+            formatter: (p) => fmtShap(p.value),
           },
         }],
-      };
-      shapInstance.setOption(option, true);
+      }, true);
+      allowPageScrollOverChart(shapInstance);
     };
+
+    watch(currentLang, async () => {
+      if (currentPage.value !== 'models') return;
+      await nextTick();
+      try {
+        renderRadar();
+        renderBacktest();
+        renderPerDay();
+        renderShap();
+      } catch (_) { /* ignore */ }
+    });
 
     // ============ 工具函数 ============
     const formatPrice = (num) => {
@@ -1996,11 +3946,65 @@ const app = createApp({
       // 数字键切换页面 (无 Toast,直接跳转)
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const num = parseInt(e.key);
-        if (num >= 1 && num <= 7) {
+        if (num >= 1 && num <= menu.value.length) {
           e.preventDefault();
           const target = menu.value[num - 1];
           goToPage(target.id);
           // 不弹 Toast,避免用户困惑
+        }
+      }
+    };
+
+    // 按当前页拉取专属数据。注意：watch(currentPage) 不会在「刷新后停在原页」时触发，
+    // 必须在 onMounted / 进入系统后再主动 hydrate，否则日报/持仓等会一直停在初始 Mock。
+    const hydrateCurrentPage = async (pageId) => {
+      const page = pageId || currentPage.value;
+      await nextTick();
+      window.processPhIcons && window.processPhIcons();
+
+      if (page === 'prediction') {
+        renderKline();
+        if (selectedSkin.value?.id) {
+          loadPlatformQuotes(selectedSkin.value.id, { live: true });
+          loadPredictions(selectedSkin.value.id);
+          loadExplanation(selectedSkin.value.id);
+        }
+      } else if (page === 'models') {
+        await loadModelsFromApi();
+        setTimeout(() => {
+          renderRadar();
+          renderBacktest();
+          renderShap();
+          renderPerDay();
+          radarInstance?.resize();
+          backtestInstance?.resize();
+          shapInstance?.resize();
+          perDayInstance?.resize();
+        }, 100);
+      } else if (page === 'daily') {
+        await loadDailyReport();
+      } else if (page === 'admin') {
+        if (adminIsAuthed.value) await loadAdminPanel();
+      } else if (page === 'alerts') {
+        await loadAlertsFromApi();
+      } else if (page === 'portfolio') {
+        if (portfolioTab.value === 'inventory') {
+          if (currentUser.value) {
+            await loadInventoryFromApi();
+            await refreshInventoryCharts();
+          }
+        } else {
+          await loadPortfolioFromApi();
+          await loadPortfolioExtras();
+        }
+      } else if (page === 'chat') {
+        setTimeout(scrollChatBottom, 100);
+      } else if (page === 'dashboard') {
+        // 行情页：确保列表已是后端数据；connect 失败时允许再试一次
+        if (!apiOnline.value) {
+          await reconnectBackend();
+        } else if (!skins.value?.length || skins.value.length < 50) {
+          try { await loadSkinsFromApi(); } catch (_) { /* ignore */ }
         }
       }
     };
@@ -2017,9 +4021,27 @@ const app = createApp({
       // 自动探测后端；通了就切真实 API
       await connectBackend();
 
+      // 用 /api/me 恢复 JWT 会话（库存/持仓按用户隔离）
+      if (apiOnline.value && Auth?.restoreFromApi) {
+        try {
+          const restored = await Auth.restoreFromApi();
+          currentUser.value = restored || Auth.getCurrentUser?.() || null;
+          if (currentUser.value) {
+            isGuest.value = false;
+            sessionStorage.removeItem('sv_guest');
+            await refreshPersonalDataAfterAuth();
+          }
+        } catch (_) { /* ignore */ }
+      } else if (Auth?.getCurrentUser) {
+        currentUser.value = Auth.getCurrentUser() || null;
+      }
+
       // 首屏展示时图表容器尚未挂载,进入系统后再渲染
-      if (!showLanding.value) {
+      if (showLanding.value) {
+        await mountLandingCanvas();
+      } else {
         renderKline();
+        await hydrateCurrentPage(currentPage.value);
       }
       window.addEventListener('keydown', handleGlobalKeydown);
       window.addEventListener('resize', () => {
@@ -2027,7 +4049,26 @@ const app = createApp({
         radarInstance?.resize();
         backtestInstance?.resize();
         shapInstance?.resize();
+        perDayInstance?.resize();
+        inventoryValueChartInstance?.resize();
       });
+
+      // 隐藏入口: #admin 进出独立管理端(不进侧边栏)
+      const syncAdminHash = () => {
+        const isAdminHash = (location.hash || '').replace(/^#/, '') === 'admin';
+        if (isAdminHash && currentPage.value !== 'admin') {
+          currentPage.value = 'admin';
+          showLanding.value = false;
+          if (adminIsAuthed.value) loadAdminPanel();
+        } else if (!isAdminHash && currentPage.value === 'admin') {
+          leaveAdmin();
+        }
+      };
+      window.addEventListener('hashchange', syncAdminHash);
+      if ((location.hash || '').replace(/^#/, '') === 'admin') {
+        showLanding.value = false;
+        syncAdminHash();
+      }
 
       // 网络状态监听
       const updateOnlineStatus = () => {
@@ -2051,32 +4092,32 @@ const app = createApp({
     });
 
     // 监听页面切换
-    watch(currentPage, async (newPage) => {
+    watch(currentPage, async (newPage, oldPage) => {
       await nextTick();
       window.processPhIcons && window.processPhIcons();
-      if (newPage === 'prediction') {
-        renderKline();
-        if (selectedSkin.value?.id) {
-          loadDebate(selectedSkin.value.id);
-          loadExplanation(selectedSkin.value.id);
-        }
-      } else if (newPage === 'models') {
-        await loadModelsFromApi();
-        setTimeout(() => {
-          renderRadar();
-          renderBacktest();
-          renderShap();
-        }, 100);
-      } else if (newPage === 'daily') {
-        await loadDailyReport();
-      } else if (newPage === 'alerts') {
-        await loadAlertsFromApi();
-      } else if (newPage === 'portfolio') {
-        if (!currentUser.value) return;
-        await loadPortfolioFromApi();
-        await loadPortfolioExtras();
-      } else if (newPage === 'chat') {
-        setTimeout(scrollChatBottom, 100);
+
+      // 离开模型页时释放图表，避免触摸事件残留
+      if (oldPage === 'models' && newPage !== 'models') {
+        try {
+          radarInstance?.dispose();
+          backtestInstance?.dispose();
+          shapInstance?.dispose();
+          perDayInstance?.dispose();
+        } catch (_) { /* ignore */ }
+        radarInstance = null;
+        backtestInstance = null;
+        shapInstance = null;
+        perDayInstance = null;
+      }
+
+      await hydrateCurrentPage(newPage);
+    });
+
+    // 登录后若正停留在「我的库存」，自动加载数据与图表
+    watch(currentUser, async (user) => {
+      if (user && currentPage.value === 'portfolio' && portfolioTab.value === 'inventory') {
+        await loadInventoryFromApi();
+        await refreshInventoryCharts();
       }
     });
 
@@ -2084,11 +4125,15 @@ const app = createApp({
     watch(selectedSkin, (skin) => {
       relatedNewsOverride.value = null;
       explainSummary.value = '';
+      predictionStatus.value = 'idle';
+      predictionReason.value = '';
+      predictionCalibration.value = null;
+      predictionDaily.value = null;
+      predictionTrend30d.value = null;
       if (currentPage.value === 'prediction') {
         renderKline();
         if (skin?.id) {
-          loadDebate(skin.id);
-          loadExplanation(skin.id);
+          loadPlatformQuotes(skin.id, { live: true });
         }
       }
     });
@@ -2103,9 +4148,10 @@ const app = createApp({
       // Toast
       toasts, showToast,
       // 菜单
-      menu, currentPage, currentMenu, renderMenuIcon, renderLucideIcon, goToPage,
+      menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
       // 首屏
-      showLanding, landingExiting, enterSystem,
+      showLanding, landingExiting, landingHeroIndex, landingHeroSlides, landingSceneHint,
+      enterSystem, showAdmin, leaveAdmin,
       // 用户认证
       currentUser, isGuest, showAuthPanel, authMode, authForm, authError, authSubmitting,
       submitLogin, submitRegister, enterAsGuest, logoutUser,
@@ -2114,27 +4160,57 @@ const app = createApp({
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
-      filterCategory, categoryKeys, categoryMap, filteredSkins,
-      apiOnline, aiRuntime, connectBackend,
+      filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      visibleSkins, hasMoreSkins, remainingSkins, showMoreSkins,
+      marketLiveQuotes, marketLiveLoading, refreshMarketLive,
+      skinSearch, skinSort, marketPulse, formatChange, formatVolume,
+      apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
-      modelPredictions, predictionMeta, relatedNews, newsIcon, roundTitle, debateData,
+      modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
+      predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
+      relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
+      platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
+      loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
-      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown, suggestedQuestions,
-      chatAgentSession, chatBudget, chatRiskLevel,
-      latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
+      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
+      suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
+      chatMode, setChatMode, canSendChat,
       // 资讯 / 日报
-      newsFeed, dailyReport, loadDailyReport,
+      newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
+      regenerateDailyReport, exportDailyReport,
+      newsFetchLoading, fetchNewsNow,
+      ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
+      adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
+      adminUsers, adminConfig, adminStatus, adminProbeLlm, adminProbeEmbed,
+      adminSaving, adminLoading, adminConfigForm,
+      adminLogin, adminLogout, loadAdminPanel, saveAdminConfig, refreshAdminStatus, runProbeLlm, runProbeEmbed,
       // 预警
       alerts, showAlertModal, newAlert, addAlert, deleteAlert,
-      // 持仓
+      // 持仓 / 库存
+      portfolioTab, setPortfolioTab,
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
       portfolioMetrics, getCurrentPrice, getItemPnl, getItemPnlPct,
-      portfolioDiagnose, portfolioValueHistory, loadPortfolioExtras,
+      portfolioDiagnose, portfolioDiagnoseLoading, portfolioValueHistory, loadPortfolioExtras,
+      diagnoseActionLabel, diagnoseActionClass, formatDiagnoseTime,
+      myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
+      importSteamInventory, openInventoryItem,
+      showSteamImportModal, steamImportLoading, steamImportForm, steamImportResult, submitSteamImport,
+      inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
+      showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
+      inventoryItemCount, inventoryTotalValue, inventoryTotalChange24h, inventorySourceLabel,
+      getSkinImage, getSkinImageUrl, getSkinChange24h, getSkinMeta,
+      inventoryValueChart, inventoryValueHistory,
+      refreshInventoryCharts,
       // 模型
-      regressionModels, classificationModels, modelComparison, hybridRoute,
+      regressionModels, classificationModels, modelTypeLabel, formatModelReturn, modelComparison, hybridRoute,
+      modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
+      modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
+      selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
+      shapEmpty, backtestEmpty,
       radarChart, backtestChart, shapChart,
+      perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具
       formatPrice, exportData, renderIcon,
       // 命令面板

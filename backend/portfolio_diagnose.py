@@ -7,14 +7,13 @@ SkinVision AI — 组合诊断(组员 3 第 7 步 · 🆕 方案 B 核心创新)
   3. 风险贡献 Top N(波动率 × 市值 → 风险预算占比;含最大回撤)
 
 技术点(策划书):
-  - 推理走 model_loader.predict_hybrid(单窗口,快);库存 >20 件分批
+  - 推理走 prediction_service.predict_for_skin,与详情页和库存曲线共享 Hybrid V2 校准
   - 冷启动:新物品用 price_history 回填(已由 database.py 从 CSV 导入)
   - LLM 汇总三块(无 Key 时规则模板)
 """
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -24,6 +23,8 @@ from database import (
     get_connection, resolve_skin, latest_price, change_pct, _utcnow,
 )
 from model_loader import get_loader
+from prediction_service import predict_for_skin
+from config import PRED_CACHE_TTL_HOURS, PREDICTION_CIRCUIT_BREAKER_ENABLED
 import rag
 
 
@@ -63,8 +64,12 @@ def _adjust_action(pred_change: float, vol30: float) -> tuple[str, str]:
     return "持有", f"预测 {pred_change:+.1f}%,信号不明确,持有观望"
 
 
-def diagnose() -> dict:
-    """/api/portfolio/diagnose 主入口。"""
+def diagnose(user_id: int | None = None, holding_type: str | None = "sim") -> dict:
+    """/api/portfolio/diagnose 主入口。
+
+    user_id 给定时只诊断该用户持仓；holding_type 默认 'sim'(模拟持仓页),
+    传 None 则不按类型过滤。空仓返回 empty/error,不抛异常。
+    """
     loader = get_loader()
     items_out: list[dict] = []
     risk_rows: list[dict] = []
@@ -75,49 +80,73 @@ def diagnose() -> dict:
     total_pred30_high = 0.0
 
     with get_connection() as conn:
+        clauses = []
+        params: list = []
+        if user_id is not None:
+            clauses.append("p.user_id=?")
+            params.append(user_id)
+        if holding_type is not None:
+            clauses.append("p.holding_type=?")
+            params.append(holding_type)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         positions = conn.execute(
-            """SELECT p.*, s.market_hash_name, s.slug, s.category
-               FROM portfolio p JOIN skins s ON s.id=p.skin_id
-               ORDER BY p.id"""
+            f"""SELECT s.*, p.id AS portfolio_id, p.skin_id AS portfolio_skin_id,
+                       p.holding_type, p.buy_price, p.buy_date, p.quantity, p.note
+                FROM portfolio p JOIN skins s ON s.id=p.skin_id
+                {where} ORDER BY p.id""",
+            tuple(params),
         ).fetchall()
         if not positions:
-            return {"error": "portfolio 为空,请先添加持仓"}
+            return {"empty": True, "error": "模拟持仓为空,请先添加持仓"}
 
         for pos in positions:
             name = pos["market_hash_name"]
-            cur, _ = latest_price(conn, pos["skin_id"])
+            cur, _ = latest_price(conn, pos["portfolio_skin_id"])
             if cur is None:
                 continue
             qty = pos["quantity"] or 1
             mv = cur * qty
             total_cur += mv
 
-            pred = loader.predict_hybrid(name)
-            if pred is None:
+            forecast = predict_for_skin(
+                conn, pos, horizon=7, requested_models=None, loader=loader,
+                now=_utcnow(), ttl_hours=PRED_CACHE_TTL_HOURS,
+                circuit_breaker_enabled=PREDICTION_CIRCUIT_BREAKER_ENABLED,
+            )
+            pred = (forecast.get("predictions") or [None])[0]
+            if forecast.get("status") != "available" or not isinstance(pred, dict):
+                total_pred7_low += mv
+                total_pred7_high += mv
+                total_pred30_low += mv
+                total_pred30_high += mv
                 continue
-            p7 = pred["predicted_price"]
-            chg = pred["change_pct"] / 100.0
-            conf = pred["confidence"] / 100.0
+            p7 = float(pred["price"])
+            pred_change = float(pred["change"])
+            conf = float(pred.get("confidence") or 0.0) / 100.0
             band = max(0.02, (1 - conf) * 0.06)   # 置信越低带越宽
             p7_low = p7 * (1 - band)
             p7_high = p7 * (1 + band)
-            # 30 天外推(7 天 ×3.5)
-            p30 = max(cur * (1 + chg * 3.5), 0.01)
-            p30_low = p30 * (1 - band * 1.5)
-            p30_high = p30 * (1 + band * 1.5)
+            trend = forecast.get("trend30d") or {}
+            p10, p50, p90 = trend.get("p10"), trend.get("p50"), trend.get("p90")
+            if all(isinstance(path, list) and len(path) == 30 for path in (p10, p50, p90)):
+                p30 = float(p50[-1])
+                p30_low = float(p10[-1])
+                p30_high = float(p90[-1])
+            else:
+                p30 = p30_low = p30_high = p7
 
             total_pred7_low += p7_low * qty
             total_pred7_high += p7_high * qty
             total_pred30_low += p30_low * qty
             total_pred30_high += p30_high * qty
 
-            m = _item_metrics(conn, pos["skin_id"])
-            action, reason = _adjust_action(pred["change_pct"], m["vol30"])
+            m = _item_metrics(conn, pos["portfolio_skin_id"])
+            action, reason = _adjust_action(pred_change, m["vol30"])
             buy_price = pos["buy_price"]
             pnl_pct = round((cur - buy_price) / buy_price * 100, 2) if buy_price else None
 
             items_out.append({
-                "id": pos["id"],
+                "id": pos["portfolio_id"],
                 "skinId": pos["slug"],
                 "name": name,
                 "holdingType": pos["holding_type"],
@@ -128,7 +157,8 @@ def diagnose() -> dict:
                 "pnlPct": pnl_pct,
                 "pred7d": round(p7, 2),
                 "pred30d": round(p30, 2),
-                "predChange7d": pred["change_pct"],
+                "predChange7d": pred_change,
+                "modelVersion": forecast.get("modelVersion"),
                 "action": action,
                 "reason": reason,
                 "vol30": m["vol30"],

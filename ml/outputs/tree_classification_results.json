@@ -1,0 +1,28 @@
+{
+  "feature_count": 21,
+  "fit_split": "train+val",
+  "predict_split": "test",
+  "models": {
+    "XGBoost": {
+      "accuracy": 0.6694977634335542,
+      "f1_weighted": 0.6637955271319917,
+      "auc_ovr_weighted": 0.8419187278950427,
+      "rows": 35322,
+      "training_seconds": 4.373
+    },
+    "LightGBM": {
+      "accuracy": 0.6595039918464413,
+      "f1_weighted": 0.6552878221657177,
+      "auc_ovr_weighted": 0.8332731570301498,
+      "rows": 35322,
+      "training_seconds": 3.887
+    },
+    "Random Forest": {
+      "accuracy": 0.6867108317762302,
+      "f1_weighted": 0.6811770841463006,
+      "auc_ovr_weighted": 0.85838819489462,
+      "rows": 35322,
+      "training_seconds": 6.154
+    }
+  }
+}

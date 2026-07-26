@@ -1,4 +1,8 @@
-"""Compare prediction files that share the canonical forecast contract."""
+"""Compare prediction files — supports both legacy single-step and Seq2Seq multi-step formats.
+
+Seq2Seq models (LSTM-C/D/Hybrid/GRU): pred_day1..pred_day7 columns
+Tree models (RF/LGBM/XGBoost): single predicted_price column (day 7 only)
+"""
 
 import argparse
 import json
@@ -9,7 +13,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, mean_absolute_error, mean_squared_error, r2_score
 
-from forecast_contract import validate_prediction_frame
+from forecast_contract import validate_prediction_frame, validate_prediction_frame_seq
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -17,6 +21,8 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 PRED_DIR = BASE_DIR / "preds"
 OUT_DIR = BASE_DIR / "outputs"
+
+SEQ_HORIZON = 7
 
 MODEL_FILES = {
     "LSTM-C": "pred_lstm_c_{split}.csv",
@@ -26,6 +32,10 @@ MODEL_FILES = {
     "LightGBM": "pred_lightgbm_{split}.csv",
     "XGBoost": "pred_xgboost_{split}.csv",
 }
+BENCHMARK_FILES = {"GRU": "pred_gru_{split}.csv"}
+
+# Models that use the new multi-step format
+SEQ_MODELS = {"LSTM-C", "LSTM-D", "Hybrid", "GRU"}
 
 
 def comparison_coverage(frames):
@@ -66,12 +76,21 @@ def direction_metrics(frame):
     }
 
 
-def load_available_predictions(split):
+def _is_seq_format(df):
+    """Detect if a frame uses multi-step format (has predicted_price_d1 column)."""
+    return "predicted_price_d1" in df.columns
+
+
+def load_available_predictions(split, *, files=MODEL_FILES):
     frames = {}
-    for model, pattern in MODEL_FILES.items():
+    for model, pattern in files.items():
         path = PRED_DIR / pattern.format(split=split)
         if path.exists():
-            frame = validate_prediction_frame(pd.read_csv(path), path)
+            df = pd.read_csv(path)
+            if _is_seq_format(df):
+                frame = validate_prediction_frame_seq(df, path)
+            else:
+                frame = validate_prediction_frame(df, path)
             actual_split = frame["split"].iloc[0]
             if actual_split != split:
                 raise ValueError(f"{path}: expected split={split}, got {actual_split}")
@@ -84,9 +103,12 @@ def align_common_prediction_frames(frames):
     if not frames:
         raise ValueError("at least one prediction frame is required")
 
-    normalized = {
-        name: validate_prediction_frame(frame, name) for name, frame in frames.items()
-    }
+    normalized = {}
+    for name, frame in frames.items():
+        if _is_seq_format(frame):
+            normalized[name] = validate_prediction_frame_seq(frame, name)
+        else:
+            normalized[name] = validate_prediction_frame(frame, name)
     common_keys = None
     for frame in normalized.values():
         keys = set(zip(frame["market_hash_name"], frame["date"]))
@@ -104,39 +126,91 @@ def align_common_prediction_frames(frames):
             ["market_hash_name", "date"]
         ).reset_index(drop=True)
 
-    contract_columns = [
-        "split",
-        "date",
-        "target_date",
-        "market_hash_name",
-        "current_price",
-        "actual_future_price",
-        "horizon_steps",
-    ]
+    # 按共同 key 对齐后，丢掉真值/现价不一致的脏行（同名不同价）
     reference_name, reference = next(iter(aligned.items()))
+    keep = np.ones(len(reference), dtype=bool)
     for name, frame in aligned.items():
-        if not frame[contract_columns].equals(reference[contract_columns]):
-            raise ValueError(
-                f"{name} contract values differ from {reference_name} on common prediction rows"
+        if name == reference_name:
+            continue
+        if len(frame) != len(reference):
+            raise ValueError(f"{name}: aligned length mismatch vs {reference_name}")
+        keep &= (
+            np.isclose(
+                frame["current_price"].to_numpy(dtype=float),
+                reference["current_price"].to_numpy(dtype=float),
+                rtol=0, atol=1e-6, equal_nan=False,
             )
+            & np.isclose(
+                frame["actual_future_price"].to_numpy(dtype=float),
+                reference["actual_future_price"].to_numpy(dtype=float),
+                rtol=0, atol=1e-6, equal_nan=False,
+            )
+            & (
+                pd.to_datetime(frame["target_date"]).to_numpy()
+                == pd.to_datetime(reference["target_date"]).to_numpy()
+            )
+        )
+    if not keep.any():
+        raise ValueError("no common rows with matching contract truth values")
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"  dropped {dropped} mismatched-truth rows for fair compare", flush=True)
+    for name, frame in list(aligned.items()):
+        aligned[name] = frame.loc[keep].sort_values(
+            ["market_hash_name", "date"]
+        ).reset_index(drop=True)
     return aligned
 
 
-def evaluate_frames(frames):
+def _get_predicted_col(frame):
+    """Resolve the predicted_price column — works with both old and new formats."""
+    if "predicted_price" in frame.columns:
+        return "predicted_price"
+    if "predicted_price_d7" in frame.columns:
+        return "predicted_price_d7"
+    raise KeyError("frame has neither 'predicted_price' nor 'predicted_price_d7'")
+
+
+def _per_day_metrics(frame):
+    """Compute per-day metrics for Seq2Seq frames (day1..day7)."""
+    per_day = {}
+    for d in range(1, SEQ_HORIZON + 1):
+        actual_col = f"actual_future_price_d{d}"
+        pred_col = f"predicted_price_d{d}"
+        if actual_col not in frame.columns or pred_col not in frame.columns:
+            break
+        yt = frame[actual_col].to_numpy(dtype=float)
+        yp = frame[pred_col].to_numpy(dtype=float)
+        per_day[d] = {
+            "rmse": round(float(np.sqrt(mean_squared_error(yt, yp))), 4),
+            "mae": round(float(mean_absolute_error(yt, yp)), 4),
+            "mape": round(float(np.mean(np.abs((yt - yp) / np.maximum(yt, 0.01))) * 100), 2),
+            "r2": round(float(r2_score(yt, yp)), 4),
+        }
+    return per_day
+
+
+def evaluate_frames(frames, per_day=False):
     frames = align_common_prediction_frames(frames)
     results = {}
     for model, frame in frames.items():
-        metrics = reg_metrics(frame["actual_future_price"], frame["predicted_price"])
+        pred_col = _get_predicted_col(frame)
+        metrics = reg_metrics(frame["actual_future_price"], frame[pred_col])
+        dir_frame = frame.copy()
+        if pred_col != "predicted_price":
+            dir_frame["predicted_price"] = dir_frame[pred_col]
         metrics.update({
             "items": int(frame["market_hash_name"].nunique()),
             "rows": int(len(frame)),
-            "direction": direction_metrics(frame),
+            "direction": direction_metrics(dir_frame),
         })
+        if per_day and model in SEQ_MODELS and _is_seq_format(frame):
+            metrics["per_day"] = _per_day_metrics(frame)
         results[model] = metrics
     return results
 
 
-def print_results(results, split):
+def print_results(results, split, per_day=False):
     print(f"\nCSVest regression comparison: split={split}, horizon=7 observations")
     print(f"{'Model':<12} {'Items':>6} {'Rows':>8} {'RMSE':>10} {'MAE':>10} {'MAPE':>9} {'R2':>9}")
     for model, metrics in results.items():
@@ -146,13 +220,31 @@ def print_results(results, split):
             f"{metrics['mape']:>8.2f}% {metrics['r2']:>9.4f}"
         )
 
+    # Per-day breakdown for Seq2Seq models
+    if per_day:
+        seq_models = [m for m in results if "per_day" in results[m]]
+        if seq_models:
+            for model in seq_models:
+                pd_metrics = results[model]["per_day"]
+                print(f"\n  {model} per-day:")
+                print(f"  {'Day':<8} {'RMSE':>10} {'MAE':>10} {'MAPE':>8} {'R2':>8}")
+                print(f"  {'-'*8} {'-'*10} {'-'*10} {'-'*8} {'-'*8}")
+                for d in sorted(pd_metrics):
+                    m = pd_metrics[d]
+                    print(f"  Day{d:<5} {m['rmse']:>10.4f} {m['mae']:>10.4f} {m['mape']:>7.2f}% {m['r2']:>8.4f}")
 
-def main(split="test"):
+
+def main(split="test", per_day=False):
     frames = load_available_predictions(split)
     if not frames:
         raise FileNotFoundError(f"No canonical {split} prediction files found in {PRED_DIR}")
-    results = evaluate_frames(frames)
-    print_results(results, split)
+    results = evaluate_frames(frames, per_day=per_day)
+    benchmark_frames = load_available_predictions(split, files=BENCHMARK_FILES)
+    benchmarks = {
+        name: evaluate_frames({name: frame}, per_day=per_day)[name]
+        for name, frame in benchmark_frames.items()
+    }
+    print_results(results, split, per_day=per_day)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     coverage = comparison_coverage(frames)
     payload = {
@@ -160,6 +252,7 @@ def main(split="test"):
         "horizon_steps": 7,
         **coverage,
         "models": results,
+        "benchmarks": benchmarks,
     }
     if coverage["status"] == "partial":
         print(f"WARNING: partial comparison; missing {', '.join(coverage['missing_models'])}")
@@ -176,5 +269,7 @@ def main(split="test"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", choices=("val", "test"), default="test")
+    parser.add_argument("--per-day", action="store_true",
+                        help="Show per-day (d1..d7) breakdown for Seq2Seq models")
     args = parser.parse_args()
-    main(args.split)
+    main(args.split, per_day=args.per_day)

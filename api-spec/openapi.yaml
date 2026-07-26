@@ -44,6 +44,8 @@ tags:
     description: 价格预警
   - name: Portfolio
     description: 模拟持仓
+  - name: Inventory
+    description: 我的库存（真实库存）
   - name: Models
     description: 模型对比
 
@@ -109,6 +111,42 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/skins/{skinId}/quotes:
+    get:
+      tags: [Dashboard, Prediction]
+      summary: 多平台实时/演示报价
+      description: |
+        聚合 Skinport / Waxpeer / Market.CSGO / Loot.farm / CSGOTrader 等平台报价。
+        `USE_BUFF_LIVE=0` 时返回基于库内基准价的演示价差; 开启后尝试真实拉取。
+      parameters:
+        - name: skinId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platforms
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 逗号分隔平台列表
+          example: skinport,waxpeer,marketcsgo,lootfarm,csgotrader
+        - name: live
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 强制实时拉取; 默认跟随 USE_BUFF_LIVE
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformQuotesResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/skins/{skinId}/kline:
     get:
       tags: [Dashboard, Prediction]
@@ -167,10 +205,12 @@ paths:
   /api/predict:
     post:
       tags: [Prediction]
-      summary: 多模型价格预测
+      summary: 在线 7 天 Hybrid V2 预测与 30 天概率趋势
       description: |
-        6 回归模型 + 4 分类模型综合预测。
-        训练方法见策划书 5.5 节: TimeSeriesSplit + Walk-Forward。
+        仅使用当前数据库最新 60 个观测构建输入，同时调用 LSTM-C/D，
+        再由最近 180 天 CS2 数据拟合的 Hybrid V2 适配器融合并校准。
+        有效的 7 天响应会附带与 D7 自然衔接的 Keras 30 天 P10/P50/P90 趋势。
+        不读取离线 val/test 预测 CSV；无法生成可信结果时返回 status=unavailable。
       requestBody:
         required: true
         content:
@@ -184,14 +224,14 @@ paths:
                   example: 'ak47-fireserpent-fn'
                 horizon:
                   type: integer
-                  enum: [7, 30]
-                  description: 预测天数
+                  enum: [7]
+                  description: 精确预测周期；30 天概率趋势随有效响应返回
                 models:
                   type: array
                   items:
                     type: string
-                    enum: [arima, xgboost, lightgbm, randomforest, lstm, gru]
-                  description: 指定模型,默认全部
+                    enum: [lstm]
+                  description: 在线接口仅支持 LSTM
       responses:
         '200':
           description: 成功
@@ -310,48 +350,16 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  # ============ Bull / Bear / Judge 多 Agent 辩论 ============
-  /api/ai/orchestrate:
-    post:
-      tags: [Chat]
-      summary: Unified AI Chat orchestration
-      description: |
-        Routes one request to recommendation, Hybrid prediction,
-        Bull/Bear/Judge debate, a targeted agent follow-up, or ordinary chat.
-        Automatic debate requires a resolvable specific skin.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIOrchestratorRequest'
-      responses:
-        '200':
-          description: Routed AI result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIOrchestratorResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+  # ============ 双 Agent 辩论 ============
   /api/debate/{skinId}:
     post:
       tags: [Debate]
-      summary: Bull / Bear / Judge 多 Agent 辩论分析
+      summary: 双 Agent 辩论分析 (核心创新)
       description: |
-        Bull 与 Bear 使用独立 Prompt、历史和工具权限，在同一不可变市场快照上进行迭代，
-        最后由独立 Judge 校验证据并裁决。旧版字符串字段继续保留供当前前端展示。
-
-        默认优先返回预录结果；`live=true` 现场执行。无 LLM Key 时使用同一结构化流程的明确 Mock。
-
-        默认 3 轮:
+        🐂 Bull vs 🐻 Bear 3 轮迭代:
         - Round 1: 独立分析
         - Round 2: 互相质疑
-        - Round 3: 修正观点
-        - Judge: 独立裁决
+        - Round 3: 达成共识
       parameters:
         - name: skinId
           in: path
@@ -370,33 +378,6 @@ paths:
           schema:
             type: boolean
             default: false
-        - name: budget
-          in: query
-          description: 用户预算(USD)
-          schema:
-            type: number
-            exclusiveMinimum: 0
-        - name: riskLevel
-          in: query
-          description: 用户风险偏好
-          schema:
-            type: string
-            enum: [low, medium, high]
-            default: medium
-        - name: horizon
-          in: query
-          description: 当前 Hybrid 契约仅支持 7 天
-          schema:
-            type: integer
-            enum: [7]
-            default: 7
-        - name: rounds
-          in: query
-          description: Bull/Bear 辩论轮数；未传时读取 DEBATE_ROUNDS
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 5
       responses:
         '200':
           description: 成功
@@ -404,98 +385,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DebateResult'
-
-  /api/agent/sessions:
-    post:
-      tags: [Debate]
-      summary: 创建用户参与式 Agent 会话
-      description: 创建共享市场快照，运行初始 Bull/Bear/Judge 分析并持久化公开结果。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgentSessionCreateRequest'
-      responses:
-        '200':
-          description: 会话已创建
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgentSession'
-
-  /api/agent/sessions/{sessionId}:
-    get:
-      tags: [Debate]
-      summary: 获取 Agent 会话及公开历史
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 会话状态
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgentSession'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/agent/sessions/{sessionId}/message:
-    post:
-      tags: [Debate]
-      summary: 向 Bull、Bear 或 Judge 定向发送消息
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgentSessionMessageRequest'
-      responses:
-        '200':
-          description: 更新后的会话状态
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgentSession'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/agent/sessions/{sessionId}/round:
-    post:
-      tags: [Debate]
-      summary: Run one user-participating debate round
-      description: Runs Bull, then Bear with the new Bull opinion, then Judge with both opinions and the user message.
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgentSessionRoundRequest'
-      responses:
-        '200':
-          description: Updated session including the new sequential round
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgentSession'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   # ============ 资讯流 ============
   /api/news:
@@ -653,10 +542,10 @@ paths:
   /api/portfolio/value_history:
     get:
       tags: [Portfolio]
-      summary: 持仓总市值历史曲线
+      summary: 模拟持仓总市值历史曲线
       description: |
-        SQL 聚合:`portfolio JOIN price_history GROUP BY date`。
-        用于「我的库存」页总值曲线(冷启动用已落库历史价回填)。
+        SQL 聚合:`portfolio JOIN price_history GROUP BY date`，仅 `holding_type=sim`。
+        无模拟持仓时返回空曲线，不混入真实库存。
       parameters:
         - name: days
           in: query
@@ -687,27 +576,191 @@ paths:
       tags: [Portfolio]
       summary: AI 组合诊断(三块输出)
       description: |
-        方案 B 核心创新。逐件 Hybrid 预测(走 predictions 缓存)→ 三块固定输出:
-          1. 7/30 天库存总值预估区间
+        方案 B 核心创新。仅诊断 `holding_type=sim` 模拟持仓。
+        逐件 Hybrid 预测(走 predictions 缓存)→ 三块固定输出:
+          1. 7/30 天总值预估区间
           2. 逐件调仓建议(卖/持/加)+ RAG 理由
           3. 风险贡献 Top N(波动 × 市值)
-        库存 >20 件时分批。
+        空仓返回 `{ empty: true, summary }`（HTTP 200），不抛 400。
+      responses:
+        '200':
+          description: 成功（含空仓 empty 响应）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioDiagnosis'
+
+  # ============ 我的库存（真实库存；前端先行，后端待对接）============
+  /api/inventory:
+    get:
+      tags: [Inventory]
+      summary: 获取我的库存列表
+      description: |
+        真实库存（手动添加 + Steam 导入）。需登录。
+        Steam 导入来源的行 `source=steam`，手动添加为 `manual`。
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PortfolioDiagnosis'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Inventory]
+      summary: 手动添加库存饰品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skinId, quantity]
+              properties:
+                skinId:
+                  type: string
+                acquirePrice:
+                  type: number
+                  description: 入手成本（可选）
+                quantity:
+                  type: integer
+                acquireDate:
+                  type: string
+                  format: date
+                source:
+                  type: string
+                  enum: [manual, steam]
+                  default: manual
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/inventory/{itemId}:
+    delete:
+      tags: [Inventory]
+      summary: 移除库存饰品
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/inventory/value_history:
+    get:
+      tags: [Inventory]
+      summary: 库存总价值历史曲线
+      description: |
+        聚合库存饰品历史价 → 总市值曲线；逐件调用 Hybrid V2 生成 7 天预测，
+        并聚合 Keras 30 天 P50 趋势。无预测持仓按现价持平，避免低估总值。
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dates:
+                    type: array
+                    items:
+                      type: string
+                  values:
+                    type: array
+                    items:
+                      type: number
+                  predicted7Dates:
+                    type: array
+                    items: {type: string}
+                  predicted7Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 7
+                    maxItems: 7
+                  trend30Dates:
+                    type: array
+                    items: {type: string}
+                  trend30Values:
+                    type: array
+                    items: {type: number}
+                    minItems: 30
+                    maxItems: 30
+                  forecastAnchorTotal:
+                    type: number
+                  predictionCoverage:
+                    type: object
+                    properties:
+                      totalItems: {type: integer}
+                      predictedItems: {type: integer}
+                      trendItems: {type: integer}
+                      itemRatio: {type: number}
+                      valueRatio: {type: number}
+                  modelVersion:
+                    type: string
+                    nullable: true
+                  total:
+                    type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/inventory/steam/import:
+    post:
+      tags: [Inventory]
+      summary: Steam 库存导入（待开发）
+      description: |
+        预留接口。对接 Steam Web API / 库存页面解析后，将饰品写入 inventory（source=steam）。
+        当前前端仅展示入口，后端返回 501。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                steamId:
+                  type: string
+                  description: SteamID64（可选，默认取已绑定账号）
+      responses:
+        '501':
+          description: 功能开发中
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ============ 模型对比 ============
   /api/models/comparison:
     get:
       tags: [Models]
       summary: 获取模型对比数据
-      description: 6 回归 + 4 分类模型,所有指标
+      description: |
+        双轨模型指标。顶层字段兼容历史公平比较；tracks.historical 为 2019–2023
+        canonical test，tracks.online 为最近 180 天独立留出集，二者不得混合排名。
       responses:
         '200':
           description: 成功
@@ -726,6 +779,14 @@ paths:
                       $ref: '#/components/schemas/ModelResult'
                   buyAndHold:
                     $ref: '#/components/schemas/ModelResult'
+                  defaultTrack:
+                    type: string
+                    enum: [historical, online]
+                  tracks:
+                    type: object
+                    properties:
+                      historical: {type: object}
+                      online: {type: object}
 
   /api/models/backtest:
     get:
@@ -741,6 +802,13 @@ paths:
           in: query
           schema:
             type: string
+        - name: track
+          in: query
+          description: 历史公平回测或近期线上模型独立回测
+          schema:
+            type: string
+            enum: [historical, online]
+            default: historical
       responses:
         '200':
           description: 成功
@@ -749,6 +817,9 @@ paths:
               schema:
                 type: object
                 properties:
+                  track:
+                    type: string
+                    enum: [historical, online]
                   dates:
                     type: array
                     items:
@@ -847,7 +918,10 @@ components:
           type: string
         price:
           type: number
-          description: 当前价格 (CNY)
+          description: 当前价格 (USD)
+        priceUsd:
+          type: number
+          description: 当前价格 (USD)，与 price 同口径
         change24h:
           type: number
           description: 24h 涨跌幅(%)
@@ -867,7 +941,15 @@ components:
           type: string
         source:
           type: string
-          enum: [BUFF, Skinport]
+          enum: [BUFF, CSV]
+        priceDate:
+          type: string
+          format: date
+          nullable: true
+          description: 当前价格对应的数据日期
+        isLive:
+          type: boolean
+          description: 是否为近 7 天内更新的 BUFF 实时数据
 
     SkinDetail:
       allOf:
@@ -882,6 +964,73 @@ components:
               type: integer
             daysSinceRelease:
               type: integer
+
+    PlatformQuote:
+      type: object
+      properties:
+        platform:
+          type: string
+        label:
+          type: string
+        currency:
+          type: string
+        price:
+          type: number
+          nullable: true
+        priceNative:
+          type: number
+          nullable: true
+        buyPrice:
+          type: number
+          nullable: true
+        sellPrice:
+          type: number
+          nullable: true
+        volume:
+          type: integer
+          nullable: true
+        ok:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        live:
+          type: boolean
+
+    PlatformQuotesResponse:
+      type: object
+      properties:
+        skinId:
+          type: string
+        marketHashName:
+          type: string
+        basePrice:
+          type: number
+          nullable: true
+        mode:
+          type: string
+          enum: [live, mock, mock_fallback]
+        fetchedAt:
+          type: string
+          format: date-time
+        quotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlatformQuote'
+        spread:
+          type: object
+          nullable: true
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            minPlatform:
+              type: string
+            maxPlatform:
+              type: string
+            spreadPct:
+              type: number
 
     KLinePoint:
       type: object
@@ -909,15 +1058,173 @@ components:
           type: integer
           enum: [-1, 1]
 
+    Trend30D:
+      type: object
+      required: [decisionDate, model, horizon, p10, p50, p90]
+      properties:
+        decisionDate:
+          type: string
+          format: date
+        model:
+          type: string
+          enum: [Keras-Seq2Seq-30D]
+        horizon:
+          type: integer
+          enum: [30]
+        p10:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p50:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        p90:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items:
+            type: number
+            exclusiveMinimum: 0
+        calibration:
+          $ref: '#/components/schemas/ForecastCalibration'
+
+    ForecastCalibration:
+      type: object
+      required: [applied, method, maxDeviation, reasonCodes]
+      properties:
+        applied:
+          type: boolean
+        method:
+          type: string
+          example: hybrid-v2-log-return-smooth-bound
+        maxDeviation:
+          type: number
+          enum: [0.3]
+        modelDisagreement:
+          type: number
+          minimum: 0
+        reasonCodes:
+          type: array
+          items:
+            type: string
+            enum:
+              - MODEL_DISAGREEMENT
+              - RECENT_TREND_ADJUSTMENT
+              - SMOOTH_DEVIATION_COMPRESSION
+              - D7_TREND_HANDOFF
+              - PRICE_LEVEL_REBASE
+              - UNCONFIRMED_PRICE_SHOCK
+        forecastAnchorPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 预测校准使用的稳健锚点；未确认单点跳价时为跳价前近期中位数
+        currentPrice:
+          type: number
+          exclusiveMinimum: 0
+          description: 当前真实市场价格，不因预测锚点调整而修改
+        weights:
+          type: object
+          description: D1-D7 的 LSTM-C、LSTM-D 与近期趋势融合权重
+          additionalProperties:
+            type: object
+            properties:
+              c:
+                type: number
+              d:
+                type: number
+              recent:
+                type: number
+
     PredictionResult:
       type: object
+      required:
+        - skinId
+        - horizon
+        - status
+        - warnings
+        - predictions
+        - decisionDate
+        - dataThrough
+        - modelVersion
+        - priceSource
+        - volumeCoverage
+        - generatedAt
+        - trend30d
       properties:
         skinId:
           type: string
         horizon:
           type: integer
+        status:
+          type: string
+          enum: [available, unavailable]
+        reason:
+          type: string
+          nullable: true
+          enum:
+            - NO_PRICE_HISTORY
+            - UNSUPPORTED_HORIZON
+            - REQUESTED_MODEL_UNAVAILABLE
+            - MODEL_UNAVAILABLE
+            - STALE_INPUT
+            - PRICE_ANCHOR_MISMATCH
+            - INVALID_PREDICTION
+        warnings:
+          type: array
+          description: 向后兼容字段；校准后的成功响应固定为空数组
+          items:
+            type: string
+        currency:
+          type: string
+          enum: [USD]
         currentPrice:
           type: number
+          nullable: true
+        forecastAnchorPrice:
+          type: number
+          nullable: true
+          description: 预测路径使用的稳健价格锚点；正常情况下等于 currentPrice
+        currentPriceUsd:
+          type: number
+          nullable: true
+        livePriceUsd:
+          type: number
+          nullable: true
+        decisionDate:
+          type: string
+          format: date
+          nullable: true
+        dataThrough:
+          type: string
+          format: date
+          nullable: true
+        modelVersion:
+          type: string
+        priceSource:
+          type: string
+          nullable: true
+        volumeSource:
+          type: string
+          nullable: true
+        volumeCoverage:
+          type: object
+          required: [windowObservations, observed, ratio]
+          properties:
+            windowObservations:
+              type: integer
+            observed:
+              type: integer
+            ratio:
+              type: number
+              minimum: 0
+              maximum: 1
         predictions:
           type: array
           items:
@@ -927,17 +1234,55 @@ components:
                 type: string
               type:
                 type: string
-                enum: [统计, ML, DL]
+                enum: [DL]
               price:
                 type: number
+                description: 预测周期末价格；7 天模型为第 7 天价格
               change:
                 type: number
               confidence:
                 type: number
                 minimum: 0
                 maximum: 100
+              decisionDate:
+                type: string
+                format: date
+              dailyPrices:
+                type: array
+                nullable: true
+                description: v5 多步契约；LSTM/GRU 返回未来 1–7 天逐日 USD 预测价
+                minItems: 7
+                maxItems: 7
+                items:
+                  type: number
+              rawDailyPrices:
+                type: array
+                minItems: 7
+                maxItems: 7
+                description: 校准前的 Hybrid V2 路径，仅用于解释和审计
+                items:
+                  type: number
+              routeModel:
+                type: string
+                enum: [Hybrid-V2]
+              forecastAnchorPrice:
+                type: number
+                description: 当前预测路径使用的价格锚点
+              marketChange:
+                type: number
+                description: 预测末值相对于真实 currentPrice 的百分比变化
+        trend30d:
+          allOf:
+            - $ref: '#/components/schemas/Trend30D'
+          nullable: true
+          description: 基于同一决策日的 30 天概率趋势；模型不可用或校验失败时为 null
+        calibration:
+          allOf:
+            - $ref: '#/components/schemas/ForecastCalibration'
+          nullable: true
         consensus:
           type: object
+          nullable: true
           properties:
             score:
               type: number
@@ -948,6 +1293,7 @@ components:
               enum: [low, medium, high, very_high]
         entryRange:
           type: object
+          nullable: true
           properties:
             low:
               type: number
@@ -955,170 +1301,10 @@ components:
               type: number
         targetPrice:
           type: number
+          nullable: true
         generatedAt:
           type: string
           format: date-time
-
-    AIOrchestratorRequest:
-      type: object
-      required: [message]
-      properties:
-        message:
-          type: string
-        action:
-          type: string
-          enum: [auto, recommend, predict, debate, chat]
-          default: auto
-        skinId:
-          type: string
-          nullable: true
-        sessionId:
-          type: string
-          nullable: true
-        targetAgent:
-          type: string
-          enum: [bull, bear, judge]
-          nullable: true
-        budget:
-          type: number
-          exclusiveMinimum: 0
-          nullable: true
-        horizonDays:
-          type: integer
-          enum: [7, 30]
-          default: 7
-        riskLevel:
-          type: string
-          enum: [low, medium, high]
-          default: medium
-        history:
-          type: array
-          maxItems: 8
-          items:
-            type: object
-            properties:
-              role:
-                type: string
-                enum: [user, assistant]
-              content:
-                type: string
-        locale:
-          type: string
-          enum: [zh-CN, en-US]
-          default: zh-CN
-
-    SkinRecommendation:
-      type: object
-      required: [skinId, name, price, score, reasons]
-      properties:
-        skinId:
-          type: string
-        name:
-          type: string
-        category:
-          type: string
-        price:
-          type: number
-        change7d:
-          type: number
-        liquidity:
-          type: number
-        risk:
-          type: string
-          enum: [low, medium, high]
-        score:
-          type: number
-        reasons:
-          type: array
-          items:
-            type: string
-
-    AIOrchestratorResponse:
-      type: object
-      required: [type, message]
-      properties:
-        type:
-          type: string
-          enum: [recommendation, prediction, debate, debate_round, debate_answer, profile_update, agent_followup, chat, clarification]
-        message:
-          type: string
-        skin:
-          type: object
-          nullable: true
-        recommendations:
-          type: array
-          items:
-            $ref: '#/components/schemas/SkinRecommendation'
-        prediction:
-          allOf:
-            - $ref: '#/components/schemas/PredictionResult'
-          nullable: true
-        agentSession:
-          allOf:
-            - $ref: '#/components/schemas/AgentSession'
-          nullable: true
-        debateRound:
-          allOf:
-            - $ref: '#/components/schemas/DebateConversationRound'
-          nullable: true
-        skinCandidates:
-          type: array
-          items:
-            type: object
-            properties:
-              skinId:
-                type: string
-              name:
-                type: string
-              price:
-                type: number
-                nullable: true
-              category:
-                type: string
-        requestedAction:
-          type: string
-          enum: [predict, debate]
-        runtime:
-          $ref: '#/components/schemas/AIRuntime'
-
-    AIRuntime:
-      type: object
-      properties:
-        llm:
-          type: object
-          required: [mode, enabled, provider, model]
-          properties:
-            mode:
-              type: string
-              enum: [live, mock]
-            enabled:
-              type: boolean
-            provider:
-              type: string
-            model:
-              type: string
-        agents:
-          type: object
-          required: [mode, bullModel, bearModel, judgeModel]
-          properties:
-            mode:
-              type: string
-              enum: [live, mock]
-            bullModel:
-              type: string
-            bearModel:
-              type: string
-            judgeModel:
-              type: string
-        hybrid:
-          type: object
-          required: [mode, model]
-          properties:
-            mode:
-              type: string
-              enum: [live, mock]
-            model:
-              type: string
 
     RAGExplanation:
       type: object
@@ -1140,15 +1326,9 @@ components:
     DebateResult:
       type: object
       properties:
-        schemaVersion:
-          type: integer
-          enum: [2]
         skinId:
           type: string
         mode:
-          type: string
-          enum: [pre_recorded, live, structured_mock]
-        requestedMode:
           type: string
         rounds:
           type: array
@@ -1161,12 +1341,6 @@ components:
                 type: string
               bear:
                 type: string
-              bullOpinion:
-                $ref: '#/components/schemas/BullOpinion'
-              bearOpinion:
-                $ref: '#/components/schemas/BearOpinion'
-        judge:
-          $ref: '#/components/schemas/JudgeDecision'
         consensus:
           type: object
           properties:
@@ -1186,388 +1360,6 @@ components:
               type: array
               items:
                 type: string
-        prediction:
-          type: object
-        marketSnapshot:
-          type: object
-        agentMeta:
-          type: object
-          properties:
-            isolated:
-              type: boolean
-            rounds:
-              type: integer
-            bullHistoryMessages:
-              type: integer
-            bearHistoryMessages:
-              type: integer
-            judgeHistoryMessages:
-              type: integer
-
-    AgentArgument:
-      type: object
-      required: [claim, evidence_ids, importance]
-      properties:
-        claim:
-          type: string
-        evidence_ids:
-          type: array
-          items:
-            type: string
-        importance:
-          type: number
-          minimum: 0
-          maximum: 1
-        explanation:
-          type: string
-        decision_impact:
-          type: string
-
-    BullOpinion:
-      type: object
-      required: [position, arguments, confidence]
-      properties:
-        position:
-          type: string
-          enum: [buy, watch]
-        arguments:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentArgument'
-        target_price:
-          type: number
-          nullable: true
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 100
-        assumptions:
-          type: array
-          items:
-            type: string
-
-    BearOpinion:
-      type: object
-      required: [position, arguments, confidence]
-      properties:
-        position:
-          type: string
-          enum: [avoid, watch]
-        arguments:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentArgument'
-        stop_loss:
-          type: number
-          nullable: true
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 100
-        risks:
-          type: array
-          items:
-            type: string
-
-    JudgeDecision:
-      type: object
-      required: [decision, winner, reasoning, confidence, evidence_used]
-      properties:
-        decision:
-          type: string
-          enum: [buy, watch, avoid, insufficient_evidence]
-        winner:
-          type: string
-          enum: [bull, bear, draw]
-        reasoning:
-          type: array
-          items:
-            type: string
-        entry_low:
-          type: number
-          nullable: true
-        entry_high:
-          type: number
-          nullable: true
-        target_price:
-          type: number
-          nullable: true
-        stop_loss:
-          type: number
-          nullable: true
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 100
-        evidence_used:
-          type: array
-          items:
-            type: string
-        changed_from_previous:
-          type: boolean
-        change_summary:
-          type: string
-        user_view_considered:
-          type: string
-        summary:
-          type: string
-        recommendation:
-          type: string
-        key_conflict:
-          type: string
-        confidence_basis:
-          type: array
-          items:
-            type: string
-        confidence_components:
-          type: object
-          additionalProperties:
-            type: number
-        profile_fit:
-          type: string
-        conditions_to_buy:
-          type: array
-          items:
-            type: string
-        conditions_to_wait:
-          type: array
-          items:
-            type: string
-        risk_warning:
-          type: string
-        strategy_action:
-          type: string
-          enum: [buy_now, scale_in, wait_for_trigger, avoid, insufficient]
-        agreed_facts:
-          type: array
-          items:
-            type: string
-        complementary_views:
-          type: array
-          items:
-            type: string
-        true_conflicts:
-          type: array
-          items:
-            type: string
-        evidence_verdicts:
-          type: array
-          items:
-            type: string
-        position_size_pct:
-          type: number
-          nullable: true
-          minimum: 0
-          maximum: 100
-        entry_strategy:
-          type: array
-          items:
-            type: string
-        buy_triggers:
-          type: array
-          items:
-            type: string
-        exit_triggers:
-          type: array
-          items:
-            type: string
-        recheck_after_days:
-          type: integer
-          nullable: true
-          minimum: 1
-          maximum: 90
-        alternative_action:
-          type: string
-        opportunity_score:
-          type: number
-          minimum: 0
-          maximum: 100
-        risk_score:
-          type: number
-          minimum: 0
-          maximum: 100
-        decision_score:
-          type: number
-          minimum: 0
-          maximum: 100
-        policy_risk_level:
-          type: string
-          enum: [low, medium, high]
-        policy_threshold:
-          type: string
-        policy_explanation:
-          type: array
-          items:
-            type: string
-
-    AgentUserProfile:
-      type: object
-      properties:
-        budget:
-          type: number
-          nullable: true
-        horizon_days:
-          type: integer
-          minimum: 1
-          maximum: 365
-        risk_level:
-          type: string
-          enum: [low, medium, high]
-        preferred_categories:
-          type: array
-          items:
-            type: string
-        purpose:
-          type: string
-          enum: [unspecified, use, investment, collection, mixed]
-        liquidity_priority:
-          type: string
-          enum: [low, medium, high]
-        loss_tolerance_pct:
-          type: number
-          nullable: true
-          minimum: 0
-          maximum: 100
-        purchase_timing:
-          type: string
-          enum: [flexible, now, wait]
-        decision_priorities:
-          type: array
-          items:
-            type: string
-        locale:
-          type: string
-          enum: [zh-CN, en-US]
-          default: zh-CN
-
-    AgentSessionCreateRequest:
-      type: object
-      required: [skinId]
-      properties:
-        skinId:
-          type: string
-        budget:
-          type: number
-          nullable: true
-          exclusiveMinimum: 0
-        horizonDays:
-          type: integer
-          enum: [7]
-          default: 7
-        riskLevel:
-          type: string
-          enum: [low, medium, high]
-          default: medium
-        rounds:
-          type: integer
-          minimum: 1
-          maximum: 5
-          default: 1
-        locale:
-          type: string
-          enum: [zh-CN, en-US]
-          default: zh-CN
-
-    AgentSessionMessageRequest:
-      type: object
-      required: [message, targetAgent]
-      properties:
-        message:
-          type: string
-          minLength: 1
-        targetAgent:
-          type: string
-          enum: [bull, bear, judge]
-        locale:
-          type: string
-          enum: [zh-CN, en-US]
-          default: zh-CN
-
-    AgentSessionRoundRequest:
-      type: object
-      required: [message]
-      properties:
-        message:
-          type: string
-          minLength: 1
-        locale:
-          type: string
-          enum: [zh-CN, en-US]
-          default: zh-CN
-
-    DebateConversationRound:
-      type: object
-      properties:
-        roundNo:
-          type: integer
-        userMessage:
-          type: string
-          nullable: true
-        bull:
-          allOf:
-            - $ref: '#/components/schemas/BullOpinion'
-          nullable: true
-        bear:
-          allOf:
-            - $ref: '#/components/schemas/BearOpinion'
-          nullable: true
-        judge:
-          allOf:
-            - $ref: '#/components/schemas/JudgeDecision'
-          nullable: true
-
-    AgentSession:
-      type: object
-      properties:
-        sessionId:
-          type: string
-        skinId:
-          type: string
-        status:
-          type: string
-        userProfile:
-          $ref: '#/components/schemas/AgentUserProfile'
-        marketSnapshot:
-          type: object
-        bullHistory:
-          type: array
-          items:
-            $ref: '#/components/schemas/BullOpinion'
-        bearHistory:
-          type: array
-          items:
-            $ref: '#/components/schemas/BearOpinion'
-        judgeHistory:
-          type: array
-          items:
-            $ref: '#/components/schemas/JudgeDecision'
-        messages:
-          type: array
-          items:
-            type: object
-        debateRounds:
-          type: array
-          items:
-            $ref: '#/components/schemas/DebateConversationRound'
-        evidenceGuide:
-          type: array
-          items:
-            type: object
-            properties:
-              evidenceId:
-                type: string
-              value:
-                type: string
-              meaning:
-                type: string
-              decisionImpact:
-                type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
 
     NewsItem:
       type: object
@@ -1645,6 +1437,34 @@ components:
         pnl:
           type: number
         pnlPct:
+          type: number
+
+    InventoryItem:
+      type: object
+      description: 我的库存条目（真实库存）
+      properties:
+        id:
+          type: integer
+        skinId:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+          enum: [manual, steam]
+          description: manual=手动添加 / steam=Steam 导入
+        acquirePrice:
+          type: number
+          nullable: true
+          description: 入手成本（可选）
+        quantity:
+          type: integer
+        acquireDate:
+          type: string
+          format: date
+        currentPrice:
+          type: number
+        marketValue:
           type: number
 
     PortfolioDiagnosis:
@@ -1792,6 +1612,12 @@ components:
   responses:
     BadRequest:
       description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未登录或登录已失效
       content:
         application/json:
           schema:

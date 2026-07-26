@@ -17,7 +17,9 @@ ML 侧最新预测契约与公平评测见 [`ml/FORECAST_CONTRACT.md`](ml/FORECA
 |------|------|
 | GitHub | https://github.com/caihuasheng627-ui/socproject |
 | GitHub Pages | https://caihuasheng627-ui.github.io/socProject |
-> Pages / 静态演示默认走 Mock。完整预测、对话、辩论、持仓诊断需启动后端（见下方部署）。
+> Pages 是纯静态站，**默认 Mock**，无法直连本机 `localhost:8000`（HTTPS 混合内容 + 无 `/api` 反代）。  
+> 本地联调请用 `localhost` 打开前端；Pages 要接真后端需部署 **公网 HTTPS API**，再执行：  
+> `localStorage.setItem('sv_api_url','https://你的API'); localStorage.setItem('sv_use_mock','false'); location.reload()`
 
 ---
 
@@ -167,9 +169,9 @@ python -m http.server 8080
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/health` | 健康 / 模型状态 |
-| GET | `/api/skins` | 饰品列表 |
+| GET | `/api/skins` | 681 件饰品列表（含 `source` / `priceDate` / `isLive`） |
 | GET | `/api/skins/{id}/kline` | K 线 + MA7/MA30 |
-| POST | `/api/predict` | 多模型预测（默认 Hybrid LSTM + 树模型 CSV） |
+| POST | `/api/predict` | 多模型预测（LSTM/GRU 返回 `dailyPrices` 未来 7 天逐日路径） |
 | POST | `/api/chat` | DeepSeek SSE |
 | POST | `/api/debate/{id}?live=0` | 预录回放；`live=1` 现场 DeepSeek |
 | GET/POST/DELETE | `/api/portfolio` | 持仓 CRUD（`holdingType`: real/sim） |
@@ -215,7 +217,7 @@ Push 使用 GitHub Personal Access Token（勾选 `repo`），不是账户密码
 |------|------|
 | 仪表板 | 7 大模块 + 深色 CS2 UI + 移动端适配 |
 | 金融相关 | 持仓风险、回测、组合诊断 |
-| 数据 / 特征 | 154 件面板数据 + K 线 + 特征工程 |
+| 数据 / 特征 | 681 件 BUFF 实时数据 + K 线 + 特征工程 |
 | 模型可视化 | 对比表 / 雷达 / SHAP / 回测曲线 |
 | 评估 + 基准 | 多模型指标 + Buy & Hold |
 | 演示 | Docker 一键起 + Expo 预录辩论 |
@@ -228,7 +230,7 @@ Push 使用 GitHub Personal Access Token（勾选 `repo`），不是账户密码
 - [x] Hybrid LSTM 推理 + 树模型 pred CSV
 - [x] Docker Compose 一键部署
 - [x] 移动端适配 / 中英 i18n
-- [ ] 接入真实 BUFF / Skinport 实时行情
+- [ ] 接入真实 BUFF / Skinport 实时行情（CLI + `/api/skins/{id}/quotes` 已就绪；`USE_BUFF_LIVE=1` 开启真拉取）
 - [ ] 用户系统（登录 / 收藏）
 - [ ] 分类模型输出接入 `/api/predict`
 - [ ] 真·30 日预测（当前 30 日由 7 日外推）

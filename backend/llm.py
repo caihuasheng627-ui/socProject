@@ -1,7 +1,7 @@
 """
 SkinVision AI — DeepSeek LLM 客户端(组员 3)
 ============================================
-OpenAI 兼容接口:https://api.deepseek.com/chat/completions
+OpenAI 兼容接口: https://api.deepseek.com/chat/completions
 
 提供:
   - chat_sync(messages)        : 同步一次性返回(兼容旧调用)
@@ -9,7 +9,7 @@ OpenAI 兼容接口:https://api.deepseek.com/chat/completions
   - chat_structured(...)       : 按 Pydantic Schema 返回结构化结果
   - 无 DEEPSEEK_API_KEY 时降级 Mock(返回预设话术),保证服务可起、可联调
 
-策划书 §4.3:BUFF Cookie 仅课程演示不公开;LLM 调用走 DeepSeek 官方 API。
+策划书 §4.3: BUFF Cookie 仅课程演示不公开; LLM 调用走 DeepSeek 官方 API。
 """
 from __future__ import annotations
 
@@ -25,15 +25,15 @@ from pydantic import BaseModel, ValidationError
 
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_ENABLED
 
-DEFAULT_SYSTEM_PROMPT = (
-    "你是 SkinVision AI,一个 CS2 饰品市场分析助手。"
-    "你会基于 6 个回归模型(ARIMA/XGBoost/LightGBM/RandomForest/LSTM/GRU)+ "
-    "RAG 知识库(Valve 公告/HLTV 赛事/历史日报)给出饰品价格分析与投资建议。"
-    "回答用中文,简洁、有数据支撑,涉及预测时标注模型名称与置信度,"
-    "并提示风险(饰品市场高波动,不构成投资建议)。"
+SYSTEM_PROMPT = (
+    "You are SkinVision AI, a CS2 skin market analysis assistant. "
+    "You use regression models (ARIMA/XGBoost/LightGBM/RandomForest/LSTM/GRU) plus "
+    "a RAG knowledge base (Valve announcements / HLTV / daily reports) for advice. "
+    "Always reply in the same language as the user's latest message "
+    "(English question → English answer; Chinese question → Chinese answer). "
+    "Be concise and data-backed; name models and confidence when forecasting; "
+    "always include a short risk disclaimer (volatile market, not investment advice)."
 )
-# 历史兼容:旧模块若引用 SYSTEM_PROMPT 仍可工作。
-SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
 class StructuredOutputError(RuntimeError):
@@ -93,7 +93,7 @@ def get_execution_status() -> dict[str, Any]:
 def _messages_with_system(
     messages: list[dict], system_prompt: str | None
 ) -> list[dict]:
-    prompt = DEFAULT_SYSTEM_PROMPT if system_prompt is None else system_prompt
+    prompt = SYSTEM_PROMPT if system_prompt is None else system_prompt
     clean = [m for m in messages if m.get("role") != "system"]
     return ([{"role": "system", "content": prompt}] if prompt else []) + clean
 
@@ -167,20 +167,6 @@ def _validate_structured(
     return output_schema.parse_obj(value)
 
 
-def _contains_cjk(value: Any) -> bool:
-    if isinstance(value, BaseModel):
-        value = (
-            value.model_dump(mode="json")
-            if hasattr(value, "model_dump")
-            else value.dict()
-        )
-    if isinstance(value, dict):
-        return any(_contains_cjk(item) for item in value.values())
-    if isinstance(value, (list, tuple, set)):
-        return any(_contains_cjk(item) for item in value)
-    return isinstance(value, str) and bool(re.search(r"[\u3400-\u9fff]", value))
-
-
 def _mock_reply(messages: list[dict]) -> str:
     user_msg = ""
     for m in reversed(messages):
@@ -252,12 +238,7 @@ def chat_structured(
     mock_data: Any | Callable[[], Any] | None = None,
     output_locale: str | None = None,
 ) -> BaseModel:
-    """Return a validated Pydantic object for an isolated agent call.
-
-    Unlike ``chat_sync``, malformed output is never returned as prose.  Mock
-    mode also requires explicit structured data so a demo cannot masquerade
-    as a real, schema-valid agent decision.
-    """
+    """Return a validated Pydantic object for an isolated agent call."""
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative")
 

@@ -41,6 +41,10 @@ env/
 .venv/
 *.egg-info/
 
+# AI 辅助开发产物（superpowers 计划/规格）
+docs/superpowers/
+.superpowers/
+
 # 临时文件
 *.tmp
 *.bak
@@ -55,6 +59,8 @@ restyle_ppt.py
 gen_poster*.py
 integrate_maintenance_pkg.py
 assets/
+!assets/landing/
+!assets/landing/**
 
 # WorkBuddy 缓存目录 (项目数据,非源代码)
 .workbuddy/
@@ -76,4 +82,18 @@ backend/skinvision.db
 backend/skinvision.db-*
 backend/data/
 backend/server.log
+
+# 云端部署用的全量种子库（约 681 件有行情，首次灌入 Docker volume）
+!backend/seed/
+!backend/seed/skinvision.db
+!backend/seed/skin_image_urls.json
+!backend/seed/README.md
+
+# BUFF 爬取导出的训练面板(25MB,可用 export_training_data.py 重新生成)
+ml/data/buff_training_panel.csv
+
+# 爬虫结果名单(临时产物)
+backend/data_available.txt
+backend/data_missing.txt
+backend/buff_incomplete.txt
 

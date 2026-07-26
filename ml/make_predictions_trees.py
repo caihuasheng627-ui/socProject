@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
@@ -20,6 +19,8 @@ from forecast_contract import PREDICTION_COLUMNS, validate_prediction_frame
 from feature_engineering import fit_categoricals, transform_categoricals
 from forecast_contract import load_feature_panel
 from tree_features import FEATURE_COLS
+from model_features import FEATURE_CONTRACT_VERSION
+from artifact_io import save_joblib_artifact_atomic
 
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
@@ -113,6 +114,11 @@ def load_tree_splits() -> tuple[dict[str, pd.DataFrame], dict]:
             & (panel["_target_split"] == split)
             & panel["Target"].notna()
         ].sort_values(["date", "market_hash_name"])
+        # test.csv 存在同物品同日多行（历史清洗残留），预测契约要求唯一键
+        before = len(valid)
+        valid = valid.drop_duplicates(subset=["market_hash_name", "date"], keep="last")
+        if len(valid) != before:
+            print(f"  dedupe {split}: {before} -> {len(valid)} rows", flush=True)
         splits[split] = valid.reset_index(drop=True)
     return splits, encoders
 
@@ -137,6 +143,7 @@ def build_model_bundle(model, label, params, encoders, minimum_price):
         "name": label,
         "params": params,
         "feature_cols": FEATURE_COLS,
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "encoders": encoders,
         "categorical_encoding_fit_split": "train",
         "fit_split": "train+val",
@@ -156,9 +163,9 @@ def train_and_export(
     spec = MODEL_SPECS[model_key]
     fit_frame = select_fit_frame(splits, prediction_split)
     prediction_source = splits[prediction_split]
-    x_fit = fit_frame[FEATURE_COLS].to_numpy(dtype=np.float32)
+    x_fit = fit_frame[list(FEATURE_COLS)].to_numpy(dtype=np.float32)
     y_fit = fit_frame["Target"].to_numpy(dtype=np.float32)
-    x_prediction = prediction_source[FEATURE_COLS].to_numpy(dtype=np.float32)
+    x_prediction = prediction_source[list(FEATURE_COLS)].to_numpy(dtype=np.float32)
 
     print(
         f"[{spec['label']}] fit={'train' if prediction_split == 'val' else 'train+val'} "
@@ -190,7 +197,18 @@ def train_and_export(
         bundle = build_model_bundle(
             model, spec["label"], spec["params"], encoders, minimum_price
         )
-        joblib.dump(bundle, MODEL_DIR / spec["model_file"])
+        def validate_bundle(loaded):
+            if tuple(loaded.get("feature_cols", ())) != tuple(FEATURE_COLS):
+                raise ValueError("tree regressor feature contract changed during save")
+            probe = loaded["model"].predict(x_prediction[: min(2, len(x_prediction))])
+            if not np.isfinite(np.asarray(probe, dtype=float)).all():
+                raise ValueError("tree regressor reload prediction is non-finite")
+
+        save_joblib_artifact_atomic(
+            bundle,
+            MODEL_DIR / spec["model_file"],
+            validator=validate_bundle,
+        )
     return metrics
 
 
