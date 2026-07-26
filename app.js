@@ -3,12 +3,11 @@
 // 基于策划书功能清单实现
 // ============================================
 
-// 预览器 / 热更新有时会把 app.js 注入两次；顶层 const 会抛
-// "Identifier 'createApp' has already been declared" 并触发「运行时错误」Toast。
-if (window.__CSVEST_APP_BOOTED__) {
-  // 已挂载则忽略重复执行
-} else {
-window.__CSVEST_APP_BOOTED__ = true;
+// IIFE + boot guard: 避免 index 冲突/预览器把 app.js 执行两遍时
+// Safari 抛 "Can't create duplicate variable: 'detectBrowserLang'"
+(function () {
+  if (window.__CSVEST_APP_BOOTED__) return;
+  window.__CSVEST_APP_BOOTED__ = true;
 
 const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
 
@@ -4370,6 +4369,8 @@ window.addEventListener('error', (e) => {
   if (msg.includes('Script error')) return;
   // 脚本被重复注入时的无害噪音，不打断用户
   if (msg.includes('has already been declared')) return;
+  if (msg.includes('Can't create duplicate variable')) return;
+  if (msg.includes('Cannot create duplicate variable')) return;
   showErrorToast('运行时错误', msg.slice(0, 80));
 });
 
@@ -4382,4 +4383,4 @@ window.addEventListener('unhandledrejection', (e) => {
 
 app.mount('#app');
 
-} // end __CSVEST_APP_BOOTED__ guard
+})(); // end CSVest boot IIFE
