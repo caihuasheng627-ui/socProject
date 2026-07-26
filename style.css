@@ -1,12 +1,12 @@
 /* ============================================
-   CSVest — Premium Cinematic Dark
-   双主题: 深色(默认) + 浅色
-   设计系统: Modern Dark + Glassmorphism + CS2 Accent
+   CSVest 鈥?Premium Cinematic Dark
+   鍙屼富棰? 娣辫壊(榛樿) + 娴呰壊
+   璁捐绯荤粺: Modern Dark + Glassmorphism + CS2 Accent
    ============================================ */
 
 :root,
 [data-theme="dark"] {
-  /* —— 与登录页一致的暖黑 CS2 表面 —— */
+  /* 鈥斺€?涓庣櫥褰曢〉涓€鑷寸殑鏆栭粦 CS2 琛ㄩ潰 鈥斺€?*/
   --bg-root:        #0b0d10;
   --bg-primary:     #0b0d10;
   --bg-secondary:   #11141a;
@@ -16,21 +16,21 @@
   --bg-hover:       #222833;
   --bg-glass:       rgba(14, 16, 20, 0.82);
 
-  /* —— 边框 —— */
+  /* 鈥斺€?杈规 鈥斺€?*/
   --border-color:   rgba(255, 255, 255, 0.08);
   --border-light:   rgba(255, 255, 255, 0.14);
   --border-accent:  rgba(255, 255, 255, 0.12);
 
-  /* —— 文字（暖白，对齐 landing --lp-text） —— */
+  /* 鈥斺€?鏂囧瓧锛堟殩鐧斤紝瀵归綈 landing --lp-text锛?鈥斺€?*/
   --text-primary:   #f2efe9;
   --text-secondary: #9a96a0;
   --text-muted:     #6d6875;
 
-  /* —— 正文宽体无衬线；标题用登录页同源衬线 —— */
+  /* 鈥斺€?姝ｆ枃瀹戒綋鏃犺‖绾匡紱鏍囬鐢ㄧ櫥褰曢〉鍚屾簮琛嚎 鈥斺€?*/
   --font-display:   'Instrument Serif', 'Noto Serif SC', 'Songti SC', Georgia, serif;
   --font-sans:      'IBM Plex Sans', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
 
-  /* —— 暗色：铜褐主色（去霓虹蓝/紫 AI 感） —— */
+  /* 鈥斺€?鏆楄壊锛氶摐瑜愪富鑹诧紙鍘婚湏铏硅摑/绱?AI 鎰燂級 鈥斺€?*/
   --accent-orange:       #c96a2b;
   --accent-orange-light: #db8a4a;
   --accent-orange-glow:  rgba(201, 106, 43, 0.22);
@@ -41,7 +41,7 @@
   --accent-yellow:  #c9a227;
   --accent-cyan:    #5a8f7b;
 
-  /* —— 渐变 —— */
+  /* 鈥斺€?娓愬彉 鈥斺€?*/
   --gradient-primary: linear-gradient(135deg, #db8a4a 0%, #c96a2b 55%, #b55a22 100%);
   --gradient-subtle:  linear-gradient(180deg, rgba(201,106,43,0.06) 0%, transparent 100%);
   --gradient-card:    linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
@@ -49,7 +49,7 @@
   --gradient-bull:    linear-gradient(135deg, rgba(61,154,110,0.10) 0%, rgba(61,154,110,0.03) 100%);
   --gradient-bear:    linear-gradient(135deg, rgba(214,90,90,0.10) 0%, rgba(214,90,90,0.03) 100%);
 
-  /* —— 阴影 (更柔和,有色调) —— */
+  /* 鈥斺€?闃村奖 (鏇存煍鍜?鏈夎壊璋? 鈥斺€?*/
   --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.40);
   --shadow-sm:   0 2px 8px rgba(0, 0, 0, 0.45);
   --shadow-md:   0 8px 24px rgba(0, 0, 0, 0.50);
@@ -58,7 +58,7 @@
   --shadow-orange: 0 0 28px rgba(201, 106, 43, 0.18);
   --shadow-blue:   0 0 24px rgba(139, 156, 179, 0.1);
 
-  /* —— 圆角 —— */
+  /* 鈥斺€?鍦嗚 鈥斺€?*/
   --radius-xs:  4px;
   --radius-sm:  6px;
   --radius-md:  10px;
@@ -66,20 +66,20 @@
   --radius-xl:  18px;
   --radius-2xl: 24px;
 
-  /* —— 动效 —— */
+  /* 鈥斺€?鍔ㄦ晥 鈥斺€?*/
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration-base: 250ms;
   --duration-slow: 400ms;
 
-  /* —— 滚动条 —— */
+  /* 鈥斺€?婊氬姩鏉?鈥斺€?*/
   --scrollbar-track: #08080d;
   --scrollbar-thumb: #1c1c2e;
 }
 
 [data-theme="light"] {
-  /* 偏暗暖灰纸感，避免刺眼纯白 */
+  /* 鍋忔殫鏆栫伆绾告劅锛岄伩鍏嶅埡鐪肩函鐧?*/
   --bg-root:        #d8d2c8;
   --bg-primary:     #e2dcd2;
   --bg-secondary:   #ebe5db;
@@ -156,7 +156,7 @@ html, body {
   letter-spacing: 0.035em;
 }
 
-/* —— 环境光（登录页同色：橙 + 青，去掉紫） —— */
+/* 鈥斺€?鐜鍏夛紙鐧诲綍椤靛悓鑹诧細姗?+ 闈掞紝鍘绘帀绱級 鈥斺€?*/
 body::before {
   content: '';
   position: fixed;
@@ -186,7 +186,7 @@ body::before {
   overflow: hidden;
 }
 
-/* ============ 侧边栏（对齐登录页 cinematic nav） ============ */
+/* ============ 渚ц竟鏍忥紙瀵归綈鐧诲綍椤?cinematic nav锛?============ */
 .sidebar {
   width: 250px;
   background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
@@ -338,7 +338,7 @@ body::before {
   opacity: 0.8;
 }
 
-/* ============ 主内容区 ============ */
+/* ============ 涓诲唴瀹瑰尯 ============ */
 .main-content {
   flex: 1;
   min-width: 0;
@@ -572,7 +572,7 @@ body::before {
   overscroll-behavior: contain;
 }
 
-/* ============ 通用组件 ============ */
+/* ============ 閫氱敤缁勪欢 ============ */
 .card {
   background: var(--gradient-card);
   border: 1px solid var(--border-color);
@@ -615,7 +615,7 @@ body::before {
   font-weight: 400;
 }
 
-/* 分类筛选 / 时间周期按钮行：窄屏横向滚动，避免撑破整页 */
+/* 鍒嗙被绛涢€?/ 鏃堕棿鍛ㄦ湡鎸夐挳琛岋細绐勫睆妯悜婊氬姩锛岄伩鍏嶆拺鐮存暣椤?*/
 .filter-chip-row,
 .kline-toolbar {
   display: flex;
@@ -656,11 +656,11 @@ body::before {
 }
 
 /* ============================================
-   响应式适配 (移动端/平板)
-   断点: 1024 / 768 / 480
+   鍝嶅簲寮忛€傞厤 (绉诲姩绔?骞虫澘)
+   鏂偣: 1024 / 768 / 480
    ============================================ */
 
-/* ============ 平板横屏 (≤ 1024px) ============ */
+/* ============ 骞虫澘妯睆 (鈮?1024px) ============ */
 @media (max-width: 1024px) {
   .sidebar {
     width: 210px;
@@ -684,13 +684,13 @@ body::before {
     height: 320px;
   }
   .kline-skeleton-overlay {
-    /* 在小屏上调整骨架屏 */
+    /* 鍦ㄥ皬灞忎笂璋冩暣楠ㄦ灦灞?*/
   }
 }
 
-/* ============ 平板竖屏 (≤ 768px) ============ */
+/* ============ 骞虫澘绔栧睆 (鈮?768px) ============ */
 @media (max-width: 768px) {
-  /* 侧边栏改为抽屉式 */
+  /* 渚ц竟鏍忔敼涓烘娊灞夊紡 */
   .sidebar {
     position: fixed;
     left: 0;
@@ -724,9 +724,9 @@ body::before {
     align-items: center;
   }
   .market-status {
-    display: none !important; /* 隐藏次要信息 */
+    display: none !important; /* 闅愯棌娆¤淇℃伅 */
   }
-  /* 移动端保留登录/用户入口（此前被隐藏导致无法登录） */
+  /* 绉诲姩绔繚鐣欑櫥褰?鐢ㄦ埛鍏ュ彛锛堟鍓嶈闅愯棌瀵艰嚧鏃犳硶鐧诲綍锛?*/
   .topbar-actions .user-menu {
     display: block;
     order: 10;
@@ -741,11 +741,11 @@ body::before {
     padding: 0 10px;
     font-size: 12px;
   }
-  /* 窄顶栏优先露出登录：隐藏命令面板按钮（Ctrl+K 仍可用） */
+  /* 绐勯《鏍忎紭鍏堥湶鍑虹櫥褰曪細闅愯棌鍛戒护闈㈡澘鎸夐挳锛圕trl+K 浠嶅彲鐢級 */
   .topbar-actions .cmd-toggle {
     display: none;
   }
-  /* 顶栏添加汉堡按钮 */
+  /* 椤舵爮娣诲姞姹夊牎鎸夐挳 */
   .menu-toggle {
     display: inline-flex !important;
     width: 36px;
@@ -770,7 +770,7 @@ body::before {
     padding: 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
-  /* 页头：标题与操作区纵向堆叠，避免横向溢出 */
+  /* 椤靛ご锛氭爣棰樹笌鎿嶄綔鍖虹旱鍚戝爢鍙狅紝閬垮厤妯悜婧㈠嚭 */
   .content-area > .fade-in > .flex.justify-between.items-center {
     flex-direction: column;
     align-items: flex-start !important;
@@ -791,7 +791,7 @@ body::before {
   .radar-container {
     height: 260px;
   }
-  /* 网格:所有 grid 改为单列或 2 列 */
+  /* 缃戞牸:鎵€鏈?grid 鏀逛负鍗曞垪鎴?2 鍒?*/
   .grid-2,
   .grid-3,
   .grid-4,
@@ -801,7 +801,7 @@ body::before {
   .grid-2 {
     grid-template-columns: 1fr;
   }
-  /* 卡片 padding 缩小 */
+  /* 鍗＄墖 padding 缂╁皬 */
   .card {
     padding: 14px;
   }
@@ -815,7 +815,7 @@ body::before {
   .card-header > .flex.gap-2 {
     width: 100%;
   }
-  /* 表格横向滚动：外层滚动，保留原生 table 布局，表头与内容列对齐 */
+  /* 琛ㄦ牸妯悜婊氬姩锛氬灞傛粴鍔紝淇濈暀鍘熺敓 table 甯冨眬锛岃〃澶翠笌鍐呭鍒楀榻?*/
   .table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -827,7 +827,7 @@ body::before {
     border-collapse: collapse;
     white-space: nowrap;
   }
-  /* 切勿把 thead/tbody 设成 table-row，否则会拆成独立表导致列错位 */
+  /* 鍒囧嬁鎶?thead/tbody 璁炬垚 table-row锛屽惁鍒欎細鎷嗘垚鐙珛琛ㄥ鑷村垪閿欎綅 */
   .data-table thead {
     display: table-header-group;
   }
@@ -841,11 +841,11 @@ body::before {
   .data-table td {
     display: table-cell;
   }
-  /* Topbar 隐藏页面标题 */
+  /* Topbar 闅愯棌椤甸潰鏍囬 */
   .page-title {
     display: none;
   }
-  /* 模态框全屏 */
+  /* 妯℃€佹鍏ㄥ睆 */
   .modal {
     min-width: auto;
     width: 100%;
@@ -864,7 +864,7 @@ body::before {
   .modal-actions {
     margin-top: auto;
   }
-  /* 命令面板全屏 */
+  /* 鍛戒护闈㈡澘鍏ㄥ睆 */
   .command-palette {
     padding-top: 0;
     align-items: stretch;
@@ -879,7 +879,7 @@ body::before {
     max-height: none;
     flex: 1;
   }
-  /* AI 预测 hero 调整为纵向 */
+  /* AI 棰勬祴 hero 璋冩暣涓虹旱鍚?*/
   .prediction-hero {
     padding: 16px;
   }
@@ -896,26 +896,26 @@ body::before {
   .prediction-current-price {
     font-size: 24px;
   }
-  /* 持仓汇总 */
+  /* 鎸佷粨姹囨€?*/
   .portfolio-summary {
     grid-template-columns: repeat(2, 1fr);
   }
-  /* 表格内容紧凑 */
+  /* 琛ㄦ牸鍐呭绱у噾 */
   .data-table th,
   .data-table td {
     padding: 8px;
     font-size: 12px;
   }
-  /* k线图 */
+  /* k绾垮浘 */
   .kline-container {
     height: 260px;
   }
-  /* Chart canvas 自适应 */
+  /* Chart canvas 鑷€傚簲 */
   .radar-container,
   .lab-chart-box {
     height: 260px !important;
   }
-  /* 顶部指标卡 */
+  /* 椤堕儴鎸囨爣鍗?*/
   .daily-report-grid {
     grid-template-columns: 1fr;
   }
@@ -926,7 +926,7 @@ body::before {
     font-size: 24px;
   }
   .toast-container {
-    /* 移动端改到底部，避免挡住顶栏标题与页头 */
+    /* 绉诲姩绔敼鍒板簳閮紝閬垮厤鎸′綇椤舵爮鏍囬涓庨〉澶?*/
     top: auto;
     bottom: calc(16px + env(safe-area-inset-bottom));
     right: 12px;
@@ -944,7 +944,7 @@ body::before {
   }
 }
 
-/* ============ 手机 (≤ 480px) ============ */
+/* ============ 鎵嬫満 (鈮?480px) ============ */
 @media (max-width: 480px) {
   .sidebar {
     width: min(260px, 88vw);
@@ -973,14 +973,14 @@ body::before {
   .mobile-page-title {
     font-size: 14px;
   }
-  /* hero 部分 */
+  /* hero 閮ㄥ垎 */
   .prediction-hero {
     padding: 12px;
   }
   .prediction-current-price {
     font-size: 22px;
   }
-  /* 表格隐藏次要列 */
+  /* 琛ㄦ牸闅愯棌娆¤鍒?*/
   .data-table .col-hide-mobile {
     display: none;
   }
@@ -990,55 +990,55 @@ body::before {
   .summary-value {
     font-size: 18px;
   }
-  /* K线骨架屏 */
+  /* K绾块鏋跺睆 */
   .kline-container {
     height: 220px;
   }
   .grid-2 {
     grid-template-columns: 1fr;
   }
-  /* 日报指标 */
+  /* 鏃ユ姤鎸囨爣 */
   .metric-card-value {
     font-size: 20px;
   }
   .metric-card-label {
     font-size: 11px;
   }
-  /* AI 预测 hero */
+  /* AI 棰勬祴 hero */
   .prediction-target {
     gap: 8px;
   }
-  /* 卡片间距 */
+  /* 鍗＄墖闂磋窛 */
   .mb-4 {
     margin-bottom: 12px;
   }
   .mb-6 {
     margin-bottom: 16px;
   }
-  /* 按钮 */
+  /* 鎸夐挳 */
   .btn {
     padding: 8px 12px;
     font-size: 12px;
   }
-  /* 标签 */
+  /* 鏍囩 */
   .tag {
     font-size: 10px;
     padding: 2px 6px;
   }
-  /* 表单 */
+  /* 琛ㄥ崟 */
   .form-input,
   .form-select {
     padding: 10px;
-    font-size: 16px; /* 防止 iOS 缩放 */
+    font-size: 16px; /* 闃叉 iOS 缂╂斁 */
   }
-  /* 卡片标题 */
+  /* 鍗＄墖鏍囬 */
   .card-title {
     font-size: 13px;
   }
   .card-subtitle {
     font-size: 11px;
   }
-  /* 行情看板标题 */
+  /* 琛屾儏鐪嬫澘鏍囬 */
   h2 {
     font-size: 18px !important;
   }
@@ -1051,7 +1051,7 @@ body::before {
   }
 }
 
-/* ============ 横屏模式 (高度 < 600) ============ */
+/* ============ 妯睆妯″紡 (楂樺害 < 600) ============ */
 @media (max-height: 600px) and (orientation: landscape) {
   .kline-container {
     height: 200px;
@@ -1067,9 +1067,9 @@ body::before {
   }
 }
 
-/* ============ 触摸设备优化 ============ */
+/* ============ 瑙︽懜璁惧浼樺寲 ============ */
 @media (hover: none) and (pointer: coarse) {
-  /* 增大点击区域 */
+  /* 澧炲ぇ鐐瑰嚮鍖哄煙 */
   .btn {
     min-height: 36px;
   }
@@ -1081,7 +1081,7 @@ body::before {
     min-width: 36px;
     min-height: 36px;
   }
-  /* 隐藏 hover 效果(避免移动端粘滞) */
+  /* 闅愯棌 hover 鏁堟灉(閬垮厤绉诲姩绔矘婊? */
   .skin-card:hover {
     transform: none;
   }
@@ -1090,7 +1090,7 @@ body::before {
   }
 }
 
-/* 遮罩层(侧边栏抽屉打开时) */
+/* 閬僵灞?渚ц竟鏍忔娊灞夋墦寮€鏃? */
 .sidebar-overlay {
   display: none;
   position: fixed;
@@ -1104,14 +1104,14 @@ body::before {
   display: block;
 }
 
-/* 抽屉打开时禁止 body 滚动 */
+/* 鎶藉眽鎵撳紑鏃剁姝?body 婊氬姩 */
 body.sidebar-open {
   overflow: hidden;
 }
 
-/* ============ ECharts 移动端适配 ============ */
+/* ============ ECharts 绉诲姩绔€傞厤 ============ */
 @media (max-width: 768px) {
-  /* 覆盖 ECharts 内部文字大小 */
+  /* 瑕嗙洊 ECharts 鍐呴儴鏂囧瓧澶у皬 */
   .echarts-tooltip,
   .kline-container,
   .radar-container {
@@ -1119,14 +1119,14 @@ body.sidebar-open {
   }
 }
 
-/* 防止移动端文字太小不可读 */
+/* 闃叉绉诲姩绔枃瀛楀お灏忎笉鍙 */
 @media (max-width: 480px) {
   body {
     font-size: 13px;
   }
 }
 
-/* ============ 价格卡片 (Skin Cards) ============ */
+/* ============ 浠锋牸鍗＄墖 (Skin Cards) ============ */
 .skin-card {
   background: var(--gradient-card);
   border: 1px solid var(--border-color);
@@ -1237,7 +1237,7 @@ body.sidebar-open {
   white-space: nowrap;
 }
 
-/* ============ 标签 ============ */
+/* ============ 鏍囩 ============ */
 .tag {
   display: inline-flex;
   align-items: center;
@@ -1257,7 +1257,7 @@ body.sidebar-open {
 .tag-purple { background: color-mix(in srgb, var(--accent-purple) 16%, transparent); color: var(--accent-purple); }
 .tag-cyan   { background: rgba(38, 198, 218, 0.12); color: var(--accent-cyan); }
 
-/* ============ 按钮 ============ */
+/* ============ 鎸夐挳 ============ */
 .btn {
   padding: 8px 18px;
   border-radius: var(--radius-md);
@@ -1333,7 +1333,7 @@ body.sidebar-open {
   border-radius: var(--radius-sm);
 }
 
-/* ============ K线图区域 ============ */
+/* ============ K绾垮浘鍖哄煙 ============ */
 .card-header .kline-toolbar {
   margin-bottom: 0;
 }
@@ -1363,11 +1363,11 @@ body.sidebar-open {
 }
 
 .kline-wrap {
-  /* 关键修复: 之前骨架屏 .kline-skeleton-overlay 和 .kline-container 是兄弟节点,
-     但只有 .kline-container 有 position:relative,导致骨架屏找不到定位父级,
-     absolute 定位一路冒泡到视口/最近的定位祖先,渲染成一个几乎铺满全屏的色块,
-     200ms 后消失 —— 这就是切换到"预测"页时"闪一下"的真正原因。
-     现在把两者包进同一个 position:relative 容器,骨架屏只会覆盖在图表区域内。 */
+  /* 鍏抽敭淇: 涔嬪墠楠ㄦ灦灞?.kline-skeleton-overlay 鍜?.kline-container 鏄厔寮熻妭鐐?
+     浣嗗彧鏈?.kline-container 鏈?position:relative,瀵艰嚧楠ㄦ灦灞忔壘涓嶅埌瀹氫綅鐖剁骇,
+     absolute 瀹氫綅涓€璺啋娉″埌瑙嗗彛/鏈€杩戠殑瀹氫綅绁栧厛,娓叉煋鎴愪竴涓嚑涔庨摵婊″叏灞忕殑鑹插潡,
+     200ms 鍚庢秷澶?鈥斺€?杩欏氨鏄垏鎹㈠埌"棰勬祴"椤垫椂"闂竴涓?鐨勭湡姝ｅ師鍥犮€?
+     鐜板湪鎶婁袱鑰呭寘杩涘悓涓€涓?position:relative 瀹瑰櫒,楠ㄦ灦灞忓彧浼氳鐩栧湪鍥捐〃鍖哄煙鍐呫€?*/
   position: relative;
 }
 
@@ -1391,7 +1391,7 @@ body.sidebar-open {
   pointer-events: none;
 }
 
-/* ============ 表格 ============ */
+/* ============ 琛ㄦ牸 ============ */
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -1428,7 +1428,7 @@ body.sidebar-open {
   border-bottom: none;
 }
 
-/* ============ 聊天界面 ============ */
+/* ============ 鑱婂ぉ鐣岄潰 ============ */
 .chat-page {
   display: flex;
   flex-direction: column;
@@ -1535,6 +1535,165 @@ body.sidebar-open {
   padding: 18px;
   background: var(--bg-elevated);
   border-top: 1px solid var(--border-color);
+}
+
+.active-debate-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 12px;
+  color: var(--accent-orange);
+  background: rgba(251, 146, 60, 0.08);
+  font-size: 13px;
+}
+
+.ai-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ai-result-card,
+.skin-candidate-picker,
+.debate-timeline {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: rgba(18, 20, 28, 0.9);
+}
+
+.ai-result-card-head,
+.skin-candidate-picker-head,
+.debate-timeline-header,
+.debate-turn-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.ai-result-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.ai-result-metrics-large {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-result-reasons,
+.debate-turn ul,
+.judge-report ul,
+.judge-report ol {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.ai-result-actions,
+.debate-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.debate-profile-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.debate-user-context,
+.debate-turn {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.debate-turn.bull-turn { border-color: rgba(74, 222, 128, 0.35); }
+.debate-turn.bear-turn { border-color: rgba(248, 113, 113, 0.35); }
+.debate-turn.judge-turn { border-color: rgba(167, 139, 250, 0.35); }
+
+.debate-flow-line {
+  margin: 14px 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+}
+
+.judge-report {
+  margin-top: 10px;
+}
+.legacy-risk-warning { display: none; }
+.debate-timeline { position: relative; margin-top: 14px; padding: 18px; background: var(--bg-tertiary); border: 1px solid rgba(255, 107, 0, .25); border-radius: 12px; }
+.debate-profile-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+.debate-profile-summary span { padding: 5px 10px; border: 1px solid rgba(255, 139, 61, .24); border-radius: 999px; color: var(--text-muted); background: rgba(255, 139, 61, .06); font-size: 12px; }
+.judge-report { margin-top: 16px; padding: 18px; border: 1px solid rgba(139, 92, 246, .28); border-radius: 14px; background: rgba(139, 92, 246, .06); }
+.judge-report h4, .judge-report p { margin-top: 0; }
+.judge-summary { color: var(--text-primary); font-size: 16px; line-height: 1.7; }
+.judge-recommendation, .judge-conflict, .judge-confidence-detail, .judge-condition-grid > div { margin-top: 12px; padding: 13px 15px; border-radius: 10px; background: rgba(255,255,255,.035); }
+.judge-confidence-detail summary { cursor: pointer; color: var(--accent-orange); font-weight: 700; }
+.judge-condition-grid, .judge-synthesis-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.judge-synthesis-grid { margin-top: 12px; }
+.judge-synthesis-grid > div, .judge-entry-strategy { padding: 13px 15px; border-radius: 10px; background: rgba(255,255,255,.035); }
+.judge-action-plan { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.judge-action-plan > div { display:flex; flex-direction:column; gap:5px; padding:12px; border:1px solid rgba(139,92,246,.22); border-radius:10px; background:rgba(139,92,246,.08); }
+.judge-action-plan span { color:var(--text-muted); font-size:12px; }
+.judge-action-plan strong { color:var(--text-primary); font-size:17px; }
+.judge-entry-strategy { margin-top:12px; }
+.judge-alternative { margin-top:12px !important; padding:10px 12px; border-left:3px solid var(--accent-orange); background:rgba(255,139,61,.06); }
+.judge-report ul { margin:8px 0 0; padding-left:20px; }
+.judge-report li { margin:6px 0; color:var(--text-secondary); line-height:1.55; }
+.judge-profile-fit, .judge-risk-warning { margin:12px 0 0 !important; color:var(--text-muted); font-size:13px; }
+.judge-risk-warning { color:#f59e0b; }
+.debate-timeline-header, .debate-turn-head, .debate-user-context { display:flex; align-items:flex-start; gap:11px; }
+.debate-timeline-header { align-items:center; justify-content:space-between; margin-bottom:14px; }
+.debate-turn-head { justify-content:flex-start; text-align:left; }
+.debate-turn-head > div { min-width:0; text-align:left; }
+.debate-user-context { position:relative; z-index:1; padding:12px; background:rgba(255,107,0,.08); border-radius:9px; }
+.debate-user-context p, .explained-evidence p, .evidence-guide-item p { margin:5px 0 0; }
+.debate-step-index { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; width:28px; height:28px; color:#fff; font-size:12px; font-weight:700; background:var(--accent-orange); border-radius:50%; }
+.debate-flow-line { width:2px; height:18px; margin-left:25px; background:var(--border-color); }
+.debate-turn { position:relative; margin:0 0 12px; padding:14px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:10px; }
+.bull-turn{border-left:3px solid var(--accent-green)} .bear-turn{border-left:3px solid var(--accent-red)} .judge-turn{border-left:3px solid #8b5cf6}
+.bull-turn .debate-step-index{background:var(--accent-green)} .bear-turn .debate-step-index{background:var(--accent-red)} .judge-turn .debate-step-index{background:#8b5cf6}
+.explained-evidence { margin:10px 0 0 39px; padding:10px 12px; color:var(--text-secondary); background:rgba(255,255,255,.025); border-radius:8px; font-size:12px; }
+.explained-evidence strong { color:var(--text-primary); } .explained-evidence p span { color:var(--accent-orange); font-weight:600; }
+.judge-user-view { margin:10px 0 8px 39px; color:var(--text-secondary); }
+.judge-change-summary { margin-left:39px; padding:10px; color:var(--text-secondary); background:rgba(139,92,246,.08); border-radius:7px; }
+.judge-change-summary.changed { color:#c4b5fd; border:1px solid rgba(139,92,246,.35); }
+.evidence-guide { margin-top:12px; padding:12px; border:1px solid var(--border-color); border-radius:9px; }
+.evidence-guide summary { cursor:pointer; color:var(--accent-orange); font-weight:600; }
+.evidence-guide-item { margin-top:10px; padding-top:10px; color:var(--text-secondary); border-top:1px solid var(--border-color); font-size:12px; }
+.evidence-guide-item small { color:var(--text-muted); }
+@media (max-width:760px) { .judge-condition-grid,.judge-synthesis-grid,.judge-action-plan { grid-template-columns:1fr; } }
+.judge-risk-warning { color: var(--text-muted); font-size: 12px; margin: 10px 0 0; }
+
+
+.judge-summary {
+  margin: 8px 0 0;
+}
+
+.chat-input-area .status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent-orange);
+  box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.15);
 }
 
 .chat-mode-toggle {
@@ -1661,7 +1820,7 @@ body.sidebar-open {
   border-color: var(--border-accent);
 }
 
-/* ============ AI 预测页 ============ */
+/* ============ AI 棰勬祴椤?============ */
 .prediction-hero {
   background: var(--gradient-hero);
   border: 1px solid var(--border-color);
@@ -1753,7 +1912,7 @@ body.sidebar-open {
   transition: width 0.5s;
 }
 
-/* ============ 辩论卡片 ============ */
+/* ============ 杈╄鍗＄墖 ============ */
 .debate-rounds {
   display: flex;
   flex-direction: column;
@@ -1806,7 +1965,7 @@ body.sidebar-open {
   flex-shrink: 0;
 }
 
-/* ============ 持仓 ============ */
+/* ============ 鎸佷粨 ============ */
 .portfolio-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1814,7 +1973,7 @@ body.sidebar-open {
   margin-bottom: 24px;
 }
 
-/* —— 组合诊断面板 —— */
+/* 鈥斺€?缁勫悎璇婃柇闈㈡澘 鈥斺€?*/
 .diag-panel .card-header {
   align-items: flex-start;
 }
@@ -2419,7 +2578,7 @@ body.sidebar-open {
   font-weight: 600;
 }
 
-/* ============ 模态框 ============ */
+/* ============ 妯℃€佹 ============ */
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -2507,7 +2666,7 @@ body.sidebar-open {
   margin-top: 20px;
 }
 
-/* ============ 日报指标卡 (KPI Cards) ============ */
+/* ============ 鏃ユ姤鎸囨爣鍗?(KPI Cards) ============ */
 .daily-report-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -2639,7 +2798,7 @@ body.sidebar-open {
   color: var(--text-muted);
 }
 
-/* ============ 加载与空状态 ============ */
+/* ============ 鍔犺浇涓庣┖鐘舵€?============ */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -2689,7 +2848,7 @@ body.sidebar-open {
   color: var(--text-secondary);
 }
 
-/* ============ 工具类 ============ */
+/* ============ 宸ュ叿绫?============ */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 .flex-1 { flex: 1; }
@@ -2714,9 +2873,9 @@ body.sidebar-open {
 .w-full { width: 100%; }
 .text-center { text-align: center; }
 
-/* ============ Phosphor 图标系统 ============ */
-/* 当前使用内嵌 SVG (js/phosphor-svg.js) - 不依赖字体加载 */
-/* 保留 @font-face 备用,使用正确的文件名 Phosphor.woff2 (不是 Phosphor-Regular.woff2) */
+/* ============ Phosphor 鍥炬爣绯荤粺 ============ */
+/* 褰撳墠浣跨敤鍐呭祵 SVG (js/phosphor-svg.js) - 涓嶄緷璧栧瓧浣撳姞杞?*/
+/* 淇濈暀 @font-face 澶囩敤,浣跨敤姝ｇ‘鐨勬枃浠跺悕 Phosphor.woff2 (涓嶆槸 Phosphor-Regular.woff2) */
 @font-face {
   font-family: "Phosphor-Duotone";
   src: url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/Phosphor-Duotone.woff2") format("woff2");
@@ -2733,7 +2892,7 @@ body.sidebar-open {
   font-display: swap;
 }
 
-/* 基础图标样式 - 与文字基线对齐 */
+/* 鍩虹鍥炬爣鏍峰紡 - 涓庢枃瀛楀熀绾垮榻?*/
 i[class^="ph-"], i[class*=" ph-"] {
   display: inline-block;
   vertical-align: -0.125em;
@@ -2742,7 +2901,7 @@ i[class^="ph-"], i[class*=" ph-"] {
   flex-shrink: 0;
 }
 
-/* 尺寸变体 */
+/* 灏哄鍙樹綋 */
 .icon-xs { font-size: 12px; }
 .icon-sm { font-size: 14px; }
 .icon-md { font-size: 16px; }
@@ -2750,7 +2909,7 @@ i[class^="ph-"], i[class*=" ph-"] {
 .icon-xl { font-size: 24px; }
 .icon-2xl { font-size: 32px; }
 
-/* 颜色变体 */
+/* 棰滆壊鍙樹綋 */
 .icon-primary { color: var(--accent-orange); }
 .icon-secondary { color: var(--text-secondary); }
 .icon-success { color: var(--accent-green); }
@@ -2758,18 +2917,18 @@ i[class^="ph-"], i[class*=" ph-"] {
 .icon-warning { color: var(--accent-yellow); }
 .icon-info { color: var(--accent-blue); }
 
-/* Duotone 风格: 主色用 accent, 辅色自动(库内 30% 透明) */
+/* Duotone 椋庢牸: 涓昏壊鐢?accent, 杈呰壊鑷姩(搴撳唴 30% 閫忔槑) */
 i.ph-duotone {
   --ph-primary: currentColor;
 }
 
-/* 图标按钮组(让按钮里的图标与文字完美对齐) */
+/* 鍥炬爣鎸夐挳缁?璁╂寜閽噷鐨勫浘鏍囦笌鏂囧瓧瀹岀編瀵归綈) */
 .btn i[class*="ph-"] {
   margin-right: 4px;
   vertical-align: -0.15em;
 }
 
-/* 导航项图标 - Lucide SVG 专用 */
+/* 瀵艰埅椤瑰浘鏍?- Lucide SVG 涓撶敤 */
 .nav-item .nav-icon-svg,
 .nav-icon-svg {
   display: inline-flex !important;
@@ -2797,12 +2956,12 @@ i.ph-duotone {
   color: var(--accent-orange) !important;
 }
 
-/* 激活态: 背景是橙色渐变,图标必须用白色才能看清 */
+/* 婵€娲绘€? 鑳屾櫙鏄鑹叉笎鍙?鍥炬爣蹇呴』鐢ㄧ櫧鑹叉墠鑳界湅娓?*/
 .nav-item.active .nav-icon-svg {
   color: #ffffff !important;
 }
 
-/* Logo 图标 */
+/* Logo 鍥炬爣 */
 .logo-icon {
   font-size: 28px;
   color: var(--accent-orange);
@@ -2811,7 +2970,7 @@ i.ph-duotone {
   justify-content: center;
 }
 
-/* 通用：按钮/顶栏内 SVG 保持正方形，避免移动端被拉扁 */
+/* 閫氱敤锛氭寜閽?椤舵爮鍐?SVG 淇濇寔姝ｆ柟褰紝閬垮厤绉诲姩绔鎷夋墎 */
 .btn svg,
 .menu-toggle svg,
 .theme-toggle svg,
@@ -2827,14 +2986,14 @@ i.ph-duotone {
   max-width: none;
 }
 
-/* 顶栏图标按钮 */
+/* 椤舵爮鍥炬爣鎸夐挳 */
 .theme-toggle i,
 .menu-toggle i {
   font-size: 18px;
   line-height: 1;
 }
 
-/* 加载动画图标 */
+/* 鍔犺浇鍔ㄧ敾鍥炬爣 */
 @keyframes phSpin {
   to { transform: rotate(360deg); }
 }
@@ -2843,7 +3002,7 @@ i.ph-duotone {
   animation: phSpin 1s linear infinite;
 }
 
-/* ============ 滚动条 ============ */
+/* ============ 婊氬姩鏉?============ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -2862,7 +3021,7 @@ i.ph-duotone {
   background: var(--text-muted);
 }
 
-/* 主题切换过渡 — 只在关键组件上 */
+/* 涓婚鍒囨崲杩囨浮 鈥?鍙湪鍏抽敭缁勪欢涓?*/
 #app, .sidebar, .topbar, .card, .btn, .nav-item,
 .metric-card, .summary-card, .modal, .chat-container,
 .skin-card, .news-item, .timeframe-btn, .debate-message {
@@ -2872,7 +3031,7 @@ i.ph-duotone {
               box-shadow var(--duration-slow) var(--ease-in-out);
 }
 
-/* ============ 行情看板（独立滚动壳） ============ */
+/* ============ 琛屾儏鐪嬫澘锛堢嫭绔嬫粴鍔ㄥ３锛?============ */
 .content-area:has(> .market-board),
 .content-area--market {
   display: flex;
@@ -3168,7 +3327,7 @@ i.ph-duotone {
   flex-shrink: 0;
 }
 
-/* Steam 真图:填满对应 emoji 徽章的方框,保持比例 */
+/* Steam 鐪熷浘:濉弧瀵瑰簲 emoji 寰界珷鐨勬柟妗?淇濇寔姣斾緥 */
 .mb-row__img,
 .mb-skin__img {
   width: 34px;
@@ -3279,7 +3438,7 @@ i.ph-duotone {
   font-size: 12px;
 }
 
-/* 数据来源徽标: BUFF 实时 vs 训练 CSV 历史 */
+/* 鏁版嵁鏉ユ簮寰芥爣: BUFF 瀹炴椂 vs 璁粌 CSV 鍘嗗彶 */
 .mb-skin__source {
   display: inline-flex;
   align-items: center;
@@ -3300,7 +3459,7 @@ i.ph-duotone {
   background: rgba(148, 163, 184, 0.14);
 }
 
-/* 800+ 件分页加载 */
+/* 800+ 浠跺垎椤靛姞杞?*/
 .market-catalog__more {
   display: flex;
   justify-content: center;
@@ -3311,7 +3470,7 @@ i.ph-duotone {
   color: var(--accent-green, #22c55e);
 }
 
-/* v5 契约: 7 天逐日精确预测条 */
+/* v5 濂戠害: 7 澶╅€愭棩绮剧‘棰勬祴鏉?*/
 .calibration-strip {
   display: grid;
   grid-template-columns: 34px minmax(180px, 1fr) auto;
@@ -3431,7 +3590,7 @@ i.ph-duotone {
   }
 }
 
-/* 模型实验室: 逐日误差指标切换（主样式见下方 models-lab 块） */
+/* 妯″瀷瀹為獙瀹? 閫愭棩璇樊鎸囨爣鍒囨崲锛堜富鏍峰紡瑙佷笅鏂?models-lab 鍧楋級 */
 
 .market-catalog {
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3711,7 +3870,7 @@ i.ph-duotone {
   }
 }
 
-/* ============ 模型实验室（分析台） ============ */
+/* ============ 妯″瀷瀹為獙瀹わ紙鍒嗘瀽鍙帮級 ============ */
 .content-area:has(> .models-lab),
 .content-area--models {
   display: flex;
@@ -3721,7 +3880,7 @@ i.ph-duotone {
   min-height: 0;
 }
 
-/* Model Lab — 跟随全局主题（铜褐，无独立 AI 蓝） */
+/* Model Lab 鈥?璺熼殢鍏ㄥ眬涓婚锛堥摐瑜愶紝鏃犵嫭绔?AI 钃濓級 */
 .models-lab {
   --ml-accent: var(--accent-orange);
   --ml-accent-hot: var(--accent-orange-light);
@@ -3844,7 +4003,7 @@ i.ph-duotone {
   box-shadow: none;
 }
 
-/* 区块内小切换（SHAP / per-day）：同色系，无蓝底 */
+/* 鍖哄潡鍐呭皬鍒囨崲锛圫HAP / per-day锛夛細鍚岃壊绯伙紝鏃犺摑搴?*/
 .models-lab__section-tools .models-track-btn {
   padding: 6px 10px;
   border: 1px solid transparent;
@@ -4448,7 +4607,7 @@ i.ph-duotone {
   }
 }
 
-/* ============ 时间线 / 预警列表 ============ */
+/* ============ 鏃堕棿绾?/ 棰勮鍒楄〃 ============ */
 .alert-list {
   display: flex;
   flex-direction: column;
@@ -4470,7 +4629,7 @@ i.ph-duotone {
   border-color: var(--border-light);
 }
 
-/* ============ 辩论卡片 ============ */
+/* ============ 杈╄鍗＄墖 ============ */
 .debate-round {
   background: var(--gradient-card);
   border: 1px solid var(--border-color);
@@ -4510,7 +4669,7 @@ i.ph-duotone {
   border: 1px solid rgba(247, 85, 85, 0.15);
 }
 
-/* ============ 表单 ============ */
+/* ============ 琛ㄥ崟 ============ */
 .form-input, .form-select {
   width: 100%;
   padding: 10px 14px;
@@ -4539,7 +4698,7 @@ i.ph-duotone {
 .alert-status.inactive { background: var(--text-muted); }
 .alert-status.triggered { background: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
 
-/* ============ 渐入动画 ============ */
+/* ============ 娓愬叆鍔ㄧ敾 ============ */
 .fade-in {
   animation: fadeIn 0.3s;
 }
@@ -4566,7 +4725,7 @@ i.ph-duotone {
   30% { transform: translateY(-6px); opacity: 1; }
 }
 
-/* ============ 状态徽章 ============ */
+/* ============ 鐘舵€佸窘绔?============ */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -4583,7 +4742,7 @@ i.ph-duotone {
 .status-badge.danger  { background: rgba(247, 85, 85, 0.12); color: var(--accent-red); }
 .status-badge.info    { background: rgba(234, 88, 12, 0.1); color: var(--accent-blue); }
 
-/* ============ 主题切换按钮 ============ */
+/* ============ 涓婚鍒囨崲鎸夐挳 ============ */
 .theme-toggle {
   width: 34px;
   height: 34px;
@@ -4618,7 +4777,7 @@ i.ph-duotone {
   transform: none;
 }
 
-/* ============ 命令面板 (Ctrl+K) ============ */
+/* ============ 鍛戒护闈㈡澘 (Ctrl+K) ============ */
 .command-palette {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -4762,7 +4921,7 @@ i.ph-duotone {
   margin-right: 4px;
 }
 
-/* ============ 快捷键帮助弹窗 ============ */
+/* ============ 蹇嵎閿府鍔╁脊绐?============ */
 .shortcut-modal {
   position: fixed;
   inset: 0;
@@ -4823,7 +4982,7 @@ i.ph-duotone {
   text-align: center;
 }
 
-/* ============ 导出按钮组 ============ */
+/* ============ 瀵煎嚭鎸夐挳缁?============ */
 .export-group {
   display: inline-flex;
   border: 1px solid var(--border-color);
@@ -4842,7 +5001,7 @@ i.ph-duotone {
 .export-group .btn:last-child { border-right: none; }
 .export-group .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-/* ============ Toast 通知 ============ */
+/* ============ Toast 閫氱煡 ============ */
 .toast-container {
   position: fixed;
   top: 74px;
@@ -4892,7 +5051,7 @@ i.ph-duotone {
 .toast-title { font-weight: 500; }
 .toast-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-/* ============ 首次加载遮罩 ============ */
+/* ============ 棣栨鍔犺浇閬僵 ============ */
 .app-loader {
   position: fixed;
   inset: 0;
@@ -4974,7 +5133,7 @@ i.ph-duotone {
   color: var(--text-muted);
 }
 
-/* ============ 首屏 Landing (CSVest 品牌色 + 动效) ============ */
+/* ============ 棣栧睆 Landing (CSVest 鍝佺墝鑹?+ 鍔ㄦ晥) ============ */
 .landing {
   --lp-bg: #07060a;
   --lp-surface: #101018;
@@ -5032,7 +5191,7 @@ i.ph-duotone {
   }
 }
 
-/* --- 置顶毛玻璃导航 --- */
+/* --- 缃《姣涚幓鐠冨鑸?--- */
 .landing-nav {
   position: sticky;
   top: 0;
@@ -5436,7 +5595,7 @@ i.ph-duotone {
   font-synthesis: none;
 }
 
-/* 页/模块标题固定英文，统一走 Instrument Serif（避免 Noto Serif SC 预加载闪烁） */
+/* 椤?妯″潡鏍囬鍥哄畾鑻辨枃锛岀粺涓€璧?Instrument Serif锛堥伩鍏?Noto Serif SC 棰勫姞杞介棯鐑侊級 */
 
 .landing-hero-lead {
   margin: 0 auto;
@@ -5480,7 +5639,7 @@ i.ph-duotone {
   gap: 18px;
 }
 
-/* --- 按钮 --- */
+/* --- 鎸夐挳 --- */
 .landing-btn {
   display: inline-flex;
   align-items: center;
@@ -5547,7 +5706,7 @@ i.ph-duotone {
   text-decoration: underline;
 }
 
-/* --- Hero 视觉窗口 --- */
+/* --- Hero 瑙嗚绐楀彛 --- */
 .landing-hero-visual {
   max-width: 980px;
   margin: 64px auto 0;
@@ -5623,7 +5782,7 @@ i.ph-duotone {
   50% { opacity: 0.85; transform: scale(1.35); }
 }
 
-/* --- 内容板块（与 Hero 同款暗色展台） --- */
+/* --- 鍐呭鏉垮潡锛堜笌 Hero 鍚屾鏆楄壊灞曞彴锛?--- */
 .landing-section {
   position: relative;
   isolation: isolate;
@@ -5695,7 +5854,7 @@ i.ph-duotone {
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* 滚动驱动字体动态（加强） */
+/* 婊氬姩椹卞姩瀛椾綋鍔ㄦ€侊紙鍔犲己锛?*/
 .landing-section--stage,
 .landing-hero {
   --reveal: 0.45;
@@ -5872,7 +6031,7 @@ i.ph-duotone {
   height: auto;
 }
 
-/* --- 旧双拼网格（已改为纵向全宽 section，此处仅兼容） --- */
+/* --- 鏃у弻鎷肩綉鏍硷紙宸叉敼涓虹旱鍚戝叏瀹?section锛屾澶勪粎鍏煎锛?--- */
 .landing-grid {
   display: flex;
   flex-direction: column;
@@ -5984,7 +6143,7 @@ i.ph-duotone {
   border-color: rgba(235, 75, 75, 0.22);
 }
 
-/* 持仓圆环 */
+/* 鎸佷粨鍦嗙幆 */
 .landing-donut-wrap {
   display: flex;
   flex-wrap: wrap;
@@ -6050,7 +6209,7 @@ i.ph-duotone {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
 }
 
-/* --- 页脚 --- */
+/* --- 椤佃剼 --- */
 .landing-footer {
   background: #07060a;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -6068,7 +6227,7 @@ i.ph-duotone {
   color: rgba(242, 239, 233, 0.38);
 }
 
-/* --- 登录 / 注册弹窗 --- */
+/* --- 鐧诲綍 / 娉ㄥ唽寮圭獥 --- */
 .landing-auth-overlay {
   position: fixed;
   inset: 0;
@@ -6446,7 +6605,7 @@ i.ph-duotone {
     text-overflow: ellipsis;
   }
 
-  /* 手机端减弱字体动效，保流畅 */
+  /* 鎵嬫満绔噺寮卞瓧浣撳姩鏁堬紝淇濇祦鐣?*/
   .landing-title--motion {
     transform:
       translate3d(0, calc((1 - var(--reveal, 0.45)) * 28px), 0)
@@ -6636,7 +6795,7 @@ i.ph-duotone {
   }
 }
 
-/* ============ 骨架屏 ============ */
+/* ============ 楠ㄦ灦灞?============ */
 .skeleton {
   background: linear-gradient(90deg, var(--bg-elevated) 0%, var(--bg-hover) 50%, var(--bg-elevated) 100%);
   background-size: 200% 100%;
@@ -6658,7 +6817,7 @@ i.ph-duotone {
   margin-bottom: 12px;
 }
 
-/* ============ 按钮 loading 状态 ============ */
+/* ============ 鎸夐挳 loading 鐘舵€?============ */
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -6689,7 +6848,7 @@ i.ph-duotone {
   to { transform: rotate(360deg); }
 }
 
-/* ============ 焦点样式 (可访问性) ============ */
+/* ============ 鐒︾偣鏍峰紡 (鍙闂€? ============ */
 :focus-visible {
   outline: 2px solid var(--accent-orange);
   outline-offset: 2px;
@@ -6709,7 +6868,7 @@ select:focus-visible {
   box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.15);
 }
 
-/* Skip to content 链接(可访问性) */
+/* Skip to content 閾炬帴(鍙闂€? */
 .skip-link {
   position: absolute;
   top: -40px;
@@ -6729,7 +6888,7 @@ select:focus-visible {
   top: 8px;
 }
 
-/* aria-live 区域(屏幕阅读器) */
+/* aria-live 鍖哄煙(灞忓箷闃呰鍣? */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -6742,7 +6901,7 @@ select:focus-visible {
   border: 0;
 }
 
-/* 错误状态样式 */
+/* 閿欒鐘舵€佹牱寮?*/
 .error-state {
   text-align: center;
   padding: 40px 20px;
@@ -6766,7 +6925,7 @@ select:focus-visible {
   margin-bottom: 16px;
 }
 
-/* 网络状态指示器 */
+/* 缃戠粶鐘舵€佹寚绀哄櫒 */
 .network-status {
   display: inline-flex;
   align-items: center;
@@ -6788,7 +6947,7 @@ select:focus-visible {
   animation: pulse 1.5s infinite;
 }
 
-/* ============ AI 市场日报页 ============ */
+/* ============ AI 甯傚満鏃ユ姤椤?============ */
 .daily-page {
   display: flex;
   flex-direction: column;
@@ -6975,7 +7134,7 @@ select:focus-visible {
   color: var(--accent-orange);
 }
 
-/* 与全站一致：涨红跌绿 */
+/* 涓庡叏绔欎竴鑷达細娑ㄧ孩璺岀豢 */
 .daily-kpi--up .daily-kpi__icon {
   background: rgba(220, 38, 38, 0.12);
   color: var(--accent-red);
@@ -7048,7 +7207,7 @@ select:focus-visible {
   pointer-events: none;
   opacity: 0.62;
   color: var(--text-muted);
-  /* 避免滚动/拖动时 SVG transform + filter 合成导致画面扭曲 */
+  /* 閬垮厤婊氬姩/鎷栧姩鏃?SVG transform + filter 鍚堟垚瀵艰嚧鐢婚潰鎵洸 */
   transform: translateZ(0);
   contain: paint;
   will-change: auto;
@@ -7059,7 +7218,7 @@ select:focus-visible {
   height: 100%;
   min-height: 360px;
   display: block;
-  /* meet：保持比例，避免 slice 在容器高度抖动时被裁切“拧歪” */
+  /* meet锛氫繚鎸佹瘮渚嬶紝閬垮厤 slice 鍦ㄥ鍣ㄩ珮搴︽姈鍔ㄦ椂琚鍒団€滄嫥姝€?*/
   max-width: 100%;
   pointer-events: none;
 }
@@ -7424,7 +7583,7 @@ select:focus-visible {
   }
   .daily-rag-core {
     min-height: 0;
-    /* 手机端用更实的底色，避免透底导致「没有背景」 */
+    /* 鎵嬫満绔敤鏇村疄鐨勫簳鑹诧紝閬垮厤閫忓簳瀵艰嚧銆屾病鏈夎儗鏅€?*/
     background:
       radial-gradient(720px 220px at 8% 0%, rgba(77, 140, 247, 0.22), transparent 58%),
       radial-gradient(560px 200px at 92% 100%, rgba(255, 107, 0, 0.2), transparent 55%),
@@ -7472,7 +7631,7 @@ select:focus-visible {
     width: 100%;
   }
 
-  /* 半透明 + blur 在手机上容易发灰/看不见，改为实色卡片 */
+  /* 鍗婇€忔槑 + blur 鍦ㄦ墜鏈轰笂瀹规槗鍙戠伆/鐪嬩笉瑙侊紝鏀逛负瀹炶壊鍗＄墖 */
   .daily-rag-step,
   .daily-rag-ask-panel,
   .daily-rag-out-panel {
@@ -7487,7 +7646,7 @@ select:focus-visible {
     box-shadow: var(--shadow-sm);
   }
 
-  /* 紧凑时间线：序号/图标左，标题+说明右 */
+  /* 绱у噾鏃堕棿绾匡細搴忓彿/鍥炬爣宸︼紝鏍囬+璇存槑鍙?*/
   .daily-rag-step {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -7780,7 +7939,7 @@ select:focus-visible {
   }
 }
 
-/* ============ RAG 智能问答 / 检索来源(市场日报) ============ */
+/* ============ RAG 鏅鸿兘闂瓟 / 妫€绱㈡潵婧?甯傚満鏃ユ姤) ============ */
 .rag-ask {
   display: flex;
   gap: 8px;
@@ -7964,7 +8123,7 @@ select:focus-visible {
   .rag-ask { flex-direction: column; }
   .rag-source__rel { width: 52px; }
 }
-/* ============ 管理端（独立全页，无侧边栏） ============ */
+/* ============ 绠＄悊绔紙鐙珛鍏ㄩ〉锛屾棤渚ц竟鏍忥級 ============ */
 .admin-shell {
   flex: 1;
   width: 100%;
@@ -8070,7 +8229,7 @@ select:focus-visible {
   .admin-shell__body { padding: 16px 14px 40px; }
 }
 
-/* ============ RAG layout fix · light-dot NN · output column ============ */
+/* ============ RAG layout fix 路 light-dot NN 路 output column ============ */
 .daily-rag-core { min-height: 0; }
 
 .nn-node,

@@ -31,7 +31,8 @@ from pydantic import BaseModel
 
 from config import (
     PRED_CACHE_TTL_HOURS, PREDICTION_CIRCUIT_BREAKER_ENABLED,
-    OUTPUT_DIR, LLM_ENABLED, USE_BUFF_LIVE, ensure_dirs,
+    OUTPUT_DIR, LLM_ENABLED, USE_BUFF_LIVE, DEEPSEEK_MODEL,
+    BULL_MODEL, BEAR_MODEL, JUDGE_MODEL, ensure_dirs,
 )
 from database import (
     get_connection, resolve_skin, latest_price, change_pct, run_init, _utcnow,
@@ -50,6 +51,10 @@ from inventory_forecast import aggregate_inventory_forecast
 import llm
 import quotes as quotes_svc
 import settings_store
+from agents.orchestrator import AIOrchestrator
+from agents.session_service import AgentSessionService
+from agents.session_store import SessionNotFoundError
+from agents.schemas import UserProfile
 
 # ---------- 启动初始化 ----------
 ensure_dirs()
@@ -140,6 +145,44 @@ class AdminConfigReq(BaseModel):
     ragEmbedModel: str | None = None
     ragEmbedDim: int | None = None
     ragUseVector: bool | None = None
+
+
+class AIOrchestratorReq(BaseModel):
+    message: str
+    action: Literal["auto", "recommend", "predict", "debate", "chat"] = "auto"
+    skinId: str | None = None
+    sessionId: str | None = None
+    targetAgent: Literal["bull", "bear", "judge"] | None = None
+    budget: float | None = None
+    horizonDays: Literal[7, 30] = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    history: list[dict[str, str]] | None = None
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AITranslationReq(BaseModel):
+    content: Any
+    targetLocale: Literal["zh-CN", "en-US"]
+
+
+class AgentSessionCreateReq(BaseModel):
+    skinId: str
+    budget: float | None = None
+    horizonDays: int = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    rounds: int = 1
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionMessageReq(BaseModel):
+    message: str
+    targetAgent: Literal["bull", "bear", "judge"]
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionRoundReq(BaseModel):
+    message: str
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
 
 
 # ============================================================
@@ -350,8 +393,149 @@ async def chat(req: ChatReq):
         messages = [{"role": "user", "content": req.message}]
         for ch in llm.chat_stream(messages):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
-        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'mock'})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'unavailable'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.post("/api/ai/orchestrate")
+def orchestrate_ai(req: AIOrchestratorReq):
+    llm.reset_execution_status()
+    service = AIOrchestrator(
+        prediction_loader=lambda skin_id, horizon: predict(
+            PredictReq(skinId=skin_id, horizon=horizon)
+        )
+    )
+    try:
+        result = service.handle(
+            req.message,
+            action=req.action,
+            skin_id=req.skinId,
+            session_id=req.sessionId,
+            target_agent=req.targetAgent,
+            budget=req.budget,
+            horizon_days=req.horizonDays,
+            risk_level=req.riskLevel,
+            history=req.history,
+            locale=req.locale,
+        )
+        execution = llm.get_execution_status()
+        # Never label a configured API key as a successful provider call.
+        agent_mode = "live" if execution["liveCalls"] else (
+            "degraded" if execution["fallbackCalls"] else "configured"
+        )
+        agent_session = result.get("agentSession") or {}
+        snapshot = agent_session.get("marketSnapshot") or {}
+        hybrid = snapshot.get("hybrid_prediction") or snapshot.get("hybridPrediction") or {}
+        hybrid_mode = "unavailable" if hybrid.get("degraded") else "live"
+        if result.get("type") == "prediction":
+            hybrid_mode = "live"
+        result["runtime"] = {
+            "llm": {**execution, "provider": "DeepSeek", "model": DEEPSEEK_MODEL},
+            "agents": {
+                "mode": agent_mode,
+                "bullModel": BULL_MODEL,
+                "bearModel": BEAR_MODEL,
+                "judgeModel": JUDGE_MODEL,
+            },
+            "hybrid": {"mode": hybrid_mode, "model": hybrid.get("model")},
+        }
+        return result
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.post("/api/ai/translate")
+def translate_ai_content(req: AITranslationReq):
+    """Translate existing chat/debate output without generating a mock reply."""
+    try:
+        return {"content": llm.translate_content(req.content, req.targetLocale)}
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+# Legacy debate endpoint is intentionally retained for the original card ->
+# debate flow.  It is fast by default (seeded/deterministic evidence mode); a
+# caller must explicitly opt into provider-backed live execution.
+@app.post("/api/debate/{skin_id}")
+def debate(
+    skin_id: str,
+    mode: str = "bull_bear",
+    live: bool = False,
+    budget: float | None = Query(default=None, gt=0),
+    riskLevel: Literal["low", "medium", "high"] = Query(default="medium"),
+    horizon: Literal[7] = Query(default=7),
+    rounds: int | None = Query(default=None, ge=1, le=5),
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+):
+    return agent_debate.debate(
+        skin_id,
+        live=live,
+        mode=mode,
+        budget=budget,
+        risk_level=riskLevel,
+        horizon_days=horizon,
+        rounds=rounds,
+        locale=locale,
+    )
+
+
+@app.post("/api/agent/sessions")
+def create_agent_session(req: AgentSessionCreateReq):
+    try:
+        profile = UserProfile(
+            budget=req.budget,
+            horizon_days=req.horizonDays,
+            risk_level=req.riskLevel,
+            locale=req.locale,
+        )
+        return AgentSessionService().create(
+            req.skinId,
+            user_profile=profile,
+            rounds=req.rounds,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/agent/sessions/{session_id}")
+def get_agent_session(session_id: str):
+    try:
+        return AgentSessionService().get(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/agent/sessions/{session_id}/message")
+def send_agent_session_message(session_id: str, req: AgentSessionMessageReq):
+    try:
+        return AgentSessionService().send_message(
+            session_id,
+            message=req.message,
+            target_agent=req.targetAgent,
+            locale=req.locale,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/agent/sessions/{session_id}/round")
+def run_agent_session_round(session_id: str, req: AgentSessionRoundReq):
+    try:
+        return AgentSessionService().run_round(
+            session_id, message=req.message, locale=req.locale
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 # ============================================================
@@ -503,10 +687,10 @@ def health_check_payload() -> dict:
         n_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     from config import LLM_ENABLED as _llm_on
     models_status = {
-        "lstm_hybrid": "ok" if _loader.tf_available else "mock",
-        "gru": "ok" if _loader.tf_available else "mock",
+        "lstm_hybrid": "ok" if _loader.tf_available else "unavailable",
+        "gru": "ok" if _loader.tf_available else "unavailable",
         "trees": "ok",
-        "deepseek": "ok" if _llm_on else "mock",
+        "deepseek": "ok" if _llm_on else "unavailable",
         "rag": rag.vector_status().get("mode", "keyword"),
     }
     status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"

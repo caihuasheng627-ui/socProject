@@ -23,6 +23,45 @@ PredictionLoader = Callable[[str, int], dict[str, Any]]
 ChatLoader = Callable[[list[dict[str, str]]], str]
 
 
+def _chat_prediction_contract(raw: dict[str, Any], horizon_days: int) -> dict[str, Any]:
+    """Adapt the canonical /api/predict response for the chat card.
+
+    The chat must never invent a second forecast or read fields that do not
+    exist on the canonical prediction response.  An unavailable model is an
+    explicit error, not a zero-price forecast.
+    """
+    # Small injected loaders in tests/integrations may already return the
+    # chat-card contract. Keep that contract intact; production main.py
+    # always supplies the canonical /api/predict shape below.
+    if "status" not in raw and "targetPrice" in raw:
+        return raw
+    if raw.get("status") != "available":
+        raise RuntimeError(f"Hybrid prediction unavailable: {raw.get('reason') or 'UNKNOWN'}")
+    predictions = raw.get("predictions") or []
+    if not predictions:
+        raise RuntimeError("Hybrid prediction unavailable: EMPTY_PREDICTIONS")
+    item = predictions[0]
+    current_price = raw.get("forecastAnchorPrice", raw.get("currentPrice"))
+    target_price = raw.get("targetPrice", item.get("price"))
+    confidence = item.get("confidence")
+    if current_price is None or target_price is None or confidence is None:
+        raise RuntimeError("Hybrid prediction unavailable: INVALID_CONTRACT")
+    entry_range = raw.get("entryRange") or {}
+    return {
+        "skinId": raw.get("skinId"),
+        "horizon": horizon_days,
+        "price": float(current_price),
+        "targetPrice": float(target_price),
+        "change7d": float(item.get("change") or 0.0),
+        "confidence": float(confidence),
+        "entryLow": entry_range.get("low"),
+        "entryHigh": entry_range.get("high"),
+        "model": item.get("model"),
+        "routeModel": item.get("routeModel"),
+        "decisionDate": item.get("decisionDate"),
+    }
+
+
 RECOMMEND_WORDS = (
     "\u63a8\u8350", "\u9009\u4e00\u4e2a", "\u6709\u54ea\u4e9b", "recommend", "suggest"
 )
@@ -356,7 +395,9 @@ class AIOrchestrator:
         if intent == "prediction":
             if self.prediction_loader is None:
                 raise RuntimeError("prediction loader is not configured")
-            prediction = self.prediction_loader(skin["skinId"], horizon_days)
+            prediction = _chat_prediction_contract(
+                self.prediction_loader(skin["skinId"], horizon_days), horizon_days
+            )
             return {
                 "type": intent,
                 "message": (

@@ -92,7 +92,11 @@ def _load_panel() -> tuple[pd.DataFrame, list[str]]:
 
 def _skin_window(market_hash_name: str) -> tuple[np.ndarray, float, str] | None:
     """取该物品最近 LOOKBACK 天特征窗口 + 决策日当前价 + 决策日日期。"""
-    panel, feat_cols = _load_panel()
+    try:
+        panel, feat_cols = _load_panel()
+    except Exception as e:
+        print(f"[model_loader] _skin_window panel load failed: {e}")
+        return None
     g = panel[panel["market_hash_name"] == market_hash_name].sort_values("date")
     if len(g) < LOOKBACK + 1:
         return None
@@ -588,6 +592,8 @@ class ModelLoader:
         新物品(不在 item_map / CSV 面板)→ 强制走 LSTM-C(__UNK__ embedding),
         窗口从 price_history 表(BUFF 爬取)构建。
         """
+        if not self.tf_available:
+            return None
         win = _skin_window(market_hash_name)
         is_new_item = win is None
         if is_new_item:
@@ -595,9 +601,6 @@ class ModelLoader:
         if win is None:
             return None
         X, cur_price, cur_date = win
-
-        if not self.tf_available:
-            return self._mock_trend(market_hash_name, cur_price, cur_date)
 
         # 新物品强制 LSTM-C(__UNK__);已知物品按 group 路由
         if is_new_item:
@@ -618,7 +621,10 @@ class ModelLoader:
             daily = self._predict_lstm_c(X, market_hash_name) or self._predict_lstm_d(X, market_hash_name)
             model_tag = "LSTM-Hybrid(fallback)"
         if daily is None:
-            return self._mock_trend(market_hash_name, cur_price, cur_date)
+            # A failed model route is not a forecast.  Returning a flat or
+            # hand-crafted trend here made downstream Debate cards appear to
+            # have real Hybrid evidence.
+            return None
 
         return {
             "current_price": round(cur_price, 2),
@@ -631,12 +637,12 @@ class ModelLoader:
         }
 
     def predict_gru_for(self, market_hash_name: str) -> dict | None:
+        if not self.tf_available or market_hash_name not in self.gru_items:
+            return None
         win = _skin_window(market_hash_name)
         if win is None:
             return None
         X, cur_price, cur_date = win
-        if not self.tf_available or market_hash_name not in self.gru_items:
-            return None
         daily = self._predict_gru(X, market_hash_name)
         if daily is None:
             return None
@@ -779,7 +785,14 @@ class ModelLoader:
 
     def _mock_trend(self, market_hash_name: str, cur_price: float, cur_date: str) -> dict:
         """TF 不可用时的趋势外推(近 7 日收益率 ×7);同样给出 7 天线性路径保持契约一致。"""
-        panel, _ = _load_panel()
+        try:
+            panel, _ = _load_panel()
+        except Exception as e:
+            print(f"[model_loader] _mock_trend panel load failed: {e}")
+            daily = [round(max(cur_price, 0.01), 4)] * 7
+            return {"current_price": round(cur_price, 2), "predicted_price": round(cur_price, 2),
+                    "daily_prices": daily,
+                    "model": "Mock(趋势)", "date": cur_date, "change_pct": 0.0, "confidence": 40.0}
         g = panel[panel["market_hash_name"] == market_hash_name].sort_values("date")
         if len(g) < 8:
             daily = [round(max(cur_price, 0.01), 4)] * 7

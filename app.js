@@ -732,7 +732,7 @@ const app = createApp({
         change24h: s.change24h ?? 0,
         change7d: s.change7d ?? 0,
         volume24h: s.volume24h ?? 0,
-        liquidity: s.liquidity ?? 0,
+        liquidity: s.liquidity ?? null,
         wear: (s.wear && String(s.wear).toLowerCase() !== 'nan') ? s.wear : '—',
         // 数据新鲜度: BUFF 爬取(滚动实时) vs 训练 CSV(历史静态)
         source: s.source || 'BUFF',
@@ -1627,13 +1627,19 @@ const app = createApp({
       }
       return m.type || '—';
     };
-    const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
-    const debateSuggestedQuestions = window.CSVestData.DEBATE_SUGGESTED_QUESTIONS || [];
-    const chatMode = ref('qa'); // 'qa' | 'debate'
-
-    const activeSuggestedQuestions = computed(() => (
-      chatMode.value === 'debate' ? debateSuggestedQuestions : suggestedQuestions
-    ));
+    const suggestedQuestions = computed(() => {
+      if (currentLang.value === 'en-US') {
+        return [
+          'Should I buy AK-47 | Fire Serpent now?',
+          'Recommend skins for a $700 budget with medium risk.',
+          'Which skins are rising today?',
+          'Which skin is worth holding long term?',
+          'Help me set a price alert.',
+          'How do the model-comparison results look?',
+        ];
+      }
+      return window.CSVestData.SUGGESTED_QUESTIONS;
+    });
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
@@ -2302,13 +2308,72 @@ const app = createApp({
     const chatLoading = ref(false);
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
+    const chatAgentSession = ref(null);
+    const chatBudget = ref(null);
+    const chatRiskLevel = ref('medium');
+    let chatLocaleRequest = 0;
 
-    const setChatMode = (mode) => {
-      chatMode.value = mode === 'debate' ? 'debate' : 'qa';
-      chatSuggestedIndex.value = -1;
+    const chatLocaleSnapshot = (message) => ({
+      content: message.content,
+      debateRound: message.payload?.debateRound || null,
+    });
+
+    const saveChatLocale = (message, locale) => {
+      if (!message || message.role !== 'assistant' || message.content === '__WELCOME__') return;
+      message.localeVersions = message.localeVersions || {};
+      message.localeVersions[locale] = chatLocaleSnapshot(message);
+    };
+
+    const applyChatLocale = (message, translated) => {
+      if (!translated || typeof translated.content !== 'string') return;
+      message.content = translated.content;
+      if (translated.debateRound && message.payload) {
+        message.payload = { ...message.payload, debateRound: translated.debateRound };
+      }
     };
 
     const chatNow = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    const responseModelLabel = (response) => {
+      const runtime = response?.runtime || {};
+      const type = response?.type || 'chat';
+      if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
+        if (runtime.agents?.mode === 'live') {
+          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
+        }
+        if (!runtime.agents) return 'Bull / Bear / Judge';
+        return runtime.agents.mode === 'degraded'
+          ? 'Bull / Bear / Judge · Live service unavailable'
+          : 'Bull / Bear / Judge';
+      }
+      if (type === 'recommendation') return 'Main AI · Recommendation';
+      if (type === 'clarification') return 'Main AI · Skin Resolver';
+      if (type === 'prediction') {
+        if (!runtime.hybrid) return 'Hybrid · Forecast';
+        return runtime.hybrid?.mode === 'live'
+          ? `Hybrid · Live (${runtime.hybrid.model || '—'})`
+          : 'Hybrid · Unavailable';
+      }
+      if (!runtime.llm) return `Main AI`;
+      return runtime.llm?.mode === 'live'
+        ? `Main AI · ${runtime.llm.provider || 'DeepSeek'}`
+        : 'Main AI · Live service unavailable';
+    };
+
+    const latestAgentResult = (session, agentName) => {
+      if (!session) return null;
+      const key = `${agentName}History`;
+      const history = session[key] || [];
+      return history.length ? history[history.length - 1] : null;
+    };
+
+    const agentResultLines = (result) => {
+      if (!result) return [];
+      if (Array.isArray(result.arguments)) {
+        return result.arguments.map(item => item.claim).filter(Boolean);
+      }
+      return Array.isArray(result.reasoning) ? result.reasoning : [];
+    };
 
     const SKIN_ALIASES = [
       { keys: ['火蛇', 'fireserpent', 'fire serpent', 'ak47-fireserpent'], idHint: 'fireserpent' },
@@ -2361,91 +2426,129 @@ const app = createApp({
 
     const canSendChat = computed(() => {
       if (chatLoading.value) return false;
-      const text = chatInput.value.trim();
-      if (chatMode.value === 'debate') {
-        return !!(text || selectedSkin.value);
-      }
-      return !!text;
+      return !!chatInput.value.trim();
     });
 
-    const ensureDebateLoaded = async (skin) => {
-      if (!skin?.id) return null;
-      await loadDebate(skin.id);
-      return debateData.value;
-    };
-
-    const sendDebateMessage = async (overrideText) => {
-      const raw = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
-      const skin = resolveSkinFromQuery(raw);
-      const displayText = raw || (skin ? t('chat.debateHintSkin', { name: skin.name }).replace(/；.*/, '') : '');
-
-      if (!skin) {
+    const runSkinAction = async (skinRef, action) => {
+      const cardSkin = skinRef && typeof skinRef === 'object' ? skinRef : null;
+      const skinId = cardSkin?.skinId || cardSkin?.id || skinRef;
+      const poolSkin = skins.value.find(item => item.id === skinId);
+      const skin = poolSkin || (cardSkin ? {
+        id: skinId,
+        name: cardSkin.name || skinId,
+        price: cardSkin.price ?? null,
+        change7d: cardSkin.change7d ?? 0,
+        liquidity: cardSkin.liquidity ?? null,
+        volume24h: cardSkin.volume24h ?? null,
+      } : null);
+      if (skin) selectedSkin.value = skin;
+      currentPage.value = 'chat';
+      const label = skin?.name || skinId;
+      const english = currentLang.value === 'en-US';
+      if (action === 'debate') chatAgentSession.value = null;
+      if (false && action === 'debate') {
+        const prompt = english
+          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
+          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`;
+        chatAgentSession.value = null;
         chatMessages.value.push({
           role: 'user',
-          content: raw || t('chat.startDebate'),
+          content: prompt,
           time: chatNow(),
         });
         chatInput.value = '';
-        chatMessages.value.push({
+        chatLoading.value = true;
+        await scrollChatBottom();
+
+        const assistantMsg = {
           role: 'assistant',
-          content: t('chat.debateNeedSkin'),
+          content: '',
           time: chatNow(),
-          model: 'CSVest',
-        });
+          model: 'Bull / Bear / Judge',
+        };
+        chatMessages.value.push(assistantMsg);
+
+        try {
+          const client = api();
+          if (client && typeof client.createAgentSession === 'function') {
+            const session = await client.createAgentSession({
+              skinId,
+              skin: skin ? {
+                id: skin.id,
+                name: skin.name,
+                price: skin.price,
+                change7d: skin.change7d,
+                liquidity: skin.liquidity,
+                volume24h: skin.volume24h,
+              } : null,
+              budget: chatBudget.value ? Number(chatBudget.value) : null,
+              horizonDays: 7,
+              riskLevel: chatRiskLevel.value,
+              rounds: 1,
+              locale: currentLang.value,
+            });
+            chatAgentSession.value = session;
+            if (session?.userProfile) {
+              chatBudget.value = session.userProfile.budget;
+              chatRiskLevel.value = session.userProfile.risk_level || chatRiskLevel.value;
+            }
+            const latestRound = Array.isArray(session?.debateRounds) && session.debateRounds.length
+              ? session.debateRounds[session.debateRounds.length - 1]
+              : null;
+            const response = {
+              type: 'debate',
+              message: english
+                ? `The first independent analysis for ${label} is complete. Tell me your view or concern and Main AI will moderate another evidence-based round.`
+                : `已针对 ${label} 完成第一轮独立分析。接下来你可以直接告诉我你的看法或顾虑，Main AI 会主持下一轮有证据的辩论。`,
+              skin,
+              agentSession: session,
+              debateRound: latestRound,
+              runtime: {
+                llm: { mode: 'structured_mock', provider: 'Local evidence rules', model: 'structured-fallback' },
+                agents: { mode: 'structured_mock', bullModel: 'Bull', bearModel: 'Bear', judgeModel: 'Judge' },
+                hybrid: { mode: 'mock', model: 'trend-fallback' },
+              },
+            };
+            assistantMsg.content = response.message;
+            assistantMsg.kind = response.type;
+            assistantMsg.payload = response;
+            assistantMsg.model = responseModelLabel(response);
+          } else {
+            await sendMessage(prompt, { action: 'debate', skinId });
+            return;
+          }
+        } catch (e) {
+          assistantMsg.content = currentLang.value === 'en-US'
+            ? 'The debate could not be created. Please select a skin and start a new debate.'
+            : '辩论引擎响应超时了，可能后端正在计算第一轮。请稍后再试一次。';
+          assistantMsg.kind = 'debate_error';
+          assistantMsg.payload = { error: String(e?.message || e) };
+          assistantMsg.model = 'Bull / Bear / Judge';
+        }
+        chatLoading.value = false;
         await scrollChatBottom();
         return;
       }
 
-      chatMessages.value.push({
-        role: 'user',
-        content: displayText || t('chat.debateHintSkin', { name: skin.name }),
-        time: chatNow(),
-      });
-      chatInput.value = '';
-      chatLoading.value = true;
-      await scrollChatBottom();
-
-      try {
-        const data = await ensureDebateLoaded(skin);
-        chatMessages.value.push({
-          role: 'assistant',
-          type: 'debate',
-          content: `${t('prediction.debateTitle')} · ${skin.name}`,
-          debate: {
-            skin: data?.skin || skin.name,
-            currentPrice: data?.currentPrice ?? skin.price,
-            rounds: data?.rounds || [],
-            consensus: data?.consensus || {
-              recommendation: '观望',
-              entryRange: '—',
-              stopLoss: '—',
-              targetPrice: '—',
-              risks: [],
-            },
-          },
-          time: chatNow(),
-          model: apiOnline.value ? 'Bull/Bear Agents' : 'Mock Debate',
-        });
-      } catch (e) {
-        chatMessages.value.push({
-          role: 'assistant',
-          content: t('chat.debateNeedSkin'),
-          time: chatNow(),
-          model: 'Mock',
-        });
-      }
-      chatLoading.value = false;
-      await scrollChatBottom();
+      const prompt = action === 'predict'
+        ? (english
+          ? `Forecast the price trend of ${label} over the next 7 days`
+          : `预测 ${label} 未来 7 天的价格走势`)
+        : (english
+          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
+          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
+      await nextTick();
+      return sendMessage(prompt, { action, skinId, skin });
     };
 
-    const sendMessage = async (overrideText) => {
-      if (chatMode.value === 'debate') {
-        await sendDebateMessage(overrideText);
-        return;
-      }
-
-      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
-      if (!text || chatLoading.value) return;
+    const continueDebate = async (message) => {
+      if (!chatAgentSession.value || chatLoading.value) return;
+      // AgentSession routing is owned by orchestrateAI, as in edd7511.
+      // Keep the legacy implementation below unreachable while preserving
+      // surrounding latest-page code until its next cleanup.
+      return sendMessage(message);
+      const text = String(message || '').trim();
+      if (!text) return;
 
       chatMessages.value.push({
         role: 'user',
@@ -2460,37 +2563,160 @@ const app = createApp({
         role: 'assistant',
         content: '',
         time: chatNow(),
-        model: apiOnline.value ? 'DeepSeek-V3' : 'Mock',
+        model: 'Bull / Bear / Judge',
+      };
+      chatMessages.value.push(assistantMsg);
+
+        try {
+          const client = api();
+          if (client && typeof client.runAgentRound === 'function') {
+          const session = await client.runAgentRound(chatAgentSession.value.sessionId, text);
+          chatAgentSession.value = session;
+          const latestRound = Array.isArray(session?.debateRounds) && session.debateRounds.length
+            ? session.debateRounds[session.debateRounds.length - 1]
+            : null;
+          const response = {
+            type: 'debate_round',
+            message: currentLang.value === 'en-US'
+              ? 'Your input has been added to the current debate round. Bull, Bear and Judge have been recalculated.'
+              : '你的补充意见已加入本轮辩论，Bull、Bear 和 Judge 已重新计算。',
+            agentSession: session,
+            debateRound: latestRound,
+            runtime: {
+              llm: { mode: 'structured_mock', provider: 'Local evidence rules', model: 'structured-fallback' },
+              agents: { mode: 'structured_mock', bullModel: 'Bull', bearModel: 'Bear', judgeModel: 'Judge' },
+              hybrid: { mode: 'mock', model: 'trend-fallback' },
+            },
+          };
+          assistantMsg.content = response.message;
+          assistantMsg.kind = response.type;
+          assistantMsg.payload = response;
+          assistantMsg.model = responseModelLabel(response);
+        } else {
+          await sendMessage(text, { action: 'debate', skinId: chatAgentSession.value?.skinId || null });
+          return;
+        }
+      } catch (e) {
+        assistantMsg.content = currentLang.value === 'en-US'
+          ? 'The next debate round could not be created. Please restart the debate from the selected skin.'
+          : '这一轮辩论还在处理或已超时，请稍后重试。';
+        assistantMsg.kind = 'debate_error';
+        assistantMsg.payload = { error: String(e?.message || e) };
+        assistantMsg.model = 'Bull / Bear / Judge';
+      }
+
+      chatLoading.value = false;
+      await scrollChatBottom();
+    };
+
+    const sendMessage = async (overrideText, requestOptions = {}) => {
+      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
+      if (!text || chatLoading.value) return;
+      if (!requestOptions || typeof requestOptions !== 'object' || requestOptions instanceof Event) {
+        requestOptions = {};
+      }
+
+      chatMessages.value.push({
+        role: 'user',
+        content: text,
+        time: chatNow(),
+      });
+      chatInput.value = '';
+      chatLoading.value = true;
+      await scrollChatBottom();
+
+      const assistantMsg = {
+        role: 'assistant',
+        content: '',
+        time: chatNow(),
+        model: 'AI',
       };
       chatMessages.value.push(assistantMsg);
 
       try {
         const client = api();
-        if (client && apiOnline.value) {
-          await client.chat(text, null, (chunk) => {
-            assistantMsg.content += chunk;
-            scrollChatBottom();
+        if (client && typeof client.orchestrateAI === 'function') {
+          const continueActiveDebate = chatAgentSession.value
+            && !requestOptions.action && !requestOptions.skinId;
+          const response = await client.orchestrateAI({
+            message: text,
+            action: requestOptions.action || 'auto',
+            skinId: requestOptions.skinId || null,
+            skin: requestOptions.skin || null,
+            sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
+            targetAgent: null,
+            budget: requestOptions.budget ?? (chatBudget.value ? Number(chatBudget.value) : null),
+            horizonDays: 7,
+            riskLevel: requestOptions.riskLevel || chatRiskLevel.value,
+            locale: currentLang.value,
+            history: chatMessages.value.slice(1, -2).slice(-8)
+              .filter(item => item.content && item.content !== '__WELCOME__')
+              .map(item => ({ role: item.role, content: item.content })),
           });
-          if (!assistantMsg.content.trim()) {
-            assistantMsg.content = generateAIResponse(text);
+          if (!response?.message || !String(response.message).trim()) {
+            throw new Error('Live AI response was empty');
+          }
+          assistantMsg.content = response.message;
+          assistantMsg.kind = response?.type || 'chat';
+          assistantMsg.payload = response || null;
+          assistantMsg.model = responseModelLabel(response);
+          saveChatLocale(assistantMsg, currentLang.value);
+          if (response?.agentSession) {
+            chatAgentSession.value = response.agentSession;
+            if (response.agentSession.userProfile) {
+              chatBudget.value = response.agentSession.userProfile.budget;
+              chatRiskLevel.value = response.agentSession.userProfile.risk_level || chatRiskLevel.value;
+            }
           }
         } else {
-          // 离线：模拟延迟后本地回复
-          await new Promise(r => setTimeout(r, 600));
-          assistantMsg.content = generateAIResponse(text);
-          assistantMsg.model = 'Mock';
+          throw new Error('Live AI client is unavailable');
         }
       } catch (e) {
-        assistantMsg.content = generateAIResponse(text);
-        assistantMsg.model = 'Mock';
+        assistantMsg.content = currentLang.value === 'en-US'
+          ? 'AI analysis is unavailable because the live backend did not return a valid result. No simulated recommendation was generated.'
+          : 'AI 分析暂不可用：实时后端未返回有效结果，系统没有生成模拟推荐。';
+        assistantMsg.kind = 'error';
+        assistantMsg.model = 'Live service unavailable';
       }
       chatLoading.value = false;
       await scrollChatBottom();
     };
 
+    // Existing AI output is generated text, not an i18n key.  On a language
+    // switch, translate it through the live backend once and retain a locale
+    // cache so toggling back never changes the previous answer.
+    watch(currentLang, async (locale) => {
+      const requestId = ++chatLocaleRequest;
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      for (const message of chatMessages.value) {
+        if (requestId !== chatLocaleRequest) return;
+        if (message.role !== 'assistant' || message.content === '__WELCOME__' || message.kind === 'error') continue;
+        const cached = message.localeVersions?.[locale];
+        if (cached) {
+          applyChatLocale(message, cached);
+          continue;
+        }
+        const source = Object.values(message.localeVersions || {})[0] || chatLocaleSnapshot(message);
+        try {
+          const response = await client.translateAIContent(source, locale);
+          if (requestId !== chatLocaleRequest) return;
+          const translated = response?.content;
+          if (!translated || typeof translated.content !== 'string') continue;
+          message.localeVersions = message.localeVersions || {};
+          message.localeVersions[locale] = translated;
+          applyChatLocale(message, translated);
+        } catch (error) {
+          // Keep the original verified answer if DeepSeek cannot translate it.
+          console.warn('[chat] history translation unavailable:', error?.message || error);
+        }
+      }
+      await scrollChatBottom();
+    });
+
     // 监听聊天输入框的键盘事件
     const onChatKeydown = (e) => {
-      const suggestions = activeSuggestedQuestions.value;
+      const suggestions = suggestedQuestions.value;
       // 输入框为空时,支持上下方向键选择建议问题
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
@@ -4175,8 +4401,8 @@ const app = createApp({
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
-      suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
-      chatMode, setChatMode, canSendChat,
+      suggestedQuestions, canSendChat, chatAgentSession, chatBudget, chatRiskLevel,
+      responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, continueDebate,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
       regenerateDailyReport, exportDailyReport,
