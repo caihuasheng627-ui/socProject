@@ -48,7 +48,8 @@
   <!-- 自定义样式 -->
   <link rel="stylesheet" href="style.css?v=20260727-strict-qa" />
 
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20260727-csv" />
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20260727-csv" />
 </head>
 <body>
   <a href="#main-content" class="skip-link">{{ t('shortcut.dashboard') }}</a>
@@ -61,11 +62,8 @@
     <!-- 首次加载遮罩 -->
     <div id="app-loader" class="app-loader">
       <div class="loader-content">
-        <div class="loader-logo" style="color: var(--accent-orange);">
-          <svg width="56" height="56" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
-            <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
-          </svg>
+        <div class="loader-logo">
+          <img src="assets/icons/csvest-icon.png?v=20260727-csv" alt="" class="brand-mark-img brand-mark-img--loader" width="56" height="56" />
         </div>
         <div class="loader-title">CSVest</div>
         <div class="loader-subtitle">CS2 INTELLIGENCE PLATFORM</div>
@@ -87,10 +85,7 @@
       <nav class="landing-nav" aria-label="Landing navigation">
         <div class="landing-nav-inner">
           <span class="landing-nav-logo">
-            <svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
-              <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
-            </svg>
+            <img src="assets/icons/csvest-icon.png?v=20260727-csv" alt="" class="brand-mark-img brand-mark-img--nav" width="24" height="24" />
             <span>CSVest</span>
           </span>
           <div class="landing-nav-links">
@@ -379,10 +374,7 @@
       <header class="admin-shell__bar">
         <div class="admin-shell__brand">
           <span class="admin-shell__logo" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path opacity="0.3" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
-              <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
-            </svg>
+            <img src="assets/icons/csvest-icon.png?v=20260727-csv" alt="" class="brand-mark-img brand-mark-img--admin" width="28" height="28" />
           </span>
           <div>
             <div class="admin-shell__title">{{ t('admin.title') }}</div>
@@ -587,11 +579,8 @@
     <aside class="sidebar" :class="{ open: sidebarOpen }" role="navigation" aria-label="Main Navigation">
       <div class="sidebar-header">
         <div class="logo">
-          <div class="logo-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path opacity="0.35" d="M240,120h-8.07A104.13,104.13,0,0,0,136,24.07V16a8,8,0,0,0-16,0v8.07A104.13,104.13,0,0,0,24.07,120H16a8,8,0,0,0,0,16h8.07A104.13,104.13,0,0,0,120,231.93V240a8,8,0,0,0,16,0v-8.07A104.13,104.13,0,0,0,231.93,136H240a8,8,0,0,0,0-16Z"/>
-              <path d="M128,64A64,64,0,1,0,192,128,64.07,64.07,0,0,0,128,64Zm0,112a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Z"/>
-            </svg>
+          <div class="logo-icon logo-icon--brand" aria-hidden="true">
+            <img src="assets/icons/csvest-icon.png?v=20260727-csv" alt="" class="brand-mark-img brand-mark-img--sidebar" width="36" height="36" />
           </div>
           <div class="logo-text">
             <div class="logo-title">{{ t('app.name') }}</div>

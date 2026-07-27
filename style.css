@@ -250,6 +250,42 @@ body::before {
   flex-shrink: 0;
 }
 
+.logo-icon--brand {
+  background: transparent;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  padding: 0;
+  overflow: hidden;
+}
+
+.brand-mark-img {
+  display: block;
+  object-fit: cover;
+}
+
+.brand-mark-img--sidebar {
+  width: 100%;
+  height: 100%;
+}
+
+.brand-mark-img--loader {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+
+.brand-mark-img--nav {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.brand-mark-img--admin {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
 .logo-icon svg {
   width: 22px;
   height: 22px;
