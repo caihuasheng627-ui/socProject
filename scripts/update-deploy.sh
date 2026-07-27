@@ -5,6 +5,7 @@
 #   bash scripts/update-deploy.sh --watch      # 轮询远程仓库，有更新自动部署
 #   bash scripts/update-deploy.sh --watch 15   # 每 15 秒检查一次（默认 30）
 #   bash scripts/update-deploy.sh --force-api  # 强制重建 API 镜像
+#   bash scripts/update-deploy.sh --reset-seed # 用镜像内 seed 覆盖 volume 运行库
 #
 # 策略（避免无意义重装 pip）:
 #   - 仅 Dockerfile / requirements / backend|ml|docs 变更 → 重建 api
@@ -19,6 +20,7 @@ BRANCH="${DEPLOY_BRANCH:-main}"
 REMOTE="${DEPLOY_REMOTE:-origin}"
 WATCH_INTERVAL=30
 FORCE_API=0
+RESET_SEED=0
 MODE="once"
 
 while [[ $# -gt 0 ]]; do
@@ -33,11 +35,15 @@ while [[ $# -gt 0 ]]; do
     --force-api)
       FORCE_API=1
       ;;
+    --reset-seed)
+      RESET_SEED=1
+      FORCE_API=1
+      ;;
     --once)
       MODE="once"
       ;;
     -h|--help)
-      sed -n '2,12p' "$0"
+      sed -n '2,14p' "$0"
       exit 0
       ;;
     *)
@@ -123,7 +129,7 @@ classify_and_deploy() {
   log "变更文件:"
   echo "$changed" | sed 's/^/  - /'
 
-  local need_api=0 need_web_recreate=0 need_web_reload=0
+  local need_api=0 need_web_recreate=0 need_web_reload=0 need_reset_seed=0
 
   if [[ "$FORCE_API" -eq 1 ]]; then
     need_api=1
@@ -132,13 +138,17 @@ classify_and_deploy() {
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     case "$f" in
+      backend/seed/skinvision.db|backend/seed/*)
+        need_api=1
+        need_reset_seed=1
+        ;;
       Dockerfile|backend/requirements.txt|backend/*|ml/*|docs/*)
         need_api=1
         ;;
       docker-compose.yml|deploy/nginx-default.conf|deploy/*)
         need_web_recreate=1
         ;;
-      index.html|app.js|style.css|data.js|i18n.js|js/*|assets/*|assets/**)
+      index.html|app.js|style.css|data.js|i18n.js|js/*|assets/*|assets/**|links.html)
         need_web_reload=1
         ;;
       scripts/update-deploy.sh|scripts/deploy.sh|README.md|*.md)
@@ -163,8 +173,14 @@ classify_and_deploy() {
   fi
 
   if [[ "$need_api" -eq 1 ]]; then
-    log "检测到后端相关变更 → 重建 api（可能较久）..."
-    docker compose up -d --build api
+    if [[ "$need_reset_seed" -eq 1 ]]; then
+      log "检测到 seed DB 变更 → 重建 api，并用 seed 覆盖 volume 运行库"
+      # 仅本次 recreate 注入；不写进 .env，避免以后每次启动都冲掉用户数据
+      RESET_DB_FROM_SEED=1 docker compose up -d --build --force-recreate api
+    else
+      log "检测到后端相关变更 → 重建 api（可能较久）..."
+      docker compose up -d --build api
+    fi
     wait_for_api || true
   fi
 
