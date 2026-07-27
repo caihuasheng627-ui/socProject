@@ -1,7 +1,7 @@
 """
 找所有"快速上升立即回落"的价格尖刺并标记为异常。
 逻辑：偏移周围±10天中位数 > 阈值，且前后点都在正常范围。
-阈值：>=$10 用 2x，<$10 用 3x，特殊图案用 5x。
+阈值：普通 1.8x，特殊图案/低价 3.0x（与 price_cleaning 对齐）。
 """
 import sqlite3, statistics, sys
 
@@ -78,22 +78,13 @@ def main():
         dates = [r["date"] for r in rows]
         prices = [r["price"] for r in rows]
 
-        # 阈值：特殊图案默认 5x；若前后邻点稳定且当日相对邻点 ≥4.0x（闪崩尖刺），仍按 4.0x 抓
         avg_price = statistics.median(prices)
-        if is_special(skin["market_hash_name"]):
-            threshold = 5.0
-        elif avg_price > 10:
-            threshold = 2.0
+        if is_special(skin["market_hash_name"]) or avg_price < 1.0:
+            threshold = 3.0
         else:
-            threshold = 3.5
+            threshold = 1.8
 
         spikes = find_spikes(prices, dates, threshold)
-        # 补抓特殊图案的近阈值闪崩（与 price_cleaning snapback 对齐）
-        if is_special(skin["market_hash_name"]):
-            flash = find_spikes(prices, dates, 4.0)
-            for item in flash:
-                if item not in spikes:
-                    spikes.append(item)
         for date, spike_price, reason in spikes:
             # 跳过已经标记的
             row = next((r for r in rows if r["date"] == date), None)
