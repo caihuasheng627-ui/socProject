@@ -427,7 +427,7 @@ class CSVestAPI {
   }
 
   */
-  async chat(message, sessionId, onChunk) {
+  async chat(message, sessionId, onChunk, locale, history) {
     if (this.useMock) {
       this.setUseMock(false);
     }
@@ -438,7 +438,12 @@ class CSVestAPI {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({
+          message,
+          sessionId,
+          locale: locale || localStorage.getItem('sv_lang') || 'zh-CN',
+          history: Array.isArray(history) ? history : undefined,
+        }),
       });
       if (!response.ok) throw new APIError('Chat request failed.', response.status);
       /* Legacy malformed localized literals:
@@ -472,6 +477,40 @@ class CSVestAPI {
       this.online = false;
       throw err;
     }
+  }
+
+  async debateStream(payload, onEvent) {
+    if (this.useMock) {
+      this.setUseMock(false);
+    }
+    const response = await fetch(`${this.baseURL}/api/ai/debate/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new APIError('Debate stream request failed.', response.status);
+    if (!response.body) throw new APIError('Debate stream has no body.', 500);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n');
+      buffer = parts.pop() || '';
+      for (const line of parts) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data && onEvent) onEvent(data);
+        } catch (_) { /* ignore partial line */ }
+      }
+    }
+    this.online = true;
   }
 
   async orchestrateAI(payload) {

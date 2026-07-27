@@ -1666,7 +1666,7 @@
               </div>
 
               <!-- Loading / preload -->
-              <div v-if="chatLoading" class="chat-message chat-message--assistant chat-loading-row">
+              <div v-if="chatLoading && !chatStreaming" class="chat-message chat-message--assistant chat-loading-row">
                 <div class="chat-avatar avatar-ai" aria-hidden="true">AI</div>
                 <div class="chat-message-body">
                   <div class="chat-content chat-loading-card">
@@ -1675,7 +1675,7 @@
                     </div>
                     <div class="chat-loading-copy">
                       <strong>{{ chatMode === 'debate' ? t('chat.debateLoading') : t('chat.aiLoading') }}</strong>
-                      <span>{{ t('chat.preload') }}</span>
+                      <span>{{ chatMode === 'debate' ? t('chat.preload') : t('chat.preloadQa') }}</span>
                     </div>
                   </div>
                 </div>
@@ -3410,13 +3410,13 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
   <script src="data.js?v=20260727-chat-restore2"></script>
-  <script src="i18n.js?v=20260727-chat-restore2"></script>
+  <script src="i18n.js?v=20260727-strict-qa"></script>
   <script src="js/skin-names-zh.js?v=20260727-skinnames"></script>
-  <script src="js/api.js?v=20260727-strict-qa"></script>
+  <script src="js/api.js?v=20260727-debate-stream"></script>
   <script src="js/auth.js?v=20260725-auth"></script>
   <script src="js/lucide-icons.js?v=20260727-fix"></script>
   <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
   <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260727-strict-qa"></script>
+  <script src="app.js?v=20260727-debate-quick"></script>
 </body>
 </html>

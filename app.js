@@ -2103,7 +2103,11 @@ const app = createApp({
 
     const continueDebate = (message) => {
       if (!chatAgentSession.value || chatLoading.value) return;
-      sendMessage(message, { action: 'debate' });
+      // 延续当前辩论会话：不能传 action:'debate'（会被当成“新开辩论”，
+      // 丢失 sessionId 后因消息里没有皮肤名而失败）；也不能走 setChatMode
+      // （它会清空当前会话）。直接确保处于辩论模式后按 auto 续会话发送。
+      chatMode.value = 'debate';
+      sendMessage(message);
     };
 
     // ============ 行情看板 ============
@@ -3148,6 +3152,8 @@ const app = createApp({
     ]);
     const chatInput = ref('');
     const chatLoading = ref(false);
+    // true once streaming chunks start arriving — hides the "thinking" row
+    const chatStreaming = ref(false);
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
     const chatAgentSession = ref(null);
@@ -3409,17 +3415,46 @@ const app = createApp({
       chatLoading.value = true;
       await scrollChatBottom();
 
-      const assistantMsg = {
+      chatMessages.value.push({
         role: 'assistant',
         content: '',
         time: chatNow(),
         model: 'AI',
-      };
-      chatMessages.value.push(assistantMsg);
+      });
+      // 必须通过响应式代理来写 content，否则流式/最终回复不会触发界面刷新，
+      // 表现为“发送下一条消息时上一条回复才显示”。
+      const assistantMsg = chatMessages.value[chatMessages.value.length - 1];
 
       try {
         const client = api();
-        if (client && typeof client.orchestrateAI === 'function') {
+        const historyPayload = chatMessages.value.slice(1, -2).slice(-8)
+          .filter(item => item.content && item.content !== '__WELCOME__')
+          .map(item => ({ role: item.role, content: item.content }));
+        // 纯聊天类问题（不需要推荐/预测卡片）直接走 SSE 流式，首字 1~2 秒可见
+        const structuredWords = [
+          '推荐', '选一个', '有哪些', 'recommend', 'suggest',
+          '预测', '价格', '走势', '涨跌', '目标价', 'forecast', 'price', 'trend',
+        ];
+        const lowerText = text.toLowerCase();
+        const wantsStructured = structuredWords.some(w => lowerText.includes(w));
+        const plainQaStream = chatMode.value === 'qa'
+          && !requestOptions.action && !requestOptions.skinId
+          && !wantsStructured
+          && client && typeof client.chat === 'function';
+
+        if (plainQaStream) {
+          await client.chat(text, null, (chunk) => {
+            chatStreaming.value = true;
+            assistantMsg.content += chunk;
+            scrollChatBottom();
+          }, currentLang.value, historyPayload);
+          if (!assistantMsg.content.trim()) {
+            throw new Error('Live AI returned empty content');
+          }
+          assistantMsg.kind = 'chat';
+          assistantMsg.model = 'DeepSeek-V3';
+          saveChatLocale(assistantMsg, currentLang.value);
+        } else if (client && typeof client.orchestrateAI === 'function') {
           // 严格模式：问答模式永远走 qa（后端不会切入辩论管线）；
           // 辩论会话只在辩论模式下延续。
           const continueActiveDebate = chatMode.value === 'debate'
@@ -3429,10 +3464,25 @@ const app = createApp({
             || (chatMode.value === 'debate'
               ? (continueActiveDebate ? 'auto' : 'debate')
               : 'qa');
-          const response = await client.orchestrateAI({
+          // 辩论模式下先在本地把皮肤名解析成 skinId（忽略 ★/™ 前缀差异），
+          // 否则后端按完整子串匹配会因缺少星号而找不到皮肤。
+          let resolvedSkinId = requestOptions.skinId || null;
+          if (!resolvedSkinId && chatMode.value === 'debate' && !continueActiveDebate) {
+            const normalizeSkinText = (s) => String(s || '')
+              .replace(/[★™]/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim();
+            const normText = normalizeSkinText(text);
+            const hit = (skins.value || [])
+              .filter((s) => {
+                const n = normalizeSkinText(s.name);
+                return n && (n === normText || normText.includes(n));
+              })
+              .sort((a, b) => normalizeSkinText(b.name).length - normalizeSkinText(a.name).length)[0];
+            if (hit) resolvedSkinId = hit.id;
+          }
+          const orchestratePayload = {
             message: text,
             action,
-            skinId: requestOptions.skinId || null,
+            skinId: resolvedSkinId,
             skin: requestOptions.skin || null,
             sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
             targetAgent: null,
@@ -3440,10 +3490,59 @@ const app = createApp({
             horizonDays: 7,
             riskLevel: requestOptions.riskLevel || chatRiskLevel.value,
             locale: currentLang.value,
-            history: chatMessages.value.slice(1, -2).slice(-8)
-              .filter(item => item.content && item.content !== '__WELCOME__')
-              .map(item => ({ role: item.role, content: item.content })),
-          });
+            history: historyPayload,
+          };
+          let response = null;
+          const canStreamDebate = chatMode.value === 'debate'
+            && ['debate', 'auto'].includes(action)
+            && typeof client.debateStream === 'function';
+          if (canStreamDebate) {
+            // 辩论走 SSE：每个 Agent 完成就实时填入时间线
+            const english = currentLang.value === 'en-US';
+            const stageText = {
+              bull: english ? '🤖 Bull and Bear are analyzing independently…' : '🤖 Bull 与 Bear 正在独立分析…',
+              bear: english ? '🐻 Bear is rebutting Bull…' : '🐻 Bear 正在反驳 Bull…',
+              judge: english ? '⚖️ Judge is weighing both sides…' : '⚖️ Judge 正在权衡双方观点…',
+            };
+            let streamError = null;
+            const ensureLiveRound = (roundNo) => {
+              if (!assistantMsg.payload?.debateRound) {
+                assistantMsg.payload = {
+                  type: 'debate',
+                  debateRound: { roundNo: roundNo || 1, userMessage: null, bull: null, bear: null, judge: null },
+                };
+              }
+              // 必须经由响应式代理读回，直接改原始对象不会刷新界面
+              return assistantMsg.payload.debateRound;
+            };
+            await client.debateStream(orchestratePayload, (evt) => {
+              if (evt.event === 'stage') {
+                chatStreaming.value = true;
+                ensureLiveRound(evt.roundNo);
+                assistantMsg.content = stageText[evt.agent] || stageText.bull;
+                scrollChatBottom();
+              } else if (evt.event === 'agent') {
+                chatStreaming.value = true;
+                const liveRound = ensureLiveRound(evt.roundNo);
+                if (evt.roundNo) liveRound.roundNo = evt.roundNo;
+                liveRound[evt.agent] = evt.opinion;
+                if (evt.agent !== 'judge') {
+                  assistantMsg.content = english
+                    ? `${evt.agent === 'bull' ? '🐂 Bull' : '🐻 Bear'} has presented its case…`
+                    : `${evt.agent === 'bull' ? '🐂 Bull' : '🐻 Bear'} 已给出观点…`;
+                }
+                scrollChatBottom();
+              } else if (evt.event === 'done') {
+                response = evt.payload;
+              } else if (evt.event === 'error') {
+                streamError = evt.message || 'debate stream failed';
+              }
+            });
+            if (streamError) throw new Error(streamError);
+            if (!response) throw new Error('Debate stream returned no result');
+          } else {
+            response = await client.orchestrateAI(orchestratePayload);
+          }
           if (!response?.message || !String(response.message).trim()) {
             throw new Error('Live AI response was empty');
           }
@@ -3496,9 +3595,10 @@ const app = createApp({
           }
         } else if (client && apiOnline.value) {
           await client.chat(text, null, (chunk) => {
+            chatStreaming.value = true;
             assistantMsg.content += chunk;
             scrollChatBottom();
-          }, currentLang.value);
+          }, currentLang.value, historyPayload);
           if (!assistantMsg.content.trim()) {
             // 绝不使用本地预设文案兜底——那会产生幻觉式回答
             throw new Error('Live AI returned empty content');
@@ -3515,6 +3615,7 @@ const app = createApp({
         assistantMsg.model = 'Live service unavailable';
       }
       chatLoading.value = false;
+      chatStreaming.value = false;
       await scrollChatBottom();
     };
 
@@ -5463,7 +5564,7 @@ const app = createApp({
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
-      chatMessages, visibleChatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
+      chatMessages, visibleChatMessages, chatInput, chatLoading, chatStreaming, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions, canSendChat,
       chatMode, setChatMode,
       chatAgentSession, chatBudget, chatRiskLevel,

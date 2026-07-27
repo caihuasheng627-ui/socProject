@@ -1,7 +1,7 @@
 {
   "date": "2026-07-26",
   "generatedAt": "2026-07-26T20:03:40+00:00",
-  "locale": "zh-CN",
+  "locale": "en-US",
   "metrics": {
     "monitored": 681,
     "gainers": 304,
@@ -44,7 +44,7 @@
       "holdingType": "sim"
     }
   ],
-  "aiSummary": "**CS2 Skin Market Daily Brief**  \nMarket breadth shows slight bearish pressure with 358 losers vs. 304 gainers (7d). Valve's texture/weapon wear reworks [1][2] are driving short-term liquidity spikes, while high-value items face declining liquidity [5]. Weekend volatility [4] and post-Major activity patterns [3][6] suggest watching sticker/capsule trades for potential 15-30% volume swings.  \n\nPortfolio watch: Monitor *M4A4 | Aeolian Dark* and *M4A1-S | Emphorosaur-S* for texture update impacts [2]; *★ Driver Gloves | Rezan the Red* may see amplified volatility due to high-tier liquidity shifts [5]. Avoid anchoring to weekend price extremes [4]. **Risk disclaimer**: Prices are volatile; updates and event timing can abruptly alter trends. Not financial advice.  \n\n*(Models used: ARIMA for trend confidence 72%, LightGBM for event-driven volatility 68%)*",
+  "aiSummary": "**CS2 Skin Market Daily Brief**  \nThe market shows mixed signals with 304 gainers vs. 358 losers (7d), indicating slight bearish pressure. Valve's texture/weapon wear reworks [1][2] are driving short-term liquidity spikes, while Major-related stickers may see post-event volatility [3][6]. Weekend trading typically amplifies price swings [4], and high-value items like ★ Driver Gloves | Rezan the Red (Field-Tested) face liquidity risks [5].  \n\n**Portfolio Watch**: Monitor M4A1-S | Emphorosaur-S (Minimal Wear) and MP7 | Fade (Minimal Wear) for weekend liquidity jumps [4]. Valve's updates [2] could impact wear-dependent skins like MAG-7 | Monster Call (Field-Tested). **Risk**: Prices are volatile post-updates; never treat as investment advice. Diversify to mitigate event-driven swings [3][6].",
   "sources": [
     {
       "type": "news",

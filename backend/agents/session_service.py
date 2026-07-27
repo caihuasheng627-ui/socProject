@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from typing import Any, Literal
 
 from .base import model_dump
@@ -112,6 +115,153 @@ class AgentSessionService:
             model=self.debate_service.judge_agent.model,
         )
         return session_to_api(self.store.get(session_id))
+
+    def create_stream(
+        self,
+        skin_id: str,
+        *,
+        user_profile: UserProfile | None = None,
+    ) -> Generator[dict[str, Any], None, None]:
+        """Run a new 1-round debate, yielding one event per finished agent.
+
+        Events: {"event": "stage", "agent": ...} while an agent thinks,
+        {"event": "agent", "agent": ..., "roundNo": 1, "opinion": {...}} when
+        it finishes, and finally {"event": "session", "session": <api dict>}.
+        """
+        profile = user_profile or UserProfile()
+        svc = self.debate_service
+        snapshot = svc.evidence_builder.build(
+            skin_id, horizon_days=profile.horizon_days
+        )
+        session_id = self.store.create(
+            skin_id=snapshot.skin_id, user_profile=profile, snapshot=snapshot
+        )
+        bull_input = BullInput(
+            snapshot=snapshot, user_profile=profile, round_no=1,
+            bear_opinion=None, bull_history=(),
+        )
+        bear_input = BearInput(
+            snapshot=snapshot, user_profile=profile, round_no=1,
+            bull_opinion=None, bear_history=(),
+        )
+        yield {"event": "stage", "agent": "bull", "roundNo": 1}
+        results: dict[str, Any] = {}
+        bull_ctx, bear_ctx = copy_context(), copy_context()
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="debate-stream") as executor:
+            futures = {
+                executor.submit(bull_ctx.run, svc.bull_agent.analyze, bull_input): "bull",
+                executor.submit(bear_ctx.run, svc.bear_agent.analyze, bear_input): "bear",
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                results[name] = future.result()
+                yield {
+                    "event": "agent", "agent": name, "roundNo": 1,
+                    "opinion": model_dump(results[name]),
+                }
+        self.store.append_agent_result(
+            session_id, agent_name="bull",
+            content=_opinion_summary(results["bull"]), result=results["bull"],
+            round_no=1, model=svc.bull_agent.model,
+        )
+        self.store.append_agent_result(
+            session_id, agent_name="bear",
+            content=_opinion_summary(results["bear"]), result=results["bear"],
+            round_no=1, model=svc.bear_agent.model,
+        )
+        yield {"event": "stage", "agent": "judge", "roundNo": 1}
+        judge = svc.judge_agent.decide(JudgeInput(
+            snapshot=snapshot,
+            user_profile=profile,
+            bull_history=[results["bull"]],
+            bear_history=[results["bear"]],
+        ))
+        self.store.append_agent_result(
+            session_id, agent_name="judge",
+            content=_opinion_summary(judge), result=judge,
+            round_no=1, model=svc.judge_agent.model,
+        )
+        yield {"event": "agent", "agent": "judge", "roundNo": 1, "opinion": model_dump(judge)}
+        yield {"event": "session", "session": session_to_api(self.store.get(session_id))}
+
+    def run_round_stream(
+        self, session_id: str, *, message: str, locale: str | None = None
+    ) -> Generator[dict[str, Any], None, None]:
+        """Streaming variant of run_round: sequential Bull -> Bear -> Judge,
+        yielding an event as each agent finishes."""
+        clean_message = message.strip()
+        if not clean_message:
+            raise ValueError("message must not be empty")
+        state = self.store.get(session_id)
+        if locale and locale != state.user_profile.locale:
+            profile_data = model_dump(state.user_profile)
+            profile_data["locale"] = locale
+            self.store.update_user_profile(session_id, UserProfile(**profile_data))
+            state = self.store.get(session_id)
+        round_no = len(state.judge_history) + 1
+
+        profile, profile_changes = infer_user_profile(clean_message, state.user_profile)
+        if profile != state.user_profile:
+            self.store.update_user_profile(session_id, profile)
+
+        self.store.append_user_message(
+            session_id, clean_message, "orchestrator", round_no=round_no
+        )
+
+        yield {"event": "stage", "agent": "bull", "roundNo": round_no}
+        bull_agent = BullAgent()
+        bull = bull_agent.analyze(BullInput(
+            snapshot=state.snapshot,
+            user_profile=profile,
+            round_no=round_no,
+            bear_opinion=state.bear_history[-1] if state.bear_history else None,
+            bull_history=state.bull_history,
+            user_message=clean_message,
+        ))
+        self.store.append_agent_result(
+            session_id, agent_name="bull",
+            content=_opinion_summary(bull), result=bull,
+            round_no=round_no, model=bull_agent.model,
+        )
+        yield {"event": "agent", "agent": "bull", "roundNo": round_no, "opinion": model_dump(bull)}
+
+        yield {"event": "stage", "agent": "bear", "roundNo": round_no}
+        bear_agent = BearAgent()
+        bear = bear_agent.analyze(BearInput(
+            snapshot=state.snapshot,
+            user_profile=profile,
+            round_no=round_no,
+            bull_opinion=bull,
+            bear_history=state.bear_history,
+            user_message=clean_message,
+        ))
+        self.store.append_agent_result(
+            session_id, agent_name="bear",
+            content=_opinion_summary(bear), result=bear,
+            round_no=round_no, model=bear_agent.model,
+        )
+        yield {"event": "agent", "agent": "bear", "roundNo": round_no, "opinion": model_dump(bear)}
+
+        yield {"event": "stage", "agent": "judge", "roundNo": round_no}
+        judge_agent = JudgeAgent()
+        judge = judge_agent.decide(JudgeInput(
+            snapshot=state.snapshot,
+            user_profile=profile,
+            bull_history=[*state.bull_history, bull],
+            bear_history=[*state.bear_history, bear],
+            judge_history=list(state.judge_history),
+            user_message=clean_message,
+        ))
+        self.store.append_agent_result(
+            session_id, agent_name="judge",
+            content=_opinion_summary(judge), result=judge,
+            round_no=round_no, model=judge_agent.model,
+        )
+        yield {"event": "agent", "agent": "judge", "roundNo": round_no, "opinion": model_dump(judge)}
+
+        session = session_to_api(self.store.get(session_id))
+        session["profileChanges"] = profile_changes
+        yield {"event": "session", "session": session}
 
     def get(self, session_id: str) -> dict[str, Any]:
         return session_to_api(self.store.get(session_id))

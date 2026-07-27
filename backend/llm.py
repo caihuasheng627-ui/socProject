@@ -104,6 +104,7 @@ def _build_payload(
     temperature: float,
     stream: bool,
     json_mode: bool = False,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model or DEEPSEEK_MODEL,
@@ -113,6 +114,8 @@ def _build_payload(
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
     return payload
 
 
@@ -193,10 +196,11 @@ def _mock_reply(messages: list[dict]) -> str:
 def chat_sync(
     messages: list[dict],
     temperature: float = 0.7,
-    timeout: float = 30.0,
+    timeout: float = 60.0,
     *,
     system_prompt: str | None = None,
     model: str | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     """同步调用 DeepSeek；支持调用方提供独立 system prompt。"""
     if not LLM_ENABLED:
@@ -209,6 +213,7 @@ def chat_sync(
         model=model,
         temperature=temperature,
         stream=False,
+        max_tokens=max_tokens,
     )
     try:
         result = _request_sync(payload, timeout)
@@ -379,6 +384,7 @@ def chat_stream(
     *,
     system_prompt: str | None = None,
     model: str | None = None,
+    max_tokens: int | None = None,
 ) -> Generator[str, None, None]:
     """
     流式生成(SSE)。yield 文本 chunk。
@@ -396,6 +402,7 @@ def chat_stream(
         model=model,
         temperature=temperature,
         stream=True,
+        max_tokens=max_tokens,
     )
     headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
     try:

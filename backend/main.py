@@ -51,7 +51,7 @@ from inventory_forecast import aggregate_inventory_forecast
 import llm
 import quotes as quotes_svc
 import settings_store
-from agents.orchestrator import AIOrchestrator
+from agents.orchestrator import AIOrchestrator, grounded_chat_system_prompt
 from agents.session_service import AgentSessionService
 from agents.session_store import SessionNotFoundError
 from agents.schemas import UserProfile
@@ -94,6 +94,8 @@ class ChatReq(BaseModel):
     message: str
     sessionId: str | None = None
     context: dict | None = None
+    locale: str = "zh-CN"
+    history: list[dict] | None = None
 
 
 class PortfolioReq(BaseModel):
@@ -391,11 +393,43 @@ def entry_range(req: EntryRangeReq):
 @app.post("/api/chat")
 async def chat(req: ChatReq):
     def gen():
-        messages = [{"role": "user", "content": req.message}]
-        for ch in llm.chat_stream(messages):
+        safe_history = [
+            {"role": item.get("role", "user"), "content": str(item.get("content", ""))[:2000]}
+            for item in (req.history or [])[-8:]
+            if item.get("role") in {"user", "assistant"}
+        ]
+        messages = [*safe_history, {"role": "user", "content": req.message}]
+        system_prompt = grounded_chat_system_prompt(req.locale)
+        for ch in llm.chat_stream(messages, system_prompt=system_prompt, max_tokens=700):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'unavailable'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _attach_ai_runtime(result: dict) -> dict:
+    """Attach LLM/agent/hybrid runtime metadata to an orchestrator result."""
+    execution = llm.get_execution_status()
+    # Never label a configured API key as a successful provider call.
+    agent_mode = "live" if execution["liveCalls"] else (
+        "degraded" if execution["fallbackCalls"] else "configured"
+    )
+    agent_session = result.get("agentSession") or {}
+    snapshot = agent_session.get("marketSnapshot") or {}
+    hybrid = snapshot.get("hybrid_prediction") or snapshot.get("hybridPrediction") or {}
+    hybrid_mode = "unavailable" if hybrid.get("degraded") else "live"
+    if result.get("type") == "prediction":
+        hybrid_mode = "live"
+    result["runtime"] = {
+        "llm": {**execution, "provider": "DeepSeek", "model": DEEPSEEK_MODEL},
+        "agents": {
+            "mode": agent_mode,
+            "bullModel": BULL_MODEL,
+            "bearModel": BEAR_MODEL,
+            "judgeModel": JUDGE_MODEL,
+        },
+        "hybrid": {"mode": hybrid_mode, "model": hybrid.get("model")},
+    }
+    return result
 
 
 @app.post("/api/ai/orchestrate")
@@ -419,34 +453,52 @@ def orchestrate_ai(req: AIOrchestratorReq):
             history=req.history,
             locale=req.locale,
         )
-        execution = llm.get_execution_status()
-        # Never label a configured API key as a successful provider call.
-        agent_mode = "live" if execution["liveCalls"] else (
-            "degraded" if execution["fallbackCalls"] else "configured"
-        )
-        agent_session = result.get("agentSession") or {}
-        snapshot = agent_session.get("marketSnapshot") or {}
-        hybrid = snapshot.get("hybrid_prediction") or snapshot.get("hybridPrediction") or {}
-        hybrid_mode = "unavailable" if hybrid.get("degraded") else "live"
-        if result.get("type") == "prediction":
-            hybrid_mode = "live"
-        result["runtime"] = {
-            "llm": {**execution, "provider": "DeepSeek", "model": DEEPSEEK_MODEL},
-            "agents": {
-                "mode": agent_mode,
-                "bullModel": BULL_MODEL,
-                "bearModel": BEAR_MODEL,
-                "judgeModel": JUDGE_MODEL,
-            },
-            "hybrid": {"mode": hybrid_mode, "model": hybrid.get("model")},
-        }
-        return result
+        return _attach_ai_runtime(result)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@app.post("/api/ai/debate/stream")
+def ai_debate_stream(req: AIOrchestratorReq):
+    """SSE variant of orchestrate for debate flows: pushes one event as each
+    agent (Bull / Bear / Judge) finishes so the timeline renders live."""
+    llm.reset_execution_status()
+    service = AIOrchestrator(
+        prediction_loader=lambda skin_id, horizon: predict(
+            PredictReq(skinId=skin_id, horizon=horizon)
+        )
+    )
+
+    def gen():
+        try:
+            for event in service.handle_debate_stream(
+                req.message,
+                action=req.action,
+                skin_id=req.skinId,
+                session_id=req.sessionId,
+                budget=req.budget,
+                horizon_days=req.horizonDays,
+                risk_level=req.riskLevel,
+                history=req.history,
+                locale=req.locale,
+            ):
+                if event.get("event") == "done":
+                    _attach_ai_runtime(event["payload"])
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        except Exception as exc:  # surface as an SSE error event, not a 500
+            yield (
+                "data: "
+                + json.dumps(
+                    {"event": "error", "message": str(exc)}, ensure_ascii=False
+                )
+                + "\n\n"
+            )
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.post("/api/ai/translate")

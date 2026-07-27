@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from typing import Any, Callable, Literal
 
 import llm
@@ -79,6 +80,70 @@ DEBATE_WORDS = (
 )
 
 
+def _market_brief(limit: int = 5) -> str:
+    """Real 7-day top movers from the local DB so plain chat never has to
+    invent numbers. Returns '' when the DB is unavailable (tests, cold start)."""
+    try:
+        from database import get_connection
+
+        query = """
+            WITH latest AS (
+                SELECT skin_id, MAX(date) AS d FROM price_history GROUP BY skin_id
+            ),
+            cur AS (
+                SELECT ph.skin_id, ph.price FROM price_history ph
+                JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = l.d
+            ),
+            past AS (
+                SELECT ph.skin_id, ph.price FROM price_history ph
+                JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = DATE(l.d, '-7 day')
+            )
+            SELECT s.market_hash_name AS name, cur.price AS price,
+                   ROUND((cur.price - past.price) / past.price * 100, 2) AS chg
+            FROM cur
+            JOIN past ON cur.skin_id = past.skin_id
+            JOIN skins s ON s.id = cur.skin_id
+            WHERE past.price > 0 AND cur.price > 0
+            ORDER BY chg {direction}
+            LIMIT ?
+        """
+        with get_connection() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
+            gainers = conn.execute(query.format(direction="DESC"), (limit,)).fetchall()
+            losers = conn.execute(query.format(direction="ASC"), (limit,)).fetchall()
+        if not gainers and not losers:
+            return ""
+        fmt = lambda row: f"{row['name']}: ${row['price']:.2f} ({row['chg']:+.2f}%/7d)"
+        lines = [f"Skins tracked in database: {total}"]
+        if gainers:
+            lines.append("Top 7-day gainers: " + "; ".join(fmt(r) for r in gainers))
+        if losers:
+            lines.append("Top 7-day losers: " + "; ".join(fmt(r) for r in losers))
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def grounded_chat_system_prompt(locale: str = "zh-CN") -> str:
+    """Shared grounded prompt for plain chat — used by both the orchestrator
+    and the streaming /api/chat endpoint so answers never invent numbers."""
+    language = "English" if is_english(locale) else "Simplified Chinese"
+    prompt = (
+        f"Always answer in {language}. You are CSVest Main AI, a CS2 skin market assistant. "
+        "STRICT GROUNDING RULES: use ONLY the market snapshot below (if present) for any "
+        "concrete numbers. NEVER invent prices, percentage changes, model names, model outputs, "
+        "or confidence values that are not in the snapshot. If the user asks for data you do not "
+        "have, say plainly that the data is unavailable here and point them to the Market Center "
+        "dashboard or the prediction page. Qualitative market reasoning is fine; fabricated "
+        "statistics are not. Keep answers concise — normally under 200 words unless the user "
+        "explicitly asks for detail."
+    )
+    brief = _market_brief()
+    if brief:
+        prompt += f"\n\nMarket snapshot from the local database (real data):\n{brief}"
+    return prompt
+
+
 def _latest_debate_round(session: dict[str, Any]) -> dict[str, Any]:
     rounds = session.get("debateRounds") or []
     if rounds:
@@ -95,6 +160,11 @@ def _latest_debate_round(session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalize_skin_text(text: Any) -> str:
+    """Compare skin names ignoring ★/™ decorations and extra whitespace."""
+    return " ".join(str(text or "").replace("★", " ").replace("™", " ").lower().split())
+
+
 def _default_skin_resolver(message: str, explicit_skin_id: str | None) -> dict[str, Any] | None:
     from database import get_connection, latest_price, resolve_skin, weapon_to_category
 
@@ -105,11 +175,12 @@ def _default_skin_resolver(message: str, explicit_skin_id: str | None) -> dict[s
                 price, _ = latest_price(connection, row["id"])
                 return {"skinId": row["slug"], "name": row["market_hash_name"], "price": price}
 
-        lowered = message.lower()
+        lowered = _normalize_skin_text(message)
         rows = connection.execute("SELECT * FROM skins ORDER BY LENGTH(market_hash_name) DESC").fetchall()
         matches = [
             row for row in rows
-            if str(row["market_hash_name"] or "").lower() in lowered
+            if (_normalize_skin_text(row["market_hash_name"])
+                and _normalize_skin_text(row["market_hash_name"]) in lowered)
             or str(row["slug"] or "").lower() in lowered
         ]
         if not matches:
@@ -219,7 +290,11 @@ class AIOrchestrator:
         self.session_service = session_service or AgentSessionService()
         self.skin_resolver = skin_resolver or _default_skin_resolver
         self.prediction_loader = prediction_loader
-        self.chat_loader = chat_loader or (lambda messages: llm.chat_sync(messages))
+        # Cap answer length: uncapped DeepSeek replies routinely exceeded the
+        # HTTP timeout, which surfaced as timeout-fallback "ghost replies".
+        self.chat_loader = chat_loader or (
+            lambda messages: llm.chat_sync(messages, max_tokens=700)
+        )
 
     def handle(
         self,
@@ -453,10 +528,120 @@ class AIOrchestrator:
             for item in (history or [])[-8:]
             if item.get("role") in {"user", "assistant"}
         ]
-        language = "English" if locale == "en-US" else "Simplified Chinese"
         reply = self.chat_loader([
-            {"role": "system", "content": f"Always answer in {language}."},
+            {"role": "system", "content": grounded_chat_system_prompt(locale)},
             *safe_history,
             {"role": "user", "content": clean_message},
         ])
         return {"type": "chat", "message": reply}
+
+    def handle_debate_stream(
+        self,
+        message: str,
+        *,
+        action: Action = "debate",
+        skin_id: str | None = None,
+        session_id: str | None = None,
+        budget: float | None = None,
+        horizon_days: int = 7,
+        risk_level: str = "medium",
+        history: list[dict[str, str]] | None = None,
+        locale: str = "zh-CN",
+    ) -> Generator[dict[str, Any], None, None]:
+        """Stream debate progress agent-by-agent.
+
+        Stageable intents (new debate / user-participating round) yield
+        'stage' and 'agent' events as each agent finishes, then a final
+        'done' event whose payload matches handle()'s return shape.
+        Every other intent falls back to a single 'done' event.
+        """
+        clean_message = message.strip()
+        english = is_english(locale)
+        if not clean_message:
+            raise ValueError("message must not be empty")
+        skin = self.skin_resolver(clean_message, skin_id)
+        ambiguous = bool(skin and skin.get("ambiguous"))
+        intent = None if ambiguous else detect_intent(
+            clean_message,
+            action=action,
+            has_skin=skin is not None,
+            session_id=session_id,
+            target_agent=None,
+        )
+
+        if not ambiguous and intent == "debate" and skin is not None:
+            profile = UserProfile(
+                budget=budget, horizon_days=horizon_days,
+                risk_level=risk_level, locale=locale,
+            )
+            session: dict[str, Any] | None = None
+            for event in self.session_service.create_stream(
+                skin["skinId"], user_profile=profile
+            ):
+                if event.get("event") == "session":
+                    session = event["session"]
+                else:
+                    yield event
+            assert session is not None
+            yield {"event": "done", "payload": {
+                "type": "debate",
+                "message": (
+                    (
+                        f"The first independent analysis for {skin['name']} is complete. "
+                        "Tell me your view or concern and Main AI will moderate another evidence-based round."
+                    ) if english else (
+                        f"已针对 {skin['name']} 完成第一轮独立分析。"
+                        "接下来直接告诉我你的判断或担忧，Main AI 会主持双方基于它再辩一轮。"
+                    )
+                ),
+                "skin": skin,
+                "agentSession": session,
+                "debateRound": _latest_debate_round(session),
+            }}
+            return
+
+        if not ambiguous and intent == "debate_round" and session_id:
+            session = None
+            for event in self.session_service.run_round_stream(
+                session_id, message=clean_message, locale=locale
+            ):
+                if event.get("event") == "session":
+                    session = event["session"]
+                else:
+                    yield event
+            assert session is not None
+            latest_round = _latest_debate_round(session)
+            judge = latest_round.get("judge") or {}
+            yield {"event": "done", "payload": {
+                "type": "debate_round",
+                "message": (
+                    (
+                        "Your input is now public context for this round: Bull responds to the prior risks, "
+                        "Bear rebuts Bull, and Judge issues a new ruling. "
+                        f"Current decision: {judge.get('decision', 'pending')}."
+                    ) if english else (
+                        "我已把你的意见作为本轮公开上下文：Bull 先回应上一轮风险，"
+                        "Bear 再反驳 Bull，最后 Judge 重新裁决。"
+                        f" 当前结论为 {judge.get('decision', '待观察')}。"
+                    )
+                ),
+                "agentSession": session,
+                "debateRound": latest_round,
+            }}
+            return
+
+        # Non-stageable intents (clarification, follow-up, Q&A about the
+        # debate, profile updates, ...) run through the normal handler.
+        result = self.handle(
+            message,
+            action=action,
+            skin_id=skin_id,
+            session_id=session_id,
+            target_agent=None,
+            budget=budget,
+            horizon_days=horizon_days,
+            risk_level=risk_level,
+            history=history,
+            locale=locale,
+        )
+        yield {"event": "done", "payload": result}
