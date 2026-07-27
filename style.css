@@ -3219,6 +3219,16 @@ body.sidebar-open {
   animation: landingRise 0.18s var(--ease-out-expo) both;
 }
 
+/* 挂到 body，彻底避开卡片/贴图层叠上下文 */
+.inv-item__menu--portal {
+  position: fixed;
+  right: auto;
+  top: 0;
+  left: 0;
+  z-index: 5000;
+  margin: 0;
+}
+
 .inv-item__menu-item {
   appearance: none;
   border: none;
@@ -4371,13 +4381,9 @@ i.ph-duotone {
   border: 1px solid var(--border-color);
   background: var(--bg-elevated);
   object-fit: contain;
-}
-  border: 1px solid var(--border-color);
-  background: var(--bg-elevated);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+  position: relative;
+  z-index: 0;
+  display: block;
   flex-shrink: 0;
 }
 

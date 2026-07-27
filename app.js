@@ -3,7 +3,7 @@
 // 基于策划书功能清单实现
 // ============================================
 
-const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
+const { createApp, ref, computed, onMounted, onUnmounted, onUpdated, nextTick, watch } = Vue;
 
 // 安全地获取/创建 ECharts 实例。
 // 图表所在的整块 DOM 是被 v-if 控制的(切换页面时会被整个销毁重建),
@@ -4106,6 +4106,30 @@ const app = createApp({
     });
     const selectedInventoryItem = ref(null);
     const inventoryMenuId = ref(null);
+    const inventoryMenuPos = ref({ top: 0, left: 0 });
+    const inventoryMenuItem = computed(() => {
+      const id = inventoryMenuId.value;
+      if (id == null) return null;
+      return (myInventory.value || []).find((item) => item.id === id) || null;
+    });
+    const inventoryMenuStyle = computed(() => ({
+      top: `${inventoryMenuPos.value.top}px`,
+      left: `${inventoryMenuPos.value.left}px`,
+    }));
+
+    const placeInventoryMenu = (anchorEl) => {
+      if (!anchorEl || typeof anchorEl.getBoundingClientRect !== 'function') return;
+      const rect = anchorEl.getBoundingClientRect();
+      const menuWidth = 168;
+      const gap = 6;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      const below = rect.bottom + gap;
+      const estimatedHeight = 140;
+      const top = (below + estimatedHeight > window.innerHeight - 8)
+        ? Math.max(8, rect.top - estimatedHeight - gap)
+        : below;
+      inventoryMenuPos.value = { top, left };
+    };
     const showInventoryEditModal = ref(false);
     const editingInventory = ref({ id: null, name: '', acquirePrice: 0 });
     // Steam 库存导入
@@ -4511,12 +4535,30 @@ const app = createApp({
       if (item?.skinId) viewSkin(item.skinId);
     };
 
-    const toggleInventoryMenu = (id) => {
-      inventoryMenuId.value = inventoryMenuId.value === id ? null : id;
+    const toggleInventoryMenu = (id, event) => {
+      if (inventoryMenuId.value === id) {
+        inventoryMenuId.value = null;
+        return;
+      }
+      const anchor = event?.currentTarget || event?.target;
+      placeInventoryMenu(anchor);
+      inventoryMenuId.value = id;
+      nextTick(() => placeInventoryMenu(anchor));
     };
 
     const closeInventoryMenu = () => {
       inventoryMenuId.value = null;
+    };
+
+    const onInventoryMenuOutside = (event) => {
+      if (inventoryMenuId.value == null) return;
+      const target = event?.target;
+      if (target?.closest?.('.inv-item__menu') || target?.closest?.('.inv-item__more-btn')) return;
+      inventoryMenuId.value = null;
+    };
+
+    const onInventoryMenuRepositionClose = () => {
+      if (inventoryMenuId.value != null) inventoryMenuId.value = null;
     };
 
     const openEditInventoryPrice = (item) => {
@@ -5565,6 +5607,9 @@ const app = createApp({
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
+      document.addEventListener('pointerdown', onInventoryMenuOutside, true);
+      window.addEventListener('resize', onInventoryMenuRepositionClose);
+      document.addEventListener('scroll', onInventoryMenuRepositionClose, true);
       // 移除首次加载遮罩 (CSS 动画 0.6s 后自动隐藏,这里做兜底)
       setTimeout(() => {
         const loader = document.getElementById('app-loader');
@@ -5640,6 +5685,12 @@ const app = createApp({
       await nextTick();
       updateNavPill();
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
+    });
+
+    onUnmounted(() => {
+      document.removeEventListener('pointerdown', onInventoryMenuOutside, true);
+      window.removeEventListener('resize', onInventoryMenuRepositionClose);
+      document.removeEventListener('scroll', onInventoryMenuRepositionClose, true);
     });
 
     // Vue 重渲染后再次处理 (新插入的 ph-* 元素)
@@ -5763,7 +5814,7 @@ const app = createApp({
       myInventory, showInventoryModal, newInventory, addInventoryItem, removeInventoryItem,
       importSteamInventory, openInventoryItem,
       showSteamImportModal, steamImportLoading, steamImportForm, steamImportResult, submitSteamImport,
-      inventoryMenuId, toggleInventoryMenu, closeInventoryMenu,
+      inventoryMenuId, inventoryMenuItem, inventoryMenuStyle, toggleInventoryMenu, closeInventoryMenu,
       showInventoryEditModal, editingInventory, openEditInventoryPrice, saveInventoryPrice,
       inventoryItemCount, inventoryTotalValue, inventoryTotalChange24h, inventorySourceLabel,
       getSkinImage, getSkinImageUrl, getSkinChange24h, getSkinMeta,
