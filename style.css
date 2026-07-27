@@ -7905,6 +7905,28 @@ i.ph-duotone {
     padding: 0;
   }
 
+  .landing-device {
+    border-radius: 14px;
+  }
+
+  .landing-device__chrome {
+    height: 32px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .landing-device__dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .landing-device__url {
+    font-size: 10px;
+    height: 18px;
+    line-height: 18px;
+    padding: 0 10px;
+  }
+
   .landing-debate-cards,
   .landing-donut-wrap {
     width: min(100%, 100%);
