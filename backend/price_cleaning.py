@@ -111,19 +111,19 @@ def clean_price_points(
     rows: Iterable[tuple[str, float]],
     *,
     ordinary_threshold: float = 1.8,
-    protected_threshold: float = 5.0,
+    protected_threshold: float = 3.0,
     neighbour_ratio_limit: float = 1.25,
     endpoint_threshold: float | None = None,
 ) -> list[CleanedPricePoint]:
     """Replace clear isolated spikes; also repair first/last endpoint spikes.
 
-    阈值设计（经验验证）：
+    阈值设计：
       - 普通饰品 1.8x：捕获 Black Laminate / Graphite 类邻点稳定的单日尖刺
-      - 特殊图案/低价 5.0x：淬火/多普勒等真实图案溢价可达 3-4x
+      - 特殊图案/低价 3.0x：淬火/多普勒等允许适度溢价，极端闪崩仍清洗
       - 邻点一致性 ≤1.25x：确保前后两点在同一量级，排除趋势转折误伤
       - 末端点默认 1.8x 对照近期中位数,或相对前收 ≥2.0x 且相对中位 ≥1.5x：
         单日冲高写入 current_price 会污染预测;真实图案溢价通常会连续多日留存,
-        仍由序列中部的 5x 规则保护
+        仍由序列中部的 3x 规则保护
     """
     ordered = sorted((str(date_str), float(price)) for date_str, price in rows)
     if not ordered:
@@ -158,23 +158,7 @@ def clean_price_points(
 
         neighbour_price = math.sqrt(previous * following)
         deviation = max(current / neighbour_price, neighbour_price / current)
-
-        # 特殊图案用 5x 保护真实溢价；但「单日冲高、次日立刻回到邻点量级」
-        # 且偏离 ≥4.0x 仍视为脏点（Ursus Case Hardened 200→934→192 ≈4.8x 曾漏检；
-        # 3.9x 级溢价仍保留，见 test_pattern_finish_uses_stricter_threshold）。
-        # 低价普通饰品仍走完整 5x，避免 4x 正常波动被误清。
-        is_pattern = any(
-            keyword in (market_hash_name or "").casefold()
-            for keyword in PATTERN_SENSITIVE_KEYWORDS
-        )
-        snapback = (
-            is_pattern
-            and neighbour_ratio <= 1.15
-            and max(current / previous, previous / current) >= 3.0
-            and max(current / following, following / current) >= 3.0
-        )
-        effective_threshold = 4.0 if snapback else threshold
-        if deviation < effective_threshold:
+        if deviation < threshold:
             continue
 
         candidates[index] = neighbour_price
