@@ -134,6 +134,10 @@ classify_and_deploy() {
   if [[ "$FORCE_API" -eq 1 ]]; then
     need_api=1
   fi
+  if [[ "${RESET_SEED:-0}" -eq 1 ]]; then
+    need_api=1
+    need_reset_seed=1
+  fi
 
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
