@@ -57,6 +57,25 @@ ensure_env() {
   fi
 }
 
+# 部署机本地戳 ?v=（不提交）；下次 pull 前会还原，避免 ff-only 冲突
+restore_index_from_git() {
+  if git status --porcelain -- index.html 2>/dev/null | grep -q .; then
+    log "还原本地 index.html 缓存戳记，便于 pull"
+    git checkout -- index.html
+  fi
+}
+
+stamp_asset_cache_bust() {
+  local ver
+  ver="$(git rev-parse --short HEAD)"
+  if [[ ! -f index.html ]]; then
+    return 0
+  fi
+  # 统一把 style.css / *.js 的 ?v= 换成当前 commit，强制刷新后台字体与样式
+  sed -i -E "s/((style\\.css|data\\.js|i18n\\.js|app\\.js|js\\/[A-Za-z0-9._-]+\\.js)\\?v=)[^\"]+/\\1${ver}/g" index.html
+  log "已戳静态资源版本 ?v=${ver}（仅本机，下次 pull 前自动还原）"
+}
+
 # 返回 0 = 有远程新提交；1 = 已是最新
 has_remote_updates() {
   git fetch --quiet "$REMOTE" "$BRANCH"
@@ -95,7 +114,7 @@ classify_and_deploy() {
       docker-compose.yml|deploy/nginx-default.conf|deploy/*)
         need_web_recreate=1
         ;;
-      index.html|app.js|style.css|data.js|i18n.js|js/*)
+      index.html|app.js|style.css|data.js|i18n.js|js/*|assets/*|assets/**)
         need_web_reload=1
         ;;
       scripts/update-deploy.sh|scripts/deploy.sh|README.md|*.md)
@@ -109,6 +128,14 @@ classify_and_deploy() {
 
   if [[ "$need_api" -eq 1 ]]; then
     need_web_recreate=1
+  fi
+
+  # 若 assets 目录存在但容器内挂载为空（旧 compose），强制 recreate web
+  if [[ -d "$ROOT/assets/landing" ]] && docker compose ps --status running -q web >/dev/null 2>&1; then
+    if ! docker compose exec -T web test -f /usr/share/nginx/html/assets/landing/landing-visual-forecast.jpg 2>/dev/null; then
+      log "容器内缺少 landing 截图 → 强制 recreate web（检查 assets volume 挂载）"
+      need_web_recreate=1
+    fi
   fi
 
   if [[ "$need_api" -eq 1 ]]; then
@@ -129,6 +156,12 @@ classify_and_deploy() {
     fi
   fi
 
+  if [[ "$need_web_recreate" -eq 1 || "$need_web_reload" -eq 1 ]]; then
+    stamp_asset_cache_bust
+    # stamp 改了 index.html，reload 一次让新 ?v= 立刻生效
+    docker compose exec -T web nginx -s reload 2>/dev/null || docker compose restart web >/dev/null 2>&1 || true
+  fi
+
   if [[ "$need_api" -eq 0 && "$need_web_recreate" -eq 0 && "$need_web_reload" -eq 0 ]]; then
     log "无需容器操作"
   fi
@@ -138,6 +171,18 @@ classify_and_deploy() {
   log "健康检查:"
   curl -sS -m 5 "http://127.0.0.1:8080/api/health" || curl -sS -m 5 "http://127.0.0.1:8000/api/health" || true
   echo
+  log "落地页截图检查:"
+  for f in \
+    assets/landing/landing-visual-forecast.jpg \
+    assets/landing/landing-visual-debate.jpg \
+    assets/landing/landing-visual-portfolio.jpg
+  do
+    code="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:8080/$f" || echo err)"
+    echo "  /$f → HTTP $code"
+  done
+  log "样式缓存戳检查:"
+  curl -sS -m 5 "http://127.0.0.1:8080/index.html" | grep -oE 'style\.css\?v=[^"]+' | head -3 || true
+  log "请浏览器强制刷新（Ctrl+Shift+R）后查看 Daily Report / 辩论页标题字体"
 }
 
 run_once() {
@@ -148,7 +193,9 @@ run_once() {
     exit 1
   fi
 
-  # 丢弃可能污染 pull 的本地无关改动（仅警告，不强制 reset）
+  # 丢弃可能污染 pull 的本地缓存戳记
+  restore_index_from_git
+
   if [[ -n "$(git status --porcelain)" ]]; then
     log "警告: 工作区有未提交改动，仍尝试 fast-forward pull"
     git status --short | head -20
@@ -156,8 +203,10 @@ run_once() {
 
   if ! has_remote_updates && [[ "$FORCE_API" -eq 0 ]]; then
     log "已与 $REMOTE/$BRANCH 同步，无新提交"
-    # watch 模式下也确认容器在跑
+    # watch 模式下也确认容器在跑；仍戳一次版本，避免旧 ?v= 卡住字体
     docker compose up -d --no-build >/dev/null 2>&1 || true
+    stamp_asset_cache_bust
+    docker compose exec -T web nginx -s reload 2>/dev/null || true
     return 0
   fi
 

@@ -7054,11 +7054,13 @@ i.ph-duotone {
 }
 
 .landing-section--stage {
+  /* Prefer fitting title + shot in one snap viewport; image max-height below keeps panels from overflowing. */
   min-height: calc(100vh - var(--lp-nav-h));
   min-height: calc(100dvh - var(--lp-nav-h));
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 72px 22px 56px;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   box-sizing: border-box;
@@ -7292,8 +7294,9 @@ i.ph-duotone {
 }
 
 .landing-visual-card--shot {
-  max-width: min(720px, 92%);
-  margin-top: 36px;
+  max-width: min(640px, 92%);
+  width: 100%;
+  margin-top: 28px;
   padding: 0;
   background: transparent;
   border: 0;
@@ -7364,12 +7367,15 @@ i.ph-duotone {
 .landing-visual-card--shot picture {
   display: block;
   margin: 0;
+  max-height: min(38vh, 360px);
+  overflow: hidden;
 }
 
 .landing-visual-shot {
   display: block;
   width: 100%;
   height: auto;
+  max-height: min(38vh, 360px);
   object-fit: cover;
   object-position: top center;
 }
@@ -7984,9 +7990,18 @@ i.ph-duotone {
   }
 
   .landing-visual-card--shot {
-    max-width: min(640px, 94%);
-    margin-top: 24px;
+    max-width: min(560px, 94%);
+    margin-top: 20px;
     padding: 0;
+  }
+
+  .landing-section--stage {
+    padding: 56px 16px 40px;
+  }
+
+  .landing-visual-card--shot picture,
+  .landing-visual-shot {
+    max-height: min(34vh, 300px);
   }
 
   .landing-device {
@@ -8573,7 +8588,7 @@ select:focus-visible {
 
 .daily-hero__title {
   font-family: var(--font-display);
-  font-size: clamp(22px, 2.6vw, 28px);
+  font-size: clamp(26px, 3.4vw, 36px);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -10426,6 +10441,12 @@ select:focus-visible {
   letter-spacing: -0.02em;
   line-height: 1.15;
   color: var(--text-primary);
+}
+
+:lang(zh-CN) .chat-hero-title {
+  font-family: 'Noto Serif SC', 'Instrument Serif', 'Songti SC', 'SimSun', serif;
+  letter-spacing: 0.01em;
+  font-synthesis: none;
 }
 
 .chat-hero-lead {

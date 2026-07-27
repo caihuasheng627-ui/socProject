@@ -105,6 +105,21 @@
       if (!dy) return;
 
       const idx = activeIndex();
+      const panel = panels[idx];
+      if (panel) {
+        const rect = panel.getBoundingClientRect();
+        const nav = navOffset();
+        // Tall panels (e.g. feature shots): allow native scroll until the edge, then snap.
+        if (dy > 0 && rect.bottom > window.innerHeight + 12) {
+          wheelAcc = 0;
+          return;
+        }
+        if (dy < 0 && rect.top < nav - 12) {
+          wheelAcc = 0;
+          return;
+        }
+      }
+
       const atLast = idx >= panels.length - 1 && dy > 0;
       const atFirst = idx <= 0 && dy < 0;
       if (atLast || atFirst) {

@@ -45,8 +45,8 @@
   <!-- Phosphor Icons (内嵌 SVG, 不依赖字体加载) -->
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
-  <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260727-strict-qa" />
+  <!-- 自定义样式（?v= 必须随 style.css 内容变更；服务器部署脚本也会用 git short SHA 覆盖） -->
+  <link rel="stylesheet" href="style.css?v=20260727-backend-fonts" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ff6b00'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='6' fill='white'/%3E%3Cline x1='50' y1='14' x2='50' y2='26' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='74' x2='50' y2='86' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='14' y1='50' x2='26' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='74' y1='50' x2='86' y2='50' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
@@ -186,10 +186,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-forecast.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-forecast.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-forecast.jpg"
+                    src="assets/landing/landing-visual-forecast.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -225,10 +225,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-debate.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-debate.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-debate.jpg"
+                    src="assets/landing/landing-visual-debate.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -264,10 +264,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-portfolio.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-portfolio.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-portfolio.jpg"
+                    src="assets/landing/landing-visual-portfolio.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -3454,15 +3454,15 @@
     </div>
   </div>
 
-  <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260727-chat-restore2"></script>
-  <script src="i18n.js?v=20260727-strict-qa"></script>
-  <script src="js/skin-names-zh.js?v=20260727-skinnames"></script>
-  <script src="js/api.js?v=20260727-debate-stream"></script>
-  <script src="js/auth.js?v=20260725-auth"></script>
-  <script src="js/lucide-icons.js?v=20260727-fix"></script>
-  <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
-  <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260727-dual-context"></script>
+  <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源；部署时会用 git SHA 再戳一次） -->
+  <script src="data.js?v=20260727-backend-fonts"></script>
+  <script src="i18n.js?v=20260727-backend-fonts"></script>
+  <script src="js/skin-names-zh.js?v=20260727-backend-fonts"></script>
+  <script src="js/api.js?v=20260727-backend-fonts"></script>
+  <script src="js/auth.js?v=20260727-backend-fonts"></script>
+  <script src="js/lucide-icons.js?v=20260727-backend-fonts"></script>
+  <script src="js/landing-scenes.js?v=20260727-backend-fonts"></script>
+  <script src="js/landing-scroll.js?v=20260727-backend-fonts"></script>
+  <script src="app.js?v=20260727-backend-fonts"></script>
 </body>
 </html>
