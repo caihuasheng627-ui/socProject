@@ -50,6 +50,30 @@ done
 
 log() { echo "[update-deploy $(date '+%F %T')] $*"; }
 
+# API 重建后要等就绪；否则立刻 curl /api 会得到 nginx 502，看起来像整站挂了
+wait_for_api() {
+  local tries="${1:-36}"   # 默认最多约 3 分钟（5s × 36）
+  local i code
+  log "等待 API 就绪（最多 ${tries} 次，每 5s）..."
+  for ((i = 1; i <= tries; i++)); do
+    # 先直接打 API 容器端口，再经 nginx 反代确认
+    if curl -fsS -m 3 "http://127.0.0.1:8000/api/health" >/dev/null 2>&1; then
+      code="$(curl -sS -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:8080/api/health" 2>/dev/null || echo 000)"
+      if [[ "$code" == "200" ]]; then
+        log "API 已就绪（第 ${i} 次，nginx /api/health → HTTP 200）"
+        return 0
+      fi
+      log "API :8000 已通，等待 nginx 反代… (${i}/${tries}, /api → HTTP ${code})"
+    else
+      log "API 仍在启动… (${i}/${tries})"
+    fi
+    sleep 5
+  done
+  log "警告: API 在时限内未就绪。请检查: docker compose logs --tail=80 api"
+  docker compose ps || true
+  return 1
+}
+
 ensure_env() {
   if [[ ! -f backend/.env ]]; then
     cp backend/.env.example backend/.env
@@ -141,6 +165,7 @@ classify_and_deploy() {
   if [[ "$need_api" -eq 1 ]]; then
     log "检测到后端相关变更 → 重建 api（可能较久）..."
     docker compose up -d --build api
+    wait_for_api || true
   fi
 
   if [[ "$need_web_recreate" -eq 1 ]]; then
@@ -166,10 +191,25 @@ classify_and_deploy() {
     log "无需容器操作"
   fi
 
+  # 仅重建了 web、或之前 wait 失败时，再确认一次 API（避免 502 误报）
+  if [[ "$need_api" -eq 0 ]]; then
+    :
+  else
+    curl -fsS -m 3 "http://127.0.0.1:8000/api/health" >/dev/null 2>&1 || wait_for_api || true
+  fi
+
   log "当前状态:"
   docker compose ps
   log "健康检查:"
-  curl -sS -m 5 "http://127.0.0.1:8080/api/health" || curl -sS -m 5 "http://127.0.0.1:8000/api/health" || true
+  page_code="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:8080/" 2>/dev/null || echo err)"
+  api_direct="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:8000/api/health" 2>/dev/null || echo err)"
+  api_proxy="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:8080/api/health" 2>/dev/null || echo err)"
+  echo "  首页 /              → HTTP ${page_code}"
+  echo "  API  :8000/api/health → HTTP ${api_direct}"
+  echo "  反代 /api/health     → HTTP ${api_proxy}"
+  if [[ "$api_proxy" != "200" ]]; then
+    log "若反代仍非 200：API 可能还在启动或崩溃。查看 docker compose logs --tail=80 api"
+  fi
   echo
   log "落地页截图检查:"
   for f in \
