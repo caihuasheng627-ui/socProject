@@ -9986,6 +9986,16 @@ select:focus-visible {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+
+.admin-api-base-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-api-base-row .form-input {
+  flex: 1;
+  min-width: 0;
+}
 .admin-section-label {
   font-size: 13px;
   font-weight: 700;
