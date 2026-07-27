@@ -3398,7 +3398,7 @@ const app = createApp({
       }
       if (best) return best;
 
-      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(raw)) {
+      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个皮肤|这件|当前这[个件]|开始辩论)/i.test(raw)) {
         return selectedSkin.value;
       }
       return null;
@@ -3562,8 +3562,14 @@ const app = createApp({
           '推荐', '选一个', '有哪些', 'recommend', 'suggest',
           '预测', '价格', '走势', '涨跌', '目标价', 'forecast', 'price', 'trend',
         ];
+        const modelPerfWords = [
+          '模型表现', '模型对比', '预测模型', '各个模型', '各模型', '模型实验室',
+          'model comparison', 'model performance', 'models lab', 'model-comparison',
+          'compare models', 'comparison results',
+        ];
         const lowerText = text.toLowerCase();
-        const wantsStructured = structuredWords.some(w => lowerText.includes(w));
+        const isModelPerf = modelPerfWords.some(w => lowerText.includes(w.toLowerCase()));
+        const wantsStructured = !isModelPerf && structuredWords.some(w => lowerText.includes(w));
         const plainQaStream = chatMode.value === 'qa'
           && !requestOptions.action && !requestOptions.skinId
           && !wantsStructured
@@ -3594,12 +3600,16 @@ const app = createApp({
           // 本地先把中英文饰品名解析成 skinId，再交给后端 orchestrator。
           let resolvedSkinId = requestOptions.skinId || null;
           let resolvedSkin = requestOptions.skin || null;
-          if (!resolvedSkinId && !continueActiveDebate) {
+          if (!resolvedSkinId && !continueActiveDebate && !isModelPerf) {
             const localSkin = resolveSkinFromQuery(text);
             if (localSkin) {
               resolvedSkinId = localSkin.id;
               resolvedSkin = resolvedSkin || localSkin;
             }
+          }
+          if (isModelPerf) {
+            resolvedSkinId = null;
+            resolvedSkin = null;
           }
           const orchestratePayload = {
             message: text,
