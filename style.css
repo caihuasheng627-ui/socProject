@@ -7213,11 +7213,70 @@ i.ph-duotone {
 .landing-visual-card--shot {
   max-width: min(960px, 100%);
   padding: 0;
-  background: rgba(8, 8, 12, 0.72);
-  border: 1px solid rgba(255, 140, 64, 0.22);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.landing-visual-card--device {
+  background: transparent;
+}
+
+.landing-device {
+  border-radius: 18px;
+  overflow: hidden;
+  background: #12141a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
     0 28px 70px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.landing-device__chrome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, #23262f 0%, #1a1d24 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.landing-device__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.landing-device__dot--r { background: #ff5f57; }
+.landing-device__dot--y { background: #febc2e; }
+.landing-device__dot--g { background: #28c840; }
+
+.landing-device__url {
+  flex: 1;
+  margin-left: 8px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(242, 239, 233, 0.45);
+  font-family: var(--lp-sans, var(--font-sans));
+  font-size: 11px;
+  line-height: 22px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.landing-device__screen {
+  background: #0a0a10;
 }
 
 .landing-visual-card--shot picture {
@@ -8223,7 +8282,7 @@ select:focus-visible {
 
 .daily-page .daily-hero {
   background:
-    radial-gradient(900px 220px at 50% 0%, var(--accent-orange-glow), transparent 55%),
+    radial-gradient(900px 220px at 0% 0%, var(--accent-orange-glow), transparent 55%),
     var(--daily-glass-bg);
 }
 
@@ -8301,12 +8360,12 @@ select:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  align-self: center;
-  justify-content: center;
+  align-self: flex-start;
+  justify-content: flex-start;
   gap: 10px;
   width: auto;
   max-width: 100%;
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -8354,16 +8413,14 @@ select:focus-visible {
 
 .daily-hero {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  justify-content: space-between;
+  align-items: flex-end;
   gap: 16px;
-  padding: 28px 24px 24px;
+  padding: 18px 20px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-accent);
   background:
-    radial-gradient(900px 220px at 50% 0%, var(--accent-orange-glow), transparent 55%),
+    radial-gradient(900px 220px at 0% 0%, var(--accent-orange-glow), transparent 55%),
     var(--bg-card);
   box-shadow: var(--shadow-sm);
   animation: dailyHeroIn 0.45s ease both;
@@ -8377,20 +8434,20 @@ select:focus-visible {
 .daily-hero__copy {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  max-width: 36em;
+  align-items: flex-start;
+  max-width: 40em;
+  text-align: left;
 }
 
 .daily-hero__eyebrow {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-orange);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   font-weight: 700;
 }
 
@@ -8410,13 +8467,12 @@ select:focus-visible {
 
 .daily-hero__title {
   font-family: var(--font-display);
-  font-size: clamp(28px, 4.2vw, 42px);
+  font-size: clamp(22px, 2.6vw, 28px);
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.15;
-  margin: 0 0 8px;
+  line-height: 1.2;
+  margin: 0 0 4px;
   color: var(--text-primary);
-  text-wrap: balance;
 }
 
 :lang(zh-CN) .daily-hero__title {
@@ -8428,18 +8484,16 @@ select:focus-visible {
 .daily-hero__sub {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 13px;
 }
 
 .daily-hero__sep { margin: 0 6px; color: var(--text-muted); }
 
 .daily-hero__actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 .daily-feature {
@@ -9283,16 +9337,16 @@ select:focus-visible {
 
   .daily-hero {
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 18px 14px;
+    align-items: stretch;
+    text-align: left;
+    padding: 14px;
     background:
-      radial-gradient(520px 160px at 50% 0%, rgba(255, 107, 0, 0.28), transparent 60%),
+      radial-gradient(520px 160px at 0% 0%, rgba(255, 107, 0, 0.28), transparent 60%),
       var(--bg-card);
   }
   .daily-hero__actions {
     width: 100%;
-    justify-content: center;
+    justify-content: flex-start;
   }
   .daily-hero__actions .btn {
     flex: 1;
@@ -9528,10 +9582,10 @@ select:focus-visible {
 @media (max-width: 960px) {
   .daily-hero {
     flex-direction: column;
-    align-items: center;
-    text-align: center;
+    align-items: stretch;
+    text-align: left;
   }
-  .daily-hero__actions { justify-content: center; }
+  .daily-hero__actions { justify-content: flex-start; }
   .daily-kpis,
   .daily-secondary-grid,
   .daily-main-grid,
