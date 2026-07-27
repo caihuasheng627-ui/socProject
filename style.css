@@ -2344,6 +2344,11 @@ body.sidebar-open {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
 }
 
+.portfolio-page .inv-item--menu-open,
+.portfolio-page .inv-item:has(.inv-item__menu) {
+  z-index: 40;
+}
+
 .portfolio-page .inv-item:hover,
 .portfolio-page .inv-item:focus-visible {
   border-color: color-mix(in srgb, var(--accent-orange) 35%, transparent);
@@ -3001,11 +3006,18 @@ body.sidebar-open {
   background: var(--bg-card);
   cursor: pointer;
   overflow: visible;
+  z-index: 0;
   transition: border-color var(--duration-fast) var(--ease-out-expo),
               transform var(--duration-fast) var(--ease-out-expo),
               box-shadow var(--duration-fast) var(--ease-out-expo);
   animation: invItemIn 0.35s var(--ease-out-expo) both;
   animation-delay: var(--inv-delay, 0ms);
+}
+
+/* 打开「⋯」菜单时抬高整张卡片，避免被后面的兄弟卡片盖住 */
+.inv-item--menu-open,
+.inv-item:has(.inv-item__menu) {
+  z-index: 40;
 }
 
 .inv-item:hover,
@@ -3138,6 +3150,7 @@ body.sidebar-open {
   position: relative;
   flex-shrink: 0;
   margin-left: auto;
+  z-index: 1;
 }
 
 .inv-item__more-btn {
@@ -3175,7 +3188,7 @@ body.sidebar-open {
   border: 1px solid var(--border-color);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-  z-index: 30;
+  z-index: 50;
   animation: landingRise 0.18s var(--ease-out-expo) both;
 }
 
