@@ -7211,7 +7211,8 @@ i.ph-duotone {
 }
 
 .landing-visual-card--shot {
-  max-width: min(960px, 100%);
+  max-width: min(720px, 92%);
+  margin-top: 36px;
   padding: 0;
   background: transparent;
   border: 0;
@@ -7902,6 +7903,8 @@ i.ph-duotone {
   }
 
   .landing-visual-card--shot {
+    max-width: min(640px, 94%);
+    margin-top: 24px;
     padding: 0;
   }
 
