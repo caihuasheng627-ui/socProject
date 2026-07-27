@@ -1,7 +1,7 @@
 {
   "date": "2026-07-26",
   "generatedAt": "2026-07-26T20:03:40+00:00",
-  "locale": "en-US",
+  "locale": "zh-CN",
   "metrics": {
     "monitored": 681,
     "gainers": 304,
@@ -44,7 +44,7 @@
       "holdingType": "sim"
     }
   ],
-  "aiSummary": "**CS2 Skin Market Daily Brief**  \nThe market shows mixed signals with 304 gainers vs. 358 losers (7d), indicating slight bearish pressure. Valve's texture/weapon wear reworks [1][2] are driving short-term liquidity spikes, while Major-related stickers may see post-event volatility [3][6]. Weekend trading typically amplifies price swings [4], and high-value items like ★ Driver Gloves | Rezan the Red (Field-Tested) face liquidity risks [5].  \n\n**Portfolio Watch**: Monitor M4A1-S | Emphorosaur-S (Minimal Wear) and MP7 | Fade (Minimal Wear) for weekend liquidity jumps [4]. Valve's updates [2] could impact wear-dependent skins like MAG-7 | Monster Call (Field-Tested). **Risk**: Prices are volatile post-updates; never treat as investment advice. Diversify to mitigate event-driven swings [3][6].",
+  "aiSummary": "【每日简报】  \n受监控的681个皮肤中，7日上涨304个、下跌358个，市场整体偏弱但非单边下行，反映多空拉锯格局。Valve近期更新涉及武器磨损与贴图重做，短期市场流动性上升，相关饰品波动可能加剧[1][2]；同时Major赛后7-14天贴纸成交量通常上升15–30%，但回调风险需留意[3][6]。  \n\n用户持仓中，★ Driver Gloves | Rezan the Red (Field-Tested) 属高价值饰品，近期高价值品流动性有所下降，短期价格波动可能加大，建议关注买卖价差变化[5]。其余如M4A1-S | Emphorosaur-S (Minimal Wear) 等中低价位皮肤受更新影响相对较小，可耐心观察换手率变动。周末成交量常更活跃，但低流动性标的易出现跳价，勿以短期极值锚定成本[4]。  \n\n⚠️ 风险提示：皮肤市场属高波动二级市场，价格受版本更新、赛事、供需等多因素影响，以上分析不构成投资建议，请独立决策。",
   "sources": [
     {
       "type": "news",

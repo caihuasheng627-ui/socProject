@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / "backend" / "data" / "skinvision.db"
 OUT = ROOT / "js" / "skin-names-zh.js"
+OUT_JSON = ROOT / "backend" / "data" / "skin_names_zh.json"
 SRC = (
     "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/"
     "public/api/zh-CN/skins_not_grouped.json"
@@ -111,6 +112,13 @@ def main() -> None:
     )
     OUT.write_text(js, encoding="utf-8")
     print(f"Wrote {OUT.name} bytes={OUT.stat().st_size} names={len(payload)}")
+
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    OUT_JSON.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Wrote {OUT_JSON.relative_to(ROOT)} bytes={OUT_JSON.stat().st_size}")
 
 
 if __name__ == "__main__":

@@ -2110,6 +2110,29 @@ const app = createApp({
       sendMessage(message);
     };
 
+    const debateStageStep = (msg) => {
+      const round = msg?.payload?.debateRound;
+      if (!round?.bull) return 'bull';
+      if (!round?.bear) return 'bear';
+      if (!round?.judge) return 'judge';
+      return 'done';
+    };
+
+    const isDebateInProgress = (msg) => {
+      const round = msg?.payload?.debateRound;
+      if (!round || round.judge) return false;
+      const last = chatMessages.value[chatMessages.value.length - 1];
+      if (msg !== last) return false;
+      return Boolean(msg?.debateStage || chatLoading.value);
+    };
+
+    const debateStageHint = (msg) => {
+      const step = debateStageStep(msg);
+      if (step === 'bear') return t('debate.stage.bear');
+      if (step === 'judge') return t('debate.stage.judge');
+      return t('debate.stage.bull');
+    };
+
     // ============ 行情看板 ============
     const filterCategory = ref('all');
     const skinSearch = ref('');
@@ -3234,32 +3257,131 @@ const app = createApp({
       { hour: '2-digit', minute: '2-digit' }
     );
 
-    const SKIN_ALIASES = [
-      { keys: ['火蛇', 'fireserpent', 'fire serpent', 'ak47-fireserpent'], idHint: 'fireserpent' },
-      { keys: ['龙狙', 'dragonlore', 'dragon lore', 'awp-dragonlore'], idHint: 'dragonlore' },
-      { keys: ['红线', 'redline', 'ak47-redline'], idHint: 'redline' },
-      { keys: ['asiimov', '二西莫夫', 'awp-asiimov'], idHint: 'asiimov' },
-      { keys: ['蝴蝶刀', 'butterfly'], idHint: 'butterfly' },
-      { keys: ['多普勒', 'doppler'], idHint: 'doppler' },
-    ];
+    const WEAR_ZH_TO_EN = {
+      '崭新出厂': 'Factory New',
+      '略有磨损': 'Minimal Wear',
+      '久经沙场': 'Field-Tested',
+      '破损不堪': 'Well-Worn',
+      '战痕累累': 'Battle-Scarred',
+    };
+    const WEAR_PRIORITY = ['Field-Tested', 'Minimal Wear', 'Factory New', 'Well-Worn', 'Battle-Scarred'];
+
+    const normalizeSkinQueryText = (text) => String(text || '')
+      .replace(/[★™（）()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const englishWeaponFromName = (name) => String(name || '')
+      .split('|')[0]
+      .replace(/^(StatTrak™|Souvenir|★)\s*/i, '')
+      .trim();
+
+    const wearRank = (name) => {
+      const match = String(name || '').match(/\(([^)]+)\)\s*$/);
+      const idx = WEAR_PRIORITY.indexOf(match?.[1] || '');
+      return idx >= 0 ? idx : WEAR_PRIORITY.length;
+    };
+
+    const weaponMatchesQuery = (message, enName, weaponZh) => {
+      const msg = String(message || '').toLowerCase();
+      const norm = normalizeSkinQueryText(message).toLowerCase();
+      const weaponEn = englishWeaponFromName(enName).toLowerCase();
+      if (weaponZh && norm.includes(String(weaponZh).toLowerCase())) return true;
+      if (weaponEn && msg.includes(weaponEn)) return true;
+      if (weaponEn.startsWith('m4a1-s') && (norm.includes('m4a1消音版') || msg.includes('m4a1-s'))) return true;
+      if (weaponEn.includes('karambit') && norm.includes('爪子刀')) return true;
+      if (weaponEn.includes('butterfly') && norm.includes('蝴蝶刀')) return true;
+      return false;
+    };
+
+    const parseZhDisplayName = (zhName) => {
+      let text = normalizeSkinQueryText(zhName);
+      let wear = null;
+      const wearMatch = text.match(/\(([^)]+)\)\s*$/);
+      if (wearMatch) {
+        wear = wearMatch[1].trim();
+        text = text.slice(0, wearMatch.index).trim();
+      }
+      if (!text.includes('|')) return { weaponZh: '', skinZh: text, wearZh: wear };
+      const [weaponZh, skinZh] = text.split('|').map(part => part.trim());
+      return { weaponZh, skinZh, wearZh: wear };
+    };
 
     const resolveSkinFromQuery = (query) => {
-      const q = String(query || '').trim().toLowerCase();
+      const raw = String(query || '').trim();
+      const q = raw.toLowerCase();
+      const normQuery = normalizeSkinQueryText(raw);
       const list = skins.value || [];
-      if (!q) return selectedSkin.value || null;
+      if (!raw) return selectedSkin.value || null;
 
       const byId = list.find(s => String(s.id || '').toLowerCase() === q);
       if (byId) return byId;
 
-      for (const alias of SKIN_ALIASES) {
-        if (alias.keys.some(k => q.includes(k))) {
-          const hit = list.find(s => String(s.id || '').toLowerCase().includes(alias.idHint)
-            || String(s.name || '').toLowerCase().includes(alias.idHint));
-          if (hit) return hit;
+      const zhMap = window.SKIN_NAMES_ZH || {};
+      const entries = Object.entries(zhMap).filter(([enName]) =>
+        list.some(s => s.name === enName || String(s.id || '').toLowerCase() === String(enName).toLowerCase())
+      );
+      const findByEn = (enName) => list.find(s => s.name === enName)
+        || list.find(s => String(s.id || '').toLowerCase() === String(enName).toLowerCase());
+
+      const scored = [];
+      for (const [enName, zhName] of entries) {
+        const zhNorm = normalizeSkinQueryText(zhName);
+        if (raw.includes(zhName) || (zhNorm && normQuery.includes(zhNorm))) {
+          scored.push({ enName, score: 3, length: zhNorm.length });
+          continue;
+        }
+        const { weaponZh, skinZh, wearZh } = parseZhDisplayName(zhName);
+        if (!skinZh || !raw.includes(skinZh)) continue;
+        if (!weaponMatchesQuery(raw, enName, weaponZh)) continue;
+        scored.push({
+          enName,
+          score: wearZh && raw.includes(wearZh) ? 2 : 1,
+          length: skinZh.length,
+        });
+      }
+
+      if (!scored.length) {
+        for (const item of SKIN_NICK_ZH) {
+          if (!raw.includes(item.nick)) continue;
+          const family = entries
+            .map(([enName]) => enName)
+            .filter(enName => enName.toLowerCase().includes(String(item.hint).toLowerCase()));
+          for (const enName of family) {
+            scored.push({ enName, score: 2, length: item.nick.length });
+          }
         }
       }
 
-      // 名称子串匹配：优先更长命中
+      if (scored.length) {
+        scored.sort((a, b) => b.score - a.score || b.length - a.length || wearRank(a.enName) - wearRank(b.enName));
+        let candidates = [...new Set(scored.map(item => item.enName))];
+        const mentionedWeapons = candidates
+          .map(englishWeaponFromName)
+          .filter(weapon => weapon && raw.toLowerCase().includes(weapon.toLowerCase()));
+        if (mentionedWeapons.length) {
+          const weaponSet = new Set(mentionedWeapons.map(w => w.toLowerCase()));
+          const filtered = candidates.filter(name => weaponSet.has(englishWeaponFromName(name).toLowerCase()));
+          if (filtered.length) candidates = filtered;
+        }
+        for (const wearZh of Object.keys(WEAR_ZH_TO_EN)) {
+          if (!raw.includes(wearZh)) continue;
+          const wearEn = WEAR_ZH_TO_EN[wearZh];
+          const filtered = candidates.filter(name => name.includes(`(${wearEn})`));
+          if (filtered.length) {
+            candidates = filtered;
+            break;
+          }
+        }
+        const weapons = [...new Set(candidates.map(englishWeaponFromName))];
+        const chosenEn = weapons.length === 1
+          ? candidates.slice().sort((a, b) => wearRank(a) - wearRank(b))[0]
+          : candidates[0];
+        const hit = findByEn(chosenEn);
+        if (hit) return hit;
+      }
+
+      // English / slug substring match
       let best = null;
       let bestScore = 0;
       for (const s of list) {
@@ -3276,13 +3398,9 @@ const app = createApp({
       }
       if (best) return best;
 
-      // 泛化请求 + 已选饰品
-      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(q)) {
+      if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(raw)) {
         return selectedSkin.value;
       }
-      // 不再用 selectedSkin 兜底——用户新问"AWP 西莫夫"时若 best 为 null，
-      // 表示该输入与已有皮肤不匹配，必须交给后端重新解析，而不是悄悄套上
-      // 上次点击的皮肤。
       return null;
     };
 
@@ -3473,26 +3591,21 @@ const app = createApp({
             || (chatMode.value === 'debate'
               ? (continueActiveDebate ? 'auto' : 'debate')
               : 'qa');
-          // 辩论模式下先在本地把皮肤名解析成 skinId（忽略 ★/™ 前缀差异），
-          // 否则后端按完整子串匹配会因缺少星号而找不到皮肤。
+          // 本地先把中英文饰品名解析成 skinId，再交给后端 orchestrator。
           let resolvedSkinId = requestOptions.skinId || null;
-          if (!resolvedSkinId && chatMode.value === 'debate' && !continueActiveDebate) {
-            const normalizeSkinText = (s) => String(s || '')
-              .replace(/[★™]/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim();
-            const normText = normalizeSkinText(text);
-            const hit = (skins.value || [])
-              .filter((s) => {
-                const n = normalizeSkinText(s.name);
-                return n && (n === normText || normText.includes(n));
-              })
-              .sort((a, b) => normalizeSkinText(b.name).length - normalizeSkinText(a.name).length)[0];
-            if (hit) resolvedSkinId = hit.id;
+          let resolvedSkin = requestOptions.skin || null;
+          if (!resolvedSkinId && !continueActiveDebate) {
+            const localSkin = resolveSkinFromQuery(text);
+            if (localSkin) {
+              resolvedSkinId = localSkin.id;
+              resolvedSkin = resolvedSkin || localSkin;
+            }
           }
           const orchestratePayload = {
             message: text,
             action,
             skinId: resolvedSkinId,
-            skin: requestOptions.skin || null,
+            skin: resolvedSkin,
             sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
             targetAgent: null,
             budget: requestOptions.budget ?? (chatBudget.value ? Number(chatBudget.value) : null),
@@ -3527,11 +3640,15 @@ const app = createApp({
             await client.debateStream(orchestratePayload, (evt) => {
               if (evt.event === 'stage') {
                 chatStreaming.value = true;
+                assistantMsg.debateStage = evt.agent || 'bull';
                 ensureLiveRound(evt.roundNo);
                 assistantMsg.content = stageText[evt.agent] || stageText.bull;
                 scrollChatBottom();
               } else if (evt.event === 'agent') {
                 chatStreaming.value = true;
+                assistantMsg.debateStage = evt.agent === 'bull'
+                  ? 'bear'
+                  : (evt.agent === 'bear' ? 'judge' : null);
                 const liveRound = ensureLiveRound(evt.roundNo);
                 if (evt.roundNo) liveRound.roundNo = evt.roundNo;
                 liveRound[evt.agent] = evt.opinion;
@@ -3558,6 +3675,7 @@ const app = createApp({
           assistantMsg.content = response.message;
           assistantMsg.kind = response?.type || 'chat';
           assistantMsg.payload = response || null;
+          assistantMsg.debateStage = null;
           assistantMsg.model = responseModelLabel(response);
           // 辩论降级/错误反馈
           if (response?.error) {
@@ -5578,7 +5696,7 @@ const app = createApp({
       chatMode, setChatMode,
       chatAgentSession, chatBudget, chatRiskLevel,
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
-      debateTotalRounds, copyDebateResult,
+      debateTotalRounds, copyDebateResult, isDebateInProgress, debateStageHint, debateStageStep,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
       dailyTab, setDailyTab, dailySourcesOpen,

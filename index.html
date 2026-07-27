@@ -1542,6 +1542,19 @@
                       <div><strong>{{ t('debate.newInput') }}</strong><p>{{ msg.payload.debateRound.userMessage }}</p></div>
                     </div>
 
+                    <div v-if="isDebateInProgress(msg)" class="debate-live-hints">
+                      <div class="debate-live-hints-head">
+                        <span class="debate-live-dot" aria-hidden="true"></span>
+                        <strong>{{ t('debate.stage.label') }}</strong>
+                      </div>
+                      <div class="debate-stage-track" role="status" :aria-label="debateStageHint(msg)">
+                        <span class="debate-stage-step" :class="{ active: debateStageStep(msg) === 'bull', done: msg.payload.debateRound.bull }">1 · Bull · {{ t('debate.stage.bull.short') }}</span>
+                        <span class="debate-stage-step" :class="{ active: debateStageStep(msg) === 'bear', done: msg.payload.debateRound.bear }">2 · Bear · {{ t('debate.stage.bear.short') }}</span>
+                        <span class="debate-stage-step" :class="{ active: debateStageStep(msg) === 'judge', done: msg.payload.debateRound.judge }">3 · Judge · {{ t('debate.stage.judge.short') }}</span>
+                      </div>
+                      <p class="debate-stage-copy">{{ debateStageHint(msg) }}</p>
+                    </div>
+
                     <div class="debate-flow-line"></div>
                     <article v-if="msg.payload.debateRound.bull" class="debate-turn bull-turn">
                       <div class="debate-turn-head">
@@ -1671,11 +1684,12 @@
                       </div>
                     </details>
 
-                    <div class="debate-quick-actions">
-                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.aggressivePrompt'))">{{ t('debate.quick.aggressive') }}</button>
-                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.safePrompt'))">{{ t('debate.quick.safe') }}</button>
-                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.liquidityPrompt'))">{{ t('debate.quick.liquidity') }}</button>
-                      <button class="btn btn-secondary btn-sm" @click="continueDebate(t('debate.quick.judgePrompt'))">{{ t('debate.quick.judge') }}</button>
+                    <div class="debate-quick-actions" :class="{ 'debate-quick-actions--pending': isDebateInProgress(msg) }">
+                      <p v-if="isDebateInProgress(msg)" class="debate-quick-hint">{{ t('debate.quick.pendingHint') }}</p>
+                      <button class="btn btn-secondary btn-sm" :disabled="chatLoading" @click="continueDebate(t('debate.quick.aggressivePrompt'))">{{ t('debate.quick.aggressive') }}</button>
+                      <button class="btn btn-secondary btn-sm" :disabled="chatLoading" @click="continueDebate(t('debate.quick.safePrompt'))">{{ t('debate.quick.safe') }}</button>
+                      <button class="btn btn-secondary btn-sm" :disabled="chatLoading" @click="continueDebate(t('debate.quick.liquidityPrompt'))">{{ t('debate.quick.liquidity') }}</button>
+                      <button class="btn btn-secondary btn-sm" :disabled="chatLoading" @click="continueDebate(t('debate.quick.judgePrompt'))">{{ t('debate.quick.judge') }}</button>
                     </div>
                   </div>
                   </template>
@@ -1700,6 +1714,14 @@
                     <div class="chat-loading-copy">
                       <strong>{{ chatMode === 'debate' ? t('chat.debateLoading') : t('chat.aiLoading') }}</strong>
                       <span>{{ chatMode === 'debate' ? t('chat.preload') : t('chat.preloadQa') }}</span>
+                      <p v-if="chatMode === 'debate'" class="debate-stage-copy debate-loading-stage">{{ t('debate.stage.bull') }}</p>
+                      <div v-if="chatMode === 'debate'" class="debate-quick-actions debate-quick-actions--pending">
+                        <p class="debate-quick-hint">{{ t('debate.quick.pendingHint') }}</p>
+                        <button class="btn btn-secondary btn-sm" disabled>{{ t('debate.quick.aggressive') }}</button>
+                        <button class="btn btn-secondary btn-sm" disabled>{{ t('debate.quick.safe') }}</button>
+                        <button class="btn btn-secondary btn-sm" disabled>{{ t('debate.quick.liquidity') }}</button>
+                        <button class="btn btn-secondary btn-sm" disabled>{{ t('debate.quick.judge') }}</button>
+                      </div>
                     </div>
                   </div>
                 </div>

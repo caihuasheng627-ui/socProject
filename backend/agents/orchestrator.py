@@ -184,6 +184,24 @@ def _default_skin_resolver(message: str, explicit_skin_id: str | None) -> dict[s
             or str(row["slug"] or "").lower() in lowered
         ]
         if not matches:
+            from .skin_localization import resolve_chinese_skin
+
+            def build_candidate(row, *, ambiguous: bool = False) -> dict[str, Any]:
+                price, _ = latest_price(connection, row["id"])
+                candidate = {
+                    "skinId": row["slug"],
+                    "name": row["market_hash_name"],
+                    "price": round(price, 2) if price is not None else None,
+                }
+                if ambiguous:
+                    candidate["category"] = weapon_to_category(
+                        row["weapon_type"] or row["market_hash_name"] or ""
+                    )
+                return candidate
+
+            zh_result = resolve_chinese_skin(message, rows, build_candidate=build_candidate)
+            if zh_result:
+                return zh_result
             weapon_aliases = (
                 "ak-47", "m4a1-s", "m4a4", "awp", "glock-18", "usp-s",
                 "desert eagle", "p250", "mp9", "mac-10", "galil ar", "famas",
