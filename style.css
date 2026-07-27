@@ -94,8 +94,8 @@
   --border-accent:  rgba(40, 32, 24, 0.16);
 
   --text-primary:   #1c1915;
-  --text-secondary: #5a534a;
-  --text-muted:     #857c70;
+  --text-secondary: #4a433b;
+  --text-muted:     #6a6158;
 
   --accent-orange:       #a65a24;
   --accent-orange-light: #c96a2b;
@@ -198,6 +198,33 @@ body::before {
   -webkit-backdrop-filter: saturate(160%) blur(18px);
 }
 
+[data-theme="light"] .sidebar {
+  background: #e8e2d6;
+  border-right-color: rgba(40, 32, 24, 0.14);
+}
+
+[data-theme="light"] .sidebar .nav-item {
+  color: #4a433b;
+}
+
+[data-theme="light"] .sidebar .nav-item:hover,
+[data-theme="light"] .sidebar .nav-item.active {
+  color: #1c1915;
+}
+
+[data-theme="light"] .sidebar .nav-item .nav-icon-svg {
+  color: #5a534a !important;
+}
+
+[data-theme="light"] .sidebar .nav-item:hover .nav-icon-svg,
+[data-theme="light"] .sidebar .nav-item.active .nav-icon-svg {
+  color: var(--accent-orange) !important;
+}
+
+[data-theme="light"] .sidebar-footer {
+  color: #5c5349;
+}
+
 .sidebar-header {
   padding: 22px 20px 18px;
   border-bottom: 1px solid var(--border-color);
@@ -218,7 +245,16 @@ body::before {
   align-items: center;
   justify-content: center;
   box-shadow: 0 6px 20px var(--accent-orange-glow);
+  /* Dark glyph on orange tile — high contrast in both themes */
   color: #1a120a;
+  flex-shrink: 0;
+}
+
+.logo-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  color: inherit;
 }
 
 .logo-text {
@@ -236,10 +272,18 @@ body::before {
 
 .logo-subtitle {
   font-size: 10px;
-  color: var(--text-muted);
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+[data-theme="light"] .logo-title {
+  color: #14110e;
+}
+
+[data-theme="light"] .logo-subtitle {
+  color: #5c5349;
 }
 
 .nav-menu {
@@ -282,13 +326,13 @@ body::before {
 
 [data-theme="light"] .nav-glass-pill {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.12) 100%),
-    color-mix(in srgb, var(--bg-elevated) 40%, transparent);
-  border-color: rgba(40, 32, 24, 0.1);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 252, 247, 0.82) 100%),
+    color-mix(in srgb, var(--accent-orange) 10%, #fff8f0);
+  border-color: rgba(40, 32, 24, 0.18);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.4) inset,
-    0 6px 16px rgba(40, 32, 24, 0.08),
-    0 0 0 1px color-mix(in srgb, var(--accent-orange) 8%, transparent);
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 4px 14px rgba(40, 32, 24, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--accent-orange) 22%, transparent);
 }
 
 .nav-glass-pill::before {
@@ -3558,15 +3602,19 @@ i.ph-duotone {
   color: var(--accent-orange) !important;
 }
 
-/* 婵€娲绘€? 鑳屾櫙鏄鑹叉笎鍙?鍥炬爣蹇呴』鐢ㄧ櫧鑹叉墠鑳界湅娓?*/
+/* 婵€娲绘€? 鏆楄壊妯″紡鍥炬爣鐢ㄧ櫧鑹查拡瀵圭鑹叉笎鍙?*/
 .nav-item.active .nav-icon-svg {
   color: #ffffff !important;
 }
 
-/* Logo 鍥炬爣 */
+[data-theme="light"] .nav-item.active .nav-icon-svg {
+  color: var(--accent-orange) !important;
+}
+
+/* Logo 鍥炬爣 — keep dark glyph on orange tile (do not recolor to accent) */
 .logo-icon {
-  font-size: 28px;
-  color: var(--accent-orange);
+  font-size: 22px;
+  color: #1a120a;
   display: flex;
   align-items: center;
   justify-content: center;
