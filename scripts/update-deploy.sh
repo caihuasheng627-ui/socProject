@@ -95,7 +95,7 @@ classify_and_deploy() {
       docker-compose.yml|deploy/nginx-default.conf|deploy/*)
         need_web_recreate=1
         ;;
-      index.html|app.js|style.css|data.js|i18n.js|js/*)
+      index.html|app.js|style.css|data.js|i18n.js|js/*|assets/*|assets/**)
         need_web_reload=1
         ;;
       scripts/update-deploy.sh|scripts/deploy.sh|README.md|*.md)
@@ -109,6 +109,14 @@ classify_and_deploy() {
 
   if [[ "$need_api" -eq 1 ]]; then
     need_web_recreate=1
+  fi
+
+  # 若 assets 目录存在但容器内挂载为空（旧 compose），强制 recreate web
+  if [[ -d "$ROOT/assets/landing" ]] && docker compose ps --status running -q web >/dev/null 2>&1; then
+    if ! docker compose exec -T web test -f /usr/share/nginx/html/assets/landing/landing-visual-forecast.jpg 2>/dev/null; then
+      log "容器内缺少 landing 截图 → 强制 recreate web（检查 assets volume 挂载）"
+      need_web_recreate=1
+    fi
   fi
 
   if [[ "$need_api" -eq 1 ]]; then
@@ -138,6 +146,15 @@ classify_and_deploy() {
   log "健康检查:"
   curl -sS -m 5 "http://127.0.0.1:8080/api/health" || curl -sS -m 5 "http://127.0.0.1:8000/api/health" || true
   echo
+  log "落地页截图检查:"
+  for f in \
+    assets/landing/landing-visual-forecast.jpg \
+    assets/landing/landing-visual-debate.jpg \
+    assets/landing/landing-visual-portfolio.jpg
+  do
+    code="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:8080/$f" || echo err)"
+    echo "  /$f → HTTP $code"
+  done
 }
 
 run_once() {
