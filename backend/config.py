@@ -57,7 +57,19 @@ JUDGE_TEMPERATURE = float(os.getenv("JUDGE_TEMPERATURE", "0.2"))
 DEBATE_ROUNDS = int(os.getenv("DEBATE_ROUNDS", "3"))
 
 # ---------- JWT / 认证 ----------
-JWT_SECRET = os.getenv("JWT_SECRET", "skinvision-dev-secret-change-me")
+# .env.example 里常写 JWT_SECRET=（空值）。os.getenv 在键存在时会返回 ""，
+# 不会落到默认值，导致 PyJWT: HMAC key must not be empty。空白一律当未配置。
+_JWT_SECRET_DEFAULT = "skinvision-dev-secret-change-me"
+
+
+def resolve_jwt_secret(value: str | None = None) -> str:
+    """把空/空白 JWT_SECRET 当成未配置，回退到开发默认值。"""
+    if value is None:
+        value = os.getenv("JWT_SECRET")
+    return (value or "").strip() or _JWT_SECRET_DEFAULT
+
+
+JWT_SECRET = resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "7"))
 # 内置 demo 用户(拥有 6 件种子持仓,Expo 演示免注册)

@@ -107,6 +107,17 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ============================================================
 # JWT
 # ============================================================
+def _require_jwt_secret() -> str:
+    secret = (JWT_SECRET or "").strip()
+    if not secret:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "服务器 JWT_SECRET 为空，无法签发/校验 token。"
+            "请在 backend/.env 设置非空 JWT_SECRET（或删除该行以用开发默认值）后重启 API。",
+        )
+    return secret
+
+
 def create_access_token(user_id: int, username: str, is_admin: bool = False) -> tuple[str, int]:
     """签发 JWT,返回 (token, expires_in_seconds)。"""
     now = datetime.now(timezone.utc)
@@ -118,15 +129,17 @@ def create_access_token(user_id: int, username: str, is_admin: bool = False) -> 
         "iat": now,
         "exp": now + expire_delta,
     }
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = jwt.encode(payload, _require_jwt_secret(), algorithm=JWT_ALGORITHM)
     return token, int(expire_delta.total_seconds())
 
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return jwt.decode(token, _require_jwt_secret(), algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token 已过期")
+    except HTTPException:
+        raise
     except jwt.InvalidTokenError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "无效 token")
 
