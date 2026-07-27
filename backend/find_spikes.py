@@ -78,7 +78,7 @@ def main():
         dates = [r["date"] for r in rows]
         prices = [r["price"] for r in rows]
 
-        # 阈值：特殊图案 5x，普通 >$10 用 2.0x，<=$10 用 3.5x
+        # 阈值：特殊图案默认 5x；若前后邻点稳定且当日相对邻点 ≥4.5x（闪崩尖刺），仍按 4.5x 抓
         avg_price = statistics.median(prices)
         if is_special(skin["market_hash_name"]):
             threshold = 5.0
@@ -88,6 +88,12 @@ def main():
             threshold = 3.5
 
         spikes = find_spikes(prices, dates, threshold)
+        # 补抓特殊图案的近阈值闪崩（与 price_cleaning snapback 对齐）
+        if is_special(skin["market_hash_name"]):
+            flash = find_spikes(prices, dates, 4.5)
+            for item in flash:
+                if item not in spikes:
+                    spikes.append(item)
         for date, spike_price, reason in spikes:
             # 跳过已经标记的
             row = next((r for r in rows if r["date"] == date), None)

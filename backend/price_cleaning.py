@@ -158,7 +158,17 @@ def clean_price_points(
 
         neighbour_price = math.sqrt(previous * following)
         deviation = max(current / neighbour_price, neighbour_price / current)
-        if deviation < threshold:
+
+        # 特殊图案用 5x 保护真实溢价；但「单日冲高、次日立刻回到邻点量级」
+        # 且偏离 ≥4.5x 仍视为脏点（Ursus Case Hardened 200→934→192 ≈4.8x 曾漏检；
+        # 3.9x 级溢价仍保留，见 test_pattern_finish_uses_stricter_threshold）。
+        snapback = (
+            neighbour_ratio <= 1.15
+            and max(current / previous, previous / current) >= 3.0
+            and max(current / following, following / current) >= 3.0
+        )
+        effective_threshold = 4.5 if snapback else threshold
+        if deviation < effective_threshold:
             continue
 
         candidates[index] = neighbour_price
