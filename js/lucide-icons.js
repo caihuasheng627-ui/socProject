@@ -53,6 +53,8 @@ window.LucideIcons = {
   // ============ 趋势 ============
   'trending-up': '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
   'trending-down': '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
+  'arrow-down-wide-narrow': '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/>',
+  'arrow-up-narrow-wide': '<path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/>',
   'candlestick': '<path d="M5 3v18"/><path d="M19 9V3"/><rect x="3" y="9" width="4" height="6"/><rect x="13" y="3" width="4" height="18"/><rect x="17" y="11" width="4" height="6"/>',
   'book': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
   'keyboard': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M6 12h.01"/><path d="M10 12h.01"/><path d="M14 12h.01"/><path d="M18 12h.01"/><path d="M7 16h10"/>',
@@ -120,6 +122,7 @@ window.ph2lucide = {
   'clipboard-text': 'clipboard-list',
   'cpu': 'cpu',
   'cube': 'cpu',
+  'target': 'target',
   'heartbeat': 'activity',
   'sliders-horizontal': 'sliders-horizontal',
 
@@ -132,6 +135,12 @@ window.ph2lucide = {
   'info': 'info',
   'arrow-up': 'trending-up',
   'arrow-down': 'trending-down',
+
+  // 排序方向
+  'sort-descending': 'arrow-down-wide-narrow',
+  'sort-ascending': 'arrow-up-narrow-wide',
+  'arrows-down-up': 'arrow-down-wide-narrow',
+  'arrows-up-down': 'arrow-up-narrow-wide',
 
   // 按钮
   'plus': 'plus',

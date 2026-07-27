@@ -51,7 +51,10 @@ from inventory_forecast import aggregate_inventory_forecast
 import llm
 import quotes as quotes_svc
 import settings_store
-from agents import AIOrchestrator, AgentSessionService, SessionNotFoundError, UserProfile
+from agents.orchestrator import AIOrchestrator
+from agents.session_service import AgentSessionService
+from agents.session_store import SessionNotFoundError
+from agents.schemas import UserProfile
 
 # ---------- 启动初始化 ----------
 ensure_dirs()
@@ -59,39 +62,6 @@ run_init()
 import settings_store
 settings_store.apply_runtime_settings()
 _loader = get_loader()
-
-
-def _ai_runtime_metadata(
-    execution: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Expose configuration separately from the outcome of the current call."""
-
-    execution = execution or llm.get_execution_status()
-    llm_mode = execution["mode"]
-    hybrid_mode = "live" if _loader.tf_available else "mock"
-    return {
-        "llm": {
-            "mode": llm_mode,
-            "enabled": LLM_ENABLED,
-            "configured": LLM_ENABLED,
-            "provider": "DeepSeek" if LLM_ENABLED else "Local",
-            "model": DEEPSEEK_MODEL if LLM_ENABLED else "template-fallback",
-            "calls": execution.get("calls", 0),
-            "liveCalls": execution.get("liveCalls", 0),
-            "fallbackCalls": execution.get("fallbackCalls", 0),
-            "lastError": execution.get("lastError"),
-        },
-        "agents": {
-            "mode": llm_mode,
-            "bullModel": BULL_MODEL if LLM_ENABLED else "bull-rule-fallback",
-            "bearModel": BEAR_MODEL if LLM_ENABLED else "bear-rule-fallback",
-            "judgeModel": JUDGE_MODEL if LLM_ENABLED else "judge-rule-fallback",
-        },
-        "hybrid": {
-            "mode": hybrid_mode,
-            "model": "trained-hybrid" if _loader.tf_available else "trend-fallback",
-        },
-    }
 
 app = FastAPI(title="SkinVision AI API", version="1.1.0",
               description="CS2 饰品 AI 智能分析平台后端(组员 3)")
@@ -124,20 +94,6 @@ class ChatReq(BaseModel):
     message: str
     sessionId: str | None = None
     context: dict | None = None
-    locale: Literal["zh-CN", "en-US"] = "zh-CN"
-
-
-class AIOrchestratorReq(BaseModel):
-    message: str
-    action: Literal["auto", "recommend", "predict", "debate", "chat"] = "auto"
-    skinId: str | None = None
-    sessionId: str | None = None
-    targetAgent: Literal["bull", "bear", "judge"] | None = None
-    budget: float | None = None
-    horizonDays: Literal[7, 30] = 7
-    riskLevel: Literal["low", "medium", "high"] = "medium"
-    history: list[dict[str, str]] | None = None
-    locale: Literal["zh-CN", "en-US"] = "zh-CN"
 
 
 class PortfolioReq(BaseModel):
@@ -170,27 +126,6 @@ class AlertReq(BaseModel):
     note: str | None = None
 
 
-class AgentSessionCreateReq(BaseModel):
-    skinId: str
-    budget: float | None = None
-    horizonDays: int = 7
-    riskLevel: Literal["low", "medium", "high"] = "medium"
-    rounds: int = 1
-    locale: Literal["zh-CN", "en-US"] = "zh-CN"
-
-
-class AgentSessionMessageReq(BaseModel):
-    message: str
-    targetAgent: Literal["bull", "bear", "judge"]
-    locale: Literal["zh-CN", "en-US"] = "zh-CN"
-
-
-class AgentSessionRoundReq(BaseModel):
-    message: str
-    locale: Literal["zh-CN", "en-US"] = "zh-CN"
-
-
-
 class AuthReq(BaseModel):
     username: str
     password: str
@@ -210,6 +145,44 @@ class AdminConfigReq(BaseModel):
     ragEmbedModel: str | None = None
     ragEmbedDim: int | None = None
     ragUseVector: bool | None = None
+
+
+class AIOrchestratorReq(BaseModel):
+    message: str
+    action: Literal["auto", "recommend", "predict", "debate", "chat"] = "auto"
+    skinId: str | None = None
+    sessionId: str | None = None
+    targetAgent: Literal["bull", "bear", "judge"] | None = None
+    budget: float | None = None
+    horizonDays: Literal[7, 30] = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    history: list[dict[str, str]] | None = None
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AITranslationReq(BaseModel):
+    content: Any
+    targetLocale: Literal["zh-CN", "en-US"]
+
+
+class AgentSessionCreateReq(BaseModel):
+    skinId: str
+    budget: float | None = None
+    horizonDays: int = 7
+    riskLevel: Literal["low", "medium", "high"] = "medium"
+    rounds: int = 1
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionMessageReq(BaseModel):
+    message: str
+    targetAgent: Literal["bull", "bear", "judge"]
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class AgentSessionRoundReq(BaseModel):
+    message: str
+    locale: Literal["zh-CN", "en-US"] = "zh-CN"
 
 
 # ============================================================
@@ -246,6 +219,7 @@ def _skin_to_dict(conn, row) -> dict:
         "volume24h": vol24,
         "liquidity": liquidity,
         "rarity": row["rarity_rank"],
+        "rarityName": row["rarity"] or "",
         "image": "🎮",
         # Steam CDN 饰品主图 base URL(无尺寸后缀);前端拼 /360fx360f 显示,缺失回落 emoji
         "imageUrl": row["image_url"] or None,
@@ -417,21 +391,15 @@ def entry_range(req: EntryRangeReq):
 @app.post("/api/chat")
 async def chat(req: ChatReq):
     def gen():
-        language = "English" if req.locale == "en-US" else "Simplified Chinese"
-        messages = [
-            {"role": "system", "content": f"Always answer in {language}."},
-            {"role": "user", "content": req.message},
-        ]
+        messages = [{"role": "user", "content": req.message}]
         for ch in llm.chat_stream(messages):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
-        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'mock'})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'unavailable'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.post("/api/ai/orchestrate")
 def orchestrate_ai(req: AIOrchestratorReq):
-    """Single AI Chat entry point for recommendation, prediction and debate."""
-
     llm.reset_execution_status()
     service = AIOrchestrator(
         prediction_loader=lambda skin_id, horizon: predict(
@@ -451,11 +419,121 @@ def orchestrate_ai(req: AIOrchestratorReq):
             history=req.history,
             locale=req.locale,
         )
-        result["runtime"] = _ai_runtime_metadata(llm.get_execution_status())
+        execution = llm.get_execution_status()
+        # Never label a configured API key as a successful provider call.
+        agent_mode = "live" if execution["liveCalls"] else (
+            "degraded" if execution["fallbackCalls"] else "configured"
+        )
+        agent_session = result.get("agentSession") or {}
+        snapshot = agent_session.get("marketSnapshot") or {}
+        hybrid = snapshot.get("hybrid_prediction") or snapshot.get("hybridPrediction") or {}
+        hybrid_mode = "unavailable" if hybrid.get("degraded") else "live"
+        if result.get("type") == "prediction":
+            hybrid_mode = "live"
+        result["runtime"] = {
+            "llm": {**execution, "provider": "DeepSeek", "model": DEEPSEEK_MODEL},
+            "agents": {
+                "mode": agent_mode,
+                "bullModel": BULL_MODEL,
+                "bearModel": BEAR_MODEL,
+                "judgeModel": JUDGE_MODEL,
+            },
+            "hybrid": {"mode": hybrid_mode, "model": hybrid.get("model")},
+        }
         return result
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.post("/api/ai/translate")
+def translate_ai_content(req: AITranslationReq):
+    """Translate existing chat/debate output without generating a mock reply."""
+    try:
+        return {"content": llm.translate_content(req.content, req.targetLocale)}
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+# Legacy debate endpoint is intentionally retained for the original card ->
+# debate flow.  It is fast by default (seeded/deterministic evidence mode); a
+# caller must explicitly opt into provider-backed live execution.
+@app.post("/api/debate/{skin_id}")
+def debate(
+    skin_id: str,
+    mode: str = "bull_bear",
+    live: bool = False,
+    budget: float | None = Query(default=None, gt=0),
+    riskLevel: Literal["low", "medium", "high"] = Query(default="medium"),
+    horizon: Literal[7] = Query(default=7),
+    rounds: int | None = Query(default=None, ge=1, le=5),
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+):
+    return agent_debate.debate(
+        skin_id,
+        live=live,
+        mode=mode,
+        budget=budget,
+        risk_level=riskLevel,
+        horizon_days=horizon,
+        rounds=rounds,
+        locale=locale,
+    )
+
+
+@app.post("/api/agent/sessions")
+def create_agent_session(req: AgentSessionCreateReq):
+    try:
+        profile = UserProfile(
+            budget=req.budget,
+            horizon_days=req.horizonDays,
+            risk_level=req.riskLevel,
+            locale=req.locale,
+        )
+        return AgentSessionService().create(
+            req.skinId,
+            user_profile=profile,
+            rounds=req.rounds,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/agent/sessions/{session_id}")
+def get_agent_session(session_id: str):
+    try:
+        return AgentSessionService().get(session_id)
     except SessionNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
-    except LookupError as exc:
+
+
+@app.post("/api/agent/sessions/{session_id}/message")
+def send_agent_session_message(session_id: str, req: AgentSessionMessageReq):
+    try:
+        return AgentSessionService().send_message(
+            session_id,
+            message=req.message,
+            target_agent=req.targetAgent,
+            locale=req.locale,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/agent/sessions/{session_id}/round")
+def run_agent_session_round(session_id: str, req: AgentSessionRoundReq):
+    try:
+        return AgentSessionService().run_round(
+            session_id, message=req.message, locale=req.locale
+        )
+    except SessionNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -610,10 +688,10 @@ def health_check_payload() -> dict:
         n_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     from config import LLM_ENABLED as _llm_on
     models_status = {
-        "lstm_hybrid": "ok" if _loader.tf_available else "mock",
-        "gru": "ok" if _loader.tf_available else "mock",
+        "lstm_hybrid": "ok" if _loader.tf_available else "unavailable",
+        "gru": "ok" if _loader.tf_available else "unavailable",
         "trees": "ok",
-        "deepseek": "ok" if _llm_on else "mock",
+        "deepseek": "ok" if _llm_on else "unavailable",
         "rag": rag.vector_status().get("mode", "keyword"),
     }
     status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"
@@ -624,7 +702,6 @@ def health_check_payload() -> dict:
                         "users": n_users, "buff_live": USE_BUFF_LIVE},
         "models": models_status,
         "rag": rag.vector_status(),
-        "aiRuntime": _ai_runtime_metadata(),
         "timestamp": _utcnow().isoformat(),
     }
 
@@ -905,11 +982,21 @@ def inventory_value_history(days: int = 90, current_user: dict = Depends(get_cur
 # 🆕 P1:组合诊断(需登录)
 # ============================================================
 @app.post("/api/portfolio/diagnose")
-def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
-    """只诊断模拟持仓(sim)。空仓返回 empty 标记,不抛 400。"""
-    result = portfolio_diagnose.diagnose(user_id=current_user["id"], holding_type="sim")
+def diagnose_portfolio(
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+    current_user: dict = Depends(get_current_user_optional),
+):
+    """只诊断模拟持仓(sim)。空仓返回 empty 标记,不抛 400。locale 控制 AI 总结语言。"""
+    result = portfolio_diagnose.diagnose(
+        user_id=current_user["id"], holding_type="sim", locale=locale,
+    )
     if result.get("empty") or "error" in result:
-        msg = result.get("error") or "模拟持仓为空,请先添加持仓"
+        english = str(locale or "").lower().startswith("en")
+        msg = result.get("error") or (
+            "Paper portfolio is empty — add holdings first"
+            if english
+            else "模拟持仓为空，请先添加持仓"
+        )
         return {
             "empty": True,
             "summary": msg,
@@ -918,6 +1005,7 @@ def diagnose_portfolio(current_user: dict = Depends(get_current_user_optional)):
             "valueRange": None,
             "adjustments": [],
             "riskTopN": [],
+            "locale": "en-US" if english else "zh-CN",
         }
     return result
 
@@ -983,13 +1071,17 @@ def fetch_news(aggressive: bool = Query(default=True)):
     return {"ok": True, **result}
 
 @app.get("/api/daily-report")
-def daily_report(date: str | None = None, refresh: bool = False):
+def daily_report(
+    date: str | None = None,
+    refresh: bool = False,
+    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
+):
     # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；
-    # aiSummary 若是旧的 Mock/调用失败文案，则现场刷新（LLM 可用则重生成）。
+    # aiSummary 若是旧的 Mock/调用失败文案，或与请求 locale 不符，则现场刷新。
     # refresh=1 时强制重新生成整份日报（「重新生成」按钮）。
     import scheduler
     if refresh:
-        return scheduler.generate_daily_report()
+        return scheduler.generate_daily_report(locale=locale)
 
     live_metrics = scheduler.market_metrics_from_db()
 
@@ -1004,18 +1096,26 @@ def daily_report(date: str | None = None, refresh: bool = False):
                     rep["sources"] = rag.retrieve_daily_sources(limit=6)
                 except Exception:
                     rep["sources"] = []
-            if scheduler.summary_is_degraded(rep.get("aiSummary")) or scheduler.summary_is_non_english(
-                rep.get("aiSummary")
-            ):
+            need_summary_refresh = (
+                scheduler.summary_is_degraded(rep.get("aiSummary"))
+                or scheduler.summary_locale_mismatch(rep.get("aiSummary"), locale)
+            )
+            if need_summary_refresh:
                 portfolio = rep.get("portfolio") or []
-                portfolio_text = "No holdings" if not portfolio else "; ".join(
-                    f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
+                portfolio_text = (
+                    ("No holdings" if str(locale).startswith("en") else "无持仓")
+                    if not portfolio
+                    else "; ".join(
+                        f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
+                    )
                 )
                 rep["aiSummary"] = scheduler.refresh_ai_summary(
                     live_metrics,
                     portfolio_text=portfolio_text,
                     sources=rep.get("sources") or [],
+                    locale=locale,
                 )
+                rep["locale"] = locale
                 try:
                     seed.write_text(
                         json.dumps(rep, ensure_ascii=False, indent=2),
@@ -1023,11 +1123,12 @@ def daily_report(date: str | None = None, refresh: bool = False):
                     )
                 except Exception:
                     pass
+            else:
+                rep["locale"] = locale
             return rep
         except Exception:
             pass
-    return scheduler.generate_daily_report()
-
+    return scheduler.generate_daily_report(locale=locale)
 
 @app.post("/api/rag/ask")
 def rag_ask(req: RagAskReq):
@@ -1036,87 +1137,11 @@ def rag_ask(req: RagAskReq):
 
 
 # ============================================================
-# P2:Bull / Bear / Judge 多 Agent 辩论(双模式)
+# P2:双 Agent 辩论(双模式)
 # ============================================================
 @app.post("/api/debate/{skin_id}")
-def debate(
-    skin_id: str,
-    mode: str = "bull_bear",
-    live: bool = False,
-    budget: float | None = Query(default=None, gt=0),
-    riskLevel: str = Query(default="medium", pattern="^(low|medium|high)$"),
-    horizon: int = Query(default=7, ge=7, le=7),
-    rounds: int | None = Query(default=None, ge=1, le=5),
-    locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
-):
-    return agent_debate.debate(
-        skin_id,
-        live=live,
-        mode=mode,
-        budget=budget,
-        risk_level=riskLevel,
-        horizon_days=horizon,
-        rounds=rounds,
-        locale=locale,
-    )
-
-
-# ============================================================
-# 用户参与式 Agent 会话
-# ============================================================
-@app.post("/api/agent/sessions")
-def create_agent_session(req: AgentSessionCreateReq):
-    try:
-        profile = UserProfile(
-            budget=req.budget,
-            horizon_days=req.horizonDays,
-            risk_level=req.riskLevel,
-            locale=req.locale,
-        )
-        return AgentSessionService().create(
-            req.skinId,
-            user_profile=profile,
-            rounds=req.rounds,
-        )
-    except LookupError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-
-@app.get("/api/agent/sessions/{session_id}")
-def get_agent_session(session_id: str):
-    try:
-        return AgentSessionService().get(session_id)
-    except SessionNotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-
-
-@app.post("/api/agent/sessions/{session_id}/message")
-def send_agent_session_message(session_id: str, req: AgentSessionMessageReq):
-    try:
-        return AgentSessionService().send_message(
-            session_id,
-            message=req.message,
-            target_agent=req.targetAgent,
-            locale=req.locale,
-        )
-    except SessionNotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-
-@app.post("/api/agent/sessions/{session_id}/round")
-def run_agent_session_round(session_id: str, req: AgentSessionRoundReq):
-    try:
-        return AgentSessionService().run_round(
-            session_id, message=req.message, locale=req.locale
-        )
-    except SessionNotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+def debate(skin_id: str, mode: str = "bull_bear", live: bool = False):
+    return agent_debate.debate(skin_id, live=live, mode=mode)
 
 
 # ============================================================

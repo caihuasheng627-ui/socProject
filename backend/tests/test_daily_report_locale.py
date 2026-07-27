@@ -1,0 +1,36 @@
+"""Locale-aware daily market summary helpers."""
+
+from scheduler import (
+    detect_summary_locale,
+    rule_based_market_summary,
+    summary_locale_mismatch,
+)
+
+
+def test_detect_summary_locale_zh_vs_en():
+    zh = "今日市场整体偏弱，上涨少于下跌，请关注流动性风险与赛事日历。"
+    en = "Market breadth looks soft; size risk carefully around tournament calendars."
+    assert detect_summary_locale(zh) == "zh-CN"
+    assert detect_summary_locale(en) == "en-US"
+
+
+def test_summary_locale_mismatch():
+    zh = "今日市场整体偏弱，上涨少于下跌，请关注流动性风险与赛事日历。"
+    en = "Market breadth looks soft; size risk carefully around tournament calendars."
+    assert summary_locale_mismatch(zh, "en-US") is True
+    assert summary_locale_mismatch(zh, "zh-CN") is False
+    assert summary_locale_mismatch(en, "zh-CN") is True
+    assert summary_locale_mismatch(en, "en-US") is False
+    assert summary_locale_mismatch("", "zh-CN") is True
+
+
+def test_rule_based_market_summary_bilingual():
+    metrics = {"monitored": 100, "gainers": 40, "losers": 60}
+    zh = rule_based_market_summary(metrics, locale="zh-CN")
+    en = rule_based_market_summary(metrics, locale="en-US")
+    assert "饰品市场" in zh or "监控样本" in zh
+    assert "不构成投资建议" in zh
+    assert "CS2 skin market brief" in en
+    assert "not investment advice" in en
+    assert detect_summary_locale(zh) == "zh-CN"
+    assert detect_summary_locale(en) == "en-US"

@@ -1,6 +1,6 @@
 // ============================================
-// CSVest - 前端 API 客户端
-// 封装 fetch + 错误处理 + Mock 回退
+// CSVest - 闁告挸绉堕?API 閻庡箍鍨洪崺娑氱博?
+// 閻忓繋娴囬ˉ?fetch + 闂佹寧鐟ㄩ銈嗗緞閸曨厽鍊?+ Mock 闁搞儳鍋ら埀顑藉亾
 // ============================================
 
 function isLocalHostname(hostname) {
@@ -11,13 +11,13 @@ function isRemotePage() {
   return typeof location !== 'undefined' && !isLocalHostname(location.hostname);
 }
 
-/** GitHub/GitLab Pages 等纯静态托管：没有 nginx /api 反代。 */
+/** GitHub/GitLab Pages 缂佹稑顦遍崙浠嬫濞嗘劏鍋撴担鐟邦潹缂佺姭妲勭槐鏉库柦閳╁啯绠?nginx /api 闁告瑥绉抽崬顒勫Υ?*/
 function isStaticPagesHost(hostname) {
   const h = (hostname || (typeof location !== 'undefined' ? location.hostname : '') || '').toLowerCase();
   return h.endsWith('github.io') || h.endsWith('gitlab.io') || h.endsWith('pages.dev');
 }
 
-/** 已保存的公网 API（非 localhost）。HTTPS Pages 只能连 HTTPS 后端。 */
+/** 鐎规瓕寮撶换姘扁偓娑欘焽濞堟垿宕楅鍌滅Ч API闁挎稑鐗撳?localhost闁挎稑顦埀顑垮緞TTPS Pages 闁告瑯浜ｉ崗妯绘交?HTTPS 闁告艾娴烽顒勫Υ?*/
 function savedPublicApiBase() {
   const saved = localStorage.getItem('sv_api_url');
   if (!saved) return '';
@@ -34,10 +34,10 @@ function savedPublicApiBase() {
   }
 }
 
-/** 解析 API 根地址。
- * - 本地：默认 http://localhost:8000
- * - 静态 Pages：仅用显式配置的公网 API；否则空（走 Mock，勿打同源 /api）
- * - 其它公网页（Docker/nginx）：默认同源空串，走 /api 反代
+/** 閻熸瑱绲鹃悗?API 闁哄秶鎳撳﹢鎾锤閳ь剟濡?
+ * - 闁哄牜鍓欏﹢鎾晬濮樺墎甯涢悹?http://localhost:8000
+ * - 闂傚牊鐟﹂埀?Pages闁挎稒鐭划搴ㄦ偨閵婏附鈻旂€殿喖绻橀崢銈囩磾椤旂偓鐣遍柛蹇ｅ墰缂?API闁挎稒绋戦幆渚€宕氬▎鎴旀晞闁挎稑鐗愰摂?Mock闁挎稑鑻€ｄ線骞嶉幘铏€辨繝?/api闁?
+ * - 闁稿繗娉涢悾鐘诲礂椤掑倻绉瑰銈囶暜缁辨ocker/nginx闁挎稑顧€缁辩増顪€濡鍚囬柛姘湰缁喚绮氭潪鎷岊洬闁挎稑鐭侀摂?/api 闁告瑥绉抽崬?
  */
 function defaultApiBaseURL() {
   const saved = localStorage.getItem('sv_api_url');
@@ -45,7 +45,7 @@ function defaultApiBaseURL() {
     const publicApi = savedPublicApiBase();
     if (publicApi) return publicApi;
     if (isStaticPagesHost()) return '';
-    // 空字符串 = 当前页面同源，走 /api → 后端（nginx 反代）
+    // 缂佸苯鎼悺褏绮敂鑳洬 = 鐟滅増鎸告晶鐘炽亜閻㈠憡妗ㄩ柛姘湰缁噣鏁嶅畝鍐巢 /api 闁?闁告艾娴烽顒勬晬閸ь柇inx 闁告瑥绉抽崬顒勬晬?
     return '';
   }
   return (saved || 'http://localhost:8000').replace(/\/$/, '');
@@ -56,23 +56,17 @@ class CSVestAPI {
     this.baseURL = defaultApiBaseURL();
     this.token = localStorage.getItem('sv_token') || null;
     this.timeout = 30000; // 30s
-    // 本地 / 静态 Pages 默认 Mock；有公网 API 或 nginx 同源部署时走真实后端
-    const mockFlag = localStorage.getItem('sv_use_mock');
-    if (isRemotePage()) {
-      const hasPublicApi = !!savedPublicApiBase();
-      if (isStaticPagesHost() && !hasPublicApi) {
-        this.useMock = mockFlag === null ? true : mockFlag === 'true';
-      } else {
-        if (mockFlag === 'true') localStorage.removeItem('sv_use_mock');
-        this.useMock = false;
-      }
-    } else {
-      this.useMock = mockFlag === null ? true : mockFlag === 'true';
-    }
+    // 闁哄牜鍓欏﹢?/ 闂傚牊鐟﹂埀?Pages 濮掓稒顭堥?Mock闁挎稒绋掑﹢渚€宕楅鍌滅Ч API 闁?nginx 闁告艾鏈花顕€鏌堥妸褑顔夐柡鍐╁劶閾斿鎯囬悢椋庢澖闁告艾娴烽?
+    // AI advice must never be silently substituted with browser-generated
+    // content. Earlier builds persisted `sv_use_mock=true`, which made a
+    // real Agent Debate look successful while it never reached the backend.
+    localStorage.removeItem('sv_use_mock');
+    this.useMock = false;
     this.online = false;
     this._alerts = null;
     this._inventory = null;
     this._portfolio = null;
+    this._agentSessions = new Map();
   }
 
   setBaseURL(url) {
@@ -93,8 +87,11 @@ class CSVestAPI {
   }
 
   setUseMock(useMock) {
-    this.useMock = !!useMock;
-    localStorage.setItem('sv_use_mock', String(this.useMock));
+    // Compatibility for old settings panels: decisions either use the live
+    // backend or visibly fail; browser-generated analysis is not permitted.
+    if (useMock) console.warn('[API] Mock mode is disabled for this build.');
+    this.useMock = false;
+    localStorage.removeItem('sv_use_mock');
   }
 
   async _fetch(path, options = {}) {
@@ -127,7 +124,7 @@ class CSVestAPI {
         throw new APIError(detail || res.statusText, res.status, error.code);
       }
 
-      // 204 / 空 body：DELETE 等无内容响应
+      // 204 / 缂?body闁挎稒顑廍LETE 缂佹稑顦板Λ銈夊礃閸涱収鍟囬柛婵嗙Т缁?
       if (res.status === 204 || res.headers.get('content-length') === '0') {
         return { success: true };
       }
@@ -141,26 +138,28 @@ class CSVestAPI {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new APIError('请求超时', 408, 'TIMEOUT');
+        /* Corrupted legacy localized literal kept below for source-history
+           compatibility; do not execute it. */
+        throw new APIError('Request timed out.', 408, 'TIMEOUT');
+        /*
+        throw new APIError('閻犲洭鏀遍惇鎵惥閸涱喗顦?, 408, 'TIMEOUT');
+        */
       }
       throw err;
     }
   }
 
   async _safeCall(apiCall, mockCall, opts = {}) {
-    const fallback = opts.fallback !== false;
-    if (this.useMock) {
-      return mockCall();
-    }
     try {
       const result = await apiCall();
       this.online = true;
       return result;
     } catch (err) {
-      console.warn(`[API] ${apiCall.name || 'request'} failed${fallback ? ', fallback to mock' : ''}:`, err.message);
+      console.warn(`[API] ${apiCall.name || 'request'} failed:`, err.message);
       this.online = false;
-      if (!fallback) throw err;
-      return mockCall();
+      // Never replace unavailable market/AI data with a browser-generated
+      // value. Callers must render their explicit unavailable/empty states.
+      throw err;
     }
   }
 
@@ -236,7 +235,10 @@ class CSVestAPI {
       () => this._fetch(`/api/skins/${skinId}`),
       () => {
         const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
-        if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
+        if (!skin) throw new APIError('Skin not found.', 404, 'NOT_FOUND');
+        /* Legacy malformed localized literal:
+        if (!skin) throw new APIError('濡ゆ婢橀幖褎绋夊鍛憼闁?, 404, 'NOT_FOUND');
+        */
         return skin;
       }
     );
@@ -247,8 +249,11 @@ class CSVestAPI {
       () => this._fetch(`/api/skins/${skinId}/kline?days=${days}`),
       () => {
         const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
-        if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
-        // Mock 结构对齐后端 GET /api/skins/{id}/kline(openapi.yaml KLineResponse)
+        if (!skin) throw new APIError('Skin not found.', 404, 'NOT_FOUND');
+        /* Legacy malformed localized literal:
+        if (!skin) throw new APIError('濡ゆ婢橀幖褎绋夊鍛憼闁?, 404, 'NOT_FOUND');
+        // Mock 缂備焦鎸婚悗顖溾偓闈涚秺缂嶅牓宕ユ惔锝庝紓 GET /api/skins/{id}/kline(openapi.yaml KLineResponse)
+        */
         const mock = window.CSVestData.generateKLineData(skin.price, days);
         const data = mock.kline.map(([date, open, close, low, high]) => ({
           date, open: +open, close: +close, low: +low, high: +high,
@@ -337,29 +342,34 @@ class CSVestAPI {
   }
 
   async predict(skinId, horizon = 7, models) {
-    return this._safeCall(
-      () => this._fetch('/api/predict', {
-        method: 'POST',
-        body: JSON.stringify({ skinId, horizon, models }),
-      }),
-      () => this._mockPredict(skinId, horizon)
-    );
+    return this._fetch('/api/predict', {
+      method: 'POST',
+      body: JSON.stringify({ skinId, horizon, models }),
+    });
   }
 
   async getEntryRange(skinId, riskLevel = 'moderate') {
-    return this._safeCall(
-      () => this._fetch('/api/predict/entry-range', {
-        method: 'POST',
-        body: JSON.stringify({ skinId, riskLevel }),
-      }),
-      () => this._mockEntryRange(skinId)
-    );
+    return this._fetch('/api/predict/entry-range', {
+      method: 'POST',
+      body: JSON.stringify({ skinId, riskLevel }),
+    });
   }
 
+  async getExplanation(skinId, days = 7) {
+    return this._fetch(`/api/explain/${encodeURIComponent(skinId)}?days=${days}`);
+  }
+
+  /* Browser-side mock implementations are deliberately disabled. They used
+     invented market data whenever a network request failed. Keep them only as
+     commented source history until the next cleanup commit. */
+  /* Disabled mock code (never used by the application):
   _mockPredict(skinId, horizon) {
     const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
-    if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
-    // 与后端 v5 契约对齐: LSTM/GRU 系列带 dailyPrices(7 天逐日精确预测)
+    if (!skin) throw new APIError('Skin not found.', 404, 'NOT_FOUND');
+    /* Legacy malformed localized literal:
+    if (!skin) throw new APIError('濡ゆ婢橀幖褎绋夊鍛憼闁?, 404, 'NOT_FOUND');
+    // 濞戞挸楠搁幃妤冪博?v5 濠靛倹鍨圭€瑰磭鈧潧缍婄紞? LSTM/GRU 缂侇垵顕ч崹顏嗘暜?dailyPrices(7 濠㈠灈鏅犻埀顒佸姈濡晝鍒掗崜褉鈧ɑ锛愰崟顒傘偞)
+    * /
     const dailyPath = (totalChangePct) => {
       const out = [];
       for (let i = 1; i <= 7; i++) {
@@ -375,7 +385,7 @@ class CSVestAPI {
       reason: null,
       currentPrice: skin.price,
       predictions: [
-        { model: 'ARIMA', type: '统计', price: skin.price * 1.012, change: 1.2, confidence: 65 },
+        { model: 'ARIMA', type: '缂備胶鍠曢?, price: skin.price * 1.012, change: 1.2, confidence: 65 },
         { model: 'XGBoost', type: 'ML', price: skin.price * 1.018, change: 1.8, confidence: 78 },
         { model: 'LightGBM', type: 'ML', price: skin.price * 1.016, change: 1.6, confidence: 76 },
         { model: 'RandomForest', type: 'ML', price: skin.price * 1.014, change: 1.4, confidence: 72 },
@@ -391,7 +401,10 @@ class CSVestAPI {
 
   _mockEntryRange(skinId) {
     const skin = window.CSVestData.SKINS_POOL.find(s => s.id === skinId);
-    if (!skin) throw new APIError('饰品不存在', 404, 'NOT_FOUND');
+    if (!skin) throw new APIError('Skin not found.', 404, 'NOT_FOUND');
+    /* Legacy malformed localized literal:
+    if (!skin) throw new APIError('濡ゆ婢橀幖褎绋夊鍛憼闁?, 404, 'NOT_FOUND');
+    * /
     return {
       entryLow: skin.price * 0.97,
       entryHigh: skin.price * 0.99,
@@ -406,16 +419,17 @@ class CSVestAPI {
       () => this._fetch(`/api/explain/${skinId}?days=${days}`),
       () => ({
         skinId,
-        summary: '该饰品近期价格变动主要受 Valve 更新和赛事经济影响。',
+        summary: '閻犲洢鍎甸妶浼村传娴ｇ晫绠柡鍫㈠枍閻滎垶寮介悡搴＄秮闁告柣鍔嬬€靛瞼鎲版担绋跨秬 Valve 闁哄洤鐡ㄩ弻濠囧椽瀹€鍐洷濞存粌顑囩划鈥趁规惔鈥愁殯闁告繂绉查埀?,
         relatedNews: window.CSVestData.NEWS_FEED.slice(0, 3),
-        sources: ['Valve 官方', 'HLTV', 'BUFF 公告'],
+        sources: ['Valve 閻庤蓱閺?, 'HLTV', 'BUFF 闁稿浚鍓欓幉?],
       })
     );
   }
 
-  async chat(message, sessionId, onChunk, locale = null) {
+  */
+  async chat(message, sessionId, onChunk) {
     if (this.useMock) {
-      return this._mockChatStream(message, onChunk);
+      this.setUseMock(false);
     }
     try {
       const response = await fetch(`${this.baseURL}/api/chat`, {
@@ -424,16 +438,16 @@ class CSVestAPI {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
-        body: JSON.stringify({
-          message,
-          sessionId,
-          locale: locale || localStorage.getItem('sv_lang') || 'en-US',
-        }),
+        body: JSON.stringify({ message, sessionId }),
       });
+      if (!response.ok) throw new APIError('Chat request failed.', response.status);
+      /* Legacy malformed localized literals:
 
-      if (!response.ok) throw new APIError('对话请求失败', response.status);
-      if (!response.body) throw new APIError('流式响应不可用', 500);
+      if (!response.ok) throw new APIError('閻庣數顢婇惁鐣屾嫚闁垮婀村鎯扮簿鐟?, response.status);
+      if (!response.body) throw new APIError('婵炵繝绀佺槐锟犲传瀹ュ懐瀹夊☉鎾崇Т瑜版煡鎮?, 500);
 
+      */
+      if (!response.body) throw new APIError('Chat response has no body.', 500);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -454,16 +468,16 @@ class CSVestAPI {
       }
       this.online = true;
     } catch (err) {
-      console.warn('[API] chat stream failed, fallback to mock:', err.message);
+      console.warn('[API] chat stream failed:', err.message);
       this.online = false;
-      return this._mockChatStream(message, onChunk);
+      throw err;
     }
   }
 
-
   async orchestrateAI(payload) {
     if (this.useMock) {
-      return this._mockOrchestrate(payload, { mode: 'mock', reason: 'manual_mock' });
+      // Recover an older cached bundle without ever calling a mock endpoint.
+      this.setUseMock(false);
     }
     try {
       const result = await this._fetch('/api/ai/orchestrate', {
@@ -473,13 +487,9 @@ class CSVestAPI {
       this.online = true;
       return result;
     } catch (err) {
-      console.warn('[API] orchestrate request failed, using explicit fallback:', err.message);
+      console.error('[API] orchestrate request failed:', err.message);
       this.online = false;
-      return this._mockOrchestrate(payload, {
-        mode: 'degraded',
-        reason: 'request_failed',
-        errorType: err?.name || 'APIError',
-      });
+      throw err;
     }
   }
 
@@ -488,7 +498,7 @@ class CSVestAPI {
       method: 'POST',
       body: JSON.stringify({
         ...payload,
-        locale: payload.locale || localStorage.getItem('sv_lang') || 'en-US',
+        locale: payload.locale || localStorage.getItem('sv_lang') || 'zh-CN',
       }),
     });
   }
@@ -497,211 +507,67 @@ class CSVestAPI {
     return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}`);
   }
 
+  async runAgentRound(sessionId, message, options = {}) {
+    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/round`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
+      }),
+    });
+  }
+
   async sendAgentMessage(sessionId, message, targetAgent) {
     return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/message`, {
       method: 'POST',
       body: JSON.stringify({
         message,
         targetAgent,
-        locale: localStorage.getItem('sv_lang') || 'en-US',
+        locale: localStorage.getItem('sv_lang') || 'zh-CN',
       }),
     });
   }
 
-  async runAgentRound(sessionId, message) {
-    return this._fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/round`, {
-      method: 'POST',
-      body: JSON.stringify({
-        message,
-        locale: localStorage.getItem('sv_lang') || 'en-US',
-      }),
-    });
-  }
-
-  _mockOrchestrate(payload, fallback = {}) {
-    const message = String(payload.message || '');
-    const action = payload.action || 'auto';
-    const english = payload.locale === 'en-US';
-    const fallbackMode = fallback.mode || 'mock';
-    const runtime = {
-      llm: {
-        mode: fallbackMode,
-        configured: false,
-        provider: 'Local',
-        model: 'browser-fallback',
-        lastError: fallback.errorType || null,
-      },
-      agents: {
-        mode: fallbackMode,
-        bullModel: 'local-fallback',
-        bearModel: 'local-fallback',
-        judgeModel: 'local-fallback',
-      },
-      hybrid: { mode: 'mock', model: 'browser-trend-fallback' },
-    };
-    const pool = window.CSVestData.SKINS_POOL || [];
-    const skin = pool.find(item => item.id === payload.skinId);
-    const wantsRecommendation = action === 'recommend'
-      || /推荐|recommend|suggest/i.test(message);
-    const wantsDebate = action === 'debate'
-      || /辩论|debate|牛熊|多空/i.test(message);
-
-    if (wantsRecommendation) {
-      const budget = Number(payload.budget) || Infinity;
-      const recommendations = pool
-        .filter(item => Number(item.price) <= budget)
-        .sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))
-        .slice(0, 5)
-        .map(item => ({
-          skinId: item.id,
-          name: item.name,
-          category: item.category,
-          price: item.price,
-          change7d: item.change7d || 0,
-          liquidity: item.liquidity || 0,
-          risk: 'medium',
-          score: Math.min(99, 60 + (item.liquidity || 0) * 0.3),
-          reasons: english
-            ? ['Offline demo ranking', 'Start the backend for evidence-based results']
-            : ['离线演示排序', '启动后端后将使用真实市场证据'],
-        }));
-      return Promise.resolve({
-        type: 'recommendation',
-        message: english
-          ? 'This is an offline demo ranking. Start the backend for evidence-based recommendations.'
-          : '当前是离线演示推荐；启动后端后将使用真实市场证据排序。',
-        recommendations,
-        runtime,
-        fallbackReason: fallback.reason || 'manual_mock',
-      });
-    }
-
-    if (action === 'predict' && skin) {
-      return Promise.resolve({
-        type: 'prediction',
-        message: english
-          ? 'An offline demo forecast has been generated.'
-          : '已生成离线演示预测。',
-        skin: { skinId: skin.id, name: skin.name, price: skin.price },
-        prediction: this._mockPredict(skin.id, payload.horizonDays || 7),
-        runtime,
-        fallbackReason: fallback.reason || 'manual_mock',
-      });
-    }
-
-    if (wantsDebate) {
-      const target = skin || pool[0] || { id: 'demo-skin', name: english ? 'Demo Skin' : '演示饰品', price: 100 };
-      return Promise.resolve({
-        type: 'debate',
-        message: english
-          ? `Offline demo debate for ${target.name}. Start the backend for Bull / Bear / Judge live rounds.`
-          : `已生成 ${target.name} 的离线演示辩论。启动后端后可跑 Bull / Bear / Judge 实况。`,
-        agentSession: {
-          sessionId: 'mock-debate-session',
-          userProfile: {
-            horizon_days: payload.horizonDays || 7,
-            risk_level: payload.riskLevel || 'medium',
-            purpose: 'investment',
-            liquidity_priority: 'medium',
-            budget: payload.budget ?? null,
-            loss_tolerance_pct: null,
-          },
-          evidenceGuide: [],
-        },
-        debateRound: {
-          roundNo: 1,
-          userMessage: message,
-          bull: {
-            position: 'bullish',
-            confidence: 68,
-            arguments: [{
-              claim: english ? 'Momentum and liquidity still favor buyers' : '动量与流动性仍偏向买方',
-              explanation: english ? 'Offline demo argument from Bull.' : '离线演示中的多头论点。',
-              decision_impact: english ? 'Supports a small trial entry.' : '支持小仓试探。',
-            }],
-          },
-          bear: {
-            position: 'bearish',
-            confidence: 62,
-            arguments: [{
-              claim: english ? 'Drawdown and thin order books remain risks' : '回撤与簿册深度不足仍是风险',
-              explanation: english ? 'Offline demo argument from Bear.' : '离线演示中的空头论点。',
-              decision_impact: english ? 'Keep position size capped.' : '仓位需要严格上限。',
-            }],
-          },
-          judge: {
-            strategy_action: 'scale_in',
-            confidence: 64,
-            summary: english
-              ? 'Mixed evidence: scale in only with a clear invalidation level.'
-              : '证据分化：仅在有明确失效位时小仓试探。',
-            recommendation: english
-              ? 'Start with a limited position and recheck after 7 days.'
-              : '先以有限仓位试探，7 天后复盘。',
-            key_conflict: english
-              ? 'Bull momentum vs Bear liquidity risk.'
-              : '多头动量与空头流动性风险的冲突。',
-            agreed_facts: [english ? 'Price is near recent range mid.' : '价格接近近期区间中部。'],
-            complementary_views: [english ? 'Combine trend with strict risk caps.' : '把趋势与严格风控结合。'],
-            true_conflicts: [english ? 'Whether liquidity can absorb size.' : '流动性能否承接仓位。'],
-            evidence_verdicts: [english ? 'Momentum supported; depth uncertain.' : '动量成立，深度不确定。'],
-            opportunity_score: 58,
-            risk_score: 54,
-            decision_score: 52,
-            position_size_pct: 15,
-            recheck_after_days: 7,
-            stop_loss: Number(target.price || 100) * 0.92,
-            policy_threshold: english ? 'Medium risk policy' : '中等风险策略',
-            policy_explanation: [english ? 'Caps size when liquidity is unclear.' : '流动性不明时限制仓位。'],
-            entry_strategy: [english ? 'Split entries across two sessions.' : '分两次建仓。'],
-            confidence_basis: [english ? 'Based on mock local rules, not live LLM.' : '基于本地 Mock 规则，非实时 LLM。'],
-            buy_triggers: [english ? 'Hold above support for 24h.' : '支撑位上方站稳 24 小时。'],
-            exit_triggers: [english ? 'Break below stop loss.' : '跌破止损位。'],
-            conditions_to_buy: [],
-            conditions_to_wait: [],
-            alternative_action: english ? 'Wait for a clearer breakout.' : '等待更清晰突破。',
-            profile_fit: english ? 'Fits a medium-risk profile.' : '匹配中等风险画像。',
-            risk_warning: english ? 'Offline demo only.' : '仅离线演示。',
-            user_view_considered: message || (english ? 'No extra user constraint.' : '无额外用户约束。'),
-            changed_from_previous: false,
-            change_summary: english ? 'Initial mock round.' : '初始 Mock 轮次。',
-            reasoning: [english ? 'Local fallback debate completed.' : '本地降级辩论已完成。'],
-          },
-        },
-        runtime,
-        fallbackReason: fallback.reason || 'manual_mock',
-      });
-    }
-
-    return Promise.resolve({
-      type: 'chat',
-      message: english
-        ? (fallback.reason === 'request_failed'
-          ? 'The live backend request failed, so this reply used the browser fallback. Retry after checking the backend log; no DeepSeek result was produced for this message.'
-          : 'The app is using the offline demo assistant. Start the backend for live AI output.')
-        : (fallback.reason === 'request_failed'
-          ? '本次后端实时请求失败，因此明确使用了浏览器降级回复。请检查后端日志后重试；这条消息没有产生 DeepSeek 结果。'
-          : (window.CSVestData.AI_PRESET_RESPONSES.default
-            || '当前为离线演示模式。')),
-      runtime,
-      fallbackReason: fallback.reason || 'manual_mock',
-    });
-  }
-
+  /* Disabled browser mock implementation:
   async _mockChatStream(message, onChunk) {
     const response = window.CSVestData.AI_PRESET_RESPONSES['default']
-      || '抱歉，当前为离线演示模式。请启动后端并关闭 Mock 后重试。';
-    const chunks = response.split(/(?<=[。！？!?\n])/);
+      || '闁规儼椴搁悺鎴︽晬鐏炵晫绉奸柛鎾崇С鐠愮喓绮嬮懡銈呮疇婵犳洘姊婚妵姘熼垾宕囩闁靛棗鍊介顒勫触椤栨艾袟闁告艾娴烽顒勭嵁鐠哄搫褰犻梻?Mock 闁告艾閰ｉ崳鍝ユ嫚閺囨ǚ鍋?;
+    const chunks = response.split(/(?<=[闁靛棗鍋婄槐鎺楁晬??\n])/);
     for (const chunk of chunks) {
       if (onChunk) onChunk(chunk);
       await new Promise(r => setTimeout(r, 24));
     }
   }
 
-  async debate(skinId, mode = 'bull_bear') {
-    const locale = localStorage.getItem('sv_lang') || 'en-US';
+  }
+
+  async translateAIContent(content, targetLocale) {
+    return this._fetch('/api/ai/translate', {
+      method: 'POST',
+      body: JSON.stringify({ content, targetLocale }),
+    });
+  }
+  */
+  async translateAIContent(content, targetLocale) {
+    return this._fetch('/api/ai/translate', {
+      method: 'POST',
+      body: JSON.stringify({ content, targetLocale }),
+    });
+  }
+
+  async debate(skinId, options = {}) {
+    const settings = typeof options === 'string' ? { mode: options } : options;
+    const query = new URLSearchParams({
+      mode: settings.mode || 'bull_bear',
+      locale: settings.locale || localStorage.getItem('sv_lang') || 'zh-CN',
+      live: String(!!settings.live),
+      horizon: String(settings.horizon || 7),
+      riskLevel: settings.riskLevel || 'medium',
+    });
+    if (settings.budget) query.set('budget', String(settings.budget));
+    if (settings.rounds) query.set('rounds', String(settings.rounds));
     return this._safeCall(
-      () => this._fetch(`/api/debate/${skinId}?mode=${mode}&locale=${encodeURIComponent(locale)}`, { method: 'POST' }),
+      () => this._fetch(`/api/debate/${encodeURIComponent(skinId)}?${query.toString()}`, { method: 'POST' }),
       () => null
     );
   }
@@ -718,36 +584,43 @@ class CSVestAPI {
     return this._fetch(`/api/news/fetch?${qs}`, { method: 'POST', body: '{}' });
   }
 
-  async getDailyReport(date, { refresh = false } = {}) {
+  async getDailyReport(date, { refresh = false, locale } = {}) {
+    const lang = locale || localStorage.getItem('sv_lang') || 'zh-CN';
     const params = new URLSearchParams();
     if (date) params.set('date', date);
     if (refresh) params.set('refresh', '1');
+    params.set('locale', lang);
     const qs = params.toString();
+    const english = String(lang).toLowerCase().startsWith('en');
     return this._safeCall(
       () => this._fetch(`/api/daily-report${qs ? `?${qs}` : ''}`),
       () => ({
         date: date || new Date().toISOString().slice(0, 10),
         generatedAt: new Date().toISOString(),
+        locale: english ? 'en-US' : 'zh-CN',
         metrics: { monitored: 20, gainers: 14, losers: 6 },
         hotVolume: window.CSVestData.HOT_VOLUME,
-        aiSummary: 'CS2 skin market brief — monitored demo universe is mostly advancing, with breadth skewed constructive [1]. Event calendars and sticker liquidity remain the main near-term drivers; watch post-Major mean reversion [2].\n\nPrefer liquid rifles/SMGs over thin knife/glove books when scaling risk. Skin markets are highly volatile — this is not investment advice.',
+        aiSummary: english
+          ? 'CS2 skin market brief — monitored demo universe is mostly advancing, with breadth skewed constructive [1]. Event calendars and sticker liquidity remain the main near-term drivers; watch post-Major mean reversion [2].\n\nPrefer liquid rifles/SMGs over thin knife/glove books when scaling risk. Skin markets are highly volatile — this is not investment advice.'
+          : 'CS2 饰品市场简报——演示监控样本整体偏多，市场宽度偏暖 [1]。近端主驱动仍是赛程与贴纸流动性；关注 Major 后的均值回归 [2]。\n\n放大仓位时优先高流动性步枪/冲锋枪，回避簿子薄的刀/手套。饰品市场波动剧烈——以上内容不构成投资建议。',
         sources: this._mockRagSources(),
         news: window.CSVestData.NEWS_FEED,
       })
     );
   }
 
+  /* Disabled browser mock implementation:
   _mockRagSources() {
     const news = (window.CSVestData.NEWS_FEED || []).slice(0, 4);
     const kb = [
-      { type: 'kb', title: 'CS2 市场知识库', source: '内置知识库', snippet: 'Major 赛事前后 7-14 天,相关贴纸与饰品成交量通常上升 15-30%,但赛事结束后有回调压力。', score: 3, relevance: 1 },
-      { type: 'kb', title: 'CS2 市场知识库', source: '内置知识库', snippet: '高价值低流动性饰品(刀/手套)日内波动大,买卖价差宽,不适合大额短线。', score: 2, relevance: 0.67 },
+      { type: 'kb', title: 'CS2 閻㈩垰鍊稿┃鈧柣顓滃劥閻︽垶鎯?, source: '闁告劕鎳愰悿鍡涙儗閵夈劎妲曢幖?, snippet: 'Major 閻犙勭◥缁ㄣ劑宕滃鍛€?7-14 濠?闁烩晝顭堥崣褏鎷圭€靛摜鍓ㄥ☉鎾抽叄閵堜即宕担鐟扮亣濞存嚎鍊濋崳娲焻濮橆剛鍩楀☉鎾筹工瀹?15-30%,濞达絽妫滅粋灞剧鐎ｎ剛娉㈤柡澶屽枎閹寮垫径濠冪閻犲鍟敮鍥礉濞戞牑鍋?, score: 3, relevance: 1 },
+      { type: 'kb', title: 'CS2 閻㈩垰鍊稿┃鈧柣顓滃劥閻︽垶鎯?, source: '闁告劕鎳愰悿鍡涙儗閵夈劎妲曢幖?, snippet: '濡ゅ倹眉閻滎垶宕愰梻瀵哥У婵炵繝绀佹慨鈺呭箑瑜旈妶浼村传?闁告巻鍋?闁归潧顑呴〃?闁哄啨鍎遍崬鏉戔枖閵忕姴袟濠?濞戞梹婢樺畷鐘崇瀹勭増鈻曢悗?濞戞挸绉归埀顒€鍊搁幃搴㈠緞瑜旈·鍌炴儗椤撶姴娈犻柕?, score: 2, relevance: 0.67 },
     ];
     const newsSrc = news.map((n, i) => ({
       type: 'news',
       title: n.title,
       snippet: n.summary || n.title,
-      source: n.source || 'RAG 知识库',
+      source: n.source || 'RAG 闁活厹鍎撮惁鎴炴償?,
       date: n.time || n.published_at || null,
       sentiment: n.sentiment,
       url: n.url || null,
@@ -767,9 +640,64 @@ class CSVestAPI {
         const sources = this._mockRagSources().slice(0, topK);
         return {
           query,
-          answer: `(演示模式) 根据向量检索到的知识库与资讯,针对「${query}」的分析:相关饰品近期受 Major 赛程与 Valve 更新预期影响,成交量与价格波动加大 [1][2];建议结合成交量与磨损等级判断入场时机。⚠ 饰品市场高波动,以上不构成投资建议。`,
+          answer: `(婵犳洘姊婚妵姘熼垾宕囩) 闁哄秷顫夊畵渚€宕ラ幋锕€娅ゆ俊顐熷亾缂佷究鍨归崺宀勬儍閸曨厾鍙€閻犲洤妫楃花杈ㄧ▔鎼淬倗銈悹?闂佽棄鐗嗛顕€濡?{query}闁靛棗绉跺▓鎴﹀礆閸℃鈧?闁烩晝顭堥崣褎顨滈弶鎸庢儌閺夆晜鍨跺﹢锟犲矗?Major 閻犙勭〒閳诲吋绋?Valve 闁哄洤鐡ㄩ弻濠冿紣閸曨剚鍩傜憸鏉垮船閹?闁瑰瓨鍔掑锕傛煂韫囧海鐟㈠ù鐘绘敱閻楃鈻旈姀鐘残楅柛鏃傚Т閵?[1][2];鐎点倝缂氶鍛磼閹捐櫕鍊ら柟瀛樺姃濮橈箓鏌岃箛搴ｇ憿缁句勘鍔嶅畷顖滅驳婢跺矂鐛撻柛鎺嬪€栭弻鍥礂閵夈儲绨氶柡鍐煐濠р偓闁靛棗鍊靛▓?濡ゆ婢橀幖褏鏁崒姘皻濡ゅ倹蓱鐏忔繈宕?濞寸姰鍎扮粭鍌涚▔瀹ュ棛鈧垶骞嬮幇顓烆潓閻犙冨缂傛挾鎷嬮琛″亾娣?
           sources,
           retrieval: { mode: 'vector', provider: 'dashscope', model: 'text-embedding-v3' },
+        };
+      }
+    );
+  }
+
+  */
+
+  _mockRagSources() {
+    const news = (window.CSVestData?.NEWS_FEED || []).slice(0, 4);
+    const kb = [
+      {
+        type: 'kb',
+        title: 'CS2 市场知识库 · Major 与价格',
+        source: 'kb',
+        snippet: 'Major 前后 7–14 天，高曝光步枪/贴纸流动性通常上升；赛后常见均值回归。StatTrak 因供给更少，相对同款常有 1.5–3× 溢价，但买卖价差也更大。',
+        score: 3,
+        relevance: 1,
+      },
+      {
+        type: 'kb',
+        title: 'CS2 市场知识库 · 磨损与流动性',
+        source: 'kb',
+        snippet: 'FN/MW 溢价更高、簿子更薄；FT 往往流动性最好。刀/手套成交稀疏时价差扩大，短线预测噪声更大。',
+        score: 2,
+        relevance: 0.67,
+      },
+    ];
+    const newsSrc = news.map((n, i) => ({
+      type: 'news',
+      title: n.title,
+      snippet: n.summary || n.title,
+      source: n.source || 'news',
+      date: n.time || n.published_at || null,
+      sentiment: n.sentiment,
+      url: n.url || null,
+      score: Math.max(1, 2 - i * 0.5),
+      relevance: Math.max(0.2, 0.9 - i * 0.2),
+    }));
+    return [...kb, ...newsSrc].map((s, i) => ({ ...s, id: i + 1 }));
+  }
+
+  async ragAsk(query, topK = 5) {
+    return this._safeCall(
+      () => this._fetch('/api/rag/ask', {
+        method: 'POST',
+        body: JSON.stringify({ query, topK }),
+      }),
+      () => {
+        const sources = this._mockRagSources().slice(0, topK);
+        const q = String(query || '');
+        return {
+          query: q,
+          answer: `（离线演示）根据知识库摘要：与「${q}」相关的常见因素包括赛事日程、StatTrak 稀缺溢价、磨损档位与流动性 [1][2]。饰品市场波动大，以上不构成投资建议。`,
+          sources,
+          retrieval: { mode: 'keyword', provider: 'mock', model: null, enabled: false },
         };
       }
     );
@@ -880,28 +808,33 @@ class CSVestAPI {
     );
   }
 
-  async diagnosePortfolio() {
+  async diagnosePortfolio(locale) {
+    const loc = locale || localStorage.getItem('sv_lang') || 'zh-CN';
+    const offlineMsg = String(loc).toLowerCase().startsWith('en')
+      ? 'Offline demo: connect the backend to run portfolio diagnosis.'
+      : '离线演示：请连接后端后再运行组合诊断。';
     return this._safeCall(
-      () => this._fetch('/api/portfolio/diagnose', { method: 'POST' }),
+      () => this._fetch(`/api/portfolio/diagnose?locale=${encodeURIComponent(loc)}`, { method: 'POST' }),
       () => ({
         empty: true,
-        summary: 'Offline demo: connect the backend to run portfolio diagnosis.',
-        aiSummary: 'Offline demo: connect the backend to run portfolio diagnosis.',
+        summary: offlineMsg,
+        aiSummary: offlineMsg,
         valueRange: null,
         adjustments: [],
         riskTopN: [],
+        locale: String(loc).toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN',
       })
     );
   }
 
-  // ============ 我的库存（真实库存；后端待对接，先留接口 + mock）============
+  // ============ 闁瑰瓨鍨瑰▓鎴炴償閹惧磭鎽犻柨娑樼墢濠€锛勨偓鍦仜缁ㄨ京鈧稒锕槐閬嶅触鎼达綆浼傜€垫澘鎳庨顕€骞掗妷顖滅闁稿繐鐗忛弳鈧柟鎭掑劚瑜?+ mock闁?===========
   _mockInventory() {
     if (this._inventory) return this._inventory;
     this._inventory = (window.CSVestData.DEFAULT_INVENTORY || []).map(p => ({ ...p }));
     return this._inventory;
   }
 
-  /** GET /api/inventory — 获取真实库存列表 */
+  /** GET /api/inventory 闁?闁兼儳鍢茶ぐ鍥儑閻旈鏉介幖瀛樻尭閻°劑宕氬Δ鍕┾偓?*/
   async getInventory() {
     return this._safeCall(
       () => this._fetch('/api/inventory'),
@@ -909,7 +842,7 @@ class CSVestAPI {
     );
   }
 
-  /** POST /api/inventory — 手动添加库存饰品 */
+  /** POST /api/inventory 闁?闁归潧顑呮慨鈺伹庣拠鎻掝潱閹煎瓨鎸搁悺銊︻殰閺夋寧鎯?*/
   async addInventoryItem(data) {
     const payload = {
       skinId: data.skinId,
@@ -936,7 +869,7 @@ class CSVestAPI {
     );
   }
 
-  /** DELETE /api/inventory/{id} — 移除库存饰品 */
+  /** DELETE /api/inventory/{id} 闁?缂佸顭峰▍搴㈡償閹惧磭鎽犲Δ妤佹緲閹?*/
   async deleteInventoryItem(id) {
     return this._safeCall(
       () => this._fetch(`/api/inventory/${id}`, { method: 'DELETE' }),
@@ -947,7 +880,7 @@ class CSVestAPI {
     );
   }
 
-  /** GET /api/inventory/value_history — 库存总价值走势 */
+  /** GET /api/inventory/value_history 闁?閹煎瓨鎸搁悺銊╁箑鐠佸磭骞嗛柛濠呭閾斿宕?*/
   async getInventoryValueHistory(days = 90) {
     return this._safeCall(
       () => this._fetch(`/api/inventory/value_history?days=${days}`),
@@ -962,8 +895,8 @@ class CSVestAPI {
   }
 
   /**
-   * POST /api/inventory/steam/import — Steam 库存导入（待开发）
-   * 后端对接后：拉取 Steam inventory → 映射 market_hash_name → 写入 inventory
+   * POST /api/inventory/steam/import 闁?Steam 閹煎瓨鎸搁悺銊р偓鐢靛帶閸欏棝鏁嶉崼婵堢鐎殿喒鍋撻柛娆愬煀缁?
+   * 闁告艾娴烽顒傗偓浣冾潐鐢挳宕ユ惔顖滅獥闁瑰嘲顦ぐ?Steam inventory 闁?闁哄嫮濮撮惃?market_hash_name 闁?闁告劖鐟ラ崣?inventory
    */
   async importSteamInventory(payload = {}) {
     return this._safeCall(
@@ -972,15 +905,26 @@ class CSVestAPI {
         body: JSON.stringify(payload),
       }),
       () => {
-        const err = new Error('Steam 导入需连接后端,当前为演示模式');
+        throw new Error('Steam inventory import is unavailable.');
+        /* Legacy malformed localized fallback:
+        const err = new Error('Steam 閻庣數鍘ч崣鍡涙閳ь剚娼婚悙鏉戝闁告艾娴烽?鐟滅増鎸告晶鐘崇▔閻戞宸濈紒鈧悜妯愪礁顕?);
         err.code = 'STEAM_IMPORT_PENDING';
         throw err;
+        */
       },
-      { fallback: false }   // 真实错误(403私有/429限流/404空)必须上抛,不能被 mock 兜底掩盖
+      { fallback: false }   // 闁活亞鍠庨悿鍕煥濞嗘帩鍤?403缂佸鐒﹀﹢?429闂傚嫭鍔栫粊?404缂?闊洤鎳橀妴蹇旂▔婵犲啫顫?濞戞挸绉烽崗妯兼偖?mock 闁稿繑绮岀花鎶藉箳閳哄啯纾?
     );
   }
 
-  /** 从净值曲线推算 returnPct（旧后端 online track 可能缺该字段） */
+  /** 濞寸姴楠搁崳锝夊磹閸忓吋閿ょ紒鐐鐢湱绮?returnPct闁挎稑鐗婂Λ顐﹀触鎼达綆浼?online track 闁告瑯鍨甸崗妯肩磽妤︽鍤夐悗娑欘殕椤斿矂鏁?*/
+        /*
+      },
+      { fallback: false }
+        * /
+    /*
+    );
+    */
+
   _returnPctFromSeries(arr) {
     if (!Array.isArray(arr) || arr.length < 2) return null;
     let first = null;
@@ -1002,7 +946,7 @@ class CSVestAPI {
       return cmp;
     }
     try {
-      // days=0：不截断，用全段净值推收益
+      // days=0闁挎稒鐭粭澶愬箣椤忓懏鐒介柨娑樼灱閺併倝宕楅妸锔诲斀闁告垟鍋撻柛濠傚悑鐢綊寮ㄩ崜浣规妱
       const raw = await this._fetch('/api/models/backtest?days=0&track=online');
       const bt = this._normalizeBacktest(raw, 0);
       const series = bt?.series || {};
@@ -1027,7 +971,7 @@ class CSVestAPI {
     );
   }
 
-  /** 将资金曲线统一为「整段起点=100」的净值指数 */
+  /** 閻忓繐妫滅粊顐︽煂閹寸偞閿ょ紒鎹愭硶缁儤绋夐埀顒佺▔閹巻鍋撶仦鐐婵炲牅绲婚幑锝夋倷?100闁靛棗绉跺▓鎴﹀礄閳ь剟宕愰崗鐓庣樄闁?*/
   _reindexSeries(series) {
     const out = {};
     for (const [name, arr] of Object.entries(series || {})) {
@@ -1042,7 +986,7 @@ class CSVestAPI {
     return out;
   }
 
-  /** 将新旧回测 JSON 统一成 { dates, series: { name: number[] } } */
+  /** 閻忓繐妫欓弻濠囧籍瑜嶅ú鏍?JSON 缂備胶鍠嶇粩鎾箣?{ dates, series: { name: number[] } } */
   _normalizeBacktest(raw, days = 60) {
     if (!raw || typeof raw !== 'object') {
       return {
@@ -1056,13 +1000,13 @@ class CSVestAPI {
     if (raw.dates && raw.series) {
       const first = Object.values(raw.series)[0];
       if (Array.isArray(first) && (typeof first[0] === 'number' || first[0] == null)) {
-        // 后端已按全程起点归一(indexBase=full_start)时勿再缩放；
-        // 旧接口若仅 indexed、却是「窗口首点=100」，再按 days 截取即可。
+        // 闁告艾娴烽顒€顔忛崣澶婄樆闁稿繈鍔庨埢鑲╂導妞嬪骸浠憸鐗堝笂缁?indexBase=full_start)闁哄啳娉涚€ｄ線宕樺鍥╃礆闁衡偓閹惧懐骞?
+        // 闁哄唲鍕闁告瑱缍€鐎氥垺绂?indexed闁靛棔绀佸畵鍫ュ及椤栨ǚ鍋撳畝鈧悰銉╁矗閿濆娴曢柣?100闁靛棗绋勭槐婵嬪礃瀹ュ棗鐦?days 闁规惌浜滆ぐ鍥础閸愭彃璁查柕?
         let series = raw.series;
         if (!raw.indexed) {
           series = this._reindexSeries(raw.series);
         } else if (raw.indexBase !== 'full_start' && !raw._windowReindexed) {
-          // 兼容旧后端：已是窗口归一，保持原样
+          // 闁稿繒鍘ч鎰板籍瑜嶉幃妤冪博椤栥倗绐楃€圭寮跺Σ鍝ョ玻濡も偓瑜版稖銇愰幒宥囶伇闁挎稑濂旂换姘跺箰娴ｇ鏂ч柡?
           series = raw.series;
         }
         let dates = raw.dates;
@@ -1082,7 +1026,7 @@ class CSVestAPI {
         };
       }
     }
-    // 新格式: fee_0.0000.{model}: [{date, capital}, ...]
+    // 闁哄倻澧楅悧绋款嚕? fee_0.0000.{model}: [{date, capital}, ...]
     const feeKey = Object.keys(raw).find(k => k.startsWith('fee_')) || null;
     const block = feeKey ? raw[feeKey] : null;
     if (block && typeof block === 'object') {
@@ -1096,7 +1040,7 @@ class CSVestAPI {
         }
         return d;
       });
-      // 先按整段起点归一，再截最近 N 天
+      // 闁稿繐鐗婄€垫粓寮€涙﹩鍞介悹褔顥撻崑锝堛亹閹哄秶顏遍柨娑樿嫰閸熲偓闁规惌浜濆〒鑸垫交?N 濠?
       const seriesFull = {};
       for (const [name, pts] of Object.entries(block)) {
         const caps = pts.map(p => Number(p.capital) || 0);
@@ -1122,7 +1066,10 @@ class CSVestAPI {
         fee: feeKey,
         indexed: true,
         indexBase: 'full_start',
-        note: '净值以整段回测起点=100；策略含现金仓位，波动通常小于满仓 Buy&Hold。',
+        note: 'Values are indexed to 100 at the full backtest start.',
+        /* Legacy malformed localized note:
+        note: '闁告垟鍋撻柛濠囨？娴滄帡寮€涙﹩鍞介柛銉у仦缁佸鎸ф搴′化=100闁挎稒绋撻悺銉╂偩閵夈儲鍎撻柣婊€鍗抽崳鐐閹捐尙绉撮柨娑樻湰鐏忔繈宕濋妸鈹惧亾濮橆剛鍩楅悘蹇撶箣缁剙顭ㄩ垾鑼尝 Buy&Hold闁?,
+        */
       };
     }
     return {

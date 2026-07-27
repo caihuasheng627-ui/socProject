@@ -582,6 +582,15 @@ paths:
           2. 逐件调仓建议(卖/持/加)+ RAG 理由
           3. 风险贡献 Top N(波动 × 市值)
         空仓返回 `{ empty: true, summary }`（HTTP 200），不抛 400。
+        `locale` 控制 AI 诊断总结语言（zh-CN / en-US）。
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [zh-CN, en-US]
+            default: zh-CN
       responses:
         '200':
           description: 成功（含空仓 empty 响应）
@@ -869,6 +878,19 @@ paths:
           schema:
             type: string
             format: date
+        - name: refresh
+          in: query
+          description: Force regenerate the full daily report
+          schema:
+            type: boolean
+            default: false
+        - name: locale
+          in: query
+          description: Language for the AI market summary
+          schema:
+            type: string
+            enum: [zh-CN, en-US]
+            default: zh-CN
       responses:
         '200':
           description: 成功

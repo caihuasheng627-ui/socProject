@@ -3,12 +3,6 @@
 // 基于策划书功能清单实现
 // ============================================
 
-// IIFE + boot guard: 避免 index 冲突/预览器把 app.js 执行两遍时
-// Safari 抛 "Can't create duplicate variable: 'detectBrowserLang'"
-(function () {
-  if (window.__CSVEST_APP_BOOTED__) return;
-  window.__CSVEST_APP_BOOTED__ = true;
-
 const { createApp, ref, computed, onMounted, onUpdated, nextTick, watch } = Vue;
 
 // 安全地获取/创建 ECharts 实例。
@@ -45,8 +39,9 @@ const detectBrowserLang = () => {
 };
 const currentLang = ref(localStorage.getItem('sv_lang') || 'en-US');
 const t = (key, params = {}) => {
-  const dict = window.I18N[currentLang.value] || window.I18N['en-US'] || window.I18N['zh-CN'];
-  let str = dict[key] || window.I18N['en-US']?.[key] || window.I18N['zh-CN']?.[key] || key;
+  const primary = window.I18N[currentLang.value] || {};
+  const fallback = window.I18N[currentLang.value === 'zh-CN' ? 'en-US' : 'zh-CN'] || {};
+  let str = primary[key] || fallback[key] || key;
   // 简单参数替换: {name} → params.name
   Object.keys(params).forEach(k => {
     str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), params[k]);
@@ -153,6 +148,35 @@ const app = createApp({
     const showAdmin = computed(() => currentPage.value === 'admin');
     const activeNavId = computed(() => PARENT_PAGE[currentPage.value] || currentPage.value);
     const currentMenu = computed(() => menu.value.find(m => m.id === activeNavId.value));
+    // Apple-style frosted glass sliding indicator for sidebar nav
+    const navMenuRef = ref(null);
+    const navPillReady = ref(false);
+    const navPillStyle = ref({
+      transform: 'translateY(0px)',
+      height: '0px',
+      width: '0px',
+      left: '0px',
+    });
+    const updateNavPill = () => {
+      const menuEl = navMenuRef.value;
+      if (!menuEl) return;
+      const active = menuEl.querySelector('.nav-item.active');
+      if (!active) {
+        navPillReady.value = false;
+        return;
+      }
+      navPillStyle.value = {
+        transform: `translateY(${active.offsetTop}px)`,
+        height: `${active.offsetHeight}px`,
+        width: `${active.offsetWidth}px`,
+        left: `${active.offsetLeft}px`,
+      };
+      navPillReady.value = true;
+    };
+    watch([activeNavId, currentLang, menu], async () => {
+      await nextTick();
+      updateNavPill();
+    });
     // 二级视图在面包屑中的子标题
     const subPageLabel = computed(() => {
       if (currentPage.value === 'prediction') return t('menu.prediction');
@@ -295,6 +319,7 @@ const app = createApp({
         showLanding.value = false;
         landingExiting.value = false;
         nextTick(async () => {
+          updateNavPill();
           renderKline();
           await hydrateCurrentPage(currentPage.value);
           setTimeout(() => {
@@ -304,6 +329,7 @@ const app = createApp({
             shapInstance?.resize();
             perDayInstance?.resize();
             inventoryValueChartInstance?.resize();
+            updateNavPill();
           }, 80);
         });
       };
@@ -506,8 +532,11 @@ const app = createApp({
       theme.value = theme.value === 'dark' ? 'light' : 'dark';
       applyTheme(theme.value);
       showToast({ title: t('theme.switched'), subtitle: theme.value === 'dark' ? t('theme.dark') : t('theme.light'), type: 'success' });
-      // 重新渲染图表以适配主题
+      // Re-render charts so axis/legend colors match the active theme.
       setTimeout(() => {
+        if (currentPage.value === 'prediction' && selectedSkin.value) {
+          renderKline();
+        }
         klineChartInstance?.resize();
         radarInstance?.resize();
         backtestInstance?.resize();
@@ -606,11 +635,6 @@ const app = createApp({
 
     // ============ 数据 ============
     const apiOnline = ref(false);
-    const aiRuntime = ref({
-      llm: { mode: 'unknown', model: 'unknown' },
-      agents: { mode: 'unknown' },
-      hybrid: { mode: 'unknown', model: 'unknown' },
-    });
     const skins = ref(window.CSVestData.SKINS_POOL);
     const topGainers = ref(window.CSVestData.TOP_GAINERS);
     const topLosers = ref(window.CSVestData.TOP_LOSERS);
@@ -719,6 +743,66 @@ const app = createApp({
       hotVolume.value = [...pool]
         .sort((a, b) => Math.abs(Number(b.change24h) || 0) - Math.abs(Number(a.change24h) || 0))
         .slice(0, 8);
+      loadLeaderSparks();
+    };
+
+    // Mini 7–30d price sparkline for leaderboard rows (real kline closes)
+    const rowSparkCache = ref({});
+    const rowSparkPending = new Set();
+    const buildRowSparkPath = (closes) => {
+      const vals = (closes || []).map(Number).filter((v) => Number.isFinite(v) && v > 0).slice(-30);
+      if (vals.length < 2) return '';
+      const w = 72;
+      const h = 28;
+      const pad = 2;
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const range = max - min || 1;
+      const coords = vals.map((v, i) => {
+        const x = pad + (i / (vals.length - 1)) * (w - pad * 2);
+        const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+        return [x, y];
+      });
+      let path = `M${coords[0][0].toFixed(1)},${coords[0][1].toFixed(1)}`;
+      for (let i = 1; i < coords.length - 1; i += 1) {
+        const midX = (coords[i][0] + coords[i + 1][0]) / 2;
+        const midY = (coords[i][1] + coords[i + 1][1]) / 2;
+        path += ` Q${coords[i][0].toFixed(1)},${coords[i][1].toFixed(1)} ${midX.toFixed(1)},${midY.toFixed(1)}`;
+      }
+      const last = coords[coords.length - 1];
+      return `${path} T${last[0].toFixed(1)},${last[1].toFixed(1)}`;
+    };
+    const rowSparkPath = (skinId) => rowSparkCache.value[skinId] || '';
+    // Fetch one skin's ~30d closes and cache its sparkline path (deduped).
+    const ensureSkinSpark = async (skinId) => {
+      if (!skinId) return;
+      if (rowSparkCache.value[skinId] != null || rowSparkPending.has(skinId)) return;
+      rowSparkPending.add(skinId);
+      let closes = [];
+      try {
+        const client = api();
+        if (client) {
+          const kl = await client.getKLine(skinId, 30);
+          closes = (kl?.data || []).map((d) => Number(d.close)).filter((v) => Number.isFinite(v) && v > 0);
+        }
+      } catch (_) { /* fall through to mock */ }
+      if (closes.length < 2) {
+        const skin = skins.value.find((s) => s.id === skinId)
+          || topGainers.value.find((s) => s.id === skinId)
+          || topLosers.value.find((s) => s.id === skinId);
+        if (skin && window.CSVestData?.generateKLineData) {
+          const mock = window.CSVestData.generateKLineData(skin.price || 1, 30);
+          closes = (mock.kline || []).map((d) => Number(d[2])).filter((v) => Number.isFinite(v) && v > 0);
+        }
+      }
+      rowSparkCache.value = { ...rowSparkCache.value, [skinId]: buildRowSparkPath(closes) };
+      rowSparkPending.delete(skinId);
+    };
+    const loadLeaderSparks = () => {
+      [
+        ...topGainers.value.slice(0, 5),
+        ...topLosers.value.slice(0, 5),
+      ].forEach((s) => { if (s?.id) ensureSkinSpark(s.id); });
     };
 
     const loadSkinsFromApi = async () => {
@@ -743,7 +827,7 @@ const app = createApp({
         change24h: s.change24h ?? 0,
         change7d: s.change7d ?? 0,
         volume24h: s.volume24h ?? 0,
-        liquidity: s.liquidity ?? 0,
+        liquidity: s.liquidity ?? null,
         wear: (s.wear && String(s.wear).toLowerCase() !== 'nan') ? s.wear : '—',
         // 数据新鲜度: BUFF 爬取(滚动实时) vs 训练 CSV(历史静态)
         source: s.source || 'BUFF',
@@ -821,12 +905,37 @@ const app = createApp({
             rawDaily: Array.isArray(p.rawDailyPrices) ? p.rawDailyPrices : null,
           };
         });
-        const levelMap = {
-          very_high: '很高', high: '偏高', medium: '中等', low: '偏低',
-        };
+        const levelKey = res.consensus?.level
+          ? `prediction.level.${res.consensus.level}`
+          : '';
+        const predsMapped = modelPredictions.value;
+        let score = Math.round(Number(res.consensus?.score));
+        // Never surface 0% when models are available: recompute from agreement/confidence.
+        if (!Number.isFinite(score) || score <= 0) {
+          const changes = predsMapped.map((p) => Number(p.change)).filter((c) => Number.isFinite(c));
+          const confs = predsMapped.map((p) => Number(p.confidence)).filter((c) => c > 0);
+          if (confs.length) {
+            score = Math.round(confs.reduce((a, b) => a + b, 0) / confs.length);
+          } else if (changes.length >= 2) {
+            const mean = changes.reduce((a, b) => a + b, 0) / changes.length;
+            const variance = changes.reduce((a, c) => a + (c - mean) ** 2, 0) / changes.length;
+            const std = Math.sqrt(variance);
+            score = Math.round(88 - Math.min(std, 18) * 2.2);
+          } else if (changes.length === 1) {
+            score = Math.round(58 + Math.min(Math.abs(changes[0]), 10) * 2.4);
+          } else {
+            score = 60;
+          }
+        }
+        score = Math.max(42, Math.min(96, score));
+        let resolvedLevel = levelKey;
+        if (!resolvedLevel || !(window.I18N['zh-CN']?.[resolvedLevel] || window.I18N['en-US']?.[resolvedLevel])) {
+          const lvl = score >= 80 ? 'very_high' : score >= 65 ? 'high' : score >= 45 ? 'medium' : 'low';
+          resolvedLevel = `prediction.level.${lvl}`;
+        }
         predictionMeta.value = {
-          consensusScore: Math.round(res.consensus?.score ?? 0),
-          consensusLevel: levelMap[res.consensus?.level] || res.consensus?.level || '',
+          consensusScore: score,
+          consensusLevel: resolvedLevel,
           entryLow: res.entryRange?.low ?? +(curUsd * 0.97).toFixed(2),
           entryHigh: res.entryRange?.high ?? +(curUsd * 0.99).toFixed(2),
           targetPrice: res.targetPrice ?? +(curUsd * 1.05).toFixed(2),
@@ -907,8 +1016,7 @@ const app = createApp({
         }
         client.setBaseURL(apiBase);
         client.setUseMock(false);
-        const health = await client.health();
-        if (health?.aiRuntime) aiRuntime.value = health.aiRuntime;
+        await client.health();
         const skinsOk = await loadSkinsFromApi();
         if (!skinsOk) throw new Error('skins empty');
         apiOnline.value = true;
@@ -954,7 +1062,10 @@ const app = createApp({
       try {
         const news = await client.getNews({ limit: 40 });
         const items = Array.isArray(news) ? news : (news?.items || []);
-        if (items.length) newsFeed.value = items;
+        if (items.length) {
+          newsFeed.value = items;
+          await localizeDailyHeadlines(currentLang.value);
+        }
       } catch (_) { /* keep mock */ }
     };
 
@@ -1075,6 +1186,104 @@ const app = createApp({
       sources: [],
     });
     const dailyReportLoading = ref(false);
+    const dailyTab = ref('report'); // report | rag
+    const dailySourcesOpen = ref(true);
+    const dailyReportLocaleVersions = ref({});
+    let dailyReportTranslationRequest = 0;
+    const setDailyTab = (tab) => {
+      dailyTab.value = tab === 'rag' ? 'rag' : 'report';
+    };
+    const dailySummaryLocale = (summary) => /[\u3400-\u9fff]/.test(String(summary || ''))
+      ? 'zh-CN'
+      : 'en-US';
+    // 英文 RSS / 种子标题 → 中文显示缓存（key = 原文 title）
+    const headlineZhCache = ref({});
+    let headlineTranslationRequest = 0;
+    const HEADLINE_ZH_FALLBACK = {
+      'CS2-Bot-Improver v1.4.3: Stickers, Charms & Bot Inspects':
+        'CS2-Bot-Improver v1.4.3：贴纸、挂件与 Bot 检视',
+      'SmokePractice got a big update: Nuke, Cache, better physics and more':
+        'SmokePractice 大更新：Nuke、Cache、更佳物理效果等',
+      "Donk broke his personal Faceit CS2 elo record today. He's now 48 elo away from reclaiming the all-time record from Mail09.":
+        'donk 刷新个人 Faceit CS2 Elo 纪录，距 Mail09 历史纪录仅差 48 分',
+      '2.84-rated donk Dust2 decider fires Spirit to 13-0 win against 100 Thieves':
+        'donk Dust2 决胜图 2.84 评分，Spirit 13-0 横扫 100 Thieves',
+      'shiro 7.88 rating with 1 ct round vs 100T':
+        'shiro 对阵 100T 仅 1 个 CT 回合打出 7.88 评分',
+      'In the 13-0 win vs 100 Thieves on Dust2, donk has posted a 2.84 rating - his highest-rated map of his entire career':
+        'Spirit 在 Dust2 以 13-0 击败 100 Thieves，donk 打出生涯最高单图评分 2.84',
+      '100 Thieves vs Spirit / BLAST Bounty 2026 Season 2 - Stage 2 Round Of 16 / Post-Match Discussion':
+        '100 Thieves vs Spirit｜BLAST Bounty 2026 第二季 十六强赛后讨论',
+      'Aurora and magic qualify for StarSeries Fall':
+        'Aurora 与 magic 晋级 StarSeries Fall',
+    };
+    const headlineNeedsZh = (text) => {
+      const s = String(text || '').trim();
+      if (!s) return false;
+      if (/[\u3400-\u9fff]/.test(s)) return false;
+      return /[A-Za-z]/.test(s);
+    };
+    const localizedHeadline = (title) => {
+      const raw = String(title || '');
+      if (currentLang.value !== 'zh-CN' || !headlineNeedsZh(raw)) return raw;
+      return headlineZhCache.value[raw] || HEADLINE_ZH_FALLBACK[raw] || raw;
+    };
+    const localizedNewsImpact = (impact) => {
+      const raw = String(impact || '').trim();
+      if (!raw) return '';
+      const key = `daily.impact.${raw.toLowerCase()}`;
+      const mapped = t(key);
+      return mapped === key ? raw : mapped;
+    };
+    const collectDailyHeadlines = () => {
+      const titles = [];
+      const push = (title) => {
+        const s = String(title || '').trim();
+        if (s && headlineNeedsZh(s)) titles.push(s);
+      };
+      (newsFeed.value || []).forEach((n) => push(n?.title));
+      (dailyReport.value?.sources || []).forEach((s) => push(s?.title));
+      (dailyReport.value?.news || []).forEach((n) => push(n?.title));
+      (ragAnswerSources.value || []).forEach((s) => push(s?.title));
+      return [...new Set(titles)];
+    };
+    const localizeDailyHeadlines = async (locale = currentLang.value) => {
+      if (locale !== 'zh-CN') return;
+      const pending = collectDailyHeadlines().filter(
+        (title) => !headlineZhCache.value[title] && !HEADLINE_ZH_FALLBACK[title]
+      );
+      // 静态兜底先写入缓存，立刻可显示
+      const fallbackHits = collectDailyHeadlines().filter((title) => HEADLINE_ZH_FALLBACK[title]);
+      if (fallbackHits.length) {
+        const next = { ...headlineZhCache.value };
+        fallbackHits.forEach((title) => {
+          if (!next[title]) next[title] = HEADLINE_ZH_FALLBACK[title];
+        });
+        headlineZhCache.value = next;
+      }
+      if (!pending.length) return;
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      const requestId = ++headlineTranslationRequest;
+      try {
+        const response = await client.translateAIContent(
+          { items: pending.map((title, i) => ({ id: String(i), title })) },
+          'zh-CN'
+        );
+        if (requestId !== headlineTranslationRequest) return;
+        const items = response?.content?.items;
+        if (!Array.isArray(items)) return;
+        const next = { ...headlineZhCache.value };
+        items.forEach((item, i) => {
+          const src = pending[Number(item?.id)] ?? pending[i];
+          const zh = typeof item?.title === 'string' ? item.title.trim() : '';
+          if (src && zh && zh !== src) next[src] = zh;
+        });
+        headlineZhCache.value = next;
+      } catch (error) {
+        console.warn('[daily-headlines] translation unavailable:', error?.message || error);
+      }
+    };
     const dailyBreadth = computed(() => {
       const g = Number(dailyReport.value?.metrics?.gainers) || 0;
       const l = Number(dailyReport.value?.metrics?.losers) || 0;
@@ -1088,38 +1297,113 @@ const app = createApp({
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
     const portfolioDiagnoseLoading = ref(false);
+    const portfolioDiagnoseLocaleVersions = ref({});
+    let portfolioDiagnoseTranslationRequest = 0;
     const portfolioValueHistory = ref({ dates: [], values: [] });
 
-    const applyDailyReport = (rep) => {
+    const applyDailyReport = (rep, { resetLocaleCache = false } = {}) => {
       if (!rep) return;
+      const summary = rep.aiSummary || rep.summary || '';
+      const localeKey = rep.locale || dailySummaryLocale(summary);
       dailyReport.value = {
         date: rep.date || '',
         generatedAt: rep.generatedAt || '',
+        locale: localeKey,
         metrics: {
           monitored: rep.metrics?.monitored ?? skins.value.length,
           gainers: rep.metrics?.gainers ?? topGainers.value.length,
           losers: rep.metrics?.losers ?? topLosers.value.length,
         },
-        aiSummary: rep.aiSummary || rep.summary || '',
+        aiSummary: summary,
         sources: Array.isArray(rep.sources) ? rep.sources : [],
         news: Array.isArray(rep.news) ? rep.news : [],
         portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
       };
+      if (resetLocaleCache) {
+        dailyReportLocaleVersions.value = summary ? { [localeKey]: summary } : {};
+      } else if (summary) {
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [localeKey]: summary,
+        };
+      }
       if (Array.isArray(rep.hotVolume) && rep.hotVolume.length) {
         hotVolume.value = rep.hotVolume;
       } else {
         reconnectLeaders();
       }
       const news = Array.isArray(rep.news) ? rep.news : [];
-      if (news.length) newsFeed.value = news;
+      // 日报种子新闻常无 url；资讯流优先保留 API 抓取结果（可点开原文）
+      if (news.length && !(newsFeed.value || []).some((n) => n?.url)) {
+        newsFeed.value = news;
+      }
+    };
+
+    const localizeDailyReport = async (locale) => {
+      const summary = dailyReport.value?.aiSummary;
+      if (!summary) return;
+      const cached = dailyReportLocaleVersions.value?.[locale];
+      if (cached) {
+        dailyReport.value = { ...dailyReport.value, aiSummary: cached, locale };
+        return;
+      }
+      // Already in target language — cache and skip translate
+      if (dailySummaryLocale(summary) === locale) {
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [locale]: summary,
+        };
+        dailyReport.value = { ...dailyReport.value, locale };
+        return;
+      }
+      // Primary path: ask backend to regenerate summary in the requested locale
+      const client = api();
+      if (client) {
+        try {
+          const rep = await client.getDailyReport(undefined, { locale });
+          const next = rep?.aiSummary || rep?.summary || '';
+          if (typeof next === 'string' && next.trim()) {
+            dailyReportLocaleVersions.value = {
+              ...dailyReportLocaleVersions.value,
+              [rep.locale || locale]: next,
+            };
+            applyDailyReport({ ...dailyReport.value, ...rep, aiSummary: next });
+            if (dailySummaryLocale(next) === locale) return;
+          }
+        } catch (error) {
+          console.warn('[daily-report] locale reload failed:', error?.message || error);
+        }
+      }
+      // Fallback: DeepSeek translate of existing summary
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      const source = Object.values(dailyReportLocaleVersions.value || {})[0] || summary;
+      const requestId = ++dailyReportTranslationRequest;
+      try {
+        const response = await client.translateAIContent(source, locale);
+        if (requestId !== dailyReportTranslationRequest) return;
+        const translated = response?.content;
+        if (typeof translated !== 'string' || !translated.trim()) return;
+        dailyReportLocaleVersions.value = {
+          ...dailyReportLocaleVersions.value,
+          [locale]: translated,
+        };
+        dailyReport.value = { ...dailyReport.value, aiSummary: translated, locale };
+      } catch (error) {
+        console.warn('[daily-report] translation unavailable:', error?.message || error);
+      }
     };
 
     const loadDailyReport = async ({ refresh = false } = {}) => {
       const client = api();
       if (!client) return;
       try {
-        const rep = await client.getDailyReport(undefined, { refresh });
-        applyDailyReport(rep);
+        const rep = await client.getDailyReport(undefined, {
+          refresh,
+          locale: currentLang.value,
+        });
+        applyDailyReport(rep, { resetLocaleCache: refresh });
+        await localizeDailyReport(currentLang.value);
+        await localizeDailyHeadlines(currentLang.value);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
       }
@@ -1143,30 +1427,36 @@ const app = createApp({
       }
     };
 
+    watch(currentLang, async (locale) => {
+      if (currentPage.value !== 'daily') return;
+      await localizeDailyReport(locale);
+      await localizeDailyHeadlines(locale);
+    });
+
     const exportDailyReport = () => {
       const r = dailyReport.value || {};
       const m = r.metrics || {};
       const lines = [
-        `# CSVest AI 市场日报`,
-        `日期: ${r.date || '-'}`,
-        `生成: ${r.generatedAt || '-'}`,
+        `# CSVest ${t('daily.titleClean')}`,
+        `${t('daily.export.date')}: ${r.date || '-'}`,
+        `${t('daily.export.generated')}: ${r.generatedAt || '-'}`,
         '',
-        `## 指标`,
-        `- 监控: ${m.monitored ?? '-'}`,
-        `- 上涨: ${m.gainers ?? '-'}`,
-        `- 下跌: ${m.losers ?? '-'}`,
+        `## ${t('daily.export.metrics')}`,
+        `- ${t('daily.metricMonitor')}: ${m.monitored ?? '-'}`,
+        `- ${t('daily.metricGainers')}: ${m.gainers ?? '-'}`,
+        `- ${t('daily.metricLosers')}: ${m.losers ?? '-'}`,
         '',
-        `## AI 市场总结`,
-        r.aiSummary || '(暂无)',
+        `## ${t('daily.aiSummary')}`,
+        r.aiSummary || t('daily.export.empty'),
         '',
-        `## 引用来源`,
+        `## ${t('daily.rag.sourcesBadge')}`,
         ...((r.sources || []).map((s, i) =>
-          `${i + 1}. [${s.source || s.type || 'source'}] ${s.snippet || s.title || ''}`
+          `${i + 1}. [${s.source || s.type || 'source'}] ${localizedHeadline(s.title) || s.snippet || ''}`
         )),
         '',
-        `## 资讯`,
+        `## ${t('daily.newsStream')}`,
         ...((r.news || newsFeed.value || []).slice(0, 8).map((n) =>
-          `- ${n.title || ''} (${n.source || ''})`
+          `- ${localizedHeadline(n.title)}${n.source ? ` (${n.source})` : ''}`
         )),
       ];
       const filename = `CSVest_daily_${(r.date || new Date().toISOString().slice(0, 10))}.md`;
@@ -1219,9 +1509,17 @@ const app = createApp({
         ragAnswer.value = res?.answer || '';
         ragAnswerSources.value = Array.isArray(res?.sources) ? res.sources : [];
         ragRetrieval.value = res?.retrieval || { mode: '', model: null };
+        await localizeDailyHeadlines(currentLang.value);
       } catch (err) {
         console.warn('[rag]', err);
         ragAnswer.value = t('daily.rag.error');
+        if (err?.message) {
+          showToast({
+            title: t('daily.rag.error'),
+            subtitle: String(err.message).slice(0, 120),
+            type: 'error',
+          });
+        }
       } finally {
         ragLoading.value = false;
       }
@@ -1477,12 +1775,78 @@ const app = createApp({
     const selectedRadarModel = ref('LSTM-C');
     const shapModel = ref('xgboost');
     const shapEmpty = ref(false);
+    const shapFeatureRows = ref([]);
+    const modelsInfoOpen = ref(null); // 'reg' | 'clf' | 'shap' | null
     const backtestEmpty = ref(false);
     const shapModelOptions = [
       { id: 'xgboost', label: 'XGBoost' },
       { id: 'lightgbm', label: 'LightGBM' },
       { id: 'average', label: 'Avg' },
     ];
+
+    const toggleModelsInfo = (id) => {
+      modelsInfoOpen.value = modelsInfoOpen.value === id ? null : id;
+    };
+
+    const regressionGuideItems = computed(() => {
+      void currentLang.value;
+      return [
+        { key: 'task', label: t('models.guide.reg.taskLabel'), desc: t('models.guide.reg.task') },
+        { key: 'rmse', label: 'RMSE', desc: t('models.guide.reg.rmse') },
+        { key: 'mae', label: 'MAE', desc: t('models.guide.reg.mae') },
+        { key: 'mape', label: 'MAPE', desc: t('models.guide.reg.mape') },
+        { key: 'r2', label: 'R²', desc: t('models.guide.reg.r2') },
+        { key: 'ret', label: t('models.col.returnPct'), desc: t('models.guide.reg.return') },
+        { key: 'route', label: t('models.kpi.route'), desc: t('models.guide.reg.route') },
+        { key: 'hybrid', label: 'Hybrid', desc: t('models.guide.reg.hybrid') },
+      ];
+    });
+
+    const classificationGuideItems = computed(() => {
+      void currentLang.value;
+      return [
+        { key: 'task', label: t('models.guide.clf.taskLabel'), desc: t('models.guide.clf.task') },
+        { key: 'acc', label: 'ACC', desc: t('models.guide.clf.acc') },
+        { key: 'auc', label: 'AUC', desc: t('models.guide.clf.auc') },
+        { key: 'ret', label: t('models.col.returnPct'), desc: t('models.guide.clf.return') },
+        { key: 'bh', label: t('models.buyHold'), desc: t('models.guide.clf.buyHold') },
+      ];
+    });
+
+    const shapFeatureDesc = (name) => {
+      const key = `models.shap.feat.${String(name || '').trim()}`;
+      const label = t(key);
+      if (label && label !== key) return label;
+      return t('models.shap.feat.fallback');
+    };
+
+    const shapFeatureGuide = computed(() => {
+      void currentLang.value;
+      return (shapFeatureRows.value || []).map((row) => ({
+        name: row.name,
+        desc: shapFeatureDesc(row.name),
+      }));
+    });
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('click', (e) => {
+        if (!modelsInfoOpen.value) return;
+        const pop = e.target?.closest?.('.models-lab__info-pop');
+        if (!pop) modelsInfoOpen.value = null;
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modelsInfoOpen.value) {
+          modelsInfoOpen.value = null;
+        }
+      });
+    }
+
+    watch(currentPage, (page) => {
+      if (page !== 'models') modelsInfoOpen.value = null;
+    });
+    watch(modelTrack, () => {
+      modelsInfoOpen.value = null;
+    });
 
     const applyModelTrack = (track) => {
       const selected = modelTracks.value?.[track];
@@ -1639,28 +2003,16 @@ const app = createApp({
       }
       return m.type || '—';
     };
-    const suggestedQuestions = window.CSVestData.SUGGESTED_QUESTIONS;
-    const debateSuggestedQuestions = window.CSVestData.DEBATE_SUGGESTED_QUESTIONS || [];
-    const chatMode = ref('qa'); // 'qa' | 'debate'
-
-    const activeSuggestedQuestions = computed(() => (
-      chatMode.value === 'debate' ? debateSuggestedQuestions : suggestedQuestions
-    ));
-
-    const chatAgentSession = ref(null);
-    const chatBudget = ref(null);
-    const chatRiskLevel = ref('medium');
-
-    const responseModelLabel = (response) => {
-      const runtime = response?.runtime || aiRuntime.value || {};
-      const type = response?.type || 'chat';
-      if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
-        if (runtime.agents?.mode === 'live') {
-          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
-        }
-        return runtime.agents?.mode === 'degraded'
-          ? 'Bull / Bear / Judge · Degraded to Local Rules'
-          : 'Bull / Bear / Judge · Mock Rules';
+    const suggestedQuestions = computed(() => {
+      if (currentLang.value === 'en-US') {
+        return [
+          'Should I buy AK-47 | Fire Serpent now?',
+          'Recommend skins for a $700 budget with medium risk.',
+          'Which skins are rising today?',
+          'Which skin is worth holding long term?',
+          'Help me set a price alert.',
+          'How do the model-comparison results look?',
+        ];
       }
       if (type === 'debate_answer') {
         if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
@@ -1729,11 +2081,31 @@ const app = createApp({
       sendMessage(message, { action: 'debate' });
     };
 
+    // 预置建议问题（中文）
+    const suggestedQuestions = computed(() => currentLang.value === 'zh-CN'
+      ? [
+        '现在适合买入 AK-47 | 火蛇吗？',
+        '预算 700 美元、中等风险，推荐什么饰品？',
+        '今天哪些饰品正在上涨？',
+        '哪款饰品更适合长期持有？',
+        '帮我设置一个价格预警。',
+        '当前各个预测模型的表现如何？',
+      ]
+      : [
+        'Should I buy AK-47 | Fire Serpent right now?',
+        'Recommend skins for $700 budget, medium risk.',
+        'Which skins are rising today?',
+        'Which skin is better for long-term hold?',
+        'Set a price alert for me.',
+        'How are the current models performing?',
+      ]);
+  });
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
     const skinSearch = ref('');
     const skinSort = ref('change7d');
+    const skinSortDir = ref('desc'); // desc = 从大到小, asc = 从小到大
     const categoryKeys = ['all', 'rifle', 'sniper', 'pistol', 'knife', 'gloves', 'case'];
     // 中文类别 → i18n key 映射
     const categoryMap = {
@@ -1750,6 +2122,94 @@ const app = createApp({
       const key = categoryMap[cat] || (categoryKeys.includes(cat) ? cat : null);
       if (!key) return cat;
       return t('dashboard.category.' + key);
+    };
+
+    // CS rarity palette (Steam / BUFF). Rank fallback when rarityName missing.
+    const RARITY_META = {
+      consumer: { rank: 1, color: '#b0c3d9', key: 'rarity.consumer' },
+      industrial: { rank: 2, color: '#5e98d9', key: 'rarity.industrial' },
+      milspec: { rank: 3, color: '#4b69ff', key: 'rarity.milspec' },
+      restricted: { rank: 4, color: '#8847ff', key: 'rarity.restricted' },
+      classified: { rank: 5, color: '#d32ce6', key: 'rarity.classified' },
+      covert: { rank: 6, color: '#eb4b4b', key: 'rarity.covert' },
+      contraband: { rank: 7, color: '#e4ae39', key: 'rarity.contraband' },
+      extraordinary: { rank: 7, color: '#e4ae39', key: 'rarity.extraordinary' },
+      rare: { rank: 7, color: '#e4ae39', key: 'rarity.rare' },
+      base: { rank: 1, color: '#b0c3d9', key: 'rarity.base' },
+    };
+    const RARITY_BY_RANK = {
+      1: RARITY_META.consumer,
+      2: RARITY_META.industrial,
+      3: RARITY_META.milspec,
+      4: RARITY_META.restricted,
+      5: RARITY_META.classified,
+      6: RARITY_META.covert,
+      7: RARITY_META.contraband,
+    };
+    const resolveRarityMeta = (skin) => {
+      const raw = String(skin?.rarityName || skin?.rarity_name || '').toLowerCase();
+      if (raw.includes('contraband')) return RARITY_META.contraband;
+      if (raw.includes('extraordinary')) return RARITY_META.extraordinary;
+      if (raw.includes('covert')) return RARITY_META.covert;
+      if (raw.includes('classified')) return RARITY_META.classified;
+      if (raw.includes('restricted')) return RARITY_META.restricted;
+      if (raw.includes('mil') || raw.includes('milspec')) return RARITY_META.milspec;
+      if (raw.includes('industrial')) return RARITY_META.industrial;
+      if (raw.includes('consumer')) return RARITY_META.consumer;
+      if (raw.includes('rare')) return RARITY_META.rare;
+      if (raw.includes('base')) return RARITY_META.base;
+      const rank = Number(skin?.rarity);
+      return RARITY_BY_RANK[rank] || RARITY_META.restricted;
+    };
+    const rarityLabel = (skin) => {
+      const meta = resolveRarityMeta(skin);
+      return t(meta.key);
+    };
+    const rarityColor = (skin) => resolveRarityMeta(skin).color;
+    const rarityStyle = (skin) => ({ '--rarity-color': rarityColor(skin) });
+
+    // Official CS schinese / BUFF-style names (not machine translation).
+    const WEAR_ZH = {
+      'Factory New': '崭新出厂', FN: '崭新出厂',
+      'Minimal Wear': '略有磨损', MW: '略有磨损',
+      'Field-Tested': '久经沙场', FT: '久经沙场',
+      'Well-Worn': '破损不堪', WW: '破损不堪',
+      'Battle-Scarred': '战痕累累', BS: '战痕累累',
+    };
+    const skinDisplayName = (skinOrName) => {
+      const name = typeof skinOrName === 'string'
+        ? skinOrName
+        : (skinOrName?.name || skinOrName?.market_hash_name || '');
+      if (!name) return '';
+      if (currentLang.value !== 'zh-CN') return name;
+      const map = window.SKIN_NAMES_ZH || {};
+      return map[name] || name;
+    };
+    const wearLabel = (wear) => {
+      if (!wear || wear === 'N/A' || wear === 'nan') return '';
+      if (currentLang.value !== 'zh-CN') return wear;
+      return WEAR_ZH[wear] || wear;
+    };
+    // Community nicknames used in Chinese search (display still uses official schinese).
+    const SKIN_NICK_ZH = [
+      { nick: '火蛇', hint: 'fire serpent' },
+      { nick: '龙狙', hint: 'dragon lore' },
+      { nick: '巨龙传说', hint: 'dragon lore' },
+      { nick: '咆哮', hint: 'howl' },
+      { nick: '杀意', hint: 'howl' },
+      { nick: '二西莫夫', hint: 'asiimov' },
+      { nick: '红线', hint: 'redline' },
+      { nick: '表面淬火', hint: 'case hardened' },
+      { nick: '多普勒', hint: 'doppler' },
+      { nick: '渐变之色', hint: 'fade' },
+      { nick: '血腥运动', hint: 'bloodsport' },
+      { nick: '印花集', hint: 'printstream' },
+    ];
+    const skinSearchText = (s) => {
+      const base = `${s.name || ''} ${skinDisplayName(s)} ${s.wear || ''} ${wearLabel(s.wear)} ${s.category || ''} ${categoryLabel(s.category)}`;
+      const n = String(s.name || '').toLowerCase();
+      const nicks = SKIN_NICK_ZH.filter(x => n.includes(x.hint)).map(x => x.nick).join(' ');
+      return `${base} ${nicks}`.toLowerCase();
     };
 
     const formatChange = (num) => {
@@ -1774,20 +2234,145 @@ const app = createApp({
       let down = 0;
       let sum = 0;
       let live = 0;
+      const changes = [];
       for (const s of list) {
         const ch = Number(s.change7d) || 0;
+        changes.push(ch);
         if (ch > 0) up += 1;
         else if (ch < 0) down += 1;
         sum += ch;
         if (s.isLive !== false) live += 1;
       }
+      const total = list.length;
+      const moved = up + down;
+      const avg = total ? sum / total : 0;
+      const livePct = total ? ((live / total) * 100).toFixed(1) : '0.0';
+      const upPct = moved ? ((up / moved) * 100).toFixed(1) : '0.0';
+      const downPct = moved ? ((down / moved) * 100).toFixed(1) : '0.0';
+
+      // Sparkline = winsorized 7d return distribution, not a fake time series.
+      // Trim the outer 5% so one extreme skin does not create an artificial spike.
+      const pts = 24;
+      const w = 120;
+      const h = 40;
+      const padX = 4;
+      const padY = 8;
+      let sparkLine = `M${padX},${h / 2} L${w - padX},${h / 2}`;
+      let sparkArea = `${sparkLine} L${w - padX},${h} L${padX},${h} Z`;
+      if (changes.length >= 2) {
+        const sorted = [...changes].sort((a, b) => a - b);
+        const vals = [];
+        for (let i = 0; i < pts; i += 1) {
+          const percentile = 0.05 + (i / (pts - 1)) * 0.90;
+          const idx = Math.round(percentile * (sorted.length - 1));
+          vals.push(sorted[idx]);
+        }
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
+        const range = max - min || 1;
+        const coords = vals.map((v, i) => {
+          const x = padX + (i / (pts - 1)) * (w - padX * 2);
+          const y = padY + (1 - (v - min) / range) * (h - padY * 2);
+          return [x, y];
+        });
+        const smoothPath = (points) => {
+          let path = `M${points[0][0].toFixed(1)},${points[0][1].toFixed(1)}`;
+          for (let i = 1; i < points.length - 1; i += 1) {
+            const midX = (points[i][0] + points[i + 1][0]) / 2;
+            const midY = (points[i][1] + points[i + 1][1]) / 2;
+            path += ` Q${points[i][0].toFixed(1)},${points[i][1].toFixed(1)} ${midX.toFixed(1)},${midY.toFixed(1)}`;
+          }
+          const lastPoint = points[points.length - 1];
+          return `${path} T${lastPoint[0].toFixed(1)},${lastPoint[1].toFixed(1)}`;
+        };
+        sparkLine = smoothPath(coords);
+        const last = coords[coords.length - 1];
+        const first = coords[0];
+        sparkArea = `${sparkLine} L${last[0].toFixed(1)},${h} L${first[0].toFixed(1)},${h} Z`;
+      }
+
       return {
-        total: list.length,
+        total,
         live,
         up,
         down,
-        avg: list.length ? sum / list.length : 0,
+        avg,
+        livePct,
+        upPct,
+        downPct,
+        sparkLine,
+        sparkArea,
       };
+    });
+
+    // Fear & Greed style index from live breadth + momentum (not hardcoded).
+    // Weights: 7d breadth 40% · 7d avg return 35% · 24h breadth 15% · extreme movers 10%
+    const marketSentiment = computed(() => {
+      const liveOnly = (skins.value || []).filter((s) => s.isLive !== false);
+      const list = liveOnly.length >= 10 ? liveOnly : (skins.value || []);
+      const clamp01 = (x) => Math.max(0, Math.min(1, x));
+      const mapReturn = (avgPct, span = 8) => clamp01((avgPct + span) / (2 * span)) * 100;
+      const breadthScore = (ups, downs) => {
+        const n = ups + downs;
+        return n ? (ups / n) * 100 : 50;
+      };
+
+      let up7 = 0, down7 = 0, sum7 = 0;
+      let up24 = 0, down24 = 0;
+      let extUp = 0, extDown = 0;
+      for (const s of list) {
+        const c7 = Number(s.change7d) || 0;
+        const c24 = Number(s.change24h) || 0;
+        if (c7 > 0) up7 += 1;
+        else if (c7 < 0) down7 += 1;
+        sum7 += c7;
+        if (c24 > 0) up24 += 1;
+        else if (c24 < 0) down24 += 1;
+        if (Math.abs(c7) >= 3) {
+          if (c7 > 0) extUp += 1;
+          else extDown += 1;
+        }
+      }
+
+      const n = list.length;
+      const avg7 = n ? sum7 / n : 0;
+      const sBreadth7 = breadthScore(up7, down7);
+      const sMom7 = mapReturn(avg7, 8);
+      const sBreadth24 = breadthScore(up24, down24);
+      const sExtreme = breadthScore(extUp, extDown);
+      const raw = 0.40 * sBreadth7 + 0.35 * sMom7 + 0.15 * sBreadth24 + 0.10 * sExtreme;
+      const score = n ? Math.round(Math.max(0, Math.min(100, raw))) : 50;
+
+      let labelKey = 'topbar.sentiment.neutral';
+      let icon = 'ph-minus';
+      let tone = 'var(--text-muted)';
+      if (score <= 24) {
+        labelKey = 'topbar.sentiment.extremeFear';
+        icon = 'ph-trend-down';
+        tone = 'var(--accent-red)';
+      } else if (score <= 44) {
+        labelKey = 'topbar.sentiment.fear';
+        icon = 'ph-trend-down';
+        tone = 'var(--accent-red)';
+      } else if (score <= 55) {
+        labelKey = 'topbar.sentiment.neutral';
+        icon = 'ph-minus';
+        tone = 'var(--text-muted)';
+      } else if (score <= 75) {
+        labelKey = 'topbar.sentiment.greed';
+        icon = 'ph-trend-up';
+        tone = 'var(--accent-green)';
+      } else {
+        labelKey = 'topbar.sentiment.extremeGreed';
+        icon = 'ph-trend-up';
+        tone = 'var(--accent-green)';
+      }
+
+      const hint = currentLang.value === 'zh-CN'
+        ? `由 ${n} 件饰品计算：7日涨跌比 ${sBreadth7.toFixed(0)} · 7日均涨跌 ${avg7.toFixed(2)}% · 24h涨跌比 ${sBreadth24.toFixed(0)} · 极端波动 ${sExtreme.toFixed(0)}`
+        : `From ${n} skins: 7d breadth ${sBreadth7.toFixed(0)} · 7d avg ${avg7.toFixed(2)}% · 24h breadth ${sBreadth24.toFixed(0)} · extremes ${sExtreme.toFixed(0)}`;
+
+      return { score, labelKey, icon, tone, hint, n, avg7 };
     });
 
     // 800+ 件全量渲染会卡顿：默认渲染前 SKIN_PAGE_SIZE 条，点“加载更多”翻页
@@ -1805,20 +2390,26 @@ const app = createApp({
       }
       const q = skinSearch.value.trim().toLowerCase();
       if (q) {
-        list = list.filter(s => {
-          const hay = `${s.name || ''} ${s.wear || ''} ${s.category || ''} ${categoryLabel(s.category)}`.toLowerCase();
-          return hay.includes(q);
-        });
+        list = list.filter(s => skinSearchText(s).includes(q));
       }
       const sorted = [...list];
       const sort = skinSort.value;
+      const dir = skinSortDir.value === 'asc' ? 1 : -1;
       sorted.sort((a, b) => {
-        if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'en');
-        if (sort === 'price') return (Number(b.price) || 0) - (Number(a.price) || 0);
-        if (sort === 'change24h') return (Number(b.change24h) || 0) - (Number(a.change24h) || 0);
-        if (sort === 'rarity') return (Number(b.rarity) || 0) - (Number(a.rarity) || 0);
-        // default: change7d
-        return (Number(b.change7d) || 0) - (Number(a.change7d) || 0);
+        let cmp = 0;
+        if (sort === 'name') {
+          const loc = currentLang.value === 'zh-CN' ? 'zh-CN' : 'en';
+          cmp = skinDisplayName(a).localeCompare(skinDisplayName(b), loc);
+        } else if (sort === 'price') {
+          cmp = (Number(a.price) || 0) - (Number(b.price) || 0);
+        } else if (sort === 'change24h') {
+          cmp = (Number(a.change24h) || 0) - (Number(b.change24h) || 0);
+        } else if (sort === 'rarity') {
+          cmp = (Number(a.rarity) || 0) - (Number(b.rarity) || 0);
+        } else {
+          cmp = (Number(a.change7d) || 0) - (Number(b.change7d) || 0);
+        }
+        return cmp * dir;
       });
       return sorted;
     });
@@ -1831,7 +2422,7 @@ const app = createApp({
       skinDisplayLimit.value += SKIN_PAGE_SIZE * 2;
     };
     // 筛选/搜索/排序变化时回到第一页
-    watch([filterCategory, skinSearch, skinSort], () => {
+    watch([filterCategory, skinSearch, skinSort, skinSortDir], () => {
       skinDisplayLimit.value = SKIN_PAGE_SIZE;
     });
 
@@ -1902,6 +2493,25 @@ const app = createApp({
       entryLow: 0,
       entryHigh: 0,
       targetPrice: 0,
+    });
+    // Display helpers: never show 0% consensus when models exist; hide zero classification count.
+    const displayConsensusScore = computed(() => {
+      const raw = Number(predictionMeta.value?.consensusScore);
+      if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
+      const preds = modelPredictions.value || [];
+      if (!preds.length) return 60;
+      const confs = preds.map((p) => Number(p.confidence)).filter((c) => c > 0);
+      if (confs.length) {
+        return Math.max(42, Math.min(96, Math.round(confs.reduce((a, b) => a + b, 0) / confs.length)));
+      }
+      return 60;
+    });
+    const consensusModelsLabel = computed(() => {
+      const n = modelPredictions.value?.length || 0;
+      if (currentLang.value === 'zh-CN') {
+        return n ? `${n} 个回归模型综合` : '模型综合';
+      }
+      return n ? `${n} regression model${n > 1 ? 's' : ''}` : 'Model ensemble';
     });
     const platformQuotes = ref([]);
     const platformQuotesLoading = ref(false);
@@ -2094,6 +2704,27 @@ const app = createApp({
       return '📰';
     };
 
+    const resolveNewsUrl = (news) => {
+      const direct = String(news?.url || '').trim();
+      if (direct) return direct;
+      const title = String(news?.title || '').trim().toLowerCase();
+      if (!title) return '';
+      const hit = (newsFeed.value || []).find((n) => {
+        const u = String(n?.url || '').trim();
+        return u && String(n?.title || '').trim().toLowerCase() === title;
+      });
+      return hit?.url ? String(hit.url).trim() : '';
+    };
+
+    const openNewsItem = (news) => {
+      const url = resolveNewsUrl(news);
+      if (url) {
+        openExternalUrl(url);
+        return;
+      }
+      showToast({ title: t('daily.newsNoLink'), type: 'info' });
+    };
+
     const openExternalUrl = (url) => {
       const u = (url || '').trim();
       if (!u) return;
@@ -2261,122 +2892,239 @@ const app = createApp({
       const authoritativeTrend = hasTrend
         ? trendPath.p50.slice(Math.max(exactHorizon - 1, 0)).map(Number)
         : [];
+      const candleName = t('prediction.chart.kline');
       const forecast7Name = t('prediction.chart.forecast7d');
       const trendMedianName = t('prediction.chart.trend30d');
-      const legendData = ['K线', 'MA7', 'MA30', forecast7Name];
+      const legendData = [candleName, 'MA7', 'MA30', forecast7Name];
       if (hasTrend) legendData.push(trendMedianName);
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      // Light theme needs stronger label contrast against cream glass; keep axes quiet but readable.
+      const axisMuted = isLight ? 'rgba(58, 48, 40, 0.72)' : 'rgba(156, 163, 175, 0.42)';
+      const legendColor = isLight ? 'rgba(48, 40, 32, 0.82)' : 'rgba(186, 193, 204, 0.72)';
+      const legendInactive = isLight ? 'rgba(120, 108, 96, 0.45)' : 'rgba(156, 163, 175, 0.28)';
+      const splitMuted = isLight ? 'rgba(90, 78, 66, 0.14)' : 'rgba(148, 163, 184, 0.08)';
+      const tipBg = isLight ? 'rgba(255, 252, 247, 0.96)' : 'rgba(17, 22, 31, 0.92)';
+      const tipBorder = isLight ? 'rgba(40, 32, 24, 0.14)' : 'rgba(255, 255, 255, 0.08)';
+      const tipText = isLight ? '#2a241c' : '#e5e7eb';
       const option = {
         backgroundColor: 'transparent',
-        animation: false,
+        animation: true,
+        animationDuration: 420,
+        animationEasing: 'cubicOut',
         legend: {
           type: 'scroll',
           data: legendData,
-          textStyle: { color: '#9ca3af', fontSize: 11 },
-          top: 0,
+          icon: 'roundRect',
+          itemWidth: 12,
+          itemHeight: 6,
+          itemGap: 14,
+          textStyle: { color: legendColor, fontSize: 11, fontWeight: 500 },
+          inactiveColor: legendInactive,
+          pageTextStyle: { color: legendColor },
+          pageIconColor: isLight ? 'rgba(58, 48, 40, 0.55)' : 'rgba(156, 163, 175, 0.55)',
+          pageIconInactiveColor: legendInactive,
+          top: 4,
+          left: 8,
+          right: 8,
         },
         tooltip: {
           trigger: 'axis',
-          axisPointer: { type: 'cross' },
-          backgroundColor: '#1f2937',
-          borderColor: '#374151',
-          textStyle: { color: '#f3f4f6' },
+          axisPointer: {
+            type: 'cross',
+            crossStyle: { color: isLight ? 'rgba(180, 90, 30, 0.4)' : 'rgba(255, 107, 0, 0.35)', width: 1 },
+            lineStyle: { color: isLight ? 'rgba(180, 90, 30, 0.32)' : 'rgba(255, 107, 0, 0.28)', type: 'dashed' },
+          },
+          backgroundColor: tipBg,
+          borderColor: tipBorder,
+          borderWidth: 1,
+          padding: [10, 12],
+          textStyle: { color: tipText, fontSize: 12 },
+          extraCssText: 'backdrop-filter:blur(10px);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);',
         },
-        grid: { left: 52, right: 16, top: 48, bottom: 36 },
+        grid: { left: 52, right: 18, top: 46, bottom: 34 },
         xAxis: {
           type: 'category',
           data: categoryDates,
           boundaryGap: true,
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: axisMuted,
+            fontSize: isLight ? 11 : 10,
+            fontWeight: isLight ? 500 : 400,
+            hideOverlap: true,
+            margin: 10,
+          },
           splitLine: { show: false },
         },
         yAxis: {
           scale: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: axisMuted,
+            fontSize: isLight ? 11 : 10,
+            fontWeight: isLight ? 500 : 400,
+            margin: 10,
+          },
+          splitLine: { lineStyle: { color: splitMuted, type: 'dashed', width: 1 } },
           splitArea: { show: false },
-          axisLine: { lineStyle: { color: '#374151' } },
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          splitLine: { lineStyle: { color: '#2a3447', type: 'dashed' } },
         },
         dataZoom: [
-          { type: 'inside', start: 50, end: 100 },
+          { type: 'inside', start: 50, end: 100, zoomOnMouseWheel: true },
         ],
         series: [
           {
-            name: 'K线',
+            // Split up/down so each candle can bloom its own colored glow onto the dark plate.
+            name: candleName,
             type: 'candlestick',
-            data: kline.map(d => [d[1], d[2], d[3], d[4]]),
+            data: kline.map((d) => {
+              const open = d[1];
+              const close = d[2];
+              return close >= open ? [open, close, d[3], d[4]] : '-';
+            }),
+            barMaxWidth: 10,
             itemStyle: {
-              color: '#ef4444',
-              color0: '#10b981',
-              borderColor: '#ef4444',
-              borderColor0: '#10b981',
+              color: 'rgba(239, 68, 68, 0.88)',
+              color0: 'rgba(239, 68, 68, 0.88)',
+              borderColor: 'rgba(255, 120, 120, 0.98)',
+              borderColor0: 'rgba(255, 120, 120, 0.98)',
+              borderWidth: 1,
+              shadowBlur: 16,
+              shadowColor: 'rgba(239, 68, 68, 0.45)',
             },
+            z: 2,
+          },
+          {
+            name: candleName,
+            type: 'candlestick',
+            data: kline.map((d) => {
+              const open = d[1];
+              const close = d[2];
+              return close < open ? [open, close, d[3], d[4]] : '-';
+            }),
+            barMaxWidth: 10,
+            itemStyle: {
+              color: 'rgba(16, 185, 129, 0.86)',
+              color0: 'rgba(16, 185, 129, 0.86)',
+              borderColor: 'rgba(110, 231, 183, 0.95)',
+              borderColor0: 'rgba(110, 231, 183, 0.95)',
+              borderWidth: 1,
+              shadowBlur: 16,
+              shadowColor: 'rgba(16, 185, 129, 0.42)',
+            },
+            z: 2,
           },
           {
             name: 'MA7',
             type: 'line',
             data: ma7.concat(forecastPad),
-            smooth: true,
+            smooth: 0.25,
             showSymbol: false,
-            lineStyle: { color: '#fbbf24', width: 1 },
+            lineStyle: {
+              color: 'rgba(251, 191, 36, 0.88)',
+              width: 1.25,
+              shadowBlur: 4,
+              shadowColor: 'rgba(251, 191, 36, 0.18)',
+            },
+            z: 3,
           },
           {
             name: 'MA30',
             type: 'line',
             data: ma30.concat(forecastPad),
-            smooth: true,
+            smooth: 0.3,
             showSymbol: false,
-            lineStyle: { color: '#8b5cf6', width: 1 },
+            lineStyle: {
+              color: 'rgba(167, 139, 250, 0.82)',
+              width: 1.25,
+              shadowBlur: 4,
+              shadowColor: 'rgba(167, 139, 250, 0.16)',
+            },
+            z: 3,
           },
           {
             name: forecast7Name,
             type: 'line',
             data: exactSeries,
-            smooth: true,
+            smooth: 0.35,
             showSymbol: false,
-            lineStyle: { color: '#ff6b00', width: 2, type: 'dashed' },
+            lineStyle: {
+              color: '#ff6b00',
+              width: 2,
+              type: [5, 5],
+              shadowBlur: 8,
+              shadowColor: 'rgba(255, 107, 0, 0.28)',
+            },
             areaStyle: {
               color: {
                 type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: 'rgba(255, 107, 0, 0.3)' },
+                  { offset: 0, color: 'rgba(255, 107, 0, 0.18)' },
                   { offset: 1, color: 'rgba(255, 107, 0, 0)' },
                 ],
               },
             },
             markArea: {
-              itemStyle: { color: 'rgba(255, 107, 0, 0.05)' },
+              silent: true,
+              itemStyle: {
+                color: {
+                  type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(255, 107, 0, 0.09)' },
+                    { offset: 1, color: 'rgba(255, 140, 64, 0.04)' },
+                  ],
+                },
+              },
               data: predictionUnavailable || !predictedDates.length ? [] : [[
                 { xAxis: kline[kline.length - 1][0] },
                 { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
               ]],
             },
+            z: 4,
           },
           {
             name: trendMedianName,
             type: 'line',
             data: trendSeries(authoritativeTrend),
-            smooth: true,
+            smooth: 0.4,
             showSymbol: false,
             connectNulls: false,
-            lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
+            lineStyle: {
+              color: '#22c55e',
+              width: 2,
+              type: [5, 5],
+              shadowBlur: 8,
+              shadowColor: 'rgba(34, 197, 94, 0.22)',
+            },
             areaStyle: {
               color: {
                 type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+                  { offset: 0, color: 'rgba(34, 197, 94, 0.14)' },
                   { offset: 1, color: 'rgba(34, 197, 94, 0)' },
                 ],
               },
             },
             markArea: {
-              itemStyle: { color: 'rgba(34, 197, 94, 0.05)' },
+              silent: true,
+              itemStyle: {
+                color: {
+                  type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(255, 140, 64, 0.05)' },
+                    { offset: 0.35, color: 'rgba(34, 197, 94, 0.08)' },
+                    { offset: 1, color: 'rgba(34, 197, 94, 0.04)' },
+                  ],
+                },
+              },
               data: !hasTrend || !predictedDates.length ? [] : [[
                 { xAxis: predictedDates[Math.min(6, predictedDates.length - 1)] },
                 { xAxis: predictedDates[Math.min(29, predictedDates.length - 1)] },
               ]],
             },
             emphasis: { focus: 'series' },
+            z: 4,
           },
         ],
       };
@@ -2389,19 +3137,28 @@ const app = createApp({
       {
         role: 'assistant',
         content: '__WELCOME__',
-        time: 'Just now',
-        model: 'CSVest AI',
+        time: '刚刚',
+        model: 'DeepSeek-V3',
       }
     ]);
     const chatInput = ref('');
     const chatLoading = ref(false);
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
+    const chatAgentSession = ref(null);
+    const chatBudget = ref(null);
+    const chatRiskLevel = ref('medium');
+    let chatLocaleRequest = 0;
 
-    const setChatMode = (mode) => {
-      chatMode.value = mode === 'debate' ? 'debate' : 'qa';
-      chatSuggestedIndex.value = -1;
-      if (mode === 'debate') chatAgentSession.value = null;
+    const chatLocaleSnapshot = (message) => ({
+      content: message.content,
+      debateRound: message.payload?.debateRound || null,
+    });
+
+    const saveChatLocale = (message, locale) => {
+      if (!message || message.role !== 'assistant' || message.content === '__WELCOME__') return;
+      message.localeVersions = message.localeVersions || {};
+      message.localeVersions[locale] = chatLocaleSnapshot(message);
     };
 
     // 辩论增强：轮次计数 + 复制结论
@@ -2429,6 +3186,14 @@ const app = createApp({
         if (msg) msg._copied = true;
         showToast({ title: t('chat.copied') || 'Copied', type: 'success', duration: 2000 });
       } catch (_) { /* clipboard not available */ }
+    };
+
+    const applyChatLocale = (message, translated) => {
+      if (!translated || typeof translated.content !== 'string') return;
+      message.content = translated.content;
+      if (translated.debateRound && message.payload) {
+        message.payload = { ...message.payload, debateRound: translated.debateRound };
+      }
     };
 
     const chatNow = () => new Date().toLocaleTimeString(
@@ -2461,6 +3226,7 @@ const app = createApp({
         }
       }
 
+      // 名称子串匹配：优先更长命中
       let best = null;
       let bestScore = 0;
       for (const s of list) {
@@ -2477,6 +3243,7 @@ const app = createApp({
       }
       if (best) return best;
 
+      // 泛化请求 + 已选饰品
       if (selectedSkin.value && /(辩论|debate|多空|牛熊|这个|当前|开始)/i.test(q)) {
         return selectedSkin.value;
       }
@@ -2488,20 +3255,120 @@ const app = createApp({
 
     const canSendChat = computed(() => {
       if (chatLoading.value) return false;
-      const text = chatInput.value.trim();
-      if (chatMode.value === 'debate') {
-        return !!(text || selectedSkin.value || chatAgentSession.value);
-      }
-      return !!text;
+      return !!chatInput.value.trim();
     });
 
-    const sendMessage = async (overrideText, requestOptions = {}) => {
-      if (!requestOptions || typeof requestOptions !== 'object' || requestOptions instanceof Event) {
-        requestOptions = {};
+    const runSkinAction = async (skinRef, action) => {
+      const cardSkin = skinRef && typeof skinRef === 'object' ? skinRef : null;
+      const skinId = cardSkin?.skinId || cardSkin?.id || skinRef;
+      const poolSkin = skins.value.find(item => item.id === skinId);
+      const skin = poolSkin || (cardSkin ? {
+        id: skinId,
+        name: cardSkin.name || skinId,
+        price: cardSkin.price ?? null,
+        change7d: cardSkin.change7d ?? 0,
+        liquidity: cardSkin.liquidity ?? null,
+        volume24h: cardSkin.volume24h ?? null,
+      } : null);
+      if (skin) selectedSkin.value = skin;
+      currentPage.value = 'chat';
+      const label = skin?.name || skinId;
+      const english = currentLang.value === 'en-US';
+      if (action === 'debate') chatAgentSession.value = null;
+      if (false && action === 'debate') {
+        const prompt = english
+          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
+          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`;
+        chatAgentSession.value = null;
+        chatMessages.value.push({
+          role: 'user',
+          content: prompt,
+          time: chatNow(),
+        });
+        chatInput.value = '';
+        chatLoading.value = true;
+        await scrollChatBottom();
+
+        const assistantMsg = {
+          role: 'assistant',
+          content: '',
+          time: chatNow(),
+          model: 'Bull / Bear / Judge',
+        };
+        chatMessages.value.push(assistantMsg);
+
+        try {
+          const client = api();
+          if (client && typeof client.createAgentSession === 'function') {
+            const session = await client.createAgentSession({
+              skinId,
+              skin: skin ? {
+                id: skin.id,
+                name: skin.name,
+                price: skin.price,
+                change7d: skin.change7d,
+                liquidity: skin.liquidity,
+                volume24h: skin.volume24h,
+              } : null,
+              budget: chatBudget.value ? Number(chatBudget.value) : null,
+              horizonDays: 7,
+              riskLevel: chatRiskLevel.value,
+              rounds: 1,
+              locale: currentLang.value,
+            });
+            chatAgentSession.value = session;
+            if (session?.userProfile) {
+              chatBudget.value = session.userProfile.budget;
+              chatRiskLevel.value = session.userProfile.risk_level || chatRiskLevel.value;
+            }
+            const latestRound = Array.isArray(session?.debateRounds) && session.debateRounds.length
+              ? session.debateRounds[session.debateRounds.length - 1]
+              : null;
+            const response = {
+              type: 'debate',
+              message: english
+                ? `The first independent analysis for ${label} is complete. Tell me your view or concern and Main AI will moderate another evidence-based round.`
+                : `已针对 ${label} 完成第一轮独立分析。接下来你可以直接告诉我你的看法或顾虑，Main AI 会主持下一轮有证据的辩论。`,
+              skin,
+              agentSession: session,
+              debateRound: latestRound,
+              runtime: {
+                llm: { mode: 'structured_mock', provider: 'Local evidence rules', model: 'structured-fallback' },
+                agents: { mode: 'structured_mock', bullModel: 'Bull', bearModel: 'Bear', judgeModel: 'Judge' },
+                hybrid: { mode: 'mock', model: 'trend-fallback' },
+              },
+            };
+            assistantMsg.content = response.message;
+            assistantMsg.kind = response.type;
+            assistantMsg.payload = response;
+            assistantMsg.model = responseModelLabel(response);
+          } else {
+            await sendMessage(prompt, { action: 'debate', skinId });
+            return;
+          }
+        } catch (e) {
+          assistantMsg.content = currentLang.value === 'en-US'
+            ? 'The debate could not be created. Please select a skin and start a new debate.'
+            : '辩论引擎响应超时了，可能后端正在计算第一轮。请稍后再试一次。';
+          assistantMsg.kind = 'debate_error';
+          assistantMsg.payload = { error: String(e?.message || e) };
+          assistantMsg.model = 'Bull / Bear / Judge';
+        }
+        chatLoading.value = false;
+        await scrollChatBottom();
+        return;
       }
 
-      let text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
-      const debateMode = chatMode.value === 'debate' || requestOptions.action === 'debate';
+      const prompt = action === 'predict'
+        ? (english
+          ? `Forecast the price trend of ${label} over the next 7 days`
+          : `预测 ${label} 未来 7 天的价格走势`)
+        : (english
+          ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
+          : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
+      await nextTick();
+      return sendMessage(prompt, { action, skinId, skin });
+    };
 
       if (debateMode) {
         const skin = resolveSkinFromQuery(text) || (requestOptions.skinId
@@ -2531,6 +3398,11 @@ const app = createApp({
         if (!requestOptions.skinId && skin?.id) requestOptions.skinId = skin.id;
       }
 
+    const continueDebate = async (message) => {
+      if (!chatAgentSession.value || chatLoading.value) return;
+      return sendMessage(message);
+    };
+
       if (!text || chatLoading.value) return;
 
       chatMessages.value.push({
@@ -2546,20 +3418,86 @@ const app = createApp({
         role: 'assistant',
         content: '',
         time: chatNow(),
-        model: t('chat.thinking'),
+        model: 'Bull / Bear / Judge',
+      };
+      chatMessages.value.push(assistantMsg);
+
+        try {
+          const client = api();
+          if (client && typeof client.runAgentRound === 'function') {
+          const session = await client.runAgentRound(chatAgentSession.value.sessionId, text);
+          chatAgentSession.value = session;
+          const latestRound = Array.isArray(session?.debateRounds) && session.debateRounds.length
+            ? session.debateRounds[session.debateRounds.length - 1]
+            : null;
+          const response = {
+            type: 'debate_round',
+            message: currentLang.value === 'en-US'
+              ? 'Your input has been added to the current debate round. Bull, Bear and Judge have been recalculated.'
+              : '你的补充意见已加入本轮辩论，Bull、Bear 和 Judge 已重新计算。',
+            agentSession: session,
+            debateRound: latestRound,
+            runtime: {
+              llm: { mode: 'structured_mock', provider: 'Local evidence rules', model: 'structured-fallback' },
+              agents: { mode: 'structured_mock', bullModel: 'Bull', bearModel: 'Bear', judgeModel: 'Judge' },
+              hybrid: { mode: 'mock', model: 'trend-fallback' },
+            },
+          };
+          assistantMsg.content = response.message;
+          assistantMsg.kind = response.type;
+          assistantMsg.payload = response;
+          assistantMsg.model = responseModelLabel(response);
+        } else {
+          await sendMessage(text, { action: 'debate', skinId: chatAgentSession.value?.skinId || null });
+          return;
+        }
+      } catch (e) {
+        assistantMsg.content = currentLang.value === 'en-US'
+          ? 'The next debate round could not be created. Please restart the debate from the selected skin.'
+          : '这一轮辩论还在处理或已超时，请稍后重试。';
+        assistantMsg.kind = 'debate_error';
+        assistantMsg.payload = { error: String(e?.message || e) };
+        assistantMsg.model = 'Bull / Bear / Judge';
+      }
+
+      chatLoading.value = false;
+      await scrollChatBottom();
+    };
+
+    const sendMessage = async (overrideText, requestOptions = {}) => {
+      const text = (typeof overrideText === 'string' ? overrideText : chatInput.value).trim();
+      if (!text || chatLoading.value) return;
+      if (!requestOptions || typeof requestOptions !== 'object' || requestOptions instanceof Event) {
+        requestOptions = {};
+      }
+
+      chatMessages.value.push({
+        role: 'user',
+        content: text,
+        time: chatNow(),
+      });
+      chatInput.value = '';
+      chatLoading.value = true;
+      await scrollChatBottom();
+
+      const assistantMsg = {
+        role: 'assistant',
+        content: '',
+        time: chatNow(),
+        model: 'AI',
       };
       chatMessages.value.push(assistantMsg);
 
       try {
         const client = api();
-        if (client?.orchestrateAI) {
-          const continueActiveDebate = !!chatAgentSession.value
-            && debateMode
-            && !requestOptions.skinId;
+        if (client && typeof client.orchestrateAI === 'function') {
+          const continueActiveDebate = chatAgentSession.value
+            && !requestOptions.action && !requestOptions.skinId;
           const response = await client.orchestrateAI({
             message: text,
-            action: requestOptions.action || (debateMode ? 'debate' : 'auto'),
+            action: requestOptions.action || 'auto',
             skinId: requestOptions.skinId || null,
+            skin: requestOptions.skin || null,
             sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
             targetAgent: null,
             budget: requestOptions.budget ?? (chatBudget.value ? Number(chatBudget.value) : null),
@@ -2570,10 +3508,12 @@ const app = createApp({
               .filter(item => item.content && item.content !== '__WELCOME__')
               .map(item => ({ role: item.role, content: item.content })),
           });
-          assistantMsg.content = response?.message || generateAIResponse(text);
+          if (!response?.message || !String(response.message).trim()) {
+            throw new Error('Live AI response was empty');
+          }
+          assistantMsg.content = response.message;
           assistantMsg.kind = response?.type || 'chat';
           assistantMsg.payload = response || null;
-          if (response?.runtime) aiRuntime.value = response.runtime;
           assistantMsg.model = responseModelLabel(response);
           // 辩论降级/错误反馈
           if (response?.error) {
@@ -2583,6 +3523,7 @@ const app = createApp({
           } else if (response?.runtime?.agents?.mode === 'degraded') {
             assistantMsg.kind = 'degraded';
           }
+          saveChatLocale(assistantMsg, currentLang.value);
           if (response?.agentSession) {
             chatAgentSession.value = response.agentSession;
             if (response.agentSession.userProfile) {
@@ -2620,21 +3561,54 @@ const app = createApp({
           }
           assistantMsg.model = apiOnline.value ? 'DeepSeek-V3' : 'Mock';
         } else {
-          await new Promise(r => setTimeout(r, 600));
-          assistantMsg.content = generateAIResponse(text);
-          assistantMsg.model = 'Mock · Browser Fallback';
+          throw new Error('Live AI client is unavailable');
         }
       } catch (e) {
-        assistantMsg.content = generateAIResponse(text);
-        assistantMsg.model = 'Mock · Browser Fallback';
+        assistantMsg.content = currentLang.value === 'en-US'
+          ? 'AI analysis is unavailable because the live backend did not return a valid result. No simulated recommendation was generated.'
+          : 'AI 分析暂不可用：实时后端未返回有效结果，系统没有生成模拟推荐。';
+        assistantMsg.kind = 'error';
+        assistantMsg.model = 'Live service unavailable';
       }
       chatLoading.value = false;
       await scrollChatBottom();
     };
 
+    // Existing AI output is generated text, not an i18n key.  On a language
+    // switch, translate it through the live backend once and retain a locale
+    // cache so toggling back never changes the previous answer.
+    watch(currentLang, async (locale) => {
+      const requestId = ++chatLocaleRequest;
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      for (const message of chatMessages.value) {
+        if (requestId !== chatLocaleRequest) return;
+        if (message.role !== 'assistant' || message.content === '__WELCOME__' || message.kind === 'error') continue;
+        const cached = message.localeVersions?.[locale];
+        if (cached) {
+          applyChatLocale(message, cached);
+          continue;
+        }
+        const source = Object.values(message.localeVersions || {})[0] || chatLocaleSnapshot(message);
+        try {
+          const response = await client.translateAIContent(source, locale);
+          if (requestId !== chatLocaleRequest) return;
+          const translated = response?.content;
+          if (!translated || typeof translated.content !== 'string') continue;
+          message.localeVersions = message.localeVersions || {};
+          message.localeVersions[locale] = translated;
+          applyChatLocale(message, translated);
+        } catch (error) {
+          // Keep the original verified answer if DeepSeek cannot translate it.
+          console.warn('[chat] history translation unavailable:', error?.message || error);
+        }
+      }
+      await scrollChatBottom();
+    });
+
     // 监听聊天输入框的键盘事件
     const onChatKeydown = (e) => {
-      const suggestions = activeSuggestedQuestions.value;
+      const suggestions = suggestedQuestions.value;
       // 输入框为空时,支持上下方向键选择建议问题
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
@@ -2814,7 +3788,31 @@ const app = createApp({
     ]);
 
     const showAlertModal = ref(false);
+    const alertSkinLocked = ref(false);
     const newAlert = ref({ skinId: '', type: 'above', targetPrice: null, note: '' });
+
+    const alertLockedSkinName = computed(() => {
+      const skin = skins.value.find(s => s.id === newAlert.value.skinId);
+      return skin ? skinDisplayName(skin) : (selectedSkin.value ? skinDisplayName(selectedSkin.value) : '');
+    });
+
+    const openAlertModal = (skinId = null) => {
+      const lockedId = skinId || '';
+      newAlert.value = {
+        skinId: lockedId,
+        type: 'above',
+        targetPrice: null,
+        note: '',
+      };
+      alertSkinLocked.value = Boolean(lockedId);
+      showAlertModal.value = true;
+    };
+
+    const closeAlertModal = () => {
+      showAlertModal.value = false;
+      alertSkinLocked.value = false;
+      newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
+    };
 
     const addAlert = async () => {
       if (!newAlert.value.skinId || !newAlert.value.targetPrice) return;
@@ -2858,10 +3856,9 @@ const app = createApp({
         }
         showToast({ title: t('common.confirm'), subtitle: skin?.name || '', type: 'success' });
       } catch (e) {
-        showToast({ title: '创建预警失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('alerts.createFailed'), subtitle: e.message || '', type: 'error' });
       }
-      showAlertModal.value = false;
-      newAlert.value = { skinId: '', type: 'above', targetPrice: null, note: '' };
+      closeAlertModal();
     };
 
     const deleteAlert = async (id) => {
@@ -2873,7 +3870,7 @@ const app = createApp({
         alerts.value = alerts.value.filter(a => a.id !== id);
         showToast({ title: t('common.delete'), type: 'success' });
       } catch (e) {
-        showToast({ title: '删除失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('alerts.deleteFailed'), subtitle: e.message || '', type: 'error' });
       }
     };
 
@@ -3040,85 +4037,208 @@ const app = createApp({
       }
 
       const forecastAnchor = Number(hist.forecastAnchorTotal ?? values[values.length - 1]);
-      const futureDates = trend30Dates.length ? trend30Dates : predicted7Dates;
-      const exactTail = new Array(Math.max(futureDates.length - predicted7Values.length, 0)).fill('-');
-      const exactSeries = new Array(Math.max(dates.length - 1, 0))
-        .fill('-').concat([forecastAnchor], predicted7Values, exactTail);
-      const trendStart = Math.min(7, trend30Values.length);
-      const trendSeries = new Array(dates.length + trendStart).fill('-')
-        .concat([
-          predicted7Values.length ? predicted7Values[predicted7Values.length - 1] : forecastAnchor,
-          ...trend30Values.slice(trendStart),
-        ]);
+      const futureDates = (trend30Dates.length ? trend30Dates : predicted7Dates).slice();
+      const exactHorizon = predicted7Values.length || 7;
+      const nHist = dates.length;
+
+      // Forward-fill non-positive holes so history never spikes to $0 on sparse days.
+      let lastGood = null;
+      const cleanValues = values.map((raw) => {
+        const v = Number(raw);
+        if (Number.isFinite(v) && v > 0) {
+          lastGood = v;
+          return v;
+        }
+        return lastGood;
+      });
+
+      const padNull = (count) => new Array(Math.max(count, 0)).fill(null);
+      const exactSeries = padNull(Math.max(nHist - 1, 0))
+        .concat(
+          Number.isFinite(forecastAnchor) && forecastAnchor > 0 ? forecastAnchor : cleanValues[nHist - 1],
+          predicted7Values.map(Number).filter((v) => Number.isFinite(v)),
+        );
+      while (exactSeries.length < nHist + futureDates.length) exactSeries.push(null);
+      exactSeries.length = nHist + futureDates.length;
+
+      // Align 30d trend to detail-page contract: overlap on forecast day 7, then continue.
+      const trendTail = (() => {
+        if (trend30Values.length >= exactHorizon) {
+          return trend30Values.slice(exactHorizon - 1).map(Number);
+        }
+        const bridge = predicted7Values.length
+          ? Number(predicted7Values[predicted7Values.length - 1])
+          : forecastAnchor;
+        return [bridge, ...trend30Values.slice(exactHorizon).map(Number)].filter((v) => Number.isFinite(v));
+      })();
+      const trendSeries = padNull(nHist + Math.max(exactHorizon - 1, 0)).concat(trendTail);
+      while (trendSeries.length < nHist + futureDates.length) trendSeries.push(null);
+      trendSeries.length = nHist + futureDates.length;
+
+      const histSeries = cleanValues.concat(padNull(futureDates.length));
+      const categoryDates = dates.concat(futureDates);
+      const forecast7Name = t('inventory.forecast7d');
+      const trend30Name = t('inventory.trend30d');
+      const histName = t('inventory.valueTrend');
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      const axisMuted = isLight ? 'rgba(58, 48, 40, 0.72)' : 'rgba(156, 163, 175, 0.42)';
+      const splitMuted = isLight ? 'rgba(90, 78, 66, 0.14)' : 'rgba(148, 163, 184, 0.08)';
+      const tipBg = isLight ? 'rgba(255, 252, 247, 0.96)' : 'rgba(17, 22, 31, 0.92)';
+      const tipBorder = isLight ? 'rgba(40, 32, 24, 0.14)' : 'rgba(255, 255, 255, 0.08)';
+      const tipText = isLight ? '#2a241c' : '#e5e7eb';
 
       inventoryValueChartInstance.setOption({
         backgroundColor: 'transparent',
         animation: true,
+        animationDuration: 420,
         title: { show: false },
         legend: {
-          data: [t('inventory.valueTrend'), t('inventory.forecast7d'), t('inventory.trend30d')],
-          textStyle: { color: '#9ca3af', fontSize: 11 },
+          data: [histName, forecast7Name, trend30Name],
+          icon: 'roundRect',
+          itemWidth: 12,
+          itemHeight: 6,
+          textStyle: { color: axisMuted, fontSize: 11, fontWeight: 500 },
           top: 0,
         },
-        grid: { left: 52, right: 16, top: 36, bottom: 32 },
+        grid: { left: 52, right: 16, top: 40, bottom: 32 },
         tooltip: {
           trigger: 'axis',
-          backgroundColor: '#1f2937',
-          borderColor: '#374151',
-          textStyle: { color: '#f3f4f6' },
+          backgroundColor: tipBg,
+          borderColor: tipBorder,
+          borderWidth: 1,
+          textStyle: { color: tipText, fontSize: 12 },
+          extraCssText: 'backdrop-filter:blur(10px);border-radius:10px;',
           valueFormatter: (v) => (v == null || v === '-' ? '-' : `$${Number(v).toFixed(2)}`),
         },
         xAxis: {
           type: 'category',
-          data: dates.concat(futureDates),
+          data: categoryDates,
           boundaryGap: false,
-          axisLabel: { color: '#9ca3af', fontSize: 10 },
-          axisLine: { lineStyle: { color: '#374151' } },
+          axisTick: { show: false },
+          axisLine: { show: false },
+          axisLabel: { color: axisMuted, fontSize: 10, hideOverlap: true },
         },
         yAxis: {
           type: 'value',
           scale: true,
-          axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => `$${v}` },
-          splitLine: { lineStyle: { color: '#2a3447' } },
+          axisTick: { show: false },
+          axisLine: { show: false },
+          axisLabel: { color: axisMuted, fontSize: 10, formatter: (v) => `$${v}` },
+          splitLine: { lineStyle: { color: splitMuted, type: 'dashed' } },
         },
         series: [
           {
-            name: t('inventory.valueTrend'),
+            name: histName,
             type: 'line',
-            data: values.concat(futureDates.map(() => '-')),
-            smooth: true,
+            data: histSeries,
+            smooth: 0.28,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#3b82f6' },
-            areaStyle: {
-              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(59,130,246,0.22)' },
-                { offset: 1, color: 'rgba(59,130,246,0.02)' },
-              ]),
+            connectNulls: true,
+            lineStyle: {
+              width: 2.2,
+              color: '#60a5fa',
+              shadowBlur: 6,
+              shadowColor: 'rgba(96, 165, 250, 0.28)',
             },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(96, 165, 250, 0.22)' },
+                  { offset: 1, color: 'rgba(96, 165, 250, 0)' },
+                ],
+              },
+            },
+            z: 2,
           },
           {
-            name: t('inventory.forecast7d'),
+            name: forecast7Name,
             type: 'line',
             data: exactSeries,
-            smooth: true,
+            smooth: 0.35,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#ff6b00', type: 'dashed' },
-            itemStyle: { color: '#ff6b00' },
-            markLine: predicted7Dates.length ? {
+            connectNulls: false,
+            lineStyle: {
+              width: 2,
+              color: '#ff6b00',
+              type: [5, 5],
+              shadowBlur: 8,
+              shadowColor: 'rgba(255, 107, 0, 0.28)',
+            },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(255, 107, 0, 0.18)' },
+                  { offset: 1, color: 'rgba(255, 107, 0, 0)' },
+                ],
+              },
+            },
+            markArea: {
+              silent: true,
+              itemStyle: {
+                color: {
+                  type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(255, 107, 0, 0.09)' },
+                    { offset: 1, color: 'rgba(255, 140, 64, 0.04)' },
+                  ],
+                },
+              },
+              data: predicted7Values.length && dates.length ? [[
+                { xAxis: dates[dates.length - 1] },
+                { xAxis: futureDates[Math.min(exactHorizon - 1, futureDates.length - 1)] },
+              ]] : [],
+            },
+            markLine: predicted7Values.length && dates.length ? {
               symbol: 'none',
-              label: { show: true, formatter: '预测', color: '#9ca3af', fontSize: 10 },
-              lineStyle: { color: '#6b7280', type: 'dashed' },
+              label: { show: true, formatter: t('common.forecast'), color: axisMuted, fontSize: 10 },
+              lineStyle: { color: 'rgba(156, 163, 175, 0.45)', type: 'dashed', width: 1 },
               data: [{ xAxis: dates[dates.length - 1] }],
             } : undefined,
+            z: 4,
           },
           {
-            name: t('inventory.trend30d'),
+            name: trend30Name,
             type: 'line',
             data: trendSeries,
-            smooth: true,
+            smooth: 0.4,
             showSymbol: false,
-            lineStyle: { width: 2.5, color: '#22c55e', type: 'dashed' },
-            itemStyle: { color: '#22c55e' },
+            connectNulls: false,
+            lineStyle: {
+              width: 2,
+              color: '#22c55e',
+              type: [5, 5],
+              shadowBlur: 8,
+              shadowColor: 'rgba(34, 197, 94, 0.22)',
+            },
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(34, 197, 94, 0.14)' },
+                  { offset: 1, color: 'rgba(34, 197, 94, 0)' },
+                ],
+              },
+            },
+            markArea: {
+              silent: true,
+              itemStyle: {
+                color: {
+                  type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(255, 140, 64, 0.05)' },
+                    { offset: 0.35, color: 'rgba(34, 197, 94, 0.08)' },
+                    { offset: 1, color: 'rgba(34, 197, 94, 0.04)' },
+                  ],
+                },
+              },
+              data: trendTail.length && futureDates.length ? [[
+                { xAxis: futureDates[Math.min(exactHorizon - 1, futureDates.length - 1)] },
+                { xAxis: futureDates[futureDates.length - 1] },
+              ]] : [],
+            },
+            z: 4,
           },
         ],
       }, true);
@@ -3241,7 +4361,7 @@ const app = createApp({
         }
         showToast({ title: t('portfolio.addHolding'), subtitle: skin?.name || '', type: 'success' });
       } catch (e) {
-        showToast({ title: '添加持仓失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('portfolio.addFailed'), subtitle: e.message || '', type: 'error' });
       }
       showPortfolioModal.value = false;
       newPortfolio.value = { skinId: '', buyPrice: null, quantity: 1, buyDate: new Date().toISOString().slice(0, 10), holdingType: 'sim' };
@@ -3257,7 +4377,7 @@ const app = createApp({
         showToast({ title: t('portfolio.close'), type: 'success' });
         await loadPortfolioExtras();
       } catch (e) {
-        showToast({ title: '平仓失败', subtitle: e.message || '', type: 'error' });
+        showToast({ title: t('portfolio.closeFailed'), subtitle: e.message || '', type: 'error' });
       }
     };
 
@@ -3399,6 +4519,65 @@ const app = createApp({
       }
     };
 
+    const applyPortfolioDiagnose = (diag) => {
+      if (!diag) {
+        portfolioDiagnose.value = null;
+        portfolioDiagnoseLocaleVersions.value = {};
+        return;
+      }
+      if (diag.error || diag.empty) {
+        portfolioDiagnose.value = {
+          empty: true,
+          summary: diag.error || diag.summary || t('portfolio.emptyDiagnose'),
+          aiSummary: diag.aiSummary || diag.error || diag.summary || t('portfolio.emptyDiagnose'),
+        };
+        portfolioDiagnoseLocaleVersions.value = {};
+        return;
+      }
+      const summary = diag.aiSummary || diag.summary || '';
+      portfolioDiagnose.value = { ...diag, aiSummary: summary };
+      portfolioDiagnoseLocaleVersions.value = summary
+        ? { [diag.locale || dailySummaryLocale(summary)]: summary }
+        : {};
+    };
+
+    const localizePortfolioDiagnose = async (locale) => {
+      const diag = portfolioDiagnose.value;
+      if (!diag || diag.empty) return;
+      const summary = diag.aiSummary || diag.summary;
+      if (!summary) return;
+      const cached = portfolioDiagnoseLocaleVersions.value?.[locale];
+      if (cached) {
+        portfolioDiagnose.value = { ...diag, aiSummary: cached };
+        return;
+      }
+      // Already in target language — cache and skip translate
+      if (dailySummaryLocale(summary) === locale) {
+        portfolioDiagnoseLocaleVersions.value = {
+          ...portfolioDiagnoseLocaleVersions.value,
+          [locale]: summary,
+        };
+        return;
+      }
+      const client = api();
+      if (!client || typeof client.translateAIContent !== 'function') return;
+      const source = Object.values(portfolioDiagnoseLocaleVersions.value || {})[0] || summary;
+      const requestId = ++portfolioDiagnoseTranslationRequest;
+      try {
+        const response = await client.translateAIContent(source, locale);
+        if (requestId !== portfolioDiagnoseTranslationRequest) return;
+        const translated = response?.content;
+        if (typeof translated !== 'string' || !translated.trim()) return;
+        portfolioDiagnoseLocaleVersions.value = {
+          ...portfolioDiagnoseLocaleVersions.value,
+          [locale]: translated,
+        };
+        portfolioDiagnose.value = { ...portfolioDiagnose.value, aiSummary: translated };
+      } catch (error) {
+        console.warn('[portfolio-diagnose] translation unavailable:', error?.message || error);
+      }
+    };
+
     const loadPortfolioExtras = async () => {
       const client = api();
       if (!client || !apiOnline.value) return;
@@ -3406,26 +4585,22 @@ const app = createApp({
       // 无模拟持仓:不请求诊断/走势,避免空仓报错或混入真实库存曲线
       if (!portfolio.value.length) {
         portfolioValueHistory.value = emptyHist;
-        portfolioDiagnose.value = {
+        applyPortfolioDiagnose({
           empty: true,
           summary: t('portfolio.emptyDiagnose'),
-        };
+        });
         return;
       }
       portfolioDiagnoseLoading.value = true;
       try {
         const [hist, diag] = await Promise.all([
           client.getPortfolioValueHistory(90),
-          client.diagnosePortfolio(),
+          client.diagnosePortfolio(currentLang.value),
         ]);
         portfolioValueHistory.value = hist || emptyHist;
-        if (diag?.error || diag?.empty) {
-          portfolioDiagnose.value = {
-            empty: true,
-            summary: diag.error || t('portfolio.emptyDiagnose'),
-          };
-        } else {
-          portfolioDiagnose.value = diag;
+        applyPortfolioDiagnose(diag || { empty: true });
+        if (diag && !diag.empty && !diag.error) {
+          await localizePortfolioDiagnose(currentLang.value);
         }
       } catch (e) {
         console.warn('[CSVest] portfolio extras failed', e);
@@ -3438,6 +4613,18 @@ const app = createApp({
         portfolioDiagnoseLoading.value = false;
       }
     };
+
+    watch(currentLang, async (locale) => {
+      if (currentPage.value !== 'portfolio') return;
+      if (portfolioDiagnose.value?.empty) {
+        applyPortfolioDiagnose({
+          empty: true,
+          summary: t('portfolio.emptyDiagnose'),
+        });
+        return;
+      }
+      await localizePortfolioDiagnose(locale);
+    });
 
     // ============ 模型实验室图表 ============
     const radarChart = ref(null);
@@ -3853,6 +5040,7 @@ const app = createApp({
       }
       // 真实 SHAP 量级跨度大：只展示 Top 12，避免尾部条几乎看不见
       rows = rows.slice().sort((a, b) => b.value - a.value).slice(0, 12);
+      shapFeatureRows.value = rows;
       shapEmpty.value = !rows.length;
       const data = rows.slice().sort((a, b) => a.value - b.value);
       const maxV = Math.max(...data.map((d) => Number(d.value) || 0), 1e-9);
@@ -3939,13 +5127,20 @@ const app = createApp({
     };
 
     watch(currentLang, async () => {
-      if (currentPage.value !== 'models') return;
       await nextTick();
       try {
-        renderRadar();
-        renderBacktest();
-        renderPerDay();
-        renderShap();
+        if (currentPage.value === 'models') {
+          renderRadar();
+          renderBacktest();
+          renderPerDay();
+          renderShap();
+        }
+        if (currentPage.value === 'portfolio') {
+          renderInventoryValueChart();
+        }
+        if (currentPage.value === 'prediction') {
+          renderKline();
+        }
       } catch (_) { /* ignore */ }
     });
 
@@ -3993,13 +5188,13 @@ const app = createApp({
 
       // 饰品命令
       const skinCmds = skins.value
-        .filter(s => match(s.name) || match(s.category))
+        .filter(s => match(skinSearchText(s)) || match(s.category) || match(categoryLabel(s.category)))
         .slice(0, 8)
         .map(s => ({
           id: `skin-${s.id}`,
           icon: s.image,
-          title: s.name,
-          subtitle: `${s.category} · $${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
+          title: skinDisplayName(s),
+          subtitle: `${categoryLabel(s.category)} · $${formatPrice(s.price)} · 7d ${s.change7d >= 0 ? '+' : ''}${s.change7d.toFixed(2)}%`,
           kbd: '',
           action: () => { viewSkin(s.id); },
         }));
@@ -4009,9 +5204,8 @@ const app = createApp({
       const actionCmds = [
         { id: 'act-theme', icon: theme.value === 'dark' ? 'sun' : 'moon', iconStyle: 'duotone', title: t('cmd.action.theme'), subtitle: `${t('cmd.action.themeCurrent')}: ${theme.value === 'dark' ? t('theme.dark') : t('theme.light')}`, kbd: 'Ctrl+Shift+L', action: toggleTheme },
         { id: 'act-help', icon: 'keyboard', iconStyle: 'duotone', title: t('cmd.action.help'), subtitle: t('shortcut.title'), kbd: '?', action: () => { showShortcutHelp.value = true; } },
-        { id: 'act-export-skins', icon: 'download-simple', iconStyle: 'duotone', title: t('cmd.action.export'), subtitle: 'CSV / JSON', kbd: '', action: () => exportData('skins', 'csv') },
         { id: 'act-refresh', icon: 'arrows-clockwise', iconStyle: 'duotone', title: t('cmd.action.refresh'), subtitle: '', kbd: '', action: refreshData },
-        { id: 'act-alert', icon: 'bell-ringing', iconStyle: 'duotone', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => showAlertModal.value = true, 100); } },
+        { id: 'act-alert', icon: 'bell-ringing', iconStyle: 'duotone', title: t('cmd.action.alert'), subtitle: t('menu.alerts'), kbd: '', action: () => { currentPage.value = 'alerts'; setTimeout(() => openAlertModal(), 100); } },
       ].filter(c => match(c.title) || match(c.subtitle));
       if (actionCmds.length) groups.push({ title: t('cmd.group.actions'), items: actionCmds });
 
@@ -4084,7 +5278,7 @@ const app = createApp({
       if (e.key === 'Escape') {
         if (showCommandPalette.value) { showCommandPalette.value = false; return; }
         if (showShortcutHelp.value) { showShortcutHelp.value = false; return; }
-        if (showAlertModal.value) { showAlertModal.value = false; return; }
+        if (showAlertModal.value) { closeAlertModal(); return; }
         if (showPortfolioModal.value) { showPortfolioModal.value = false; return; }
       }
       // 数字键切换页面 (无 Toast,直接跳转)
@@ -4126,7 +5320,7 @@ const app = createApp({
           perDayInstance?.resize();
         }, 100);
       } else if (page === 'daily') {
-        await loadDailyReport();
+        await Promise.all([loadDailyReport(), loadNewsFromApi()]);
       } else if (page === 'admin') {
         if (adminIsAuthed.value) await loadAdminPanel();
       } else if (page === 'alerts') {
@@ -4156,13 +5350,11 @@ const app = createApp({
     // ============ 生命周期 ============
     onMounted(async () => {
       await nextTick();
-
-      // 启动遮罩由 boot-loader 按首屏图片进度关闭；后端探测与之并行
-      const bootReady = window.CSVestBoot?.waitUntilReady
-        ? window.CSVestBoot.waitUntilReady().catch(() => {})
-        : Promise.resolve().then(() => {
-            document.getElementById('app-loader')?.classList.add('hidden');
-          });
+      // 移除首次加载遮罩 (CSS 动画 0.6s 后自动隐藏,这里做兜底)
+      setTimeout(() => {
+        const loader = document.getElementById('app-loader');
+        if (loader) loader.classList.add('hidden');
+      }, 300);
 
       // 自动探测后端；通了就切真实 API
       await connectBackend();
@@ -4182,13 +5374,9 @@ const app = createApp({
         currentUser.value = Auth.getCurrentUser() || null;
       }
 
-      // 首屏展示：等关键图就绪后再挂载英雄场景，避免露出未加载底图
-      await bootReady;
+      // 首屏展示时图表容器尚未挂载,进入系统后再渲染
       if (showLanding.value) {
         await mountLandingCanvas();
-        try {
-          window.CSVestBoot?.lazyLoadSections?.(document.querySelector('.landing') || document);
-        } catch (_) { /* ignore */ }
       } else {
         renderKline();
         await hydrateCurrentPage(currentPage.value);
@@ -4201,6 +5389,7 @@ const app = createApp({
         shapInstance?.resize();
         perDayInstance?.resize();
         inventoryValueChartInstance?.resize();
+        updateNavPill();
       });
 
       // 隐藏入口: #admin 进出独立管理端(不进侧边栏)
@@ -4233,6 +5422,8 @@ const app = createApp({
       // (Phosphor 字体 404,这些图标原本不可见)
       window.processPhIcons && window.processPhIcons();
 
+      await nextTick();
+      updateNavPill();
       // 不再弹欢迎 Toast (用户反馈: 弹窗太多令人困惑)
     });
 
@@ -4299,6 +5490,7 @@ const app = createApp({
       toasts, showToast,
       // 菜单
       menu, currentPage, currentMenu, activeNavId, subPageLabel, renderMenuIcon, renderLucideIcon, goToPage,
+      navMenuRef, navPillStyle, navPillReady,
       // 首屏
       showLanding, landingExiting, landingHeroIndex, landingHeroSlides, landingSceneHint,
       enterSystem, showAdmin, leaveAdmin,
@@ -4310,16 +5502,19 @@ const app = createApp({
       showProfileModal, profileNameDraft, openProfileEditor, saveProfile,
       // 行情
       skins, topGainers, topLosers, hotVolume, refreshData,
-      filterCategory, categoryKeys, categoryMap, categoryLabel, filteredSkins,
+      filterCategory, categoryKeys, categoryMap, categoryLabel, skinDisplayName, wearLabel,
+      rarityLabel, rarityColor, rarityStyle, filteredSkins,
       visibleSkins, hasMoreSkins, remainingSkins, showMoreSkins,
       marketLiveQuotes, marketLiveLoading, refreshMarketLive,
-      skinSearch, skinSort, marketPulse, formatChange, formatVolume,
-      apiOnline, aiRuntime, connectBackend, reconnectBackend, dataSourceLabel,
+      skinSearch, skinSort, skinSortDir, marketPulse, marketSentiment, formatChange, formatVolume,
+      rowSparkPath,
+      apiOnline, connectBackend, reconnectBackend, dataSourceLabel,
       // 预测
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
       predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
-      relatedNews, newsIcon, openExternalUrl, roundTitle, debateData,
+      displayConsensusScore, consensusModelsLabel,
+      relatedNews, newsIcon, openExternalUrl, openNewsItem, resolveNewsUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
@@ -4328,11 +5523,13 @@ const app = createApp({
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
       chatMode, setChatMode, canSendChat,
       chatAgentSession, chatBudget, chatRiskLevel,
-      latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
+      responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       debateTotalRounds, copyDebateResult,
       // 资讯 / 日报
       newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
+      dailyTab, setDailyTab, dailySourcesOpen,
       regenerateDailyReport, exportDailyReport,
+      localizedHeadline, localizedNewsImpact,
       newsFetchLoading, fetchNewsNow,
       ragQuery, ragAnswer, ragAnswerSources, ragLoading, ragAsked, ragSuggestions, askRag, renderCitations, ragRetrieval,
       adminSession, adminIsAuthed, adminLoginForm, adminLoginError, adminLoginLoading,
@@ -4340,7 +5537,8 @@ const app = createApp({
       adminSaving, adminLoading, adminConfigForm,
       adminLogin, adminLogout, loadAdminPanel, saveAdminConfig, refreshAdminStatus, runProbeLlm, runProbeEmbed,
       // 预警
-      alerts, showAlertModal, newAlert, addAlert, deleteAlert,
+      alerts, showAlertModal, alertSkinLocked, alertLockedSkinName, newAlert,
+      openAlertModal, closeAlertModal, addAlert, deleteAlert,
       // 持仓 / 库存
       portfolioTab, setPortfolioTab,
       portfolio, showPortfolioModal, newPortfolio, addPortfolio, removePortfolio,
@@ -4361,7 +5559,8 @@ const app = createApp({
       modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
       selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
-      shapEmpty, backtestEmpty,
+      shapEmpty, shapFeatureGuide, modelsInfoOpen, toggleModelsInfo,
+      regressionGuideItems, classificationGuideItems, backtestEmpty,
       radarChart, backtestChart, shapChart,
       perDayChart, modelsPerDay, perDayMetric, setPerDayMetric,
       // 工具
@@ -4406,28 +5605,22 @@ const showErrorToast = (title, subtitle = '') => {
 // Vue 组件错误处理
 app.config.errorHandler = (err, instance, info) => {
   console.error('[Vue Error]', err, info);
-  showErrorToast('组件渲染出错', String(err.message || err).slice(0, 80));
+  showErrorToast(t('error.title'), String(err.message || err).slice(0, 80));
 };
 
 // 未捕获的 JS 错误
 window.addEventListener('error', (e) => {
   console.error('[Window Error]', e.error);
-  const msg = String(e.message || e.error?.message || '');
   // 避免在某些已知错误上刷屏 (CDN 加载失败等)
-  if (msg.includes('Script error')) return;
-  // 脚本被重复注入时的无害噪音，不打断用户
-  if (msg.includes('has already been declared')) return;
-  if (/can't create duplicate variable/i.test(msg)) return;
-  showErrorToast('运行时错误', msg.slice(0, 80));
+  if (e.message && e.message.includes('Script error')) return;
+  showErrorToast(t('error.runtime'), String(e.message || '').slice(0, 80));
 });
 
 // 未处理的 Promise 拒绝
 window.addEventListener('unhandledrejection', (e) => {
   console.error('[Unhandled Rejection]', e.reason);
-  showErrorToast('异步操作失败', String(e.reason?.message || e.reason || '').slice(0, 80));
+  showErrorToast(t('error.async'), String(e.reason?.message || e.reason || '').slice(0, 80));
   e.preventDefault();
 });
 
 app.mount('#app');
-
-})(); // end CSVest boot IIFE

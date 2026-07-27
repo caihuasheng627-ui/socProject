@@ -52,8 +52,6 @@ class _ExecutionTracker:
 _EXECUTION_STATUS: ContextVar[_ExecutionTracker] = ContextVar(
     "llm_execution_status", default=_ExecutionTracker()
 )
-
-
 def reset_execution_status() -> None:
     """Start per-request LLM accounting used by API runtime metadata."""
 
@@ -224,6 +222,53 @@ def chat_sync(
             f"(LLM 调用失败,降级 Mock)\n{_mock_reply(messages)}"
             f"\n\n[error: {type(e).__name__}]"
         )
+
+
+def translate_content(content: Any, target_locale: str, timeout: float = 45.0) -> Any:
+    """Translate a JSON-compatible chat payload using DeepSeek only.
+
+    Unlike ordinary chat, this helper never returns a local fallback: an old
+    conversation must remain in its original language when translation cannot
+    be verified, rather than being replaced with fabricated text.
+    """
+    if not LLM_ENABLED:
+        raise RuntimeError("DeepSeek is not configured")
+    target = "Simplified Chinese" if str(target_locale).lower().startswith("zh") else "English"
+    # JSON mode is more reliable when a scalar is wrapped in an object.  Keep
+    # the public helper contract ergonomic by unwrapping that value again
+    # below; structured chat/debate payloads retain their original shape.
+    scalar_content = isinstance(content, str)
+    payload_json = json.dumps({"content": content} if scalar_content else content, ensure_ascii=False)
+    messages = [{
+        "role": "user",
+        "content": (
+            f"Translate every natural-language string value in this JSON to {target}. "
+            "Preserve the JSON structure, all keys, numbers, percentages, IDs, dates, "
+            "skin names, model names, URLs, and the labels Bull, Bear, Judge exactly. "
+            "Return only valid JSON with no Markdown.\n\n"
+            + payload_json
+        ),
+    }]
+    request_payload = _build_payload(
+        messages,
+        system_prompt="You are a precise UI localization service.",
+        model=DEEPSEEK_MODEL,
+        temperature=0.0,
+        stream=False,
+        json_mode=True,
+    )
+    try:
+        raw = _request_sync(request_payload, timeout)
+        translated = json.loads(_strip_json_fence(raw))
+        if scalar_content:
+            if not isinstance(translated, dict) or not isinstance(translated.get("content"), str):
+                raise ValueError("translation response did not preserve scalar content")
+            translated = translated["content"]
+        _record_execution(live=True)
+        return translated
+    except Exception as exc:
+        _record_execution(live=False, error=exc)
+        raise RuntimeError(f"DeepSeek translation failed: {type(exc).__name__}") from exc
 
 
 def chat_structured(
