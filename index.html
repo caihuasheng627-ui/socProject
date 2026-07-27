@@ -178,12 +178,12 @@
           </button>
           <figure class="landing-visual-card landing-visual-card--shot landing-visual--motion">
             <picture>
-              <source srcset="assets/landing/demo-prediction-ui.webp" type="image/webp" />
+              <source srcset="assets/landing/landing-visual-forecast.webp" type="image/webp" />
               <img
                 class="landing-visual-shot"
-                src="assets/landing/demo-prediction-ui.png"
-                width="1122"
-                height="793"
+                src="assets/landing/landing-visual-forecast.jpg"
+                width="1400"
+                height="788"
                 loading="lazy"
                 decoding="async"
                 alt="{{ t('landing.f1.shotAlt') }}"
@@ -205,16 +205,20 @@
           <button type="button" class="landing-link landing-link--motion" @click="currentUser ? enterSystem() : enterAsGuest()">
             {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
           </button>
-          <div class="landing-debate-cards landing-visual--motion" aria-hidden="true">
-            <div class="landing-debate-card landing-debate-card--bull">
-              <span class="landing-debate-tag">Bull</span>
-              <p>{{ t('landing.demo.bull') }}</p>
-            </div>
-            <div class="landing-debate-card landing-debate-card--bear">
-              <span class="landing-debate-tag">Bear</span>
-              <p>{{ t('landing.demo.bear') }}</p>
-            </div>
-          </div>
+          <figure class="landing-visual-card landing-visual-card--shot landing-visual--motion">
+            <picture>
+              <source srcset="assets/landing/landing-visual-debate.webp" type="image/webp" />
+              <img
+                class="landing-visual-shot"
+                src="assets/landing/landing-visual-debate.jpg"
+                width="1400"
+                height="788"
+                loading="lazy"
+                decoding="async"
+                alt="{{ t('landing.f2.shotAlt') }}"
+              />
+            </picture>
+          </figure>
         </div>
       </section>
 
@@ -230,23 +234,20 @@
           <button type="button" class="landing-link landing-link--motion" @click="currentUser ? enterSystem() : enterAsGuest()">
             {{ t('landing.tryNow') }}<span class="landing-chevron">›</span>
           </button>
-          <div class="landing-donut-wrap landing-visual--motion" aria-hidden="true">
-            <svg viewBox="0 0 200 200" class="landing-donut" xmlns="http://www.w3.org/2000/svg">
-              <g transform="rotate(-90 100 100)">
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#ff6b00" stroke-width="22" stroke-dasharray="184.7 255.1"/>
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#22c792" stroke-width="22" stroke-dasharray="136.3 303.5" stroke-dashoffset="-184.7"/>
-                <circle class="landing-donut-seg" cx="100" cy="100" r="70" fill="none" stroke="#eb4b4b" stroke-width="22" stroke-dasharray="118.8 321" stroke-dashoffset="-321"/>
-              </g>
-              <circle cx="100" cy="100" r="48" fill="rgba(8,8,12,0.72)"/>
-              <text x="100" y="96" text-anchor="middle" font-size="20" font-weight="700" fill="#f6f3ee">$12,480</text>
-              <text x="100" y="116" text-anchor="middle" font-size="10" letter-spacing="1.5" fill="rgba(242,239,233,0.45)">TOTAL</text>
-            </svg>
-            <div class="landing-legend">
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#ff6b00"></span>M4A1-S | Printstream<b>42%</b></div>
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#22c792"></span>Butterfly Knife | Northern Forest<b>31%</b></div>
-              <div class="landing-legend-row"><span class="landing-legend-dot" style="background:#eb4b4b"></span>Desert Eagle | Printstream<b>27%</b></div>
-            </div>
-          </div>
+          <figure class="landing-visual-card landing-visual-card--shot landing-visual--motion">
+            <picture>
+              <source srcset="assets/landing/landing-visual-portfolio.webp" type="image/webp" />
+              <img
+                class="landing-visual-shot"
+                src="assets/landing/landing-visual-portfolio.jpg"
+                width="1400"
+                height="788"
+                loading="lazy"
+                decoding="async"
+                alt="{{ t('landing.f3.shotAlt') }}"
+              />
+            </picture>
+          </figure>
         </div>
       </section>
 
