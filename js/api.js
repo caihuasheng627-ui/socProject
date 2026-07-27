@@ -94,7 +94,28 @@ class CSVestAPI {
     localStorage.removeItem('sv_use_mock');
   }
 
+  /**
+   * 管理端强制走真实后端（关闭 Mock）。
+   * @param {string} [baseURL] 显式 API 根地址；空串表示同源 /api
+   */
+  ensureLiveBackend(baseURL) {
+    if (baseURL !== undefined && baseURL !== null) {
+      this.setBaseURL(String(baseURL).trim().replace(/\/$/, ''));
+    }
+    this.setUseMock(false);
+    return this;
+  }
+
   async _fetch(path, options = {}) {
+    // 静态 Pages 未配置公网 API 时，避免把 /api 打到 github.io 自己
+    if (!this.baseURL && typeof location !== 'undefined' && isStaticPagesHost(location.hostname)) {
+      throw new APIError(
+        'GitHub Pages 无后端。请在管理端填写公网 API 地址（HTTPS），或改用 Docker 部署。',
+        0,
+        'NO_API_BASE'
+      );
+    }
+
     const url = `${this.baseURL}${path}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -124,7 +145,7 @@ class CSVestAPI {
         throw new APIError(detail || res.statusText, res.status, error.code);
       }
 
-      // 204 / 缂?body闁挎稒顑廍LETE 缂佹稑顦板Λ銈夊礃閸涱収鍟囬柛婵嗙Т缁?
+      // 204 / empty body
       if (res.status === 204 || res.headers.get('content-length') === '0') {
         return { success: true };
       }
@@ -138,14 +159,15 @@ class CSVestAPI {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        /* Corrupted legacy localized literal kept below for source-history
-           compatibility; do not execute it. */
         throw new APIError('Request timed out.', 408, 'TIMEOUT');
-        /*
-        throw new APIError('閻犲洭鏀遍惇鎵惥閸涱喗顦?, 408, 'TIMEOUT');
-        */
       }
-      throw err;
+      if (err instanceof APIError) throw err;
+      const hint = (err && err.message) ? String(err.message) : 'network error';
+      throw new APIError(
+        `无法连接后端 API（${this.baseURL || (typeof location !== 'undefined' ? location.origin : '')}）：${hint}`,
+        0,
+        'NETWORK'
+      );
     }
   }
 

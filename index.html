@@ -45,8 +45,8 @@
   <!-- Phosphor Icons (内嵌 SVG, 不依赖字体加载) -->
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
-  <!-- 自定义样式 -->
-  <link rel="stylesheet" href="style.css?v=20260727-strict-qa" />
+  <!-- 自定义样式（?v= 必须随 style.css 内容变更；服务器部署脚本也会用 git short SHA 覆盖） -->
+  <link rel="stylesheet" href="style.css?v=20260727-backend-fonts" />
 
   <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20260727-csv" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20260727-csv" />
@@ -181,10 +181,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-forecast.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-forecast.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-forecast.jpg"
+                    src="assets/landing/landing-visual-forecast.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -220,10 +220,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-debate.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-debate.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-debate.jpg"
+                    src="assets/landing/landing-visual-debate.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -259,10 +259,10 @@
               </div>
               <div class="landing-device__screen">
                 <picture>
-                  <source srcset="assets/landing/landing-visual-portfolio.webp" type="image/webp" />
+                  <source srcset="assets/landing/landing-visual-portfolio.webp?v=20260727-shots" type="image/webp" />
                   <img
                     class="landing-visual-shot"
-                    src="assets/landing/landing-visual-portfolio.jpg"
+                    src="assets/landing/landing-visual-portfolio.jpg?v=20260727-shots"
                     width="1400"
                     height="788"
                     loading="lazy"
@@ -400,6 +400,12 @@
             <div class="card-title mb-3">{{ t('admin.loginTitle') }}</div>
             <p class="text-muted text-sm mb-3">{{ t('admin.loginHint') }}</p>
             <div class="form-group">
+              <label class="form-label">{{ t('admin.apiBase') }}</label>
+              <input class="form-input" v-model.trim="adminApiBase"
+                     :placeholder="t('admin.apiBasePlaceholder')" autocomplete="off" />
+              <p class="text-muted text-sm mt-1">{{ t('admin.apiBaseHint') }}</p>
+            </div>
+            <div class="form-group">
               <label class="form-label">{{ t('admin.username') }}</label>
               <input class="form-input" v-model.trim="adminLoginForm.username" autocomplete="username" />
             </div>
@@ -476,6 +482,17 @@
                 </button>
               </div>
               <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
+              <div class="form-group mb-3">
+                <label class="form-label">{{ t('admin.apiBase') }}</label>
+                <div class="admin-api-base-row">
+                  <input class="form-input" v-model.trim="adminApiBase"
+                         :placeholder="t('admin.apiBasePlaceholder')" autocomplete="off" />
+                  <button type="button" class="btn btn-secondary btn-sm" @click="loadAdminPanel" :disabled="adminLoading">
+                    {{ t('admin.applyApiBase') }}
+                  </button>
+                </div>
+                <p class="text-muted text-sm mt-1">{{ t('admin.apiBaseHint') }}</p>
+              </div>
               <div class="admin-config-grid">
                 <div>
                   <h4 class="admin-section-label">{{ t('admin.deepseekLabel') }}</h4>
@@ -518,7 +535,7 @@
                     <label class="form-label">Embedding Model</label>
                     <input class="form-input" v-model="adminConfigForm.ragEmbedModel"
                            placeholder="text-embedding-v3" />
-                    <p class="text-muted text-sm mt-1">?? text-embedding-v3 / v4?qwen3-vl-rerank ? rerank ?????</p>
+                    <p class="text-muted text-sm mt-1">{{ t('admin.embedModelHint') }}</p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Dim</label>
@@ -3443,15 +3460,15 @@
     </div>
   </div>
 
-  <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源） -->
-  <script src="data.js?v=20260727-chat-restore2"></script>
-  <script src="i18n.js?v=20260727-strict-qa"></script>
-  <script src="js/skin-names-zh.js?v=20260727-skinnames"></script>
-  <script src="js/api.js?v=20260727-debate-stream"></script>
-  <script src="js/auth.js?v=20260725-auth"></script>
-  <script src="js/lucide-icons.js?v=20260727-fix"></script>
-  <script src="js/landing-scenes.js?v=20260725-hero-touch"></script>
-  <script src="js/landing-scroll.js?v=20260725-hero-touch"></script>
-  <script src="app.js?v=20260727-dual-context"></script>
+  <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源；部署时会用 git SHA 再戳一次） -->
+  <script src="data.js?v=20260727-backend-fonts"></script>
+  <script src="i18n.js?v=20260727-backend-fonts"></script>
+  <script src="js/skin-names-zh.js?v=20260727-backend-fonts"></script>
+  <script src="js/api.js?v=20260727-backend-fonts"></script>
+  <script src="js/auth.js?v=20260727-backend-fonts"></script>
+  <script src="js/lucide-icons.js?v=20260727-backend-fonts"></script>
+  <script src="js/landing-scenes.js?v=20260727-backend-fonts"></script>
+  <script src="js/landing-scroll.js?v=20260727-backend-fonts"></script>
+  <script src="app.js?v=20260727-model-perf"></script>
 </body>
 </html>

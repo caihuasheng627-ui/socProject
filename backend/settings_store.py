@@ -85,7 +85,11 @@ def set_settings(updates: dict[str, Any]) -> dict[str, str]:
                     (k, s, now),
                 )
         conn.commit()
-    apply_runtime_settings()
+    # Persist first; runtime injection must not turn a successful write into HTTP 500.
+    try:
+        apply_runtime_settings()
+    except Exception as exc:
+        print(f"[settings] apply_runtime_settings failed after save: {type(exc).__name__}: {exc}")
     return get_all_settings()
 
 
@@ -149,10 +153,16 @@ def apply_runtime_settings() -> None:
     import os
 
     import config as cfg
-    from dotenv import dotenv_values
+    try:
+        from dotenv import dotenv_values
+    except Exception:
+        dotenv_values = lambda _path: {}  # type: ignore[misc, assignment]
 
     env_file = cfg.BACKEND_DIR / ".env"
-    file_vals = dotenv_values(env_file) if env_file.exists() else {}
+    try:
+        file_vals = dotenv_values(env_file) if env_file.exists() else {}
+    except Exception:
+        file_vals = {}
 
     def _env(name: str, default: str = "") -> str:
         return (os.getenv(name) or file_vals.get(name) or default or "").strip()
@@ -174,9 +184,9 @@ def apply_runtime_settings() -> None:
     overrides = get_all_settings()
     merged = {**base, **overrides}
 
-    llm_base = (merged["DEEPSEEK_BASE_URL"] or dash_default).rstrip("/")
-    llm_key = _sanitize_api_key(merged["DEEPSEEK_API_KEY"])
-    dash_key = _sanitize_api_key(merged["DASHSCOPE_API_KEY"])
+    llm_base = (merged.get("DEEPSEEK_BASE_URL") or dash_default).rstrip("/")
+    llm_key = _sanitize_api_key(merged.get("DEEPSEEK_API_KEY"))
+    dash_key = _sanitize_api_key(merged.get("DASHSCOPE_API_KEY"))
     # 阿里云 DeepSeek:无独立 LLM Key 时复用百炼 Key;坏 Key(非 sk- 开头)也回退
     if _is_dashscope_llm(llm_base) and dash_key:
         if not llm_key or not llm_key.startswith("sk-"):
@@ -184,17 +194,26 @@ def apply_runtime_settings() -> None:
 
     cfg.DEEPSEEK_API_KEY = llm_key
     cfg.DEEPSEEK_BASE_URL = llm_base
-    cfg.DEEPSEEK_MODEL = _normalize_llm_model(merged["DEEPSEEK_MODEL"], llm_base)
+    cfg.DEEPSEEK_MODEL = _normalize_llm_model(merged.get("DEEPSEEK_MODEL") or "deepseek-v3", llm_base)
     cfg.LLM_ENABLED = bool(cfg.DEEPSEEK_API_KEY)
+    # Keep agent model aliases in sync when only the base model changed.
+    cfg.BULL_MODEL = os.getenv("BULL_MODEL", cfg.DEEPSEEK_MODEL)
+    cfg.BEAR_MODEL = os.getenv("BEAR_MODEL", cfg.DEEPSEEK_MODEL)
+    cfg.JUDGE_MODEL = os.getenv("JUDGE_MODEL", cfg.DEEPSEEK_MODEL)
 
     cfg.DASHSCOPE_API_KEY = dash_key
-    cfg.DASHSCOPE_BASE_URL = merged["DASHSCOPE_BASE_URL"].rstrip("/")
-    cfg.RAG_EMBED_MODEL = merged["RAG_EMBED_MODEL"]
+    cfg.DASHSCOPE_BASE_URL = (merged.get("DASHSCOPE_BASE_URL") or dash_default).rstrip("/")
+    embed_model = (merged.get("RAG_EMBED_MODEL") or "text-embedding-v3").strip()
+    if "rerank" in embed_model.lower():
+        # Rerank models are not embedding models; keep a safe default.
+        print(f"[settings] reject rerank model for embedding: {embed_model}")
+        embed_model = "text-embedding-v3"
+    cfg.RAG_EMBED_MODEL = embed_model
     try:
-        cfg.RAG_EMBED_DIM = int(merged["RAG_EMBED_DIM"] or 1024)
+        cfg.RAG_EMBED_DIM = int(merged.get("RAG_EMBED_DIM") or 1024)
     except ValueError:
         cfg.RAG_EMBED_DIM = 1024
-    cfg.RAG_USE_VECTOR = str(merged["RAG_USE_VECTOR"]).strip() not in ("0", "false", "False", "")
+    cfg.RAG_USE_VECTOR = str(merged.get("RAG_USE_VECTOR") or "1").strip() not in ("0", "false", "False", "")
     cfg.RAG_EMBED_ENABLED = bool(cfg.DASHSCOPE_API_KEY) and cfg.RAG_USE_VECTOR
 
     try:
@@ -230,12 +249,15 @@ def apply_runtime_settings() -> None:
         pass
 
     try:
-        import main as main_mod
-        main_mod.LLM_ENABLED = cfg.LLM_ENABLED
-        main_mod.DEEPSEEK_MODEL = cfg.DEEPSEEK_MODEL
-        main_mod.BULL_MODEL = cfg.BULL_MODEL
-        main_mod.BEAR_MODEL = cfg.BEAR_MODEL
-        main_mod.JUDGE_MODEL = cfg.JUDGE_MODEL
+        import sys
+        main_mod = sys.modules.get("main")
+        if main_mod is not None:
+            main_mod.LLM_ENABLED = cfg.LLM_ENABLED
+            main_mod.DEEPSEEK_MODEL = cfg.DEEPSEEK_MODEL
+            if hasattr(cfg, "BULL_MODEL"):
+                main_mod.BULL_MODEL = cfg.BULL_MODEL
+                main_mod.BEAR_MODEL = cfg.BEAR_MODEL
+                main_mod.JUDGE_MODEL = cfg.JUDGE_MODEL
     except Exception:
         pass
 
