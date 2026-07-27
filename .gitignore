@@ -58,7 +58,6 @@ build_apple_ppt.py
 restyle_ppt.py
 gen_poster*.py
 integrate_maintenance_pkg.py
-assets/
 !assets/landing/
 !assets/landing/**
 
