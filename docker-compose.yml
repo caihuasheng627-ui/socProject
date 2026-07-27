@@ -30,9 +30,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   # 前端静态托管 + /api 反代到后端（打开 :8080 即自动连后端）
   web:
@@ -53,7 +54,7 @@ services:
     restart: unless-stopped
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   sqlite-data:
