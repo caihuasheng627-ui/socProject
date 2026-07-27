@@ -160,14 +160,20 @@ def clean_price_points(
         deviation = max(current / neighbour_price, neighbour_price / current)
 
         # 特殊图案用 5x 保护真实溢价；但「单日冲高、次日立刻回到邻点量级」
-        # 且偏离 ≥4.5x 仍视为脏点（Ursus Case Hardened 200→934→192 ≈4.8x 曾漏检；
+        # 且偏离 ≥4.0x 仍视为脏点（Ursus Case Hardened 200→934→192 ≈4.8x 曾漏检；
         # 3.9x 级溢价仍保留，见 test_pattern_finish_uses_stricter_threshold）。
+        # 低价普通饰品仍走完整 5x，避免 4x 正常波动被误清。
+        is_pattern = any(
+            keyword in (market_hash_name or "").casefold()
+            for keyword in PATTERN_SENSITIVE_KEYWORDS
+        )
         snapback = (
-            neighbour_ratio <= 1.15
+            is_pattern
+            and neighbour_ratio <= 1.15
             and max(current / previous, previous / current) >= 3.0
             and max(current / following, following / current) >= 3.0
         )
-        effective_threshold = 4.5 if snapback else threshold
+        effective_threshold = 4.0 if snapback else threshold
         if deviation < effective_threshold:
             continue
 

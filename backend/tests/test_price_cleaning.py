@@ -52,7 +52,8 @@ def test_clean_price_points_keeps_move_when_neighbours_are_not_stable():
 
 
 def test_pattern_finish_uses_stricter_threshold():
-    # 图案皮肤走 5x 保护阈值: 3.9x 溢价保留(普通饰品 2x 阈值下会被清), 6.8x 清洗
+    # 图案皮肤: 持续溢价走 5x；单日闪现回落走 4.0x。
+    # 3.9x 闪现溢价仍保留；6.8x 清洗。
     kept = clean_price_points(
         "AK-47 | Case Hardened (Field-Tested)",
         [("2026-01-01", 100.0), ("2026-01-02", 400.0), ("2026-01-03", 105.0)],
@@ -70,7 +71,7 @@ def test_pattern_finish_uses_stricter_threshold():
 
 
 def test_pattern_finish_cleans_near_threshold_flash_spike():
-    """Case Hardened 单日 4.7x 冲高并次日回落应清洗（Ursus MW 实况）。"""
+    """Case Hardened 单日 ~4.7x 冲高并次日回落应清洗（Ursus MW 实况）。"""
     cleaned = clean_price_points(
         "★ Ursus Knife | Case Hardened (Minimal Wear)",
         [
@@ -84,6 +85,18 @@ def test_pattern_finish_cleans_near_threshold_flash_spike():
     assert middle.is_outlier is True
     assert middle.outlier_reason == "isolated_price_spike"
     assert math.isclose(middle.price, math.sqrt(198.59 * 191.89), rel_tol=1e-9)
+
+
+def test_pattern_finish_cleans_4x_flash_spike():
+    """特殊图案单日刚过 4.0x 的闪现尖峰也应清洗。"""
+    cleaned = clean_price_points(
+        "Five-SeveN | Case Hardened (Field-Tested)",
+        [("2026-01-01", 100.0), ("2026-01-02", 420.0), ("2026-01-03", 100.0)],
+    )
+    middle = cleaned[1]
+    assert middle.is_outlier is True
+    assert middle.outlier_reason == "isolated_price_spike"
+    assert math.isclose(middle.price, 100.0, rel_tol=1e-9)
 
 
 def test_cheap_item_uses_stricter_threshold_but_still_removes_extreme_error():
