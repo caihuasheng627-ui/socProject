@@ -69,6 +69,23 @@ def test_pattern_finish_uses_stricter_threshold():
     assert math.isclose(cleaned[1].price, math.sqrt(100.0 * 105.0), rel_tol=1e-9)
 
 
+def test_pattern_finish_cleans_near_threshold_flash_spike():
+    """Case Hardened 单日 4.7x 冲高并次日回落应清洗（Ursus MW 实况）。"""
+    cleaned = clean_price_points(
+        "★ Ursus Knife | Case Hardened (Minimal Wear)",
+        [
+            ("2026-07-09", 198.59),
+            ("2026-07-13", 934.22),
+            ("2026-07-14", 191.89),
+        ],
+    )
+    middle = cleaned[1]
+    assert middle.raw_price == 934.22
+    assert middle.is_outlier is True
+    assert middle.outlier_reason == "isolated_price_spike"
+    assert math.isclose(middle.price, math.sqrt(198.59 * 191.89), rel_tol=1e-9)
+
+
 def test_cheap_item_uses_stricter_threshold_but_still_removes_extreme_error():
     # 低价饰品(中位数<1)同样走 5x 保护阈值: 4x 波动保留, 56x 极端错误仍清洗
     protected = clean_price_points(
