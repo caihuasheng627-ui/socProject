@@ -1080,9 +1080,22 @@ body::before {
     width: 100%;
     animation: toastSlideUp 0.25s var(--ease-out-expo);
   }
-  .chat-container {
-    height: calc(100dvh - 52px);
-    max-height: calc(100dvh - 52px);
+  /* 聊天页由 content-area flex 撑满，勿再用 100dvh（会高出视口并裁切底部） */
+  .content-area:has(> .chat-page),
+  .content-area--chat {
+    padding: 0;
+    padding-bottom: 0;
+  }
+  .chat-container,
+  .chat-shell {
+    height: auto;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
   }
 }
 
@@ -11092,11 +11105,15 @@ select:focus-visible {
   }
 }
 
-/* 手机端：让对话页尽量占满屏幕，而不是缩在小卡片里 */
+/* 手机端：对话页贴边铺满，避免缩在中间小卡片里 */
 @media (max-width: 768px) {
   .content-area--chat,
   .content-area:has(> .chat-page) {
-    padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
   }
 
   .chat-page {
@@ -11104,51 +11121,98 @@ select:focus-visible {
     flex-direction: column;
     min-height: 0;
     flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
   }
 
   .chat-container,
   .chat-shell {
-    height: auto;
-    max-height: none;
+    height: auto !important;
+    max-height: none !important;
     flex: 1 1 auto;
-    min-height: calc(100dvh - 72px);
-    border-radius: 14px;
+    min-height: 0 !important;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    box-shadow: none;
   }
 
   .chat-shell-bar {
-    padding: 10px 12px;
+    padding: 8px 12px;
     gap: 8px;
   }
 
+  .chat-shell-mode {
+    font-size: 14px;
+  }
+
   .chat-messages {
-    padding: 14px 12px 10px;
+    padding: 12px 12px 8px;
   }
 
   .chat-message {
     gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .chat-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
   }
 
   .chat-content {
     font-size: 15px;
     line-height: 1.65;
+    padding: 12px 12px;
+    border-radius: 12px;
   }
 
-  .chat-input-area {
-    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  .chat-input-area,
+  .chat-composer {
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .chat-mode-hint {
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .chat-composer-box {
+    border-radius: 14px;
+    padding: 8px 10px;
   }
 
   /* 16px 起步可避免 iOS 聚焦输入框时自动放大页面 */
   .chat-input {
-    min-height: 44px;
+    min-height: 40px;
     font-size: 16px;
   }
 
+  .chat-composer-hint {
+    display: none;
+  }
+
   .chat-send-btn {
-    min-width: 96px;
+    min-width: 88px;
+    min-height: 40px;
+  }
+
+  .chat-disclaimer {
+    margin-top: 6px;
+    font-size: 10px;
   }
 
   .debate-timeline {
     padding: 12px 10px;
+  }
+
+  .debate-live-hints {
+    margin: 8px 0 4px;
+    padding: 10px 12px;
   }
 
   .judge-action-plan {
@@ -11157,6 +11221,25 @@ select:focus-visible {
 
   .ai-result-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-shell-bar {
+    padding: 6px 10px;
+  }
+
+  .chat-messages {
+    padding: 10px 10px 6px;
+  }
+
+  .chat-input-area,
+  .chat-composer {
+    padding: 6px 10px max(6px, env(safe-area-inset-bottom));
+  }
+
+  .chat-mode-hint.active-debate-hint {
+    display: none;
   }
 }
 
