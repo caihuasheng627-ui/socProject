@@ -46,6 +46,7 @@ services:
       - ./style.css:/usr/share/nginx/html/style.css:ro
       - ./data.js:/usr/share/nginx/html/data.js:ro
       - ./i18n.js:/usr/share/nginx/html/i18n.js:ro
+      - ./links.html:/usr/share/nginx/html/links.html:ro
       - ./js:/usr/share/nginx/html/js:ro
       # 主页落地页场景图（assets/landing）；未挂载会导致 /assets/... 404
       - ./assets:/usr/share/nginx/html/assets:ro
