@@ -78,6 +78,86 @@ DEBATE_WORDS = (
     "\u662f\u5426", "\u8be5\u4e0d\u8be5", "\u503c\u4e0d\u503c\u5f97", "\u503c\u5f97\u4e70", "\u80fd\u4e70\u5417",
     "\u8981\u4e0d\u8981", "\u5165\u624b", "\u9009\u62e9", "should i", "worth", "buy",
 )
+MODEL_PERF_WORDS = (
+    "模型表现", "模型对比", "预测模型", "各个模型", "各模型", "模型实验室",
+    "model comparison", "model performance", "models lab", "how do the model",
+    "model-comparison", "compare models", "comparison results",
+)
+
+
+def is_model_performance_query(message: str) -> bool:
+    """True when the user asks about model metrics, not a skin price forecast."""
+    lowered = message.lower()
+    return any(word.lower() in lowered for word in MODEL_PERF_WORDS)
+
+
+def _model_comparison_brief(locale: str = "zh-CN") -> str:
+    """Inject fair-test regression metrics so chat can answer model-lab questions."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    output_dir = root / "ml" / "outputs"
+    cmp_path = output_dir / "compare_results_test.json"
+    if not cmp_path.exists():
+        cmp_path = output_dir / "compare_results.json"
+    if not cmp_path.exists():
+        return ""
+    try:
+        cmp = json.loads(cmp_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    models_blk = cmp.get("models") if isinstance(cmp, dict) else None
+    if not isinstance(models_blk, dict) or not models_blk:
+        return ""
+    english = is_english(locale)
+    n_items = cmp.get("n_items") or cmp.get("nItems")
+    horizon = cmp.get("horizon_steps") or cmp.get("horizonSteps") or 7
+    lines = [
+        (
+            f"Fair-test model comparison (horizon={horizon}d"
+            + (f", items={n_items}" if n_items else "")
+            + "):"
+        )
+        if english else
+        (
+            f"公平测试模型对比（horizon={horizon}天"
+            + (f"，覆盖 {n_items} 件" if n_items else "")
+            + "）："
+        )
+    ]
+    preferred = ("LSTM-C", "LSTM-D", "Hybrid", "Random Forest", "RF", "LightGBM", "XGBoost", "GRU")
+    names = [n for n in preferred if n in models_blk] + [
+        n for n in models_blk if n not in preferred
+    ]
+    for name in names[:8]:
+        blk = models_blk.get(name)
+        if not isinstance(blk, dict):
+            continue
+        display = "Random Forest" if name == "RF" else name
+        rmse = blk.get("rmse")
+        mae = blk.get("mae")
+        mape = blk.get("mape")
+        r2 = blk.get("r2")
+        parts = [display]
+        if rmse is not None:
+            parts.append(f"RMSE={float(rmse):.2f}")
+        if mae is not None:
+            parts.append(f"MAE={float(mae):.2f}")
+        if mape is not None:
+            parts.append(f"MAPE={float(mape):.2f}%")
+        if r2 is not None:
+            parts.append(f"R²={float(r2):.4f}")
+        if len(parts) > 1:
+            lines.append("- " + ", ".join(parts))
+    if len(lines) <= 1:
+        return ""
+    lines.append(
+        "Answer ONLY from this comparison table. Do not invent metrics or run a single-skin Hybrid forecast."
+        if english else
+        "只能依据上表回答；不要编造指标，也不要对某件饰品跑 Hybrid 预测。"
+    )
+    return "\n".join(lines)
 
 
 def _market_brief(limit: int = 5) -> str:
@@ -124,7 +204,7 @@ def _market_brief(limit: int = 5) -> str:
         return ""
 
 
-def grounded_chat_system_prompt(locale: str = "zh-CN") -> str:
+def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | None = None) -> str:
     """Shared grounded prompt for plain chat — used by both the orchestrator
     and the streaming /api/chat endpoint so answers never invent numbers."""
     language = "English" if is_english(locale) else "Simplified Chinese"
@@ -138,6 +218,11 @@ def grounded_chat_system_prompt(locale: str = "zh-CN") -> str:
         "statistics are not. Keep answers concise — normally under 200 words unless the user "
         "explicitly asks for detail."
     )
+    if user_message and is_model_performance_query(user_message):
+        model_brief = _model_comparison_brief(locale)
+        if model_brief:
+            prompt += f"\n\nModel lab metrics (real data):\n{model_brief}"
+            return prompt
     brief = _market_brief()
     if brief:
         prompt += f"\n\nMarket snapshot from the local database (real data):\n{brief}"
@@ -252,6 +337,9 @@ def detect_intent(
 ) -> Intent:
     if session_id and target_agent in {"bull", "bear", "judge"}:
         return "agent_followup"
+    # "预测模型表现如何" contains 预测 but must NOT become a single-skin forecast.
+    if is_model_performance_query(message) and action in {"auto", "qa", "chat"}:
+        return "chat"
     if action == "qa":
         # Strict normal Q&A: never route into the debate pipeline, even when
         # the wording sounds like a buy/sell decision. Prediction and
@@ -275,6 +363,8 @@ def detect_intent(
         if any(word in lowered for word in RECOMMEND_WORDS):
             return "recommendation"
         if any(word in lowered for word in ACTIVE_SESSION_PREDICT_WORDS):
+            if is_model_performance_query(message):
+                return "debate_answer"
             return "prediction"
         session_kind = classify_session_input(message)
         if session_kind == "question":
@@ -547,7 +637,10 @@ class AIOrchestrator:
             if item.get("role") in {"user", "assistant"}
         ]
         reply = self.chat_loader([
-            {"role": "system", "content": grounded_chat_system_prompt(locale)},
+            {
+                "role": "system",
+                "content": grounded_chat_system_prompt(locale, user_message=clean_message),
+            },
             *safe_history,
             {"role": "user", "content": clean_message},
         ])

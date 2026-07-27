@@ -209,6 +209,14 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(detect_intent(question, has_skin=False), "chat")
         self.assertEqual(detect_intent(question, has_skin=True), "debate")
 
+    def test_model_performance_question_is_chat_not_prediction(self):
+        question = "当前各个预测模型的表现如何？"
+        self.assertEqual(detect_intent(question, action="qa", has_skin=True), "chat")
+        self.assertEqual(detect_intent(question, action="auto", has_skin=True), "chat")
+        result = self.service.handle(question, action="qa", skin_id="ak-redline-ft")
+        self.assertEqual(result["type"], "chat")
+        self.assertNotIn("prediction", result)
+
     def test_recommendation_route(self):
         result = self.service.handle("推荐一个皮肤", budget=200)
         self.assertEqual(result["type"], "recommendation")
