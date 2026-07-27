@@ -636,26 +636,52 @@ def admin_put_config(req: AdminConfigReq, _: dict = Depends(get_admin_user)):
     if req.dashscopeBaseUrl is not None:
         updates["DASHSCOPE_BASE_URL"] = req.dashscopeBaseUrl
     if req.ragEmbedModel is not None:
-        updates["RAG_EMBED_MODEL"] = req.ragEmbedModel
+        model = str(req.ragEmbedModel).strip()
+        if "rerank" in model.lower():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"模型「{model}」是 Rerank，不能用于向量检索。"
+                    "请改成 text-embedding-v3 或 text-embedding-v4。"
+                ),
+            )
+        updates["RAG_EMBED_MODEL"] = model
     if req.ragEmbedDim is not None:
         updates["RAG_EMBED_DIM"] = str(req.ragEmbedDim)
     if req.ragUseVector is not None:
         updates["RAG_USE_VECTOR"] = "1" if req.ragUseVector else "0"
     try:
         settings_store.set_settings(updates)
+        return {"ok": True, "config": settings_store.public_config()}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return {"ok": True, "config": settings_store.public_config()}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"保存失败: {type(e).__name__}: {e}",
+        )
 
 
 @app.get("/api/admin/status")
 def admin_status(_: dict = Depends(get_admin_user)):
     """聚合健康检查 + 配置态(不发外网探针)。"""
-    health = health_check_payload()
+    health: dict[str, Any]
+    try:
+        health = health_check_payload()
+    except Exception as e:
+        health = {"status": "error", "error": f"{type(e).__name__}: {e}"}
+    try:
+        rag_status = rag.vector_status()
+    except Exception as e:
+        rag_status = {"mode": "error", "error": f"{type(e).__name__}: {e}"}
+    try:
+        config = settings_store.public_config()
+    except Exception as e:
+        config = {"error": f"{type(e).__name__}: {e}"}
     return {
         "health": health,
-        "config": settings_store.public_config(),
-        "rag": rag.vector_status(),
+        "config": config,
+        "rag": rag_status,
     }
 
 
