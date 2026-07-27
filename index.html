@@ -408,6 +408,12 @@
             <div class="card-title mb-3">{{ t('admin.loginTitle') }}</div>
             <p class="text-muted text-sm mb-3">{{ t('admin.loginHint') }}</p>
             <div class="form-group">
+              <label class="form-label">{{ t('admin.apiBase') }}</label>
+              <input class="form-input" v-model.trim="adminApiBase"
+                     :placeholder="t('admin.apiBasePlaceholder')" autocomplete="off" />
+              <p class="text-muted text-sm mt-1">{{ t('admin.apiBaseHint') }}</p>
+            </div>
+            <div class="form-group">
               <label class="form-label">{{ t('admin.username') }}</label>
               <input class="form-input" v-model.trim="adminLoginForm.username" autocomplete="username" />
             </div>
@@ -484,6 +490,17 @@
                 </button>
               </div>
               <p class="text-muted text-sm mb-3">{{ t('admin.configHint') }}</p>
+              <div class="form-group mb-3">
+                <label class="form-label">{{ t('admin.apiBase') }}</label>
+                <div class="admin-api-base-row">
+                  <input class="form-input" v-model.trim="adminApiBase"
+                         :placeholder="t('admin.apiBasePlaceholder')" autocomplete="off" />
+                  <button type="button" class="btn btn-secondary btn-sm" @click="loadAdminPanel" :disabled="adminLoading">
+                    {{ t('admin.applyApiBase') }}
+                  </button>
+                </div>
+                <p class="text-muted text-sm mt-1">{{ t('admin.apiBaseHint') }}</p>
+              </div>
               <div class="admin-config-grid">
                 <div>
                   <h4 class="admin-section-label">{{ t('admin.deepseekLabel') }}</h4>
@@ -526,7 +543,7 @@
                     <label class="form-label">Embedding Model</label>
                     <input class="form-input" v-model="adminConfigForm.ragEmbedModel"
                            placeholder="text-embedding-v3" />
-                    <p class="text-muted text-sm mt-1">?? text-embedding-v3 / v4?qwen3-vl-rerank ? rerank ?????</p>
+                    <p class="text-muted text-sm mt-1">{{ t('admin.embedModelHint') }}</p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Dim</label>
