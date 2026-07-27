@@ -375,7 +375,7 @@ const AI_PRESET_RESPONSES = {
 
 // 推荐问题
 const SUGGESTED_QUESTIONS = [
-  'Should I buy AK-47 | Fire Serpent now?',
+  'How has AWP | Asiimov (Field-Tested) trended recently?',
   'With a $700 medium-risk budget, what do you recommend?',
   'Which skins are rising today?',
   'Which skin is better for longer holding?',
@@ -384,10 +384,10 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 const DEBATE_SUGGESTED_QUESTIONS = [
-  'Run a Bull / Bear / Judge debate on AK-47 | Fire Serpent',
-  'What is the multi-agent view on AWP | Dragon Lore?',
-  'Should I buy AK-47 | Redline? Start a debate',
-  'Debate AWP | Asiimov across three rounds',
+  'Run a Bull / Bear / Judge debate on AWP | Asiimov (Field-Tested)',
+  'What is the multi-agent view on ★ Karambit | Doppler (Factory New)?',
+  'Should I buy M4A1-S | Golden Coil (Factory New)? Start a debate',
+  'Debate Glock-18 | Neo-Noir (Factory New) across three rounds',
 ];
 
 // 导出到全局

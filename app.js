@@ -2006,7 +2006,7 @@ const app = createApp({
     const suggestedQuestions = computed(() => {
       if (currentLang.value === 'en-US') {
         return [
-          'How has AK-47 | Fire Serpent (Field-Tested) trended recently?',
+          'How has AWP | Asiimov (Field-Tested) trended recently?',
           'Recommend skins for a $700 budget with medium risk.',
           'Which skins are rising today?',
           'Which skin is worth holding long term?',
@@ -2015,7 +2015,7 @@ const app = createApp({
         ];
       }
       return [
-        'AK-47 | 火蛇 (久经沙场) 最近的走势如何？',
+        'AWP | 二西莫夫 (久经沙场) 最近的走势如何？',
         '预算 700 美元、中等风险，推荐什么饰品？',
         '今天哪些饰品正在上涨？',
         '哪款饰品更适合长期持有？',
@@ -2025,19 +2025,19 @@ const app = createApp({
     });
 
     const debateSuggestedQuestions = computed(() => {
-      const fromData = window.CSVestData?.DEBATE_SUGGESTED_QUESTIONS;
-      if (Array.isArray(fromData) && fromData.length) return fromData;
       if (currentLang.value === 'en-US') {
         return [
-          'Ask Bull, Bear and Judge about AK-47 | Fire Serpent',
-          'Should I buy or wait on AWP | Dragon Lore?',
-          'Debate Karambit | Doppler for a 7-day hold',
+          'Run a Bull / Bear / Judge debate on AWP | Asiimov (Field-Tested)',
+          'What is the multi-agent view on ★ Karambit | Doppler (Factory New)?',
+          'Should I buy M4A1-S | Golden Coil (Factory New)? Start a debate',
+          'Debate Glock-18 | Neo-Noir (Factory New) across three rounds',
         ];
       }
       return [
-        '请 Bull / Bear / Judge 分析 AK-47 | 火蛇',
-        'AWP | 龙狙现在适合买入还是观望？',
-        '围绕蝴蝶刀 / 多普勒做一轮持仓辩论',
+        '请 Bull / Bear / Judge 分析 AWP | 二西莫夫 (久经沙场)',
+        '多 Agent 怎么看 爪子刀（★） | 多普勒 (崭新出厂)？',
+        'M4A1消音版 | 金蛇缠绕 (崭新出厂) 现在适合买入吗？开一场辩论',
+        '围绕 格洛克18型 | 黑色魅影 (崭新出厂) 做三轮辩论',
       ];
     });
 
