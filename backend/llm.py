@@ -183,12 +183,10 @@ def _mock_reply(messages: list[dict]) -> str:
             "retry the request before making a decision."
         )
     return (
-        f"(Mock 模式 · 未配置 DEEPSEEK_API_KEY)\n"
+        f"实时 LLM 服务暂不可用（未配置或调用失败），本条为本地提示，不包含任何模型结论。\n"
         f"已收到你的问题:「{user_msg[:60]}」\n"
-        f"基于 Hybrid 模型(LSTM-C/D 路由)与近 7 日行情,该饰品短期偏强震荡,"
-        f"7 天预测涨幅约 +1.5%~+2.5%(置信度 ~78%)。"
-        f"建议关注成交量与 Major 赛程节奏,设止损 -5%。"
-        f"\n\n⚠ 饰品市场高波动,以上不构成投资建议。"
+        "系统不会在离线状态下编造价格、涨幅或置信度；"
+        "请稍后重试，或在行情中心查看真实价格数据后再做判断。"
     )
 
 

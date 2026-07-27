@@ -130,6 +130,7 @@ class EvidenceBuilder:
             raise LookupError(f"skin not found: {skin_id}")
         name = str(context["name"])
         current_price = float(context.get("current_price") or 0)
+        has_price = current_price > 0
         prediction_raw = self._prediction_loader(name)
         prediction_raw = prediction_raw or {
             "model": "Unavailable",
@@ -139,14 +140,22 @@ class EvidenceBuilder:
             "date": context.get("current_date"),
         }
         model_name = str(prediction_raw.get("model") or "Unavailable")
+        predicted_price = float(prediction_raw.get("predicted_price") or current_price)
+        # A zero predicted price means the model had no usable base price —
+        # that is "no forecast", never a real $0.00 forecast.
+        prediction_available = predicted_price > 0 and model_name != "Unavailable"
         prediction = HybridPrediction(
             model=model_name,
-            predicted_price=float(prediction_raw.get("predicted_price") or current_price),
+            predicted_price=predicted_price,
             change_pct=float(prediction_raw.get("change_pct") or 0),
             confidence=float(prediction_raw.get("confidence") or 0),
             horizon_days=horizon_days,
             decision_date=prediction_raw.get("date"),
-            degraded=("mock" in model_name.lower() or model_name == "Unavailable"),
+            degraded=(
+                "mock" in model_name.lower()
+                or model_name == "Unavailable"
+                or not prediction_available
+            ),
         )
 
         prices = [float(value) for value in context.get("prices", [])]
@@ -164,7 +173,10 @@ class EvidenceBuilder:
                 evidence_id="market:current_price",
                 source="price_history",
                 title="当前价格",
-                content=f"当前价格 ${current_price:.2f}",
+                content=(
+                    f"当前价格 ${current_price:.2f}" if has_price
+                    else "当前价格数据暂缺"
+                ),
                 direction="neutral",
                 timestamp=timestamp,
             ),
@@ -173,10 +185,16 @@ class EvidenceBuilder:
                 source=model_name,
                 title="Hybrid 7日预测",
                 content=(
-                    f"预测价格 ${prediction.predicted_price:.2f}，"
-                    f"变化 {prediction.change_pct:.2f}%，置信度 {prediction.confidence:.1f}%"
+                    (
+                        f"预测价格 ${prediction.predicted_price:.2f}，"
+                        f"变化 {prediction.change_pct:.2f}%，置信度 {prediction.confidence:.1f}%"
+                    ) if prediction_available
+                    else "Hybrid 7日预测暂不可用（缺少有效价格数据）"
                 ),
-                direction=_direction_from_change(prediction.change_pct),
+                direction=(
+                    _direction_from_change(prediction.change_pct)
+                    if prediction_available else "neutral"
+                ),
                 timestamp=prediction.decision_date,
             ),
         ]

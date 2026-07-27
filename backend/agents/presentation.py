@@ -259,6 +259,8 @@ def _localized_claim(evidence: Evidence, locale: str) -> str:
     if not is_english(locale):
         return evidence.content
     replacements = {
+        "当前价格数据暂缺": "Current price data is unavailable",
+        "Hybrid 7日预测暂不可用（缺少有效价格数据）": "Hybrid 7-day forecast is unavailable (no valid price data)",
         "当前价格": "Current price",
         "预测价格": "Predicted price",
         "变化": "change",

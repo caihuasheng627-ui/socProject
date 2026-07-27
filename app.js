@@ -2006,7 +2006,7 @@ const app = createApp({
     const suggestedQuestions = computed(() => {
       if (currentLang.value === 'en-US') {
         return [
-          'Should I buy AK-47 | Fire Serpent now?',
+          'How has AK-47 | Fire Serpent (Field-Tested) trended recently?',
           'Recommend skins for a $700 budget with medium risk.',
           'Which skins are rising today?',
           'Which skin is worth holding long term?',
@@ -2015,7 +2015,7 @@ const app = createApp({
         ];
       }
       return [
-        '现在适合买入 AK-47 | 火蛇吗？',
+        'AK-47 | 火蛇 (久经沙场) 最近的走势如何？',
         '预算 700 美元、中等风险，推荐什么饰品？',
         '今天哪些饰品正在上涨？',
         '哪款饰品更适合长期持有？',
@@ -2024,7 +2024,36 @@ const app = createApp({
       ];
     });
 
+    const debateSuggestedQuestions = computed(() => {
+      const fromData = window.CSVestData?.DEBATE_SUGGESTED_QUESTIONS;
+      if (Array.isArray(fromData) && fromData.length) return fromData;
+      if (currentLang.value === 'en-US') {
+        return [
+          'Ask Bull, Bear and Judge about AK-47 | Fire Serpent',
+          'Should I buy or wait on AWP | Dragon Lore?',
+          'Debate Karambit | Doppler for a 7-day hold',
+        ];
+      }
+      return [
+        '请 Bull / Bear / Judge 分析 AK-47 | 火蛇',
+        'AWP | 龙狙现在适合买入还是观望？',
+        '围绕蝴蝶刀 / 多普勒做一轮持仓辩论',
+      ];
+    });
+
     const responseModelLabel = (response) => {
+      const runtime = response?.runtime || {};
+      const type = response?.type || 'chat';
+
+      if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
+        if (runtime.agents?.mode === 'live') {
+          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
+        }
+        if (!runtime.agents) return 'Bull / Bear / Judge';
+        return runtime.agents.mode === 'degraded'
+          ? 'Bull / Bear / Judge · Live service unavailable'
+          : 'Bull / Bear / Judge';
+      }
       if (type === 'debate_answer') {
         if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
           return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'} · Grounded Q&A`;
@@ -2036,9 +2065,10 @@ const app = createApp({
       if (type === 'profile_update') return 'Main AI · Local Profile Parser';
       if (type === 'clarification') return 'Main AI · Local Skin Resolver';
       if (type === 'prediction') {
+        if (!runtime.hybrid) return 'Hybrid · Forecast';
         return runtime.hybrid?.mode === 'live'
-          ? `Hybrid · Live (${runtime.hybrid.model})`
-          : 'Hybrid · Mock Trend';
+          ? `Hybrid · Live (${runtime.hybrid.model || '—'})`
+          : 'Hybrid · Unavailable';
       }
       if (type === 'recommendation') return 'Recommendation Agent · Local Rules';
       if (runtime.llm?.mode === 'live') {
@@ -3121,6 +3151,19 @@ const app = createApp({
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
     const chatAgentSession = ref(null);
+    const chatMode = ref('qa'); // 'qa' | 'debate'
+    // 隐藏“已推入但还没有内容”的助手占位消息，避免加载时出现空气泡
+    const visibleChatMessages = computed(() => chatMessages.value.slice(1).filter(
+      m => m.role !== 'assistant' || m.content || m.payload || m.debate
+    ));
+    const activeSuggestedQuestions = computed(() => (
+      chatMode.value === 'debate' ? debateSuggestedQuestions.value : suggestedQuestions.value
+    ));
+    const setChatMode = (mode) => {
+      chatMode.value = mode === 'debate' ? 'debate' : 'qa';
+      chatSuggestedIndex.value = -1;
+      if (mode === 'debate') chatAgentSession.value = null;
+    };
     const chatBudget = ref(null);
     const chatRiskLevel = ref('medium');
     let chatLocaleRequest = 0;
@@ -3249,7 +3292,12 @@ const app = createApp({
       currentPage.value = 'chat';
       const label = skin?.name || skinId;
       const english = currentLang.value === 'en-US';
-      if (action === 'debate') chatAgentSession.value = null;
+      if (action === 'debate') {
+        chatMode.value = 'debate';
+        chatAgentSession.value = null;
+      } else if (action === 'predict') {
+        chatMode.value = 'qa';
+      }
       if (false && action === 'debate') {
         const prompt = english
           ? `Ask Bull, Bear and Judge to assess whether I should choose ${label}`
@@ -3372,11 +3420,18 @@ const app = createApp({
       try {
         const client = api();
         if (client && typeof client.orchestrateAI === 'function') {
-          const continueActiveDebate = chatAgentSession.value
+          // 严格模式：问答模式永远走 qa（后端不会切入辩论管线）；
+          // 辩论会话只在辩论模式下延续。
+          const continueActiveDebate = chatMode.value === 'debate'
+            && chatAgentSession.value
             && !requestOptions.action && !requestOptions.skinId;
+          const action = requestOptions.action
+            || (chatMode.value === 'debate'
+              ? (continueActiveDebate ? 'auto' : 'debate')
+              : 'qa');
           const response = await client.orchestrateAI({
             message: text,
-            action: requestOptions.action || 'auto',
+            action,
             skinId: requestOptions.skinId || null,
             skin: requestOptions.skin || null,
             sessionId: continueActiveDebate ? chatAgentSession.value.sessionId : null,
@@ -3412,25 +3467,32 @@ const app = createApp({
               chatRiskLevel.value = response.agentSession.userProfile.risk_level || chatRiskLevel.value;
             }
           }
-          // 渲染多轮辩论卡片（兼容同时有 rounds 和 debateRound 的情况）
-          if (response?.rounds) {
+          // 结构化 Agent 辩论走 payload.debateRound + debate-timeline；
+          // 仅当 rounds 是「字符串 bull/bear」的旧卡片格式时才设 type=debate。
+          const rounds = response?.rounds;
+          const hasStringRounds = Array.isArray(rounds)
+            && rounds.length > 0
+            && typeof rounds[0]?.bull === 'string';
+          if (hasStringRounds && !response?.debateRound) {
+            const skinLabel = typeof response.skin === 'string'
+              ? response.skin
+              : (response.skin?.name || response.skinName || '');
             assistantMsg.type = 'debate';
             assistantMsg.debate = {
-              skin: response.skin || response.skinName || '',
+              skin: skinLabel,
               currentPrice: response.currentPrice,
-              rounds: response.rounds,
-              consensus: response.consensus,
-              debateRound: response.debateRound,
-            };
-          } else if (response?.debateRound) {
-            assistantMsg.type = 'debate';
-            assistantMsg.debate = {
-              skin: response.skin || '',
-              currentPrice: response.currentPrice,
-              rounds: [],
-              debateRound: response.debateRound,
+              rounds: rounds.map((r) => ({
+                ...r,
+                bull: typeof r?.bull === 'string' ? r.bull : (r?.bull?.summary || r?.bull?.position || ''),
+                bear: typeof r?.bear === 'string' ? r.bear : (r?.bear?.summary || r?.bear?.position || ''),
+              })),
               consensus: response.consensus,
             };
+          } else if (response?.debateRound || response?.agentSession) {
+            // structured payload path; do NOT auto-switch chat mode —
+            // modes only change via the explicit toggle buttons
+            assistantMsg.type = undefined;
+            assistantMsg.debate = undefined;
           }
         } else if (client && apiOnline.value) {
           await client.chat(text, null, (chunk) => {
@@ -3438,9 +3500,10 @@ const app = createApp({
             scrollChatBottom();
           }, currentLang.value);
           if (!assistantMsg.content.trim()) {
-            assistantMsg.content = generateAIResponse(text);
+            // 绝不使用本地预设文案兜底——那会产生幻觉式回答
+            throw new Error('Live AI returned empty content');
           }
-          assistantMsg.model = apiOnline.value ? 'DeepSeek-V3' : 'Mock';
+          assistantMsg.model = 'DeepSeek-V3';
         } else {
           throw new Error('Live AI client is unavailable');
         }
@@ -3489,7 +3552,7 @@ const app = createApp({
 
     // 监听聊天输入框的键盘事件
     const onChatKeydown = (e) => {
-      const suggestions = suggestedQuestions.value;
+      const suggestions = activeSuggestedQuestions.value;
       // 输入框为空时,支持上下方向键选择建议问题
       if (!chatInput.value && chatMessages.value.length <= 1) {
         if (e.key === 'ArrowDown') {
@@ -5400,8 +5463,9 @@ const app = createApp({
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
-      chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
-      suggestedQuestions, canSendChat,
+      chatMessages, visibleChatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
+      suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions, canSendChat,
+      chatMode, setChatMode,
       chatAgentSession, chatBudget, chatRiskLevel,
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       debateTotalRounds, copyDebateResult,

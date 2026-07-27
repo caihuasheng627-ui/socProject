@@ -17,7 +17,7 @@ Intent = Literal[
     "recommendation", "prediction", "debate", "debate_round", "debate_answer", "profile_update",
     "agent_followup", "chat"
 ]
-Action = Literal["auto", "recommend", "predict", "debate", "chat"]
+Action = Literal["auto", "recommend", "predict", "debate", "chat", "qa"]
 SkinResolver = Callable[[str, str | None], dict[str, Any] | None]
 PredictionLoader = Callable[[str, int], dict[str, Any]]
 ChatLoader = Callable[[list[dict[str, str]]], str]
@@ -163,6 +163,16 @@ def detect_intent(
 ) -> Intent:
     if session_id and target_agent in {"bull", "bear", "judge"}:
         return "agent_followup"
+    if action == "qa":
+        # Strict normal Q&A: never route into the debate pipeline, even when
+        # the wording sounds like a buy/sell decision. Prediction and
+        # recommendation cards are still allowed.
+        lowered = message.lower()
+        if any(word in lowered for word in RECOMMEND_WORDS):
+            return "recommendation"
+        if has_skin and any(word in lowered for word in PREDICT_WORDS):
+            return "prediction"
+        return "chat"
     explicit = {
         "recommend": "recommendation",
         "predict": "prediction",
@@ -233,26 +243,32 @@ class AIOrchestrator:
             raise ValueError("horizonDays must be 7 or 30")
         skin = self.skin_resolver(clean_message, skin_id)
         if skin and skin.get("ambiguous"):
-            requested_action = (
-                "predict" if action == "predict" or any(word in clean_message.lower() for word in PREDICT_WORDS)
-                else "debate"
+            wants_predict = (
+                action == "predict"
+                or any(word in clean_message.lower() for word in PREDICT_WORDS)
             )
-            return {
-                "type": "clarification",
-                "message": (
-                    (
-                        f"{skin.get('query', 'This weapon')} is a weapon category, not one unique skin. "
-                        "Choose a specific candidate below; I will then start "
-                        + ("the Hybrid forecast." if requested_action == "predict" else "the Bull / Bear / Judge debate.")
-                    ) if english else (
-                        f"{skin.get('query', '该武器')} 是一个武器类别，不是唯一皮肤。"
-                        "我不会替你猜具体款式；请选择下面一款，随后会立即启动 "
-                        + ("Hybrid 预测。" if requested_action == "predict" else "Bull / Bear / Judge Debate。")
-                    )
-                ),
-                "skinCandidates": skin.get("candidates", []),
-                "requestedAction": requested_action,
-            }
+            if action in {"qa", "chat"} and not wants_predict:
+                # Strict Q&A must not push the user into a debate picker;
+                # answer the question as plain grounded chat instead.
+                skin = None
+            else:
+                requested_action = "predict" if wants_predict else "debate"
+                return {
+                    "type": "clarification",
+                    "message": (
+                        (
+                            f"{skin.get('query', 'This weapon')} is a weapon category, not one unique skin. "
+                            "Choose a specific candidate below; I will then start "
+                            + ("the Hybrid forecast." if requested_action == "predict" else "the Bull / Bear / Judge debate.")
+                        ) if english else (
+                            f"{skin.get('query', '该武器')} 是一个武器类别，不是唯一皮肤。"
+                            "我不会替你猜具体款式；请选择下面一款，随后会立即启动 "
+                            + ("Hybrid 预测。" if requested_action == "predict" else "Bull / Bear / Judge Debate。")
+                        )
+                    ),
+                    "skinCandidates": skin.get("candidates", []),
+                    "requestedAction": requested_action,
+                }
         intent = detect_intent(
             clean_message,
             action=action,

@@ -92,12 +92,19 @@ class JudgeAgent(BaseAgent[JudgeDecision]):
         if english or not result.agreed_facts:
             shared = [evidence_by_id[item] for item in bull_ids & bear_ids if item in evidence_by_id]
             agreed = [] if english else [f"双方共同采用：{item.content}" for item in shared[:4]]
+            hybrid_available = (
+                snapshot.hybrid_prediction.predicted_price > 0
+                and snapshot.hybrid_prediction.model != "Unavailable"
+            )
             if english:
                 agreed = [
-                    f"Current price: ${snapshot.current_price:.4f}.",
-                    f"Hybrid {snapshot.hybrid_prediction.horizon_days}-day forecast: "
-                    f"{snapshot.hybrid_prediction.change_pct:+.2f}% at "
-                    f"{snapshot.hybrid_prediction.confidence:.0f}% model confidence.",
+                    f"Current price: ${snapshot.current_price:.2f}."
+                    if snapshot.current_price > 0 else "Current price data is unavailable.",
+                    (
+                        f"Hybrid {snapshot.hybrid_prediction.horizon_days}-day forecast: "
+                        f"{snapshot.hybrid_prediction.change_pct:+.2f}% at "
+                        f"{snapshot.hybrid_prediction.confidence:.0f}% model confidence."
+                    ) if hybrid_available else "Hybrid forecast is unavailable for this skin.",
                     f"7-day change: {snapshot.change_7d:+.2f}%."
                     if snapshot.change_7d is not None else "7-day change is unavailable.",
                     f"30-day change: {snapshot.change_30d:+.2f}%."
@@ -105,9 +112,12 @@ class JudgeAgent(BaseAgent[JudgeDecision]):
                 ]
             elif not agreed:
                 agreed = [
-                    f"当前价格为 ${snapshot.current_price:.2f}。",
-                    f"Hybrid 对未来 {snapshot.hybrid_prediction.horizon_days} 天的预测为 "
-                    f"{snapshot.hybrid_prediction.change_pct:+.2f}%。",
+                    f"当前价格为 ${snapshot.current_price:.2f}。"
+                    if snapshot.current_price > 0 else "当前价格数据暂缺。",
+                    (
+                        f"Hybrid 对未来 {snapshot.hybrid_prediction.horizon_days} 天的预测为 "
+                        f"{snapshot.hybrid_prediction.change_pct:+.2f}%。"
+                    ) if hybrid_available else "Hybrid 预测暂不可用（缺少有效价格数据）。",
                 ]
             data["agreed_facts"] = agreed
 
@@ -266,9 +276,18 @@ class JudgeAgent(BaseAgent[JudgeDecision]):
                 f"{snapshot.liquidity_score:.1f}" if snapshot.liquidity_score is not None
                 else "unavailable"
             )
-            data["key_conflict"] = (
+            hybrid_ok = (
+                snapshot.hybrid_prediction.predicted_price > 0
+                and snapshot.hybrid_prediction.model != "Unavailable"
+            )
+            hybrid_clause = (
                 f"Hybrid forecasts {snapshot.hybrid_prediction.change_pct:+.2f}% over "
-                f"{snapshot.hybrid_prediction.horizon_days} days. Bull defines upside triggers; "
+                f"{snapshot.hybrid_prediction.horizon_days} days."
+                if hybrid_ok else
+                "The Hybrid forecast is unavailable for this skin (no valid price data)."
+            )
+            data["key_conflict"] = (
+                f"{hybrid_clause} Bull defines upside triggers; "
                 f"Bear defines drawdown and liquidity limits. Liquidity is {liquidity}."
             )
             data["profile_fit"] = (
@@ -277,7 +296,8 @@ class JudgeAgent(BaseAgent[JudgeDecision]):
                 f"{profile.liquidity_priority} liquidity priority."
             )
             data["confidence_basis"] = (
-                f"Hybrid model reliability: {snapshot.hybrid_prediction.confidence:.0f}/100.",
+                f"Hybrid model reliability: {snapshot.hybrid_prediction.confidence:.0f}/100."
+                if hybrid_ok else "Hybrid forecast is unavailable; confidence rests on market evidence only.",
                 f"Bull evidence confidence: {bull.confidence:.0f}/100." if bull else "Bull evidence is unavailable.",
                 f"Bear evidence confidence: {bear.confidence:.0f}/100." if bear else "Bear evidence is unavailable.",
                 "Judge confidence is evidence support for the ruling, not a probability of a price rise.",

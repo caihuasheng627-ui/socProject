@@ -149,7 +149,7 @@ class AdminConfigReq(BaseModel):
 
 class AIOrchestratorReq(BaseModel):
     message: str
-    action: Literal["auto", "recommend", "predict", "debate", "chat"] = "auto"
+    action: Literal["auto", "recommend", "predict", "debate", "chat", "qa"] = "auto"
     skinId: str | None = None
     sessionId: str | None = None
     targetAgent: Literal["bull", "bear", "judge"] | None = None

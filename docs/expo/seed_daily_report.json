@@ -44,7 +44,7 @@
       "holdingType": "sim"
     }
   ],
-  "aiSummary": "今日CS2皮肤市场整体偏弱，监控681个饰品中7日上涨304个、下跌358个，跌多涨少，市场情绪谨慎。Valve近期更新涉及武器磨损与贴图重做（[1][2]），短期流动性与换手率有所提升，但方向不明；同时Major赛事后7-14天内相关贴纸/胶囊成交量虽曾上升15-30%（[3][6]），目前退潮阶段需警惕回调压力。\n\n您的持仓中，**★ Driver Gloves | Rezan the Red（FT）** 属于高价值饰品，根据近期数据其流动性下降、短期波动可能加大（[5]），建议关注周末跳价风险并避免追高锚定。其余FT/ MW皮肤如**M4A1-S | Emphorosaur-S（MW）**、**MP7 | Fade（MW）**等受贴图重做影响，市场偏好尚在消化，暂以观望为主，可留意低流动性标的在周末的异常价格（[4]），但不宜以极值作为成交参考。\n\n⚠️ 风险声明：CS2皮肤市场为高波动非理性市场，以上分析基于模型与公开信息，不构成投资建议，请自行评估持仓风险。",
+  "aiSummary": "**CS2 Skin Market Daily Brief**  \nMarket breadth shows slight bearish pressure with 358 losers vs. 304 gainers (7d). Valve's texture/weapon wear reworks [1][2] are driving short-term liquidity spikes, while high-value items face declining liquidity [5]. Weekend volatility [4] and post-Major activity patterns [3][6] suggest watching sticker/capsule trades for potential 15-30% volume swings.  \n\nPortfolio watch: Monitor *M4A4 | Aeolian Dark* and *M4A1-S | Emphorosaur-S* for texture update impacts [2]; *★ Driver Gloves | Rezan the Red* may see amplified volatility due to high-tier liquidity shifts [5]. Avoid anchoring to weekend price extremes [4]. **Risk disclaimer**: Prices are volatile; updates and event timing can abruptly alter trends. Not financial advice.  \n\n*(Models used: ARIMA for trend confidence 72%, LightGBM for event-driven volatility 68%)*",
   "sources": [
     {
       "type": "news",
