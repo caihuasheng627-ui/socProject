@@ -2170,6 +2170,8 @@ body.sidebar-open {
   --pred-glass-blur: saturate(150%) blur(18px);
   --pred-glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
   --pred-glass-radius: 18px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 [data-theme="light"] .prediction-page {
@@ -2191,6 +2193,9 @@ body.sidebar-open {
 
 .prediction-page .card {
   padding: 18px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden; /* contain wide tables / day strips so inner scrollers work */
 }
 
 .prediction-page .card:hover {
@@ -2202,7 +2207,7 @@ body.sidebar-open {
   padding: 22px 24px;
   margin-bottom: 16px;
   position: relative;
-  overflow: hidden;
+  overflow: hidden; /* clip glow only; content stays above via z-index */
 }
 
 .prediction-hero::before {
@@ -3422,6 +3427,78 @@ body.sidebar-open {
   border-color: var(--accent-orange);
 }
 
+.form-required {
+  color: var(--accent-red);
+}
+
+/* 浏览器自动填充常强制白底亮字，弹窗内跟主题色对齐 */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--text-primary);
+  box-shadow: 0 0 0 1000px var(--bg-tertiary) inset;
+  transition: background-color 99999s ease-out;
+}
+
+.steam-import-guide {
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.steam-import-guide strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.steam-import-guide__list {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.steam-import-guide__list li + li {
+  margin-top: 4px;
+}
+
+.steam-import-result {
+  background: color-mix(in srgb, var(--accent-green) 12%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent-green) 28%, var(--border-color));
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.steam-import-result__summary {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.steam-import-result__details {
+  margin-top: 8px;
+  color: var(--text-secondary);
+}
+
+.steam-import-result__details summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.steam-import-result__unmatched {
+  max-height: 120px;
+  overflow: auto;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -4435,6 +4512,7 @@ i.ph-duotone {
 .daily-forecast {
   padding-top: 14px;
   border-top: 1px solid var(--border-color);
+  min-width: 0;
 }
 
 .daily-forecast__head {
@@ -4445,11 +4523,24 @@ i.ph-duotone {
   margin-bottom: 8px;
 }
 
+.daily-forecast__scroller {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  padding-bottom: 4px;
+}
+
 .daily-forecast__strip {
   display: grid;
   grid-template-columns: repeat(7, minmax(86px, 1fr));
   gap: 8px;
-  overflow-x: auto;
+  width: max-content;
+  min-width: 100%;
   padding-bottom: 2px;
 }
 
@@ -4460,6 +4551,7 @@ i.ph-duotone {
   padding: 8px 10px;
   text-align: center;
   min-width: 86px;
+  box-sizing: border-box;
 }
 
 .daily-forecast__day {
@@ -4490,7 +4582,60 @@ i.ph-duotone {
   font-variant-numeric: tabular-nums;
 }
 
+.prediction-model-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  max-width: 11rem;
+}
+
+.prediction-model-cell strong {
+  min-width: 0;
+}
+
+.prediction-model-cell__tag {
+  margin-left: 0 !important;
+  font-size: 10px;
+}
+
+.prediction-confidence-meter {
+  width: 60px;
+  height: 4px;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+}
+
+.prediction-entry {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.prediction-entry__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  min-width: 0;
+}
+
+.prediction-entry__range {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-orange);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+  min-width: 0;
+}
+
 @media (max-width: 768px) {
+  .content-area--prediction {
+    /* let nested horizontal scrollers work; still clip page-level junk */
+    overflow-x: clip;
+  }
+
   .calibration-strip {
     grid-template-columns: 32px 1fr;
     padding: 10px 12px;
@@ -4503,7 +4648,77 @@ i.ph-duotone {
   }
 
   .daily-forecast__strip {
-    grid-template-columns: repeat(7, minmax(78px, 1fr));
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    width: max-content;
+    min-width: 0;
+    padding-bottom: 0;
+  }
+
+  .daily-forecast__cell {
+    flex: 0 0 auto;
+    width: 76px;
+    min-width: 76px;
+  }
+
+  .daily-forecast__head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .prediction-entry__range {
+    font-size: 18px;
+  }
+
+  .prediction-page .table-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+  }
+
+  .prediction-page .data-table .col-hide-mobile {
+    display: none;
+  }
+
+  /* 覆盖全局 nowrap：模型名允许换行，三列才能落进窄屏 */
+  .prediction-page .prediction-models-table,
+  .prediction-page .prediction-models-table th,
+  .prediction-page .prediction-models-table td {
+    white-space: normal;
+  }
+
+  .prediction-page .prediction-models-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .prediction-page .prediction-models-table th:nth-child(1),
+  .prediction-page .prediction-models-table td:nth-child(1) {
+    width: 44%;
+  }
+
+  .prediction-page .prediction-models-table th:nth-child(2),
+  .prediction-page .prediction-models-table td:nth-child(2),
+  .prediction-page .prediction-models-table th:nth-child(3),
+  .prediction-page .prediction-models-table td:nth-child(3) {
+    width: 28%;
+    white-space: nowrap;
+  }
+
+  .prediction-model-cell {
+    max-width: none;
+  }
+
+  .prediction-page .platform-quotes-table {
+    width: max-content;
+    min-width: 100%;
   }
 }
 
