@@ -3142,7 +3142,9 @@ const app = createApp({
     };
 
     // ============ AI 对话 ============
-    const chatMessages = ref([
+    // 问答与辩论各自维护独立上下文：两个消息数组分开保存，互不影响；
+    // chatMessages 始终指向当前模式的数组，切换模式即切换上下文。
+    const makeChatWelcome = () => ([
       {
         role: 'assistant',
         content: '__WELCOME__',
@@ -3150,6 +3152,12 @@ const app = createApp({
         model: 'DeepSeek-V3',
       }
     ]);
+    const chatMode = ref('qa'); // 'qa' | 'debate'
+    const chatHistoryQa = ref(makeChatWelcome());
+    const chatHistoryDebate = ref(makeChatWelcome());
+    const chatMessages = computed(() => (
+      chatMode.value === 'debate' ? chatHistoryDebate.value : chatHistoryQa.value
+    ));
     const chatInput = ref('');
     const chatLoading = ref(false);
     // true once streaming chunks start arriving — hides the "thinking" row
@@ -3157,7 +3165,6 @@ const app = createApp({
     const chatMessagesEl = ref(null);
     const chatSuggestedIndex = ref(-1);
     const chatAgentSession = ref(null);
-    const chatMode = ref('qa'); // 'qa' | 'debate'
     // 隐藏“已推入但还没有内容”的助手占位消息，避免加载时出现空气泡
     const visibleChatMessages = computed(() => chatMessages.value.slice(1).filter(
       m => m.role !== 'assistant' || m.content || m.payload || m.debate
@@ -3168,7 +3175,9 @@ const app = createApp({
     const setChatMode = (mode) => {
       chatMode.value = mode === 'debate' ? 'debate' : 'qa';
       chatSuggestedIndex.value = -1;
-      if (mode === 'debate') chatAgentSession.value = null;
+      // 两个模式的上下文各自保存：切换模式不清空消息，也不丢弃辩论会话，
+      // 切回来时可以继续之前的对话/辩论。
+      scrollChatBottom();
     };
     const chatBudget = ref(null);
     const chatRiskLevel = ref('medium');
