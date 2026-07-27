@@ -2993,6 +2993,13 @@ body.sidebar-open {
   grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
   gap: 12px;
   padding: 2px 0 6px;
+  /* 菜单可能溢出到相邻卡片上，不要裁切 */
+  overflow: visible;
+  isolation: auto;
+}
+
+.portfolio-page .card:has(.inv-item-grid) {
+  overflow: visible;
 }
 
 .inv-item {
