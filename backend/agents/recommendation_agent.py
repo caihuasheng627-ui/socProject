@@ -14,6 +14,41 @@ def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
     return max(low, min(high, value))
 
 
+def _budget_fit_score(price: float, budget: float | None) -> float:
+    """Score how well price matches the user's spend intent.
+
+    Budget is a spend target (e.g. "$700 买什么"), not "cheaper is better".
+    Peak near ~80% of budget; $10 skins score poorly on a $700 budget.
+    """
+    if budget is None or budget <= 0:
+        return 70.0
+    ratio = price / budget
+    if ratio <= 0 or ratio > 1.0:
+        return 0.0
+    # Target ~80% of budget; fall off toward both cheap and max.
+    return _clamp(100.0 - abs(ratio - 0.8) * 125.0)
+
+
+def _prefer_budget_band(
+    ranked: list[dict[str, Any]],
+    *,
+    budget: float | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Keep results near the budget when enough candidates exist."""
+    if budget is None or budget <= 0 or not ranked:
+        return ranked
+    primary = [item for item in ranked if item["price"] >= budget * 0.45]
+    if primary:
+        # Even one near-budget hit beats padding with $10 momentum spikes.
+        return primary
+    for floor_ratio in (0.30, 0.18):
+        band = [item for item in ranked if item["price"] >= budget * floor_ratio]
+        if len(band) >= min(limit, 3):
+            return band
+    return ranked
+
+
 def _default_candidate_loader() -> list[dict[str, Any]]:
     from database import change_pct, get_connection, latest_price
 
@@ -113,18 +148,20 @@ class RecommendationAgent:
             liquidity_score = _clamp(math.log10(max(1.0, volume)) * 20.0)
             momentum_score = _clamp(50.0 + momentum * 5.0 + long_momentum * 1.5)
             stability_score = _clamp(100.0 - volatility * 12.0)
-            affordability = 70.0 if budget is None else _clamp((1.0 - price / budget) * 65.0 + 35.0)
+            budget_fit = _budget_fit_score(price, budget)
 
+            # Budget fit outweighs "cheap momentum" so "$700 buy what" does not
+            # collapse to $10 skins. Liquidity stays important when volume exists.
             weights = {
-                "low": (0.18, 0.37, 0.30, 0.15),
-                "medium": (0.30, 0.30, 0.22, 0.18),
-                "high": (0.44, 0.24, 0.12, 0.20),
+                "low": (0.16, 0.30, 0.26, 0.28),
+                "medium": (0.24, 0.22, 0.18, 0.36),
+                "high": (0.34, 0.18, 0.12, 0.36),
             }[risk_level]
             score = (
                 momentum_score * weights[0]
                 + liquidity_score * weights[1]
                 + stability_score * weights[2]
-                + affordability * weights[3]
+                + budget_fit * weights[3]
                 + min(matches, 2) * 8.0
             )
             english = locale == "en-US"
@@ -152,5 +189,7 @@ class RecommendationAgent:
                 }
             )
 
-        ranked.sort(key=lambda item: (-item["score"], item["price"]))
-        return ranked[: max(1, min(limit, 10))]
+        ranked.sort(key=lambda item: (-item["score"], -item["price"]))
+        limit_n = max(1, min(limit, 10))
+        ranked = _prefer_budget_band(ranked, budget=budget, limit=limit_n)
+        return ranked[:limit_n]

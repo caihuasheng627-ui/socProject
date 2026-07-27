@@ -51,6 +51,29 @@ CANDIDATES = [
         "volatility": 2,
         "rarity": 6,
     },
+    {
+        # High momentum but tiny price — must NOT win a $700 "buy what" query.
+        "skinId": "famas-cheap-mw",
+        "name": "FAMAS | Cheap (MW)",
+        "category": "步枪",
+        "price": 11,
+        "change7d": 20,
+        "change30d": 30,
+        "volume": 0,
+        "volatility": 2,
+        "rarity": 2,
+    },
+    {
+        "skinId": "awp-asiimov-ft",
+        "name": "AWP | Asiimov (FT)",
+        "category": "狙击枪",
+        "price": 560,
+        "change7d": 4,
+        "change30d": 7,
+        "volume": 1200,
+        "volatility": 2.5,
+        "rarity": 5,
+    },
 ]
 
 
@@ -150,6 +173,21 @@ class RecommendationTests(unittest.TestCase):
         result = agent.recommend("推荐皮肤", budget=200, risk_level="low")
         self.assertEqual(result[0]["skinId"], "ak-redline-ft")
         self.assertTrue(result[0]["reasons"])
+
+    def test_budget_prefers_near_spend_not_cheapest(self):
+        """"$700 买什么" should rank ~budget skins above $10 momentum spikes."""
+        agent = RecommendationAgent(lambda: CANDIDATES)
+        result = agent.recommend(
+            "Recommend skins for a $700 budget with medium risk",
+            budget=700,
+            risk_level="medium",
+            locale="en-US",
+        )
+        self.assertTrue(result)
+        self.assertEqual(result[0]["skinId"], "awp-asiimov-ft")
+        self.assertGreaterEqual(result[0]["price"], 700 * 0.45)
+        self.assertNotIn("famas-cheap-mw", [item["skinId"] for item in result[:3]])
+        self.assertTrue(any("budget" in reason.lower() for reason in result[0]["reasons"]))
 
 
 class OrchestratorTests(unittest.TestCase):
