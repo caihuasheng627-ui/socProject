@@ -8507,7 +8507,7 @@ select:focus-visible {
 
 .daily-hero__title {
   font-family: var(--font-display);
-  font-size: clamp(22px, 2.6vw, 28px);
+  font-size: clamp(26px, 3.4vw, 36px);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -10360,6 +10360,12 @@ select:focus-visible {
   letter-spacing: -0.02em;
   line-height: 1.15;
   color: var(--text-primary);
+}
+
+:lang(zh-CN) .chat-hero-title {
+  font-family: 'Noto Serif SC', 'Instrument Serif', 'Songti SC', 'SimSun', serif;
+  letter-spacing: 0.01em;
+  font-synthesis: none;
 }
 
 .chat-hero-lead {
