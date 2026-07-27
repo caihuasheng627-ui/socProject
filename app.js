@@ -1958,14 +1958,31 @@ const app = createApp({
       };
     });
 
+    // 相对 RMSE 差距低于此值视为近并列（如 Hybrid-V2 Raw≈Calibrated），跳过以免显示 0.0%
+    const MODELS_FINDINGS_MIN_REL_GAP = 0.005;
+
     const modelsFindingsPct = computed(() => {
       const rows = (regressionModels.value || [])
-        .filter((r) => r.rmse != null)
+        .filter((r) => r.rmse != null && Number(r.rmse) > 0)
         .slice()
-        .sort((a, b) => a.rmse - b.rmse);
-      if (rows.length < 2 || !rows[0].rmse) return '—';
-      const lead = ((rows[1].rmse - rows[0].rmse) / rows[0].rmse) * 100;
+        .sort((a, b) => Number(a.rmse) - Number(b.rmse));
+      if (rows.length < 2) return '—';
+      const bestRmse = Number(rows[0].rmse);
+      const runner = rows.slice(1).find((r) => {
+        const rel = (Number(r.rmse) - bestRmse) / bestRmse;
+        return rel >= MODELS_FINDINGS_MIN_REL_GAP;
+      });
+      if (!runner) return '—';
+      const lead = ((Number(runner.rmse) - bestRmse) / bestRmse) * 100;
+      if (lead < 1) return `${lead.toFixed(2)}%`;
       return `${lead.toFixed(1)}%`;
+    });
+
+    const modelsFindingsSentence = computed(() => {
+      void currentLang.value;
+      const pct = modelsFindingsPct.value;
+      if (!pct || pct === '—') return t('models.findingsTextTied');
+      return t('models.findingsText', { pct });
     });
 
     const formatModelReturn = (value) => {
@@ -5824,6 +5841,7 @@ const app = createApp({
       regressionModels, classificationModels, modelTypeLabel, formatModelReturn, modelComparison, hybridRoute,
       modelTrack, modelTrackMetadata, trend30Metrics, setModelTrack,
       modelsLoading, modelsDataSource, modelsNItems, modelsKpis, modelsBest, modelsFindingsPct,
+      modelsFindingsSentence,
       selectedRadarModel, selectRadarModel, shapModel, shapModelOptions, setShapModel,
       shapEmpty, shapFeatureGuide, modelsInfoOpen, toggleModelsInfo,
       regressionGuideItems, classificationGuideItems, backtestEmpty,
