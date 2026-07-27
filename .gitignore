@@ -96,3 +96,8 @@ backend/data_available.txt
 backend/data_missing.txt
 backend/buff_incomplete.txt
 
+# seed DB 本地备份(刷新脚本留底,不入库)
+backend/seed/*.backup-*
+backend/refresh_run*.log
+backend/refresh_failed.log
+
