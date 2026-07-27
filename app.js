@@ -2014,6 +2014,17 @@ const app = createApp({
           'How do the model-comparison results look?',
         ];
       }
+      return [
+        '现在适合买入 AK-47 | 火蛇吗？',
+        '预算 700 美元、中等风险，推荐什么饰品？',
+        '今天哪些饰品正在上涨？',
+        '哪款饰品更适合长期持有？',
+        '帮我设置一个价格预警。',
+        '当前各个预测模型的表现如何？',
+      ];
+    });
+
+    const responseModelLabel = (response) => {
       if (type === 'debate_answer') {
         if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
           return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'} · Grounded Q&A`;
@@ -2056,22 +2067,6 @@ const app = createApp({
       return Array.isArray(result.reasoning) ? result.reasoning : [];
     };
 
-    const runSkinAction = async (skinId, action) => {
-      const skin = skins.value.find(item => item.id === skinId);
-      if (skin) selectedSkin.value = skin;
-      currentPage.value = 'chat';
-      if (action === 'debate') {
-        chatMode.value = 'debate';
-        chatAgentSession.value = null;
-      }
-      const skinLabel = skin?.name || skin?.market_hash_name || skinId;
-      const prompt = action === 'predict'
-        ? `Forecast the price trend of ${skinLabel} over the next 7 days`
-        : `Ask Bull, Bear and Judge to assess whether I should choose ${skinLabel}`;
-      await nextTick();
-      return sendMessage(prompt, { action, skinId });
-    };
-
     const openPredictionResult = (skinId) => {
       if (skinId) viewSkin(skinId);
     };
@@ -2080,26 +2075,6 @@ const app = createApp({
       if (!chatAgentSession.value || chatLoading.value) return;
       sendMessage(message, { action: 'debate' });
     };
-
-    // 预置建议问题（中文）
-    const suggestedQuestions = computed(() => currentLang.value === 'zh-CN'
-      ? [
-        '现在适合买入 AK-47 | 火蛇吗？',
-        '预算 700 美元、中等风险，推荐什么饰品？',
-        '今天哪些饰品正在上涨？',
-        '哪款饰品更适合长期持有？',
-        '帮我设置一个价格预警。',
-        '当前各个预测模型的表现如何？',
-      ]
-      : [
-        'Should I buy AK-47 | Fire Serpent right now?',
-        'Recommend skins for $700 budget, medium risk.',
-        'Which skins are rising today?',
-        'Which skin is better for long-term hold?',
-        'Set a price alert for me.',
-        'How are the current models performing?',
-      ]);
-  });
 
     // ============ 行情看板 ============
     const filterCategory = ref('all');
@@ -3368,100 +3343,6 @@ const app = createApp({
           : `请让 Bull、Bear 和 Judge 分析我是否应该选择 ${label}`);
       await nextTick();
       return sendMessage(prompt, { action, skinId, skin });
-    };
-
-      if (debateMode) {
-        const skin = resolveSkinFromQuery(text) || (requestOptions.skinId
-          ? skins.value.find(s => s.id === requestOptions.skinId)
-          : null);
-        if (!text && skin) {
-          text = currentLang.value === 'zh-CN'
-            ? `请让 Bull、Bear 和 Judge 评估我是否应该选择 ${skin.name}`
-            : `Ask Bull, Bear and Judge to assess whether I should choose ${skin.name}`;
-        }
-        if (!text && !chatAgentSession.value && !skin) {
-          chatMessages.value.push({
-            role: 'user',
-            content: t('chat.startDebate'),
-            time: chatNow(),
-          });
-          chatMessages.value.push({
-            role: 'assistant',
-            content: t('chat.debateNeedSkin'),
-            time: chatNow(),
-            model: 'CSVest',
-          });
-          await scrollChatBottom();
-          return;
-        }
-        if (!requestOptions.action) requestOptions.action = 'debate';
-        if (!requestOptions.skinId && skin?.id) requestOptions.skinId = skin.id;
-      }
-
-    const continueDebate = async (message) => {
-      if (!chatAgentSession.value || chatLoading.value) return;
-      return sendMessage(message);
-    };
-
-      if (!text || chatLoading.value) return;
-
-      chatMessages.value.push({
-        role: 'user',
-        content: text,
-        time: chatNow(),
-      });
-      chatInput.value = '';
-      chatLoading.value = true;
-      await scrollChatBottom();
-
-      const assistantMsg = {
-        role: 'assistant',
-        content: '',
-        time: chatNow(),
-        model: 'Bull / Bear / Judge',
-      };
-      chatMessages.value.push(assistantMsg);
-
-        try {
-          const client = api();
-          if (client && typeof client.runAgentRound === 'function') {
-          const session = await client.runAgentRound(chatAgentSession.value.sessionId, text);
-          chatAgentSession.value = session;
-          const latestRound = Array.isArray(session?.debateRounds) && session.debateRounds.length
-            ? session.debateRounds[session.debateRounds.length - 1]
-            : null;
-          const response = {
-            type: 'debate_round',
-            message: currentLang.value === 'en-US'
-              ? 'Your input has been added to the current debate round. Bull, Bear and Judge have been recalculated.'
-              : '你的补充意见已加入本轮辩论，Bull、Bear 和 Judge 已重新计算。',
-            agentSession: session,
-            debateRound: latestRound,
-            runtime: {
-              llm: { mode: 'structured_mock', provider: 'Local evidence rules', model: 'structured-fallback' },
-              agents: { mode: 'structured_mock', bullModel: 'Bull', bearModel: 'Bear', judgeModel: 'Judge' },
-              hybrid: { mode: 'mock', model: 'trend-fallback' },
-            },
-          };
-          assistantMsg.content = response.message;
-          assistantMsg.kind = response.type;
-          assistantMsg.payload = response;
-          assistantMsg.model = responseModelLabel(response);
-        } else {
-          await sendMessage(text, { action: 'debate', skinId: chatAgentSession.value?.skinId || null });
-          return;
-        }
-      } catch (e) {
-        assistantMsg.content = currentLang.value === 'en-US'
-          ? 'The next debate round could not be created. Please restart the debate from the selected skin.'
-          : '这一轮辩论还在处理或已超时，请稍后重试。';
-        assistantMsg.kind = 'debate_error';
-        assistantMsg.payload = { error: String(e?.message || e) };
-        assistantMsg.model = 'Bull / Bear / Judge';
-      }
-
-      chatLoading.value = false;
-      await scrollChatBottom();
     };
 
     const sendMessage = async (overrideText, requestOptions = {}) => {
@@ -5520,8 +5401,7 @@ const app = createApp({
       loadPlatformQuotes, refreshPlatformQuotes, platformLabel, platformQuotesRef, platformQuotesLive, livePriceAvg,
       // 对话
       chatMessages, chatInput, chatLoading, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
-      suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions,
-      chatMode, setChatMode, canSendChat,
+      suggestedQuestions, canSendChat,
       chatAgentSession, chatBudget, chatRiskLevel,
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       debateTotalRounds, copyDebateResult,
