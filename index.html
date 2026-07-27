@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式（?v= 必须随 style.css 内容变更；服务器部署脚本也会用 git short SHA 覆盖） -->
-  <link rel="stylesheet" href="style.css?v=20260727-backend-fonts" />
+  <link rel="stylesheet" href="style.css?v=20260727-steam-import-colors" />
 
   <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20260727-cs1" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20260727-cs1" />
@@ -1177,6 +1177,7 @@
                   ${{ formatPrice(platformQuotesMeta.spread.max) }})
                 </span>
               </div>
+              <div class="table-scroll">
               <table class="data-table platform-quotes-table">
                 <thead>
                   <tr>
@@ -1215,6 +1216,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
 
@@ -1275,7 +1277,8 @@
                   <span>{{ t('prediction.calibrationDisagreement', { value: calibrationEvidence.disagreement }) }}</span>
                 </div>
               </div>
-              <table class="data-table">
+              <div class="table-scroll">
+              <table class="data-table prediction-models-table">
                 <thead>
                   <tr>
                     <th>{{ t('models.col.model') }}</th>
@@ -1306,7 +1309,7 @@
                       {{ pred.change >= 0 ? '+' : '' }}{{ pred.change.toFixed(2) }}%
                     </td>
                     <td>
-                      <div class="consensus-meter" style="width: 60px; height: 4px; display: inline-block; vertical-align: middle;">
+                      <div class="consensus-meter prediction-confidence-meter">
                         <div class="consensus-bar" :style="{ width: pred.confidence + '%' }"></div>
                       </div>
                       <span class="text-muted text-sm" style="margin-left: 6px;">{{ pred.confidence }}%</span>
@@ -1314,6 +1317,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
 
               <!-- v5 契约: LSTM 系列 7 天逐日精确预测路径 -->
               <div v-if="predictionDailyRows.length" class="daily-forecast mt-4">
@@ -1337,10 +1341,10 @@
                 </div>
               </div>
 
-              <div v-if="predictionStatus !== 'unavailable'" class="mt-4" style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+              <div v-if="predictionStatus !== 'unavailable'" class="mt-4 prediction-entry">
                 <div class="text-muted text-sm mb-2">{{ t('prediction.entryTitle') }}</div>
-                <div class="flex items-center gap-3">
-                  <div style="font-size: 22px; font-weight: 700; color: var(--accent-orange);">
+                <div class="prediction-entry__row">
+                  <div class="prediction-entry__range">
                     ${{ formatPrice(predictionMeta.entryLow) }} - {{ formatPrice(predictionMeta.entryHigh) }}
                   </div>
                   <span class="tag tag-orange">{{ t('prediction.target7d') }} ${{ formatPrice(predictionMeta.targetPrice) }}</span>
@@ -3284,9 +3288,9 @@
         </div>
 
         <!-- 获取指引 -->
-        <div class="form-group" style="background: var(--bg-elevated, #f6f7f9); border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.6;">
+        <div class="form-group steam-import-guide">
           <strong>{{ t('inventory.steamModal.guideTitle') }}</strong>
-          <ol style="margin: 6px 0 0 18px; padding: 0;">
+          <ol class="steam-import-guide__list">
             <li>{{ t('inventory.steamModal.guideUrl') }}</li>
             <li>{{ t('inventory.steamModal.guideCookie') }}</li>
             <li>{{ t('inventory.steamModal.guideNote') }}</li>
@@ -3295,19 +3299,19 @@
 
         <div class="form-group">
           <label class="form-label">{{ t('inventory.steamModal.url') }}</label>
-          <input type="text" class="form-input" v-model="steamImportForm.steamUrl" :placeholder="t('inventory.steamModal.urlPlaceholder')" :disabled="steamImportLoading" />
+          <input type="text" class="form-input" v-model="steamImportForm.steamUrl" :placeholder="t('inventory.steamModal.urlPlaceholder')" :disabled="steamImportLoading" autocomplete="off" />
         </div>
         <div class="form-group">
-          <label class="form-label">{{ t('inventory.steamModal.cookie') }} <span style="color: #e53935;">*</span></label>
-          <input type="text" class="form-input" v-model="steamImportForm.cookie" :placeholder="t('inventory.steamModal.cookiePlaceholder')" :disabled="steamImportLoading" required />
+          <label class="form-label">{{ t('inventory.steamModal.cookie') }} <span class="form-required">*</span></label>
+          <input type="text" class="form-input" v-model="steamImportForm.cookie" :placeholder="t('inventory.steamModal.cookiePlaceholder')" :disabled="steamImportLoading" required autocomplete="off" spellcheck="false" />
         </div>
 
-        <!-- 结果摘要 -->
-        <div v-if="steamImportResult" class="form-group" style="background: #eef6ee; border-radius: 8px; padding: 10px; font-size: 13px;">
-          <div>{{ t('inventory.steamModal.summary', { imported: steamImportResult.imported, skipped: steamImportResult.skipped, unmatched: (steamImportResult.unmatched||[]).length }) }}</div>
-          <details v-if="steamImportResult.unmatched && steamImportResult.unmatched.length" style="margin-top: 6px;">
+        <!-- 结果摘要（跟随主题色，避免深色模式下硬编码浅绿底发亮） -->
+        <div v-if="steamImportResult" class="form-group steam-import-result">
+          <div class="steam-import-result__summary">{{ t('inventory.steamModal.summary', { imported: steamImportResult.imported, skipped: steamImportResult.skipped, unmatched: (steamImportResult.unmatched||[]).length }) }}</div>
+          <details v-if="steamImportResult.unmatched && steamImportResult.unmatched.length" class="steam-import-result__details">
             <summary>{{ t('inventory.steamModal.unmatched') }} ({{ steamImportResult.unmatched.length }})</summary>
-            <div style="max-height: 120px; overflow:auto; margin-top:4px;">
+            <div class="steam-import-result__unmatched">
               <div v-for="u in steamImportResult.unmatched" :key="u.name">· {{ skinDisplayName(u.name) }} ×{{ u.qty }}</div>
             </div>
           </details>

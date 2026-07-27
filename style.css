@@ -2202,7 +2202,7 @@ body.sidebar-open {
   padding: 22px 24px;
   margin-bottom: 16px;
   position: relative;
-  overflow: hidden;
+  overflow: hidden; /* clip glow only; content stays above via z-index */
 }
 
 .prediction-hero::before {
@@ -3422,6 +3422,78 @@ body.sidebar-open {
   border-color: var(--accent-orange);
 }
 
+.form-required {
+  color: var(--accent-red);
+}
+
+/* 浏览器自动填充常强制白底亮字，弹窗内跟主题色对齐 */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--text-primary);
+  box-shadow: 0 0 0 1000px var(--bg-tertiary) inset;
+  transition: background-color 99999s ease-out;
+}
+
+.steam-import-guide {
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.steam-import-guide strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.steam-import-guide__list {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.steam-import-guide__list li + li {
+  margin-top: 4px;
+}
+
+.steam-import-result {
+  background: color-mix(in srgb, var(--accent-green) 12%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent-green) 28%, var(--border-color));
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.steam-import-result__summary {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.steam-import-result__details {
+  margin-top: 8px;
+  color: var(--text-secondary);
+}
+
+.steam-import-result__details summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.steam-import-result__unmatched {
+  max-height: 120px;
+  overflow: auto;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -4450,6 +4522,8 @@ i.ph-duotone {
   grid-template-columns: repeat(7, minmax(86px, 1fr));
   gap: 8px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
   padding-bottom: 2px;
 }
 
@@ -4503,8 +4577,77 @@ i.ph-duotone {
   }
 
   .daily-forecast__strip {
-    grid-template-columns: repeat(7, minmax(78px, 1fr));
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    padding-bottom: 6px;
   }
+
+  .daily-forecast__cell {
+    flex: 0 0 auto;
+    width: 78px;
+    min-width: 78px;
+  }
+
+  .daily-forecast__head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .prediction-entry {
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .prediction-entry__row {
+    flex-wrap: wrap;
+  }
+
+  .prediction-entry__range {
+    font-size: 18px;
+  }
+
+  .prediction-page .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+
+  .prediction-page .data-table .col-hide-mobile {
+    display: none;
+  }
+}
+
+.prediction-confidence-meter {
+  width: 60px;
+  height: 4px;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+}
+
+.prediction-entry {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.prediction-entry__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  min-width: 0;
+}
+
+.prediction-entry__range {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-orange);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+  min-width: 0;
 }
 
 /* 妯″瀷瀹為獙瀹? 閫愭棩璇樊鎸囨爣鍒囨崲锛堜富鏍峰紡瑙佷笅鏂?models-lab 鍧楋級 */
