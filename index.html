@@ -1423,7 +1423,7 @@
               <!-- 消息列表 -->
               <div v-for="(msg, idx) in visibleChatMessages" :key="idx" class="chat-message" :class="'chat-message--' + msg.role">
                 <div :class="msg.role === 'user' ? 'chat-avatar avatar-user' : 'chat-avatar avatar-ai'" aria-hidden="true">
-                  {{ msg.role === 'user' ? 'Y' : 'AI' }}
+                  {{ msg.role === 'user' ? userAvatarChar : 'AI' }}
                 </div>
                 <div class="chat-message-body">
                   <div v-if="msg.type === 'debate' && msg.debate && Array.isArray(msg.debate.rounds) && msg.debate.rounds.length && typeof msg.debate.rounds[0]?.bull === 'string'" class="chat-content chat-debate-card">
