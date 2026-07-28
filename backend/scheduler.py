@@ -259,6 +259,8 @@ def summary_is_degraded(text: str | None) -> bool:
         "Mock 模式",
         "(Mock",
         "调用失败",
+        "实时 LLM 调用失败",
+        "Live LLM call failed",
         "未配置 DEEPSEEK",
         "DEEPSEEK_API_KEY missing",
         "[error:",

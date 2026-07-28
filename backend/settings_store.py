@@ -199,21 +199,13 @@ def public_config() -> dict[str, Any]:
 
 
 def _is_dashscope_llm(base_url: str) -> bool:
-    return "dashscope" in (base_url or "").lower()
+    from llm_routing import is_dashscope_llm
+    return is_dashscope_llm(base_url)
 
 
 def _normalize_llm_model(model: str, base_url: str) -> str:
-    """官方 deepseek-chat 等名称在百炼上需换成 deepseek-v3。"""
-    m = (model or "").strip() or "deepseek-v3"
-    if not _is_dashscope_llm(base_url):
-        return m
-    alias = {
-        "deepseek-chat": "deepseek-v3",
-        "deepseek-reasoner": "deepseek-r1",
-        "deepseek-V3": "deepseek-v3",
-        "deepseek-v3.0": "deepseek-v3",
-    }
-    return alias.get(m, m)
+    from llm_routing import normalize_llm_model
+    return normalize_llm_model(model, base_url)
 
 
 def apply_runtime_settings() -> None:

@@ -168,6 +168,64 @@ def _validate_structured(
     return output_schema.parse_obj(value)
 
 
+def _format_llm_error(exc: BaseException) -> str:
+    """Prefer provider JSON error body so wrong model names are visible."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        body = ""
+        try:
+            body = (exc.response.text or "").strip()
+        except Exception:
+            body = ""
+        if body:
+            try:
+                parsed = json.loads(body)
+                err = parsed.get("error") if isinstance(parsed, dict) else None
+                if isinstance(err, dict):
+                    msg = err.get("message") or err.get("msg") or err.get("code")
+                    if msg:
+                        return f"HTTP {status}: {msg}"
+                if isinstance(err, str) and err.strip():
+                    return f"HTTP {status}: {err.strip()}"
+            except Exception:
+                pass
+            return f"HTTP {status}: {body[:280]}"
+        return f"HTTP {status}: {exc}"
+    return f"{type(exc).__name__}: {exc}"
+
+
+def _failure_reply(messages: list[dict], exc: BaseException, *, model: str | None) -> str:
+    """When Key is configured but the provider rejects the call, explain why.
+
+    Do not label this as Mock — that hid model-not-found errors behind a fake reply.
+    """
+    used_model = (model or DEEPSEEK_MODEL or "").strip() or "(unset)"
+    detail = _format_llm_error(exc)
+    english = any(
+        m.get("role") == "system"
+        and "answer in english" in str(m.get("content", "")).lower()
+        for m in messages
+    )
+    if english:
+        return (
+            "Live LLM call failed — this is not a model answer.\n"
+            f"model={used_model}\n"
+            f"base={DEEPSEEK_BASE_URL}\n"
+            f"error={detail}\n"
+            "Check that Model and Base URL match the same provider "
+            "(Bailian uses deepseek-v3 / qwen-*; official DeepSeek uses deepseek-chat)."
+        )
+    return (
+        "实时 LLM 调用失败——本条不是模型回答。\n"
+        f"model={used_model}\n"
+        f"base={DEEPSEEK_BASE_URL}\n"
+        f"error={detail}\n"
+        "请确认 Model 与 Base URL 属于同一服务商："
+        "阿里云百炼用 deepseek-v3 / qwen-*；"
+        "DeepSeek 官方 API 用 deepseek-chat + https://api.deepseek.com。"
+    )
+
+
 def _mock_reply(messages: list[dict]) -> str:
     user_msg = ""
     for m in reversed(messages):
@@ -221,10 +279,7 @@ def chat_sync(
         return result
     except Exception as e:
         _record_execution(live=False, error=e)
-        return (
-            f"(LLM 调用失败,降级 Mock)\n{_mock_reply(messages)}"
-            f"\n\n[error: {type(e).__name__}]"
-        )
+        return _failure_reply(messages, e, model=payload.get("model"))
 
 
 def translate_content(content: Any, target_locale: str, timeout: float = 45.0) -> Any:
@@ -424,4 +479,7 @@ def chat_stream(
                     except Exception:
                         continue
     except Exception as e:
-        yield f"\n\n(LLM 流式失败,降级 Mock: {type(e).__name__})\n{_mock_reply(messages)}"
+        yield (
+            f"\n\n(LLM 流式失败)\n"
+            f"{_failure_reply(messages, e, model=payload.get('model'))}"
+        )

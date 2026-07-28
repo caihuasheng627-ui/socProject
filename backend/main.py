@@ -693,9 +693,14 @@ def admin_probe_llm(_: dict = Depends(get_admin_user)):
     try:
         # 探测前先同步运行时配置,避免管理页刚保存后读到旧 Key
         settings_store.apply_runtime_settings()
-        from config import LLM_ENABLED as llm_on
+        from config import (
+            DEEPSEEK_BASE_URL as llm_base,
+            DEEPSEEK_MODEL as llm_model,
+            LLM_ENABLED as llm_on,
+        )
         if not llm_on:
             return {"ok": False, "provider": "deepseek", "latencyMs": 0,
+                    "model": llm_model, "baseUrl": llm_base,
                     "error": "未配置 DEEPSEEK_API_KEY", "sample": ""}
         text = llm.chat_sync(
             [{"role": "user", "content": "请只回复两个字:正常"}],
@@ -703,20 +708,45 @@ def admin_probe_llm(_: dict = Depends(get_admin_user)):
             timeout=20.0,
         )
         ms = int((time.time() - t0) * 1000)
-        sample = (text or "")[:160]
-        # chat_sync 失败时不会抛异常,而是返回带 Mock/[error:] 的文本
+        sample = (text or "")[:240]
+        # 已配置 Key 时的失败文案不再含 Mock；仍兼容旧降级文案
         failed = (
             not text
-            or "Mock" in text
             or "调用失败" in text
+            or "Live LLM call failed" in text
+            or "实时 LLM 调用失败" in text
+            or "Mock" in text
             or "[error:" in text
             or "401" in text
             or "Unauthorized" in text
+            or "HTTP 4" in text
+            or "HTTP 5" in text
         )
         if failed:
-            return {"ok": False, "provider": "deepseek", "latencyMs": ms,
-                    "error": "LLM 返回失败/Mock,请检查 API Key 是否有效", "sample": sample}
-        return {"ok": True, "provider": "deepseek", "latencyMs": ms, "sample": sample}
+            # 尽量抽出 error= 行给管理端直接看
+            err_line = next(
+                (ln for ln in sample.splitlines() if ln.startswith("error=")),
+                "",
+            )
+            return {
+                "ok": False,
+                "provider": "deepseek",
+                "latencyMs": ms,
+                "model": llm_model,
+                "baseUrl": llm_base,
+                "error": err_line[6:] if err_line.startswith("error=") else (
+                    "LLM 调用失败：请核对 Model 与 Base URL 是否匹配同一服务商"
+                ),
+                "sample": sample,
+            }
+        return {
+            "ok": True,
+            "provider": "deepseek",
+            "latencyMs": ms,
+            "model": llm_model,
+            "baseUrl": llm_base,
+            "sample": sample,
+        }
     except Exception as e:
         return {"ok": False, "provider": "deepseek",
                 "latencyMs": int((time.time() - t0) * 1000),
