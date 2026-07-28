@@ -4,6 +4,7 @@ from scheduler import (
     detect_summary_locale,
     rule_based_market_summary,
     summary_locale_mismatch,
+    summary_metrics_mismatch,
 )
 
 
@@ -34,3 +35,8 @@ def test_rule_based_market_summary_bilingual():
     assert "not investment advice" in en
     assert detect_summary_locale(zh) == "zh-CN"
     assert detect_summary_locale(en) == "en-US"
+    assert summary_metrics_mismatch(zh, metrics) is False
+    assert summary_metrics_mismatch(en, metrics) is False
+    # Stale prose with old numbers must be detected
+    stale = "监控样本 681 件。上涨 304 件、下跌 358 件。"
+    assert summary_metrics_mismatch(stale, metrics) is True

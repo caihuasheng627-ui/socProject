@@ -781,9 +781,9 @@ def explain(skin_id: str, days: int = 7) -> dict[str, Any]:
 
 
 def retrieve_daily_sources(query: str | None = None, limit: int = 6) -> list[dict[str, Any]]:
-    """日报用的市场级检索来源。"""
-    q = query or "CS2 饰品 市场 行情 Major 赛事 Valve 更新 流动性 磨损 StatTrak 箱子 停产"
-    return _retrieve_sources(q, kb_k=3, news_k=limit)
+    """日报用的市场级检索来源（不硬编码 Major/Valve 更新等易过期主题）。"""
+    q = query or "CS2 饰品 市场价格 流动性 成交 磨损 StatTrak"
+    return _retrieve_sources(q, kb_k=2, news_k=limit)
 
 
 def _query_lang(q: str) -> str:

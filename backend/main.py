@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -1154,8 +1154,8 @@ def daily_report(
     refresh: bool = False,
     locale: Literal["zh-CN", "en-US"] = Query(default="zh-CN"),
 ):
-    # Expo 种子可提供文案兜底，但 metrics 必须与当前库一致；
-    # aiSummary 若是旧的 Mock/调用失败文案，或与请求 locale 不符，则现场刷新。
+    # Expo 种子可提供文案兜底，但 metrics / 文案数字必须与当前库一致；
+    # aiSummary 若过期、Mock、locale 不符、或数字与 live metrics 不一致，则现场刷新。
     # refresh=1 时强制重新生成整份日报（「重新生成」按钮）。
     import scheduler
     if refresh:
@@ -1177,23 +1177,46 @@ def daily_report(
             need_summary_refresh = (
                 scheduler.summary_is_degraded(rep.get("aiSummary"))
                 or scheduler.summary_locale_mismatch(rep.get("aiSummary"), locale)
+                or scheduler.summary_metrics_mismatch(rep.get("aiSummary"), live_metrics)
             )
             if need_summary_refresh:
-                portfolio = rep.get("portfolio") or []
-                portfolio_text = (
-                    ("No holdings" if str(locale).startswith("en") else "无持仓")
-                    if not portfolio
-                    else "; ".join(
-                        f"{p.get('name')} x{p.get('quantity', 1)}" for p in portfolio
+                # Prefer live holdings from DB; fall back to empty (never keep stale seed portfolio)
+                try:
+                    with get_connection() as conn:
+                        positions = conn.execute(
+                            """SELECT s.market_hash_name, p.quantity
+                               FROM portfolio p JOIN skins s ON s.id=p.skin_id
+                               LIMIT 20"""
+                        ).fetchall()
+                    portfolio_text = (
+                        ("No holdings" if str(locale).startswith("en") else "无持仓")
+                        if not positions
+                        else "; ".join(
+                            f"{r['market_hash_name']} x{r['quantity']}" for r in positions
+                        )
                     )
-                )
-                rep["aiSummary"] = scheduler.refresh_ai_summary(
+                    rep["portfolio"] = [
+                        {"name": r["market_hash_name"], "quantity": r["quantity"]}
+                        for r in positions
+                    ]
+                except Exception:
+                    portfolio_text = "No holdings" if str(locale).startswith("en") else "无持仓"
+                    rep["portfolio"] = []
+                try:
+                    rep["sources"] = rag.retrieve_daily_sources(limit=6)
+                except Exception:
+                    rep["sources"] = rep.get("sources") or []
+                summary, provider = scheduler.refresh_ai_summary(
                     live_metrics,
                     portfolio_text=portfolio_text,
                     sources=rep.get("sources") or [],
                     locale=locale,
                 )
+                rep["aiSummary"] = summary
+                rep["summaryProvider"] = provider
                 rep["locale"] = locale
+                rep["date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                rep["generatedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 try:
                     seed.write_text(
                         json.dumps(rep, ensure_ascii=False, indent=2),
@@ -1203,6 +1226,7 @@ def daily_report(
                     pass
             else:
                 rep["locale"] = locale
+                rep.setdefault("summaryProvider", "seed")
             return rep
         except Exception:
             pass

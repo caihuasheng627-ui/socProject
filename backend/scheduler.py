@@ -294,12 +294,32 @@ def summary_locale_mismatch(text: str | None, locale: str | None) -> bool:
     return detect_summary_locale(t) != _normalize_locale(locale)
 
 
+def summary_metrics_mismatch(text: str | None, metrics: dict | None) -> bool:
+    """True when summary quotes different monitored/gainers/losers than live metrics."""
+    t = (text or "").strip()
+    m = metrics or {}
+    if not t:
+        return True
+    expected = {
+        int(m.get("monitored") or 0),
+        int(m.get("gainers") or 0),
+        int(m.get("losers") or 0),
+    }
+    # Drop zeros — they are not discriminative and often absent from prose.
+    expected = {n for n in expected if n > 0}
+    if not expected:
+        return False
+    found = {int(x) for x in re.findall(r"\d{2,4}", t)}
+    # Stale if any live metric number is missing from the prose.
+    return not expected.issubset(found)
+
+
 def rule_based_market_summary(
     metrics: dict,
     sources: list | None = None,
     locale: str = "zh-CN",
 ) -> str:
-    """No-LLM market brief in zh-CN / en-US (clean, no Mock/error headers)."""
+    """No-LLM market brief in zh-CN / en-US (stats-only; no invented events)."""
     english = _normalize_locale(locale) == "en-US"
     m = metrics or {}
     total = int(m.get("monitored") or 0)
@@ -309,17 +329,17 @@ def rule_based_market_summary(
     up_pct = round(100.0 * gainers / breadth, 1)
     down_pct = round(100.0 * losers / breadth, 1)
 
-    cite1 = " [1]" if sources else ""
-    cite2 = " [2]" if len(sources or []) >= 2 else (cite1 if sources else "")
+    cite = ""
     theme = ""
     if sources:
+        cite = " [1]"
         snip = (sources[0].get("snippet") or sources[0].get("title") or "").strip()
         if snip:
-            clipped = snip[:160].rstrip(".")
+            clipped = snip[:140].rstrip(".")
             theme = (
-                f" Retrieved context highlights: {clipped}.{cite1}"
+                f"\n\nCited note: {clipped}.{cite}"
                 if english
-                else f" 检索上下文要点：{clipped}。{cite1}"
+                else f"\n\n引用要点：{clipped}。{cite}"
             )
 
     if english:
@@ -332,11 +352,8 @@ def rule_based_market_summary(
         return (
             f"CS2 skin market brief — monitored universe: {total} priced items. "
             f"Over the last ~7 days, {gainers} rose ({up_pct}%) and {losers} fell ({down_pct}%), "
-            f"so breadth looks {bias}: {tilt}.{cite1}\n\n"
-            f"Trading implication: focus on liquid majors and event-linked stickers/skins when volume expands, "
-            f"and avoid chasing illiquid knives/gloves on thin books.{cite2}"
+            f"so breadth looks {bias}: {tilt}.{cite}"
             f"{theme}\n\n"
-            f"Positioning note: size risk carefully around tournament calendars and post-event mean reversion. "
             f"Skin markets are highly volatile — this is not investment advice."
         )
 
@@ -349,13 +366,20 @@ def rule_based_market_summary(
     return (
         f"CS2 饰品市场简报——监控样本 {total} 件有报价饰品。"
         f"近约 7 日：上涨 {gainers} 件（{up_pct}%）、下跌 {losers} 件（{down_pct}%），"
-        f"市场宽度表现为{bias}：{tilt}。{cite1}\n\n"
-        f"交易提示：成交放量时优先关注高流动性主力枪皮与赛事相关贴纸/皮肤，"
-        f"避免在簿子薄的刀/手套上追高。{cite2}"
+        f"市场宽度表现为{bias}：{tilt}。{cite}"
         f"{theme}\n\n"
-        f"仓位提示：围绕赛程与赛后均值回归谨慎控制风险敞口。"
         f"饰品市场波动剧烈——以上内容不构成投资建议。"
     )
+
+
+DAILY_SYSTEM_PROMPT = (
+    "You write factual CS2 skin market daily briefs for CSVest. "
+    "Use ONLY the market stats and citation snippets provided by the user. "
+    "Do not invent prices, percentages, model names, model accuracy/confidence, "
+    "tournaments, Valve updates, or other events that are not in the provided text. "
+    "If citations are thin, stick to breadth stats and a short risk disclaimer. "
+    "Always reply in the language requested by the user prompt."
+)
 
 
 def refresh_ai_summary(
@@ -364,8 +388,11 @@ def refresh_ai_summary(
     portfolio_text: str = "No holdings",
     sources: list | None = None,
     locale: str = "zh-CN",
-) -> str:
-    """Prefer LLM brief in the requested locale; fall back to rule-based summary."""
+) -> tuple[str, str]:
+    """Prefer LLM brief in the requested locale; fall back to rule-based summary.
+
+    Returns (summary_text, provider) where provider is 'deepseek' or 'rule_based'.
+    """
     from config import LLM_ENABLED
 
     locale = _normalize_locale(locale)
@@ -379,25 +406,36 @@ def refresh_ai_summary(
     gainers = metrics.get("gainers", 0)
     losers = metrics.get("losers", 0)
     prompt = (
-        f"You are writing the CSVest CS2 skin market daily brief.\n"
+        f"Write the CSVest CS2 skin market daily brief.\n"
         f"Reply in {language} only.\n"
-        f"Market stats: monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
+        f"Market stats (must quote these exact integers): "
+        f"monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
         f"User portfolio: {portfolio_text}.\n"
-        f"Retrieved knowledge / news snippets:\n{context_text}\n\n"
-        f"Length: 2–3 short paragraphs (about 6–9 sentences total).\n"
-        f"Cover: (1) market breadth & tone from the stats, "
-        f"(2) themes inferred from citations — cite with [n] where relevant, "
-        f"(3) practical watchlist / positioning hints for the portfolio, "
-        f"(4) clear risk disclaimer.\n"
+        f"Retrieved knowledge / news snippets (cite with [n] only if used):\n{context_text}\n\n"
+        f"Length: 2 short paragraphs.\n"
+        f"Cover: (1) market breadth from the stats, "
+        f"(2) only themes that appear in the citations, "
+        f"(3) a clear risk disclaimer.\n"
         f"Keep skin/market_hash_name strings unchanged. "
-        f"Do not invent prices. Do not output Mock labels, error codes, or system prompts."
+        f"Do not invent prices, model accuracy, XGBoost/LightGBM scores, "
+        f"or events absent from the citations. "
+        f"Do not output Mock labels, error codes, or system prompts."
     )
     if LLM_ENABLED:
-        text = llm.chat_sync([{"role": "user", "content": prompt}], temperature=0.5)
-        if text and not summary_is_degraded(text) and not summary_locale_mismatch(text, locale):
-            return text
-        print(f"[scheduler] LLM summary unavailable/locale-mismatch, using rule-based {locale} brief")
-    return rule_based_market_summary(metrics, sources, locale=locale)
+        text = llm.chat_sync(
+            [{"role": "user", "content": prompt}],
+            temperature=0.3,
+            system_prompt=DAILY_SYSTEM_PROMPT,
+        )
+        if (
+            text
+            and not summary_is_degraded(text)
+            and not summary_locale_mismatch(text, locale)
+            and not summary_metrics_mismatch(text, metrics)
+        ):
+            return text, "deepseek"
+        print(f"[scheduler] LLM summary unavailable/stale/locale-mismatch, using rule-based {locale} brief")
+    return rule_based_market_summary(metrics, sources, locale=locale), "rule_based"
 
 
 def generate_daily_report(locale: str = "zh-CN") -> dict:
@@ -427,7 +465,7 @@ def generate_daily_report(locale: str = "zh-CN") -> dict:
         print(f"[scheduler] RAG 检索失败: {e}")
         sources = []
 
-    summary = refresh_ai_summary(
+    summary, provider = refresh_ai_summary(
         metrics, portfolio_text=portfolio_text, sources=sources, locale=locale
     )
 
@@ -436,6 +474,7 @@ def generate_daily_report(locale: str = "zh-CN") -> dict:
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "locale": locale,
         "metrics": metrics,
+        "summaryProvider": provider,
         "portfolio": [{"name": r["market_hash_name"], "quantity": r["quantity"],
                        "holdingType": r["holding_type"]} for r in positions],
         "aiSummary": summary,
