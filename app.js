@@ -1299,6 +1299,32 @@ const app = createApp({
         downPct: Math.round((l / total) * 100),
       };
     });
+    /** Client-side KPI fallback from skins list (same ≥$4 rule as backend). */
+    const buildClientDailyMetrics = () => {
+      const all = skins.value || [];
+      const priced = all.filter((s) => Number(s?.price) > 0);
+      const pool = priced.length ? priced : all;
+      let gainers = 0;
+      let losers = 0;
+      for (const s of pool) {
+        const px = Number(s?.price);
+        const ch = Number(s?.change7d);
+        if (!(px >= 4) || !Number.isFinite(ch) || ch === 0) continue;
+        if (ch > 0) gainers += 1;
+        else losers += 1;
+      }
+      return { monitored: pool.length, gainers, losers };
+    };
+    const ensureDailyMetricsPlaceholder = () => {
+      const cur = Number(dailyReport.value?.metrics?.monitored) || 0;
+      if (cur > 0) return;
+      const next = buildClientDailyMetrics();
+      if (!next.monitored) return;
+      dailyReport.value = {
+        ...dailyReport.value,
+        metrics: next,
+      };
+    };
     const dailySummaryBadge = computed(() => {
       const provider = String(dailyReport.value?.summaryProvider || '').toLowerCase();
       if (provider === 'deepseek') return t('daily.aiSummaryModel.deepseek');
@@ -1318,20 +1344,33 @@ const app = createApp({
       if (!rep) return;
       const summary = rep.aiSummary || rep.summary || '';
       const localeKey = rep.locale || dailySummaryLocale(summary);
+      const fallback = buildClientDailyMetrics();
+      const prev = dailyReport.value?.metrics || {};
+      const apiMon = Number(rep.metrics?.monitored);
+      // Backend metrics are authoritative when monitored > 0. Zero/missing usually
+      // means empty runtime DB or a hung regenerate left the initial placeholder —
+      // keep previous/client fallback so KPIs don't stick at 0 while LLM times out.
+      const metrics = apiMon > 0
+        ? {
+            monitored: apiMon,
+            gainers: Number(rep.metrics?.gainers) || 0,
+            losers: Number(rep.metrics?.losers) || 0,
+          }
+        : {
+            monitored: Number(prev.monitored) > 0 ? Number(prev.monitored) : (fallback.monitored || skins.value.length || 0),
+            gainers: Number(prev.gainers) || fallback.gainers || topGainers.value.length || 0,
+            losers: Number(prev.losers) || fallback.losers || topLosers.value.length || 0,
+          };
       dailyReport.value = {
-        date: rep.date || '',
-        generatedAt: rep.generatedAt || '',
+        date: rep.date || dailyReport.value?.date || '',
+        generatedAt: rep.generatedAt || dailyReport.value?.generatedAt || '',
         locale: localeKey,
-        summaryProvider: rep.summaryProvider || '',
-        metrics: {
-          monitored: rep.metrics?.monitored ?? skins.value.length,
-          gainers: rep.metrics?.gainers ?? topGainers.value.length,
-          losers: rep.metrics?.losers ?? topLosers.value.length,
-        },
-        aiSummary: summary,
-        sources: Array.isArray(rep.sources) ? rep.sources : [],
-        news: Array.isArray(rep.news) ? rep.news : [],
-        portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : [],
+        summaryProvider: rep.summaryProvider || dailyReport.value?.summaryProvider || '',
+        metrics,
+        aiSummary: summary || dailyReport.value?.aiSummary || '',
+        sources: Array.isArray(rep.sources) ? rep.sources : (dailyReport.value?.sources || []),
+        news: Array.isArray(rep.news) ? rep.news : (dailyReport.value?.news || []),
+        portfolio: Array.isArray(rep.portfolio) ? rep.portfolio : (dailyReport.value?.portfolio || []),
       };
       if (resetLocaleCache) {
         dailyReportLocaleVersions.value = summary ? { [localeKey]: summary } : {};
@@ -1410,6 +1449,8 @@ const app = createApp({
     const loadDailyReport = async ({ refresh = false } = {}) => {
       const client = api();
       if (!client) return;
+      // Show skins-derived KPIs immediately so regenerate/LLM wait doesn't leave 0s.
+      ensureDailyMetricsPlaceholder();
       try {
         const rep = await client.getDailyReport(undefined, {
           refresh,
@@ -1420,6 +1461,7 @@ const app = createApp({
         await localizeDailyHeadlines(currentLang.value);
       } catch (e) {
         console.warn('[CSVest] daily-report failed', e);
+        ensureDailyMetricsPlaceholder();
       }
     };
 
