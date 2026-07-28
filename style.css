@@ -8787,16 +8787,35 @@ select:focus-visible {
   box-shadow: var(--daily-glass-shadow);
 }
 
+.daily-page .daily-tabs {
+  --seg-pad: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: var(--seg-pad);
+  background: color-mix(in srgb, var(--bg-card) 48%, transparent);
+  backdrop-filter: saturate(150%) blur(16px);
+  -webkit-backdrop-filter: saturate(150%) blur(16px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+
+.daily-page .daily-tabs__thumb {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-orange) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 28%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-orange) 12%, transparent);
+}
+
 .daily-page .daily-tab {
-  background: color-mix(in srgb, var(--bg-card) 55%, transparent);
-  backdrop-filter: saturate(140%) blur(12px);
-  -webkit-backdrop-filter: saturate(140%) blur(12px);
-  box-shadow: var(--daily-glass-shadow);
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .daily-page .daily-tab.active {
-  background: color-mix(in srgb, var(--accent-orange) 16%, var(--daily-glass-bg));
-  box-shadow: var(--daily-glass-shadow);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .daily-page .daily-hero {
@@ -8874,52 +8893,84 @@ select:focus-visible {
   -webkit-backdrop-filter: saturate(130%) blur(8px);
 }
 
-/* 两个独立选项，不拉满整行、不共用一条底栏 */
+/* 市场日报 / RAG 实验室：一体滑块分段控件 */
 .daily-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  --seg-pad: 4px;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   align-self: flex-start;
-  justify-content: flex-start;
-  gap: 10px;
+  gap: 0;
   width: auto;
   max-width: 100%;
   margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: var(--seg-pad);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-root);
   box-shadow: none;
+}
+
+.daily-tabs__thumb {
+  position: absolute;
+  top: var(--seg-pad);
+  bottom: var(--seg-pad);
+  left: var(--seg-pad);
+  width: calc((100% - var(--seg-pad) * 2) / 2);
+  border-radius: calc(var(--radius-md) - 2px);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+.daily-tabs.is-rag .daily-tabs__thumb {
+  transform: translate3d(100%, 0, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-tabs__thumb {
+    transition: none;
+  }
 }
 
 .daily-tab {
   appearance: none;
-  border: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: calc(var(--radius-md) - 2px);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  white-space: nowrap;
+  min-width: 0;
+  transition: color 0.22s ease;
+  box-shadow: none;
 }
 
 .daily-tab:hover {
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent-orange) 35%, var(--border-color));
-  background: color-mix(in srgb, var(--accent-orange) 8%, var(--bg-card));
 }
 
 .daily-tab.active {
+  background: transparent;
   color: var(--accent-orange);
-  border-color: color-mix(in srgb, var(--accent-orange) 40%, transparent);
-  background: color-mix(in srgb, var(--accent-orange) 14%, var(--bg-card));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  box-shadow: none;
 }
 
 .daily-report-panel,
@@ -9841,12 +9892,13 @@ select:focus-visible {
   .daily-tabs {
     width: 100%;
     align-self: stretch;
+    display: inline-grid;
   }
 
   .daily-tab {
-    flex: 1 1 calc(50% - 5px);
     justify-content: center;
     min-height: 42px;
+    padding: 10px 12px;
   }
 
   .daily-report-panel,

@@ -1785,7 +1785,13 @@
         <!-- AI 市场日报 -->
 
         <div v-if="currentPage === 'daily'" class="fade-in daily-page">
-          <div class="daily-tabs" role="tablist" :aria-label="t('menu.daily')">
+          <div
+            class="daily-tabs"
+            :class="dailyTab === 'rag' ? 'is-rag' : 'is-report'"
+            role="tablist"
+            :aria-label="t('menu.daily')"
+          >
+            <span class="daily-tabs__thumb" aria-hidden="true"></span>
             <button
               type="button"
               role="tab"
