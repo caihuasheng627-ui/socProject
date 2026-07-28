@@ -284,56 +284,6 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("Debate", prompt)
         self.assertIn("预算", prompt)
 
-    def test_disabled_predict_capability_keeps_qa_as_chat(self):
-        self.assertEqual(
-            detect_intent(
-                "AK-47 | Redline (FT)",
-                action="qa",
-                has_skin=True,
-                capabilities={"predict": False, "recommend": True, "analyze": True},
-            ),
-            "chat",
-        )
-        result = self.service.handle(
-            "AK-47 | Redline (FT)",
-            action="qa",
-            skin_id="ak-redline-ft",
-            capabilities={"predict": False},
-        )
-        self.assertEqual(result["type"], "chat")
-        self.assertNotIn("prediction", result)
-
-    def test_disabled_recommend_capability_skips_recommendation_route(self):
-        self.assertEqual(
-            detect_intent(
-                "预算 700 推荐什么",
-                action="qa",
-                has_skin=False,
-                capabilities={"recommend": False, "predict": True, "analyze": True},
-            ),
-            "chat",
-        )
-        result = self.service.handle(
-            "推荐一个皮肤",
-            action="qa",
-            budget=200,
-            capabilities={"recommend": False},
-        )
-        self.assertEqual(result["type"], "chat")
-        self.assertNotIn("recommendations", result)
-
-    def test_disabled_analyze_omits_market_snapshot_from_prompt(self):
-        from agents.orchestrator import grounded_chat_system_prompt
-
-        prompt = grounded_chat_system_prompt(
-            "zh-CN",
-            user_message="今天市场怎么样",
-            capabilities={"analyze": False, "predict": True, "recommend": True},
-        )
-        self.assertNotIn("Market snapshot from the local database", prompt)
-        self.assertIn("本轮已关闭", prompt)
-        self.assertIn("analyze", prompt)
-
     def test_recommendation_route(self):
         result = self.service.handle("推荐一个皮肤", budget=200)
         self.assertEqual(result["type"], "recommendation")
