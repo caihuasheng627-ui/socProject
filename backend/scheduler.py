@@ -220,12 +220,14 @@ def fetch_rss_news(aggressive: bool = False) -> dict:
 # 任务 2:每日日报(拼持仓段)
 # ============================================================
 def market_metrics_from_db() -> dict:
-    """与看板一致:有 price_history 的饰品数 + 近 7 日涨跌统计。"""
+    """与看板一致:有 price_history 的饰品数 + 近 7 日涨跌统计。
+
+    monitored = 全部有行情的饰品(监控池全量)。
+    gainers/losers = 近 7 日涨跌且现价 >= 4(涨跌榜排除超低价噪音)。
+    """
     with get_connection() as conn:
         total = conn.execute(
-            """SELECT COUNT(DISTINCT skin_id) FROM price_history
-               WHERE skin_id IN (SELECT skin_id FROM price_history
-                                 GROUP BY skin_id HAVING MAX(price) >= 4)"""
+            "SELECT COUNT(DISTINCT skin_id) FROM price_history"
         ).fetchone()[0]
         gainers = conn.execute(
             """SELECT COUNT(*) FROM (
