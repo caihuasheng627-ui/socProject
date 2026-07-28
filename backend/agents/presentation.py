@@ -297,6 +297,86 @@ def argument_from_evidence(
     )
 
 
+_LIMITED_SUPPORT_IDS = (
+    "model:hybrid_7d",
+    "market:change_7d",
+    "market:change_30d",
+    "market:liquidity",
+    "market:volume_change_7d",
+    "risk:volatility_30d",
+    "risk:max_drawdown_30d",
+)
+
+
+def limited_support_argument(
+    evidence: Evidence, role: Literal["bull", "bear"], locale: str = "zh-CN"
+) -> AgentArgument:
+    """Explain why a side stays weak when matching-direction evidence is missing."""
+
+    english = is_english(locale)
+    claim = _localized_claim(evidence, locale)
+    if role == "bull":
+        explanation = (
+            "No positive evidence currently supports an upside case; this public "
+            "metric is shown to explain why Bull stays on watch."
+            if english else
+            "当前没有正面证据支持上行观点；展示该公开指标是为了说明 Bull 为何维持观察、不上调买入置信度。"
+        )
+        impact = (
+            "Bull does not treat this as a buy signal; confidence stays low until "
+            "positive confirmation appears."
+            if english else
+            "Bull 不会将其视为买入信号；在出现正面确认前，置信度保持偏低并建议继续观察。"
+        )
+    else:
+        explanation = (
+            "No material downside evidence currently dominates; this public metric "
+            "is shown to explain why Bear keeps a cautious but not extreme stance."
+            if english else
+            "当前没有突出的负面风险证据主导；展示该公开指标是为了说明 Bear 为何保持谨慎但未极端看空。"
+        )
+        impact = (
+            "Bear still watches exit cost and volatility; absence of strong risk "
+            "evidence does not become a buy recommendation."
+            if english else
+            "Bear 仍会关注退出成本与波动；缺少强风险证据不等于给出买入建议。"
+        )
+    return AgentArgument(
+        claim=claim,
+        evidence_ids=(evidence.evidence_id,),
+        importance=0.58,
+        explanation=explanation,
+        decision_impact=impact,
+    )
+
+
+def limited_support_arguments(
+    snapshot: MarketSnapshot,
+    role: Literal["bull", "bear"],
+    locale: str = "zh-CN",
+    limit: int = 3,
+) -> list[AgentArgument]:
+    """Build visible cards when a side has no matching-direction evidence."""
+
+    by_id = {item.evidence_id: item for item in snapshot.evidence}
+    picked: list[Evidence] = []
+    for evidence_id in _LIMITED_SUPPORT_IDS:
+        item = by_id.get(evidence_id)
+        if item is not None:
+            picked.append(item)
+        if len(picked) >= limit:
+            break
+    if not picked:
+        picked = [
+            item
+            for item in snapshot.evidence
+            if not item.evidence_id.startswith(("kb:", "news:"))
+        ][:limit]
+    return [
+        limited_support_argument(item, role, locale) for item in picked[:limit]
+    ]
+
+
 def contains_cjk(value: str) -> bool:
     return bool(re.search(r"[\u3400-\u9fff]", value or ""))
 

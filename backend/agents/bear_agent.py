@@ -10,7 +10,8 @@ from .base import BaseAgent, model_dump
 from .localization import is_english
 from .prompts import BEAR_SYSTEM_PROMPT, BEAR_SYSTEM_PROMPT_EN
 from .presentation import (
-    argument_from_evidence, contains_cjk, normalize_argument_locale,
+    argument_from_evidence, contains_cjk, limited_support_arguments,
+    normalize_argument_locale,
 )
 from .schemas import AgentArgument, BearInput, BearOpinion
 from .tools import AgentToolbox, BEAR_FOCUS_TOOL
@@ -95,6 +96,10 @@ class BearAgent(BaseAgent[BearOpinion]):
         arguments = [
             argument_from_evidence(item, "bear", locale) for item in negative[:3]
         ]
+        if not arguments:
+            arguments = limited_support_arguments(
+                snapshot, "bear", locale, limit=3
+            )
         if input_data.bull_opinion and arguments:
             first = arguments[0]
             arguments[0] = AgentArgument(

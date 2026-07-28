@@ -10,7 +10,8 @@ from .base import BaseAgent, model_dump
 from .localization import is_english
 from .prompts import BULL_SYSTEM_PROMPT, BULL_SYSTEM_PROMPT_EN
 from .presentation import (
-    argument_from_evidence, contains_cjk, normalize_argument_locale,
+    argument_from_evidence, contains_cjk, limited_support_arguments,
+    normalize_argument_locale,
 )
 from .schemas import AgentArgument, BullInput, BullOpinion, Evidence
 from .tools import AgentToolbox, BULL_FOCUS_TOOL
@@ -93,6 +94,12 @@ class BullAgent(BaseAgent[BullOpinion]):
         arguments = [
             argument_from_evidence(item, "bull", locale) for item in positive[:3]
         ]
+        if not arguments:
+            # Down markets often have no positive evidence; still show cards so the
+            # Bull panel is not an empty header next to a fully expanded Bear.
+            arguments = limited_support_arguments(
+                input_data.snapshot, "bull", locale, limit=3
+            )
         if input_data.bear_opinion and arguments:
             first = arguments[0]
             arguments[0] = AgentArgument(
@@ -133,7 +140,7 @@ class BullAgent(BaseAgent[BullOpinion]):
         can_buy = (
             prediction.change_pct > 0
             and prediction.confidence >= 55
-            and bool(arguments)
+            and bool(positive)
         )
         return BullOpinion(
             position="buy" if can_buy else "watch",
