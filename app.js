@@ -737,11 +737,11 @@ const app = createApp({
       const liveOnly = skins.value.filter((s) => s.isLive !== false);
       const pool = liveOnly.length >= 10 ? liveOnly : skins.value;
       topGainers.value = [...pool]
-        .filter((s) => (s.change7d || 0) > 0)
+        .filter((s) => (s.change7d || 0) > 0 && (s.priceUsd || s.price || 0) >= 4)
         .sort((a, b) => (b.change7d || 0) - (a.change7d || 0))
         .slice(0, 8);
       topLosers.value = [...pool]
-        .filter((s) => (s.change7d || 0) < 0)
+        .filter((s) => (s.change7d || 0) < 0 && (s.priceUsd || s.price || 0) >= 4)
         .sort((a, b) => (a.change7d || 0) - (b.change7d || 0))
         .slice(0, 8);
       hotVolume.value = [...pool]

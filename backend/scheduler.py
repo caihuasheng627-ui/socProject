@@ -222,7 +222,11 @@ def fetch_rss_news(aggressive: bool = False) -> dict:
 def market_metrics_from_db() -> dict:
     """与看板一致:有 price_history 的饰品数 + 近 7 日涨跌统计。"""
     with get_connection() as conn:
-        total = conn.execute("SELECT COUNT(DISTINCT skin_id) FROM price_history").fetchone()[0]
+        total = conn.execute(
+            """SELECT COUNT(DISTINCT skin_id) FROM price_history
+               WHERE skin_id IN (SELECT skin_id FROM price_history
+                                 GROUP BY skin_id HAVING MAX(price) >= 4)"""
+        ).fetchone()[0]
         gainers = conn.execute(
             """SELECT COUNT(*) FROM (
                SELECT skin_id, (SELECT price FROM price_history p2 WHERE p2.skin_id=p.skin_id
@@ -230,7 +234,7 @@ def market_metrics_from_db() -> dict:
                                (SELECT price FROM price_history p3 WHERE p3.skin_id=p.skin_id
                                 ORDER BY date DESC LIMIT 1 OFFSET 7) AS old
                FROM price_history p GROUP BY skin_id)
-               WHERE old IS NOT NULL AND cur > old"""
+               WHERE old IS NOT NULL AND cur > old AND cur >= 4"""
         ).fetchone()[0]
         losers = conn.execute(
             """SELECT COUNT(*) FROM (
@@ -239,7 +243,7 @@ def market_metrics_from_db() -> dict:
                                (SELECT price FROM price_history p3 WHERE p3.skin_id=p.skin_id
                                 ORDER BY date DESC LIMIT 1 OFFSET 7) AS old
                FROM price_history p GROUP BY skin_id)
-               WHERE old IS NOT NULL AND cur < old"""
+               WHERE old IS NOT NULL AND cur < old AND cur >= 4"""
         ).fetchone()[0]
     return {"monitored": int(total), "gainers": int(gainers), "losers": int(losers)}
 
