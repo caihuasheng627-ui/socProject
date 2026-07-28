@@ -240,6 +240,30 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(result["type"], "chat")
         self.assertNotIn("prediction", result)
 
+    def test_qa_mode_runs_hybrid_when_skin_is_named(self):
+        """Regular Q&A should not ignore Hybrid just because Debate is blocked."""
+
+        self.assertEqual(
+            detect_intent("AK-47 | Redline (FT)", action="qa", has_skin=True),
+            "prediction",
+        )
+        self.assertEqual(
+            detect_intent("这个值不值得买", action="qa", has_skin=True),
+            "prediction",
+        )
+        # Still never auto-enter Debate from Q&A.
+        self.assertEqual(
+            detect_intent("开始辩论", action="qa", has_skin=True),
+            "prediction",
+        )
+        result = self.service.handle(
+            "AK-47 | Redline (FT)",
+            action="qa",
+            skin_id="ak-redline-ft",
+        )
+        self.assertEqual(result["type"], "prediction")
+        self.assertEqual(result["prediction"]["targetPrice"], 106)
+
     def test_recommendation_route(self):
         result = self.service.handle("推荐一个皮肤", budget=200)
         self.assertEqual(result["type"], "recommendation")

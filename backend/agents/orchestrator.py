@@ -346,12 +346,11 @@ def detect_intent(
     lowered = message.lower()
     wants_recommend = any(word in lowered for word in RECOMMEND_WORDS)
     if action == "qa":
-        # Strict normal Q&A: never route into the debate pipeline, even when
-        # the wording sounds like a buy/sell decision. Prediction and
-        # recommendation cards are still allowed.
+        # Normal Q&A still blocks Debate, but must run Hybrid when a skin is
+        # named — otherwise the mode can only answer from the tiny market brief.
         if wants_recommend:
             return "recommendation"
-        if has_skin and any(word in lowered for word in PREDICT_WORDS):
+        if has_skin:
             return "prediction"
         return "chat"
     explicit = {
@@ -436,14 +435,14 @@ class AIOrchestrator:
         skin = self.skin_resolver(clean_message, skin_id)
         if skin and skin.get("ambiguous"):
             wants_predict = (
-                action == "predict"
+                action in {"predict", "qa"}
                 or any(word in clean_message.lower() for word in PREDICT_WORDS)
             )
-            if action in {"qa", "chat"} and not wants_predict:
-                # Strict Q&A must not push the user into a debate picker;
-                # answer the question as plain grounded chat instead.
+            if action == "chat" and not wants_predict:
+                # Plain chat may keep talking without forcing a skin picker.
                 skin = None
             else:
+                # Q&A / explicit predict → Hybrid picker; otherwise Debate picker.
                 requested_action = "predict" if wants_predict else "debate"
                 return {
                     "type": "clarification",

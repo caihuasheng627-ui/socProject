@@ -3705,10 +3705,12 @@ const app = createApp({
         const historyPayload = chatMessages.value.slice(1, -2).slice(-8)
           .filter(item => item.content && item.content !== '__WELCOME__')
           .map(item => ({ role: item.role, content: item.content }));
-        // 纯聊天类问题（不需要推荐/预测卡片）直接走 SSE 流式，首字 1~2 秒可见
+        // 纯聊天类问题（不需要推荐/预测卡片）直接走 SSE 流式，首字 1~2 秒可见。
+        // 一旦能解析出具体皮肤，必须走 orchestrator → Hybrid 预测，否则问答模式几乎无用。
         const structuredWords = [
-          '推荐', '选一个', '有哪些', 'recommend', 'suggest',
+          '推荐', '选一个', '有哪些', 'recommend', 'suggest', 'candidates',
           '预测', '价格', '走势', '涨跌', '目标价', 'forecast', 'price', 'trend',
+          '分析', '值不值得', '值得买', 'analyze', 'analysis', 'should i buy',
         ];
         const modelPerfWords = [
           '模型表现', '模型对比', '预测模型', '各个模型', '各模型', '模型实验室',
@@ -3718,8 +3720,13 @@ const app = createApp({
         const lowerText = text.toLowerCase();
         const isModelPerf = modelPerfWords.some(w => lowerText.includes(w.toLowerCase()));
         const wantsStructured = !isModelPerf && structuredWords.some(w => lowerText.includes(w));
+        let earlySkin = null;
+        if (!requestOptions.skinId && !isModelPerf) {
+          earlySkin = resolveSkinFromQuery(text);
+        }
         const plainQaStream = chatMode.value === 'qa'
           && !requestOptions.action && !requestOptions.skinId
+          && !earlySkin
           && !wantsStructured
           && client && typeof client.chat === 'function';
 
@@ -3753,8 +3760,8 @@ const app = createApp({
                 ? (continueActiveDebate ? 'auto' : 'debate')
                 : 'qa'));
           // 本地先把中英文饰品名解析成 skinId，再交给后端 orchestrator。
-          let resolvedSkinId = requestOptions.skinId || null;
-          let resolvedSkin = requestOptions.skin || null;
+          let resolvedSkinId = requestOptions.skinId || earlySkin?.id || null;
+          let resolvedSkin = requestOptions.skin || earlySkin || null;
           if (!resolvedSkinId && !continueActiveDebate && !isModelPerf) {
             const localSkin = resolveSkinFromQuery(text);
             if (localSkin) {
