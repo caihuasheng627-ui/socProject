@@ -402,12 +402,23 @@ async def chat(req: ChatReq):
         system_prompt = grounded_chat_system_prompt(req.locale, user_message=req.message)
         for ch in llm.chat_stream(messages, system_prompt=system_prompt, max_tokens=700):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
-        yield f"data: {json.dumps({'done': True, 'model': 'deepseek-chat' if LLM_ENABLED else 'unavailable'})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'model': DEEPSEEK_MODEL if LLM_ENABLED else 'unavailable'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _llm_provider_label(base_url: str) -> str:
+    u = (base_url or "").lower()
+    if "deepseek.com" in u:
+        return "DeepSeek"
+    if any(x in u for x in ("dashscope", "maas.aliyuncs.com", "token-plan.")):
+        return "Bailian"
+    return "LLM"
 
 
 def _attach_ai_runtime(result: dict) -> dict:
     """Attach LLM/agent/hybrid runtime metadata to an orchestrator result."""
+    from config import DEEPSEEK_BASE_URL as llm_base
+
     execution = llm.get_execution_status()
     # Never label a configured API key as a successful provider call.
     agent_mode = "live" if execution["liveCalls"] else (
@@ -420,7 +431,12 @@ def _attach_ai_runtime(result: dict) -> dict:
     if result.get("type") == "prediction":
         hybrid_mode = "live"
     result["runtime"] = {
-        "llm": {**execution, "provider": "DeepSeek", "model": DEEPSEEK_MODEL},
+        "llm": {
+            **execution,
+            "provider": _llm_provider_label(llm_base),
+            "model": DEEPSEEK_MODEL,
+            "baseUrl": llm_base,
+        },
         "agents": {
             "mode": agent_mode,
             "bullModel": BULL_MODEL,
@@ -794,12 +810,13 @@ def health_check_payload() -> dict:
         n_portfolio = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
         n_news = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
         n_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    from config import LLM_ENABLED as _llm_on
+    from config import DEEPSEEK_MODEL as _llm_model, LLM_ENABLED as _llm_on
     models_status = {
         "lstm_hybrid": "ok" if _loader.tf_available else "unavailable",
         "gru": "ok" if _loader.tf_available else "unavailable",
         "trees": "ok",
         "deepseek": "ok" if _llm_on else "unavailable",
+        "llm": "ok" if _llm_on else "unavailable",
         "rag": rag.vector_status().get("mode", "keyword"),
     }
     status = "ok" if (_loader.tf_available and n_price > 0) else "degraded"
@@ -809,6 +826,10 @@ def health_check_payload() -> dict:
                         "portfolio": n_portfolio, "news": n_news,
                         "users": n_users, "buff_live": USE_BUFF_LIVE},
         "models": models_status,
+        "llm": {
+            "enabled": bool(_llm_on),
+            "model": _llm_model if _llm_on else None,
+        },
         "rag": rag.vector_status(),
         "timestamp": _utcnow().isoformat(),
     }
