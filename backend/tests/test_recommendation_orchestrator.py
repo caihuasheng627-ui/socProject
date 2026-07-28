@@ -284,6 +284,11 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("Debate", prompt)
         self.assertIn("预算", prompt)
 
+    def test_recommendation_route(self):
+        result = self.service.handle("推荐一个皮肤", budget=200)
+        self.assertEqual(result["type"], "recommendation")
+        self.assertEqual(len(result["recommendations"]), 2)
+
     def test_main_ai_receives_selected_english_locale(self):
         captured = []
         service = AIOrchestrator(
