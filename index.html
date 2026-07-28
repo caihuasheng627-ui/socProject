@@ -631,10 +631,16 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div>📊 {{ t('app.footer.course') }}</div>
+        <div>{{ t('app.footer.course') }}</div>
         <div style="margin-top: 4px;">{{ t('app.footer.version') }}</div>
         <div style="margin-top: 8px;">
-          <a href="#">📖 {{ t('app.footer.docs') }}</a> · <a href="#">🐙 {{ t('app.footer.github') }}</a>
+          <a href="links.html" target="_blank" rel="noopener noreferrer">{{ t('app.footer.links') }}</a>
+          ·
+          <a
+            href="https://github.com/caihuasheng627-ui/socProject"
+            target="_blank"
+            rel="noopener noreferrer"
+          >{{ t('app.footer.github') }}</a>
         </div>
       </div>
     </aside>
