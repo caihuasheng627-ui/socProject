@@ -287,8 +287,11 @@ class OrchestratorTests(unittest.TestCase):
             session_id="session-1",
         )
         self.assertEqual(result["type"], "debate_answer")
-        self.assertEqual(result["message"], "普通 AI 回答")
-        self.assertEqual(result["answerMode"], "llm_grounded")
+        self.assertEqual(
+            result["message"],
+            "基于当前裁决回答：置信度45%是什么意思，是建议买入还是观望？",
+        )
+        self.assertEqual(result["answerMode"], "grounded_direct")
         self.assertNotIn("debateRound", result)
 
     def test_active_session_prediction_bypasses_grounded_qa(self):
@@ -310,22 +313,23 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(result["type"], "recommendation")
         self.assertTrue(result["recommendations"])
 
-    def test_grounded_qa_prompt_requests_a_direct_natural_answer(self):
+    def test_active_session_question_skips_llm_rewrite(self):
         captured = []
         service = AIOrchestrator(
             recommender=RecommendationAgent(lambda: CANDIDATES),
             session_service=FakeSessionService(),  # type: ignore[arg-type]
             skin_resolver=resolve_skin,
             prediction_loader=lambda _skin_id, _horizon: {},
-            chat_loader=lambda messages: captured.extend(messages) or "直接回答",
+            chat_loader=lambda messages: captured.extend(messages) or "不应调用",
         )
         result = service.handle(
             "Judge 的置信度是什么意思？",
             session_id="session-1",
         )
-        self.assertEqual(result["message"], "直接回答")
-        self.assertIn("Answer the user's exact question directly", captured[0]["content"])
-        self.assertIn("Public debate facts", captured[1]["content"])
+        self.assertEqual(result["type"], "debate_answer")
+        self.assertEqual(result["answerMode"], "grounded_direct")
+        self.assertEqual(result["message"], "基于当前裁决回答：Judge 的置信度是什么意思？")
+        self.assertEqual(captured, [])
 
     def test_profile_statement_automatically_reruns_debate(self):
         result = self.service.handle(
