@@ -631,10 +631,16 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div>📊 {{ t('app.footer.course') }}</div>
+        <div>{{ t('app.footer.course') }}</div>
         <div style="margin-top: 4px;">{{ t('app.footer.version') }}</div>
         <div style="margin-top: 8px;">
-          <a href="#">📖 {{ t('app.footer.docs') }}</a> · <a href="#">🐙 {{ t('app.footer.github') }}</a>
+          <a href="links.html" target="_blank" rel="noopener noreferrer">{{ t('app.footer.links') }}</a>
+          ·
+          <a
+            href="https://github.com/caihuasheng627-ui/socProject"
+            target="_blank"
+            rel="noopener noreferrer"
+          >{{ t('app.footer.github') }}</a>
         </div>
       </div>
     </aside>
@@ -3493,7 +3499,11 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源；部署时会用 git SHA 再戳一次） -->
   <script src="data.js?v=20260727-backend-fonts"></script>
+<<<<<<< HEAD
   <script src="i18n.js?v=20260728-daily-truth"></script>
+=======
+  <script src="i18n.js?v=20260728-sidebar-links"></script>
+>>>>>>> origin/cursor/sidebar-footer-links-295d
   <script src="js/skin-names-zh.js?v=20260727-backend-fonts"></script>
   <script src="js/api.js?v=20260727-backend-fonts"></script>
   <script src="js/auth.js?v=20260727-backend-fonts"></script>

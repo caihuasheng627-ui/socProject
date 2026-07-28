@@ -12,6 +12,7 @@ const I18N = {
     'app.footer.course': 'SWS3022 课程项目',
     'app.footer.version': 'v1.1 · 2026.07.15',
     'app.footer.docs': '项目文档',
+    'app.footer.links': '项目链接',
     'app.footer.github': 'GitHub',
 
     // ============ 首屏 Landing ============
@@ -857,6 +858,7 @@ const I18N = {
     'app.footer.course': 'SWS3022 Course Project',
     'app.footer.version': 'v1.1 · 2026.07.15',
     'app.footer.docs': 'Docs',
+    'app.footer.links': 'Links',
     'app.footer.github': 'GitHub',
 
     // ============ Landing ============
