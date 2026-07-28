@@ -179,6 +179,19 @@ classify_and_deploy() {
   if [[ "$need_api" -eq 1 ]]; then
     if [[ "$need_reset_seed" -eq 1 ]]; then
       log "检测到 seed DB 变更 → 重建 api，并用 seed 覆盖 volume 运行库(保留 app_settings)"
+      # 部署前先主动把运行库里的配置刷到 volume sidecar，避免空库备份冲掉旧备份
+      if docker compose ps --status running -q api >/dev/null 2>&1; then
+        docker compose exec -T api python3 - <<'PY' || true
+from pathlib import Path
+try:
+    from settings_store import get_all_settings, _write_settings_sidecar
+    s = get_all_settings()
+    _write_settings_sidecar(s)
+    print(f"[deploy] pre-reset sidecar keys={list(s)}")
+except Exception as e:
+    print(f"[deploy] pre-reset sidecar skipped: {e}")
+PY
+      fi
       # 仅本次 recreate 注入；随后立刻用默认 0 再 recreate，避免环境变量粘在容器上
       # 导致之后每次 restart 都冲掉运行库。
       RESET_DB_FROM_SEED=1 docker compose up -d --build --force-recreate api

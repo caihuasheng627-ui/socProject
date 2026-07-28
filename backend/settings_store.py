@@ -31,28 +31,10 @@ def _settings_sidecar_path():
         return Path(__file__).resolve().parent / "data" / "app_settings_backup.json"
 
 
-def _write_settings_sidecar(settings: dict[str, str]) -> None:
-    import json
-    from datetime import datetime, timezone
-
-    path = _settings_sidecar_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    payload = [
-        {"key": k, "value": v, "updated_at": now}
-        for k, v in (settings or {}).items()
-        if k in SETTING_KEYS and v is not None and str(v) != ""
-    ]
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
 def _restore_settings_from_sidecar_if_empty() -> int:
-    """若 SQLite app_settings 为空但 sidecar 有内容，灌回 DB（应对旧 entrypoint 冲库）。"""
+    """把 sidecar 里有、DB 里缺的键补回（seed 冲库或半次保存后丢 Key）。"""
     import json
 
-    current = get_all_settings()
-    if current:
-        return 0
     path = _settings_sidecar_path()
     if not path.exists():
         return 0
@@ -62,14 +44,17 @@ def _restore_settings_from_sidecar_if_empty() -> int:
         return 0
     if not isinstance(rows, list) or not rows:
         return 0
+    current = get_all_settings()
     updates = {
         str(r.get("key")): r.get("value")
         for r in rows
-        if isinstance(r, dict) and r.get("key") in SETTING_KEYS and r.get("value") not in (None, "")
+        if isinstance(r, dict)
+        and r.get("key") in SETTING_KEYS
+        and r.get("value") not in (None, "")
+        and str(r.get("key")) not in current
     }
     if not updates:
         return 0
-    # Write without recursion into sidecar again via set_settings path carefully
     from datetime import datetime, timezone
 
     ensure_settings_table()
@@ -82,8 +67,49 @@ def _restore_settings_from_sidecar_if_empty() -> int:
                 (k, str(v), now),
             )
         conn.commit()
-    print(f"[settings] restored {len(updates)} keys from sidecar {path}")
+    print(f"[settings] restored {len(updates)} missing keys from sidecar {path}")
     return len(updates)
+
+
+def _write_settings_sidecar(settings: dict[str, str]) -> None:
+    import json
+    from datetime import datetime, timezone
+
+    path = _settings_sidecar_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    # 合并旧 sidecar：本次保存可能只改了 model/url，不要把旧 Key 冲掉
+    merged: dict[str, dict] = {}
+    if path.exists():
+        try:
+            old = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(old, list):
+                for row in old:
+                    if (
+                        isinstance(row, dict)
+                        and row.get("key") in SETTING_KEYS
+                        and row.get("value") not in (None, "")
+                    ):
+                        merged[str(row["key"])] = {
+                            "key": str(row["key"]),
+                            "value": str(row["value"]),
+                            "updated_at": row.get("updated_at") or now,
+                        }
+        except Exception:
+            pass
+
+    for k, v in (settings or {}).items():
+        if k not in SETTING_KEYS or v is None or str(v) == "":
+            continue
+        merged[k] = {"key": k, "value": str(v), "updated_at": now}
+
+    if not merged:
+        return
+    path.write_text(
+        json.dumps(list(merged.values()), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _sanitize_api_key(raw: str | None) -> str:
