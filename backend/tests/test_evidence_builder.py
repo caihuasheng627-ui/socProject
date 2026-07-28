@@ -13,7 +13,7 @@ from _support import bootstrap_llm_dependencies  # noqa: E402
 
 bootstrap_llm_dependencies()
 
-from agents.evidence import EvidenceBuilder  # noqa: E402
+from agents.evidence import EvidenceBuilder, prediction_from_api_response  # noqa: E402
 
 
 def sample_context(_skin_id: str):
@@ -89,6 +89,33 @@ class EvidenceBuilderTests(unittest.TestCase):
         )
         with self.assertRaises(LookupError):
             builder.build("missing")
+
+    def test_prediction_from_api_response_matches_predict_ui_fields(self):
+        mapped = prediction_from_api_response({
+            "status": "available",
+            "currentPrice": 1299.5,
+            "decisionDate": "2026-07-21",
+            "targetPrice": 970.96,
+            "predictions": [{
+                "model": "LSTM",
+                "routeModel": "Hybrid-V2",
+                "price": 970.96,
+                "change": -25.31,
+                "confidence": 90.3,
+                "decisionDate": "2026-07-21",
+            }],
+        })
+        self.assertEqual(mapped["model"], "Hybrid-V2")
+        self.assertEqual(mapped["predicted_price"], 970.96)
+        self.assertEqual(mapped["change_pct"], -25.31)
+        self.assertEqual(mapped["confidence"], 90.3)
+
+    def test_prediction_from_api_response_rejects_unavailable(self):
+        self.assertIsNone(prediction_from_api_response({
+            "status": "unavailable",
+            "reason": "MODEL_UNAVAILABLE",
+            "predictions": [],
+        }))
 
 
 if __name__ == "__main__":

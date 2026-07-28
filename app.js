@@ -697,7 +697,8 @@ const app = createApp({
         return;
       }
       try {
-        const res = await client.debate(skinId);
+        // Skip pre-recorded seeds so debate target price matches Hybrid-V2 /api/predict.
+        const res = await client.debate(skinId, { seed: false });
         if (res?.error || !res?.rounds?.length) {
           fallback();
           return;

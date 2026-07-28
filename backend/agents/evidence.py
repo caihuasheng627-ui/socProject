@@ -48,10 +48,66 @@ def _default_context_loader(skin_id: str) -> dict[str, Any] | None:
     return base
 
 
-def _default_prediction_loader(market_hash_name: str) -> dict[str, Any] | None:
-    from model_loader import get_loader
+def prediction_from_api_response(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map ``/api/predict`` / ``predict_for_skin`` output into EvidenceBuilder shape."""
 
-    return get_loader().predict_hybrid(market_hash_name)
+    if not result or result.get("status") != "available":
+        return None
+    predictions = result.get("predictions") or []
+    if not predictions:
+        return None
+    prediction = predictions[0]
+    price = prediction.get("price")
+    if price is None:
+        return None
+    try:
+        predicted_price = float(price)
+        change_pct = float(prediction.get("change") or 0)
+        confidence = float(prediction.get("confidence") or 0)
+    except (TypeError, ValueError):
+        return None
+    if predicted_price <= 0:
+        return None
+    return {
+        "model": str(
+            prediction.get("routeModel") or prediction.get("model") or "Hybrid-V2"
+        ),
+        "predicted_price": round(predicted_price, 2),
+        "change_pct": change_pct,
+        "confidence": confidence,
+        "date": prediction.get("decisionDate") or result.get("decisionDate"),
+        "current_price": result.get("currentPrice"),
+    }
+
+
+def _default_prediction_loader(market_hash_name: str) -> dict[str, Any] | None:
+    """Use the same Hybrid-V2 path as the prediction UI (not legacy predict_hybrid)."""
+
+    from datetime import datetime, timezone
+
+    from config import PRED_CACHE_TTL_HOURS, PREDICTION_CIRCUIT_BREAKER_ENABLED
+    from database import get_connection, resolve_skin
+    from model_loader import get_loader
+    from prediction_service import predict_for_skin
+
+    with get_connection() as conn:
+        skin = resolve_skin(conn, market_hash_name)
+        if not skin:
+            return None
+        try:
+            result = predict_for_skin(
+                conn=conn,
+                skin=skin,
+                horizon=7,
+                requested_models=None,
+                loader=get_loader(),
+                now=datetime.now(timezone.utc),
+                ttl_hours=PRED_CACHE_TTL_HOURS,
+                circuit_breaker_enabled=PREDICTION_CIRCUIT_BREAKER_ENABLED,
+            )
+        except Exception:  # noqa: BLE001 — never break debate on model failures
+            return None
+    return prediction_from_api_response(result)
 
 
 def _daily_volatility(prices: list[float]) -> float | None:

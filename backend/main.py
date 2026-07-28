@@ -534,6 +534,11 @@ def debate(
     skin_id: str,
     mode: str = "bull_bear",
     live: bool = False,
+    seed: bool = Query(
+        default=True,
+        description="When false, skip Expo seed replay and run structured debate "
+        "with the same Hybrid-V2 price as /api/predict.",
+    ),
     budget: float | None = Query(default=None, gt=0),
     riskLevel: Literal["low", "medium", "high"] = Query(default="medium"),
     horizon: Literal[7] = Query(default=7),
@@ -549,6 +554,7 @@ def debate(
         horizon_days=horizon,
         rounds=rounds,
         locale=locale,
+        use_seed=seed,
     )
 
 
@@ -1294,8 +1300,8 @@ def rag_ask(req: RagAskReq):
 # P2:双 Agent 辩论(双模式)
 # ============================================================
 @app.post("/api/debate/{skin_id}")
-def debate(skin_id: str, mode: str = "bull_bear", live: bool = False):
-    return agent_debate.debate(skin_id, live=live, mode=mode)
+def debate(skin_id: str, mode: str = "bull_bear", live: bool = False, seed: bool = True):
+    return agent_debate.debate(skin_id, live=live, mode=mode, use_seed=seed)
 
 
 # ============================================================
