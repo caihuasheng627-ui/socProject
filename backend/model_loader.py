@@ -464,7 +464,9 @@ class ModelLoader:
             return None
 
         return {
-            "current_price": round(cur_price, 2),
+            # Keep DB precision (4dp). Rounding to 2¢ here caused PRICE_ANCHOR_MISMATCH
+            # after simulated/fine-grained seed prices (e.g. 112.065 vs 112.06).
+            "current_price": round(float(cur_price), 4),
             **self._daily_payload(daily, cur_price),
             "model": model_tag,
             "date": cur_date,
@@ -494,7 +496,7 @@ class ModelLoader:
             d_path = list(c_path or [])
             fallback_models.append("LSTM-D")
         return {
-            "current_price": round(cur_price, 2),
+            "current_price": round(float(cur_price), 4),
             "date": cur_date,
             "model": "Hybrid-V2",
             "confidence": self._confidence("LSTM-Hybrid"),
@@ -562,7 +564,7 @@ class ModelLoader:
         ordered[:, 2] = np.clip(ordered[:, 2], median, median * 1.40)
         ordered = np.sort(ordered, axis=1)
         return {
-            "current_price": round(float(cur_price), 2),
+            "current_price": round(float(cur_price), 4),
             "date": cur_date,
             "model": "Keras-Seq2Seq-30D",
             "horizon": 30,
