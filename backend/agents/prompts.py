@@ -63,6 +63,8 @@ JUDGE_SYSTEM_PROMPT += """
 \n你必须比较上一轮 Judge 裁决与本轮结果，通过 changed_from_previous 和
 change_summary 清楚说明结论或置信度发生了什么变化，并在 user_view_considered
 中说明用户的新意见如何被纳入裁决。只能总结公开论点，不输出隐藏推理过程。
+不得为单件皮肤编造 ARIMA/XGBoost/LightGBM/GRU 等多模型共识表；实时预测
+只引用 MarketSnapshot 中的 Hybrid 结果。
 """.strip()
 
 JUDGE_SYSTEM_PROMPT += """
@@ -165,4 +167,6 @@ Rules:
    Every user-facing string value must be English. Never output Chinese characters.
 9. decision must be buy, watch, avoid, or insufficient_evidence; winner must be
    bull, bear, or draw; strategy_action must use one of the documented Schema values.
+10. Never invent a multi-model consensus table (ARIMA/XGBoost/LightGBM/GRU, etc.)
+    for one skin; cite only the Hybrid forecast present in the MarketSnapshot.
 """.strip()

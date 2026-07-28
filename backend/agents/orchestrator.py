@@ -212,7 +212,9 @@ def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | No
         f"Always answer in {language}. You are CSVest Main AI, a CS2 skin market assistant. "
         "STRICT GROUNDING RULES: use ONLY the market snapshot below (if present) for any "
         "concrete numbers. NEVER invent prices, percentage changes, model names, model outputs, "
-        "or confidence values that are not in the snapshot. If the user asks for data you do not "
+        "or confidence values that are not in the snapshot. Never invent a multi-model "
+        "consensus table (ARIMA / XGBoost / LightGBM / LSTM / GRU, etc.) for a single skin — "
+        "live forecasts are Hybrid-V2 only. If the user asks for data you do not "
         "have, say plainly that the data is unavailable here and point them to the Market Center "
         "dashboard or the prediction page. Qualitative market reasoning is fine; fabricated "
         "statistics are not. Keep answers concise — normally under 200 words unless the user "
@@ -512,33 +514,16 @@ class AIOrchestrator:
             session = self.session_service.answer_question(
                 session_id or "", message=clean_message, locale=locale
             )
+            # Return the grounded template answer as-is. Re-phrasing through the
+            # chat LLM previously invented fake ARIMA/XGBoost "Model Consensus"
+            # tables even when Hybrid-V2 was the only live forecast in the facts.
             grounded_facts = session.pop("answer")
-            language = "English" if english else "Simplified Chinese"
-            reply = self.chat_loader([
-                {
-                    "role": "system",
-                    "content": (
-                        f"Always answer in {language}. You are CSVest Main AI. "
-                        "Answer the user's exact question directly and naturally using only "
-                        "the supplied public debate facts. Do not repeat the full debate report "
-                        "unless the user asks for it. Do not invent prices, evidence, news, or "
-                        "hidden reasoning. Explain uncertainty plainly."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Public debate facts:\n{grounded_facts}\n\n"
-                        f"User question:\n{clean_message}"
-                    ),
-                },
-            ])
             return {
                 "type": intent,
-                "message": reply,
+                "message": grounded_facts,
                 "agentSession": session,
                 "profileChanges": session.get("profileChanges", []),
-                "answerMode": "llm_grounded",
+                "answerMode": "grounded_direct",
             }
 
         if intent == "profile_update":
