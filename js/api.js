@@ -449,7 +449,7 @@ class CSVestAPI {
   }
 
   */
-  async chat(message, sessionId, onChunk, locale, history) {
+  async chat(message, sessionId, onChunk, locale, history, capabilities) {
     if (this.useMock) {
       this.setUseMock(false);
     }
@@ -465,6 +465,7 @@ class CSVestAPI {
           sessionId,
           locale: locale || localStorage.getItem('sv_lang') || 'zh-CN',
           history: Array.isArray(history) ? history : undefined,
+          capabilities: capabilities && typeof capabilities === 'object' ? capabilities : undefined,
         }),
       });
       if (!response.ok) throw new APIError('Chat request failed.', response.status);
