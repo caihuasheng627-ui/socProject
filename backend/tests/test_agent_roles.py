@@ -261,6 +261,55 @@ class AgentRoleTests(unittest.TestCase):
             )
         self.assertEqual(judge.history, ())
 
+    def test_bull_keeps_visible_arguments_without_positive_evidence(self):
+        """Down markets had empty Bull cards while Bear stayed fully expanded."""
+
+        down = MarketSnapshot(
+            skin_id="ak-redline-ft",
+            skin_name="AK-47 | Redline (FT)",
+            current_price=100,
+            change_7d=-3.2,
+            change_30d=-6.0,
+            volatility_30d=8.0,
+            max_drawdown_30d=12.0,
+            liquidity_score=40,
+            hybrid_prediction=HybridPrediction(
+                model="LSTM-D",
+                predicted_price=75,
+                change_pct=-25,
+                confidence=90,
+            ),
+            evidence=(
+                Evidence(
+                    evidence_id="model:hybrid_7d",
+                    source="LSTM-D",
+                    title="Hybrid 7日预测",
+                    content="预测价格 $75.00，变化 -25.00%，置信度 90.0%",
+                    direction="negative",
+                ),
+                Evidence(
+                    evidence_id="market:change_7d",
+                    source="price_history",
+                    title="近7日涨跌",
+                    content="近7日涨跌: -3.20%",
+                    direction="negative",
+                ),
+                Evidence(
+                    evidence_id="market:change_30d",
+                    source="price_history",
+                    title="近30日涨跌",
+                    content="近30日涨跌: -6.00%",
+                    direction="negative",
+                ),
+            ),
+        )
+        bull = BullAgent._mock_opinion(BullInput(snapshot=down, user_profile=self.profile))
+        self.assertEqual(bull.position, "watch")
+        self.assertEqual(bull.confidence, 35.0)
+        self.assertGreaterEqual(len(bull.arguments), 1)
+        self.assertEqual(bull.arguments[0].evidence_ids, ("model:hybrid_7d",))
+        self.assertIn("没有正面证据", bull.arguments[0].explanation)
+
 
 if __name__ == "__main__":
     unittest.main()
