@@ -2,6 +2,8 @@
 
 Modes:
   - default: return an exact-match pre-recorded Expo seed when available;
+  - seed=0 / use_seed=False: run structured Bull/Bear/Judge with Hybrid-V2
+    prices from the same ``predict_for_skin`` path as ``/api/predict``;
   - live=1: run isolated Bull and Bear agents for multiple rounds, then Judge;
   - no LLM key/no seed: run the same structured pipeline with explicit mocks.
 
@@ -51,15 +53,20 @@ def debate(
     horizon_days: int = 7,
     rounds: int | None = None,
     locale: str = "zh-CN",
+    use_seed: bool = True,
     service: DebateService | None = None,
 ) -> dict[str, Any]:
-    """Run or replay a debate for ``/api/debate/{skinId}``."""
+    """Run or replay a debate for ``/api/debate/{skinId}``.
+
+    ``use_seed=False`` skips pre-recorded Expo JSON so the debate uses the same
+    Hybrid-V2 prediction path as ``/api/predict`` (via EvidenceBuilder).
+    """
 
     slug = _resolve_slug(skin_id) if service is None else skin_id
     if slug is None:
         return {"error": "skin not found", "skinId": skin_id}
 
-    if not live:
+    if not live and use_seed:
         seed = _load_seed_debate(slug)
         if seed:
             # Copy before adding transport metadata; never mutate cached seed data.

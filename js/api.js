@@ -625,6 +625,8 @@ class CSVestAPI {
       mode: settings.mode || 'bull_bear',
       locale: settings.locale || localStorage.getItem('sv_lang') || 'zh-CN',
       live: String(!!settings.live),
+      // Prediction-page debates skip Expo seeds so target price matches /api/predict.
+      seed: String(settings.seed !== false),
       horizon: String(settings.horizon || 7),
       riskLevel: settings.riskLevel || 'medium',
     });
