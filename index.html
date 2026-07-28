@@ -1394,28 +1394,11 @@
                 <p class="chat-hero-eyebrow">{{ t('chat.hero.eyebrow') }}</p>
                 <h2 class="chat-hero-title">{{ chatMode === 'debate' ? t('chat.hero.title.debate') : t('chat.hero.title.qa') }}</h2>
                 <p class="chat-hero-lead">{{ chatMode === 'debate' ? t('chat.hero.lead.debate') : t('chat.hero.lead.qa') }}</p>
-                <div
-                  v-if="chatMode === 'qa'"
-                  class="chat-hero-capabilities"
-                  role="group"
-                  :aria-label="t('chat.cap.label')"
-                >
-                  <button
-                    v-for="cap in qaCapabilityDefs"
-                    :key="cap.id"
-                    type="button"
-                    class="chat-cap-toggle"
-                    :class="{ active: qaCapabilities[cap.id] }"
-                    :aria-pressed="qaCapabilities[cap.id] ? 'true' : 'false'"
-                    :title="t('chat.cap.hint')"
-                    @click="toggleQaCapability(cap.id)"
-                  >{{ t(cap.labelKey) }}</button>
-                </div>
-                <div v-else class="chat-hero-capabilities" :aria-label="t('chat.welcomeBody')">
+                <div class="chat-hero-capabilities" :aria-label="t('chat.welcomeBody')">
                   <span>{{ t('chat.welcomeItem1') }}</span>
                   <span>{{ t('chat.welcomeItem2') }}</span>
                   <span>{{ t('chat.welcomeItem3') }}</span>
-                  <span>{{ t('chat.welcomeItem4') }}</span>
+                  <span v-if="chatMode === 'debate'">{{ t('chat.welcomeItem4') }}</span>
                 </div>
                 <div class="suggested-questions" v-if="activeSuggestedQuestions.length">
                   <div class="suggested-label">{{ t('chat.suggested') }}</div>
@@ -1758,24 +1741,6 @@
             </div>
 
             <div class="chat-input-area chat-composer">
-              <div
-                v-if="chatMode === 'qa' && chatMessages.length > 1"
-                class="chat-cap-toggles"
-                role="group"
-                :aria-label="t('chat.cap.label')"
-              >
-                <span class="chat-cap-toggles__label">{{ t('chat.cap.label') }}</span>
-                <button
-                  v-for="cap in qaCapabilityDefs"
-                  :key="'composer-' + cap.id"
-                  type="button"
-                  class="chat-cap-toggle chat-cap-toggle--compact"
-                  :class="{ active: qaCapabilities[cap.id] }"
-                  :aria-pressed="qaCapabilities[cap.id] ? 'true' : 'false'"
-                  :title="t('chat.cap.hint')"
-                  @click="toggleQaCapability(cap.id)"
-                >{{ t(cap.labelKey) }}</button>
-              </div>
               <p v-if="chatMode === 'debate'" class="chat-mode-hint">
                 {{ selectedSkin ? t('chat.debateHintSkin', { name: selectedSkin.name }) : t('chat.debateHint') }}
               </p>

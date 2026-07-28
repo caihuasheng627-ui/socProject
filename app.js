@@ -3324,41 +3324,6 @@ const app = createApp({
       }
     ]);
     const chatMode = ref('qa'); // 'qa' | 'debate'
-    const QA_CAP_STORAGE_KEY = 'sv_qa_capabilities';
-    const qaCapabilityDefs = [
-      { id: 'analyze', labelKey: 'chat.cap.analyze' },
-      { id: 'predict', labelKey: 'chat.cap.predict' },
-      { id: 'recommend', labelKey: 'chat.cap.recommend' },
-    ];
-    const loadQaCapabilities = () => {
-      const defaults = { analyze: true, predict: true, recommend: true };
-      try {
-        const raw = localStorage.getItem(QA_CAP_STORAGE_KEY);
-        if (!raw) return defaults;
-        const parsed = JSON.parse(raw);
-        return {
-          analyze: parsed?.analyze !== false,
-          predict: parsed?.predict !== false,
-          recommend: parsed?.recommend !== false,
-        };
-      } catch (_) {
-        return defaults;
-      }
-    };
-    const qaCapabilities = ref(loadQaCapabilities());
-    const persistQaCapabilities = () => {
-      try {
-        localStorage.setItem(QA_CAP_STORAGE_KEY, JSON.stringify(qaCapabilities.value));
-      } catch (_) { /* ignore quota / private mode */ }
-    };
-    const toggleQaCapability = (id) => {
-      if (!(id in qaCapabilities.value)) return;
-      qaCapabilities.value = {
-        ...qaCapabilities.value,
-        [id]: !qaCapabilities.value[id],
-      };
-      persistQaCapabilities();
-    };
     const chatHistoryQa = ref(makeChatWelcome());
     const chatHistoryDebate = ref(makeChatWelcome());
     const chatMessages = computed(() => (
@@ -3375,24 +3340,9 @@ const app = createApp({
     const visibleChatMessages = computed(() => chatMessages.value.slice(1).filter(
       m => m.role !== 'assistant' || m.content || m.payload || m.debate
     ));
-    const activeSuggestedQuestions = computed(() => {
-      const base = chatMode.value === 'debate'
-        ? debateSuggestedQuestions.value
-        : suggestedQuestions.value;
-      if (chatMode.value !== 'qa') return base;
-      const caps = qaCapabilities.value;
-      return base.filter((q) => {
-        const lower = String(q).toLowerCase();
-        const isRecommend = /推荐|recommend|budget|预算|买什么|what should i buy|what to buy/.test(lower);
-        const isPredictSkin = /asiimov|二西莫夫|hybrid|预测|forecast|trend|走势/.test(lower)
-          && !/模型|model/.test(lower);
-        const isAnalyze = /涨|跌|成交|rising|falling|volume|gainer|7 天|7 days/.test(lower);
-        if (isRecommend && !caps.recommend) return false;
-        if (isPredictSkin && !caps.predict && !caps.analyze) return false;
-        if (isAnalyze && !caps.analyze && !isPredictSkin) return false;
-        return true;
-      });
-    });
+    const activeSuggestedQuestions = computed(() => (
+      chatMode.value === 'debate' ? debateSuggestedQuestions.value : suggestedQuestions.value
+    ));
     const setChatMode = (mode) => {
       chatMode.value = mode === 'debate' ? 'debate' : 'qa';
       chatSuggestedIndex.value = -1;
@@ -3757,10 +3707,6 @@ const app = createApp({
           .map(item => ({ role: item.role, content: item.content }));
         // 纯聊天类问题（不需要推荐/预测卡片）直接走 SSE 流式，首字 1~2 秒可见。
         // 一旦能解析出具体皮肤，必须走 orchestrator → Hybrid 预测，否则问答模式几乎无用。
-        // 能力开关关闭时，对应路径退回普通问答。
-        const caps = chatMode.value === 'qa'
-          ? { ...qaCapabilities.value }
-          : { analyze: true, predict: true, recommend: true };
         const structuredWords = [
           '推荐', '选一个', '有哪些', '买什么', '推荐什么', '帮我选', '预算',
           'recommend', 'suggest', 'candidates', 'what should i buy', 'what to buy', 'budget',
@@ -3777,27 +3723,14 @@ const app = createApp({
         const lowerText = text.toLowerCase();
         const isModelPerf = modelPerfWords.some(w => lowerText.includes(w.toLowerCase()));
         const wantsStructured = !isModelPerf && structuredWords.some(w => lowerText.includes(w));
-        const recommendHint = [
-          '推荐', '选一个', '有哪些', '买什么', '推荐什么', '帮我选',
-          'recommend', 'suggest', 'candidates', 'what should i buy', 'what to buy', 'pick for me',
-        ].some((w) => lowerText.includes(w.toLowerCase()));
-        const analyzeHint = [
-          '上涨', '下跌', '热门', '成交', '走势', '涨跌',
-          'rising', 'falling', 'gainers', 'volume', 'trend',
-        ].some((w) => lowerText.includes(w.toLowerCase()));
         let earlySkin = null;
-        if (!requestOptions.skinId && !isModelPerf && caps.predict) {
+        if (!requestOptions.skinId && !isModelPerf) {
           earlySkin = resolveSkinFromQuery(text);
         }
-        const needsStructured = wantsStructured && (
-          (recommendHint && caps.recommend)
-          || (analyzeHint && caps.analyze)
-          || (!recommendHint && !analyzeHint)
-        );
         const plainQaStream = chatMode.value === 'qa'
           && !requestOptions.action && !requestOptions.skinId
           && !earlySkin
-          && !needsStructured
+          && !wantsStructured
           && client && typeof client.chat === 'function';
 
         if (plainQaStream) {
@@ -3805,7 +3738,7 @@ const app = createApp({
             chatStreaming.value = true;
             assistantMsg.content += chunk;
             scrollChatBottom();
-          }, currentLang.value, historyPayload, caps);
+          }, currentLang.value, historyPayload);
           if (!assistantMsg.content.trim()) {
             throw new Error('Live AI returned empty content');
           }
@@ -3820,10 +3753,13 @@ const app = createApp({
             && chatAgentSession.value
             && !requestOptions.action && !requestOptions.skinId;
           // Debate mode forces debate only when starting/continuing a skin debate.
-          // Plain "you can recommend" must still reach the recommendation router
-          // when that capability is enabled.
+          // Plain "you can recommend" must still reach the recommendation router.
+          const recommendHint = [
+            '推荐', '选一个', '有哪些', '买什么', '推荐什么', '帮我选',
+            'recommend', 'suggest', 'candidates', 'what should i buy', 'what to buy', 'pick for me',
+          ].some((w) => lowerText.includes(w.toLowerCase()));
           const action = requestOptions.action
-            || (recommendHint && caps.recommend && !requestOptions.skinId
+            || (recommendHint && !requestOptions.skinId
               ? 'recommend'
               : (chatMode.value === 'debate'
                 ? (continueActiveDebate ? 'auto' : 'debate')
@@ -3831,15 +3767,14 @@ const app = createApp({
           // 本地先把中英文饰品名解析成 skinId，再交给后端 orchestrator。
           let resolvedSkinId = requestOptions.skinId || earlySkin?.id || null;
           let resolvedSkin = requestOptions.skin || earlySkin || null;
-          const allowSkinResolve = chatMode.value === 'debate' || caps.predict;
-          if (!resolvedSkinId && !continueActiveDebate && !isModelPerf && allowSkinResolve) {
+          if (!resolvedSkinId && !continueActiveDebate && !isModelPerf) {
             const localSkin = resolveSkinFromQuery(text);
             if (localSkin) {
               resolvedSkinId = localSkin.id;
               resolvedSkin = resolvedSkin || localSkin;
             }
           }
-          if (isModelPerf || (chatMode.value === 'qa' && !caps.predict && !requestOptions.skinId)) {
+          if (isModelPerf) {
             resolvedSkinId = null;
             resolvedSkin = null;
           }
@@ -3855,7 +3790,6 @@ const app = createApp({
             riskLevel: requestOptions.riskLevel || chatRiskLevel.value,
             locale: currentLang.value,
             history: historyPayload,
-            capabilities: caps,
           };
           let response = null;
           const canStreamDebate = chatMode.value === 'debate'
@@ -3968,7 +3902,7 @@ const app = createApp({
             chatStreaming.value = true;
             assistantMsg.content += chunk;
             scrollChatBottom();
-          }, currentLang.value, historyPayload, caps);
+          }, currentLang.value, historyPayload);
           if (!assistantMsg.content.trim()) {
             // 绝不使用本地预设文案兜底——那会产生幻觉式回答
             throw new Error('Live AI returned empty content');
@@ -5988,7 +5922,6 @@ const app = createApp({
       chatMessages, visibleChatMessages, chatInput, chatLoading, chatStreaming, chatSuggestedIndex, sendMessage, askQuestion, onChatKeydown, renderMarkdown,
       suggestedQuestions, debateSuggestedQuestions, activeSuggestedQuestions, canSendChat,
       chatMode, setChatMode,
-      qaCapabilities, qaCapabilityDefs, toggleQaCapability,
       chatAgentSession, chatBudget, chatRiskLevel,
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       debateTotalRounds, copyDebateResult, isDebateInProgress, debateStageHint, debateStageStep,
