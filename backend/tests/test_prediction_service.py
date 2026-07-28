@@ -194,6 +194,20 @@ def test_service_rejects_price_anchor_mismatch():
     assert result["reason"] == "PRICE_ANCHOR_MISMATCH"
 
 
+def test_service_accepts_four_decimal_current_price():
+    """Seed/wiggle prices may use 4dp; model must not round to 2¢ before compare."""
+    conn = make_conn()
+    conn.execute("UPDATE price_history SET price=112.065 WHERE id=2")
+    conn.commit()
+    result = call(
+        conn,
+        FakeLoader(live_result(price=118.0, current=112.065)),
+    )
+    assert result["status"] == "available"
+    assert result["currentPrice"] == 112.065
+
+
+
 def test_service_calibrates_move_over_thirty_percent_without_warning():
     result = call(
         make_conn(),

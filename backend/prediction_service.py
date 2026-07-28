@@ -70,6 +70,16 @@ def _base_response(
     }
 
 
+def _prices_aligned(model_price: float, db_price: float) -> bool:
+    """Model/DB anchors must match; allow 4dp float noise (not 2¢ rounding drift)."""
+    return math.isclose(
+        round(float(model_price), 4),
+        round(float(db_price), 4),
+        rel_tol=0.0,
+        abs_tol=1e-4,
+    )
+
+
 def _validated_trend_30d(
     loader: Any,
     market_hash_name: str,
@@ -96,7 +106,7 @@ def _validated_trend_30d(
         p90 = [float(value) for value in raw["p90"]]
     except (KeyError, TypeError, ValueError):
         return None
-    if not math.isclose(anchor, current_price, rel_tol=1e-9, abs_tol=1e-6):
+    if not _prices_aligned(anchor, current_price):
         return None
     if horizon != 30 or any(len(values) != 30 for values in (p10, p50, p90)):
         return None
@@ -322,7 +332,7 @@ def predict_for_skin(
             d_path = legacy_path
     except (KeyError, TypeError, ValueError):
         return _unavailable(base, "INVALID_PREDICTION")
-    if not math.isclose(anchor, current_price, rel_tol=1e-9, abs_tol=1e-6):
+    if not _prices_aligned(anchor, current_price):
         return _unavailable(base, "PRICE_ANCHOR_MISMATCH")
     if (
         len(c_path) != 7
