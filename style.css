@@ -10795,6 +10795,7 @@ select:focus-visible {
 }
 
 .chat-shell-eyebrow {
+  font-family: 'Sora', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Outfit, system-ui, sans-serif;
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -10803,11 +10804,18 @@ select:focus-visible {
 }
 
 .chat-shell-mode {
-  font-family: var(--font-sans);
-  font-size: 15px;
+  font-family: var(--font-display);
+  font-size: 22px;
   font-weight: 600;
+  line-height: 1.15;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+:lang(zh-CN) .chat-shell-mode {
+  font-family: 'Noto Serif SC', 'Instrument Serif', 'Songti SC', 'SimSun', serif;
   letter-spacing: 0.01em;
+  font-synthesis: none;
 }
 
 .chat-messages {
@@ -11310,7 +11318,7 @@ select:focus-visible {
   }
 
   .chat-shell-mode {
-    font-size: 14px;
+    font-size: 18px;
   }
 
   .chat-messages {
