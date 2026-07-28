@@ -209,6 +209,29 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(detect_intent(question, has_skin=False), "chat")
         self.assertEqual(detect_intent(question, has_skin=True), "debate")
 
+    def test_recommend_wording_beats_forced_debate_action_without_skin(self):
+        for message in (
+            "you can recommend",
+            "Please recommend candidates",
+            "帮我推荐几个",
+        ):
+            self.assertEqual(
+                detect_intent(message, action="debate", has_skin=False),
+                "recommendation",
+                msg=message,
+            )
+            self.assertEqual(
+                detect_intent(message, action="debate", has_skin=False, session_id="s1"),
+                "recommendation",
+                msg=f"session:{message}",
+            )
+
+    def test_forced_debate_still_runs_when_skin_is_known(self):
+        self.assertEqual(
+            detect_intent("start debate", action="debate", has_skin=True),
+            "debate",
+        )
+
     def test_model_performance_question_is_chat_not_prediction(self):
         question = "当前各个预测模型的表现如何？"
         self.assertEqual(detect_intent(question, action="qa", has_skin=True), "chat")
