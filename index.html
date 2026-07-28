@@ -502,8 +502,11 @@
                       </span>
                     </label>
                     <input class="form-input" type="password" v-model="adminConfigForm.deepseekApiKey"
-                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
-                    <p class="text-muted text-sm mt-1">{{ t('admin.reuseDashscope') }}</p>
+                           :placeholder="adminConfig?.deepseek?.hasKey ? t('admin.keyKeptPlaceholder') : t('admin.keyPlaceholder')"
+                           autocomplete="off" />
+                    <p class="text-muted text-sm mt-1">
+                      {{ adminConfig?.deepseek?.hasKey ? t('admin.keySavedHint') : t('admin.reuseDashscope') }}
+                    </p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Base URL</label>
@@ -524,7 +527,11 @@
                       </span>
                     </label>
                     <input class="form-input" type="password" v-model="adminConfigForm.dashscopeApiKey"
-                           :placeholder="t('admin.keyPlaceholder')" autocomplete="off" />
+                           :placeholder="adminConfig?.dashscope?.hasKey ? t('admin.keyKeptPlaceholder') : t('admin.keyPlaceholder')"
+                           autocomplete="off" />
+                    <p class="text-muted text-sm mt-1" v-if="adminConfig?.dashscope?.hasKey">
+                      {{ t('admin.keySavedHint') }}
+                    </p>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Base URL</label>
@@ -3480,7 +3487,7 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源；部署时会用 git SHA 再戳一次） -->
   <script src="data.js?v=20260727-backend-fonts"></script>
-  <script src="i18n.js?v=20260728-glm5"></script>
+  <script src="i18n.js?v=20260728-persist-keys"></script>
   <script src="js/skin-names-zh.js?v=20260727-backend-fonts"></script>
   <script src="js/api.js?v=20260728-llm-badge"></script>
   <script src="js/auth.js?v=20260727-backend-fonts"></script>

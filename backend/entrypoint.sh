@@ -15,8 +15,9 @@ backup_app_settings() {
   if [[ ! -f "$db" || ! -s "$db" ]]; then
     return 0
   fi
+  # 合并写入：DB 有配置就更新 sidecar；DB 为空时绝不把已有 sidecar 冲成 []。
   python3 - "$db" "$out" <<'PY'
-import json, sqlite3, sys
+import json, os, sqlite3, sys
 db, out = sys.argv[1], sys.argv[2]
 try:
     conn = sqlite3.connect(db)
@@ -25,13 +26,35 @@ try:
     )
     if not cur.fetchone():
         conn.close()
+        print("[entrypoint] 无 app_settings 表 → 保留已有 sidecar")
         raise SystemExit(0)
     rows = conn.execute("SELECT key, value, updated_at FROM app_settings").fetchall()
     conn.close()
-    payload = [{"key": k, "value": v, "updated_at": t} for k, v, t in rows]
+    payload = [{"key": k, "value": v, "updated_at": t} for k, v, t in rows if k and v is not None]
+    if not payload:
+        if os.path.isfile(out) and os.path.getsize(out) > 2:
+            print(f"[entrypoint] DB app_settings 为空 → 保留已有 sidecar {out}")
+        else:
+            print("[entrypoint] DB app_settings 为空且无 sidecar，跳过备份")
+        raise SystemExit(0)
+
+    # 与旧 sidecar 合并：DB 行优先，旧 sidecar 补缺（防止半次保存丢 Key）
+    merged = {}
+    if os.path.isfile(out) and os.path.getsize(out) > 2:
+        try:
+            old = json.loads(open(out, encoding="utf-8").read())
+            if isinstance(old, list):
+                for row in old:
+                    if isinstance(row, dict) and row.get("key") and row.get("value") not in (None, ""):
+                        merged[str(row["key"])] = row
+        except Exception:
+            pass
+    for row in payload:
+        merged[str(row["key"])] = row
+    final = list(merged.values())
     with open(out, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[entrypoint] 已备份 app_settings {len(payload)} 项 → {out}")
+        json.dump(final, f, ensure_ascii=False, indent=2)
+    print(f"[entrypoint] 已备份 app_settings {len(final)} 项 → {out}")
 except Exception as e:
     print(f"[entrypoint] 备份 app_settings 失败(忽略): {e}")
 PY
@@ -59,11 +82,12 @@ try:
             updated_at TEXT
         )"""
     )
+    n = 0
     for row in rows:
         key = (row or {}).get("key")
         value = (row or {}).get("value")
         updated = (row or {}).get("updated_at")
-        if not key or value is None:
+        if not key or value is None or str(value) == "":
             continue
         conn.execute(
             """INSERT INTO app_settings(key, value, updated_at) VALUES(?,?,?)
@@ -72,9 +96,10 @@ try:
                  updated_at=excluded.updated_at""",
             (str(key), str(value), updated),
         )
+        n += 1
     conn.commit()
     conn.close()
-    print(f"[entrypoint] 已恢复 app_settings {len(rows)} 项 ← {backup}")
+    print(f"[entrypoint] 已恢复 app_settings {n} 项 ← {backup}")
 except Exception as e:
     print(f"[entrypoint] 恢复 app_settings 失败(忽略): {e}")
 PY
@@ -93,7 +118,8 @@ if [[ -f "$SEED_DB" ]]; then
     restore_app_settings "$RUNTIME_DB" "$SETTINGS_BACKUP"
   else
     echo "[entrypoint] 使用已有 volume 库: $RUNTIME_DB"
-    # 库在但 settings 空、sidecar 有备份时补回（例如曾被旧 entrypoint 冲掉）
+    # 先尝试从库刷新 sidecar（非空才写），再把 sidecar 灌回库（补缺/恢复）
+    backup_app_settings "$RUNTIME_DB" "$SETTINGS_BACKUP"
     restore_app_settings "$RUNTIME_DB" "$SETTINGS_BACKUP"
   fi
 else
