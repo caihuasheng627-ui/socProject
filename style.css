@@ -359,13 +359,20 @@ body::before {
   backdrop-filter: saturate(160%) blur(14px);
   -webkit-backdrop-filter: saturate(160%) blur(14px);
   opacity: 0;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
   transition:
-    transform 0.48s cubic-bezier(0.32, 0.72, 0, 1),
-    height 0.36s cubic-bezier(0.32, 0.72, 0, 1),
-    width 0.36s cubic-bezier(0.32, 0.72, 0, 1),
-    left 0.36s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.22s ease;
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+  will-change: transform, height, width, left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-glass-pill {
+    transition: opacity 0.15s ease;
+  }
 }
 
 .nav-glass-pill.is-ready {
