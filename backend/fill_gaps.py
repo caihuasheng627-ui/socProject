@@ -114,7 +114,15 @@ def fill_skin_gaps(conn: sqlite3.Connection, skin_id: int) -> int:
 
 
 def extend_skin_to_date(conn: sqlite3.Connection, skin_id: int, target_date: str) -> int:
-    """把单件最新日向前填到 target_date（含），用最近收盘价持平。"""
+    """把单件最新日向前填到 target_date（含）。
+
+    默认写入温和模拟波动（simulated_trailing），避免图表出现长直线。
+    需要持平时可设环境变量 FILL_TRAILING_FLAT=1。
+    """
+    import math
+    import os
+    import random
+
     row = conn.execute(
         """SELECT date, price, raw_price FROM price_history
            WHERE skin_id=? ORDER BY date DESC LIMIT 1""",
@@ -127,14 +135,63 @@ def extend_skin_to_date(conn: sqlite3.Connection, skin_id: int, target_date: str
     if last_date >= target_date:
         return 0
 
+    flat = str(os.getenv("FILL_TRAILING_FLAT", "0")).strip() in ("1", "true", "True")
     last_raw = last_raw if last_raw is not None else last_price
     inserts = []
     cursor = datetime.strptime(last_date, "%Y-%m-%d") + timedelta(days=1)
     end = datetime.strptime(target_date, "%Y-%m-%d")
+    days = []
     while cursor <= end:
-        ds = cursor.strftime("%Y-%m-%d")
-        inserts.append((skin_id, ds, last_price, 0, last_raw, 0, "trailing_fill"))
+        days.append(cursor.strftime("%Y-%m-%d"))
         cursor += timedelta(days=1)
+    if not days:
+        return 0
+
+    if flat:
+        for ds in days:
+            inserts.append((skin_id, ds, last_price, 0, last_raw, 0, "trailing_fill"))
+    else:
+        # 用近 30 个观测估计波动，生成围绕锚点的弱抖动路径
+        hist = [
+            float(r[0])
+            for r in conn.execute(
+                """SELECT price FROM price_history
+                   WHERE skin_id=? AND price>0
+                     AND (outlier_reason IS NULL
+                          OR outlier_reason NOT IN
+                             ('trailing_fill','forward_fill','back_fill',
+                              'simulated_trailing','simulated_forward'))
+                   ORDER BY date DESC LIMIT 40""",
+                (skin_id,),
+            ).fetchall()
+        ]
+        hist = list(reversed(hist)) or [float(last_price)]
+        rets = []
+        for a, b in zip(hist, hist[1:]):
+            if a > 0 and b > 0:
+                r = math.log(b / a)
+                if math.isfinite(r) and abs(r) < 0.5:
+                    rets.append(r)
+        if len(rets) >= 5:
+            mean = sum(rets) / len(rets)
+            var = sum((r - mean) ** 2 for r in rets) / max(1, len(rets) - 1)
+            vol = max(0.004, min(0.03, math.sqrt(var)))
+        else:
+            vol = 0.008
+        rng = random.Random(f"csvest-extend|{skin_id}|{last_date}|{target_date}")
+        anchor = float(last_price)
+        log_a = math.log(max(anchor, 0.01))
+        log_p = log_a
+        sigma = vol * 0.45
+        for ds in days:
+            log_p = log_p + rng.gauss(0.0, sigma) + 0.28 * (log_a - log_p)
+            lo = log_a + math.log(0.965)
+            hi = log_a + math.log(1.035)
+            log_p = min(hi, max(lo, log_p))
+            px = round(math.exp(log_p), 4)
+            if px < 0.01:
+                px = 0.01
+            inserts.append((skin_id, ds, px, 0, None, 0, "simulated_trailing"))
 
     if inserts:
         conn.executemany(
