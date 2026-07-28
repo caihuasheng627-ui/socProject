@@ -1,5 +1,5 @@
 """
-增量补缺：只拉每件饰品缺失的最近几天（到今天 2026-07-28），已有数据不重拉。
+增量补缺：只拉每件饰品缺失的最近几天（到今天），已有数据不重拉。
 """
 from __future__ import annotations
 
@@ -24,7 +24,8 @@ from scraper_buff import (
     RateLimited, AuthFailed, HEADERS,
 )
 
-TARGET_DATE = "2026-07-28"
+# 默认对齐到今天；可用环境变量 / CLI 覆盖（见 main）
+TARGET_DATE = date.today().isoformat()
 
 
 def get_skins_with_gap():
