@@ -3043,8 +3043,28 @@ const app = createApp({
       const candleName = t('prediction.chart.kline');
       const forecast7Name = t('prediction.chart.forecast7d');
       const trendMedianName = t('prediction.chart.trend30d');
-      const legendData = [candleName, 'MA7', 'MA30', forecast7Name];
-      if (hasTrend) legendData.push(trendMedianName);
+      // Keep legend swatches in sync with lineStyle (ECharts otherwise uses the
+      // default palette: blue/green/yellow/red, which disagreed with MA lines).
+      const chartColors = {
+        candleUp: 'rgba(239, 68, 68, 0.88)',
+        candleDown: 'rgba(16, 185, 129, 0.86)',
+        ma7: '#60a5fa',
+        ma30: '#34d399',
+        forecast7: '#ff6b00',
+        trend30: '#f43f5e',
+      };
+      const legendData = [
+        { name: candleName, itemStyle: { color: chartColors.candleUp } },
+        { name: 'MA7', itemStyle: { color: chartColors.ma7 } },
+        { name: 'MA30', itemStyle: { color: chartColors.ma30 } },
+        { name: forecast7Name, itemStyle: { color: chartColors.forecast7 } },
+      ];
+      if (hasTrend) {
+        legendData.push({
+          name: trendMedianName,
+          itemStyle: { color: chartColors.trend30 },
+        });
+      }
       const isLight = document.documentElement.getAttribute('data-theme') === 'light';
       // Light theme needs stronger label contrast against cream glass; keep axes quiet but readable.
       const axisMuted = isLight ? 'rgba(58, 48, 40, 0.72)' : 'rgba(156, 163, 175, 0.42)';
@@ -3059,6 +3079,14 @@ const app = createApp({
         animation: true,
         animationDuration: 420,
         animationEasing: 'cubicOut',
+        color: [
+          chartColors.candleUp,
+          chartColors.candleDown,
+          chartColors.ma7,
+          chartColors.ma30,
+          chartColors.forecast7,
+          chartColors.trend30,
+        ],
         legend: {
           type: 'scroll',
           data: legendData,
@@ -3133,8 +3161,8 @@ const app = createApp({
             }),
             barMaxWidth: 10,
             itemStyle: {
-              color: 'rgba(239, 68, 68, 0.88)',
-              color0: 'rgba(239, 68, 68, 0.88)',
+              color: chartColors.candleUp,
+              color0: chartColors.candleUp,
               borderColor: 'rgba(255, 120, 120, 0.98)',
               borderColor0: 'rgba(255, 120, 120, 0.98)',
               borderWidth: 1,
@@ -3153,8 +3181,8 @@ const app = createApp({
             }),
             barMaxWidth: 10,
             itemStyle: {
-              color: 'rgba(16, 185, 129, 0.86)',
-              color0: 'rgba(16, 185, 129, 0.86)',
+              color: chartColors.candleDown,
+              color0: chartColors.candleDown,
               borderColor: 'rgba(110, 231, 183, 0.95)',
               borderColor0: 'rgba(110, 231, 183, 0.95)',
               borderWidth: 1,
@@ -3169,11 +3197,12 @@ const app = createApp({
             data: ma7.concat(forecastPad),
             smooth: 0.25,
             showSymbol: false,
+            itemStyle: { color: chartColors.ma7 },
             lineStyle: {
-              color: 'rgba(251, 191, 36, 0.88)',
+              color: chartColors.ma7,
               width: 1.25,
               shadowBlur: 4,
-              shadowColor: 'rgba(251, 191, 36, 0.18)',
+              shadowColor: 'rgba(96, 165, 250, 0.22)',
             },
             z: 3,
           },
@@ -3183,11 +3212,12 @@ const app = createApp({
             data: ma30.concat(forecastPad),
             smooth: 0.3,
             showSymbol: false,
+            itemStyle: { color: chartColors.ma30 },
             lineStyle: {
-              color: 'rgba(167, 139, 250, 0.82)',
+              color: chartColors.ma30,
               width: 1.25,
               shadowBlur: 4,
-              shadowColor: 'rgba(167, 139, 250, 0.16)',
+              shadowColor: 'rgba(52, 211, 153, 0.2)',
             },
             z: 3,
           },
@@ -3197,8 +3227,9 @@ const app = createApp({
             data: exactSeries,
             smooth: 0.35,
             showSymbol: false,
+            itemStyle: { color: chartColors.forecast7 },
             lineStyle: {
-              color: '#ff6b00',
+              color: chartColors.forecast7,
               width: 2,
               type: [5, 5],
               shadowBlur: 8,
@@ -3238,19 +3269,20 @@ const app = createApp({
             smooth: 0.4,
             showSymbol: false,
             connectNulls: false,
+            itemStyle: { color: chartColors.trend30 },
             lineStyle: {
-              color: '#22c55e',
+              color: chartColors.trend30,
               width: 2,
               type: [5, 5],
               shadowBlur: 8,
-              shadowColor: 'rgba(34, 197, 94, 0.22)',
+              shadowColor: 'rgba(244, 63, 94, 0.22)',
             },
             areaStyle: {
               color: {
                 type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: 'rgba(34, 197, 94, 0.14)' },
-                  { offset: 1, color: 'rgba(34, 197, 94, 0)' },
+                  { offset: 0, color: 'rgba(244, 63, 94, 0.12)' },
+                  { offset: 1, color: 'rgba(244, 63, 94, 0)' },
                 ],
               },
             },
@@ -3261,8 +3293,8 @@ const app = createApp({
                   type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
                   colorStops: [
                     { offset: 0, color: 'rgba(255, 140, 64, 0.05)' },
-                    { offset: 0.35, color: 'rgba(34, 197, 94, 0.08)' },
-                    { offset: 1, color: 'rgba(34, 197, 94, 0.04)' },
+                    { offset: 0.35, color: 'rgba(244, 63, 94, 0.07)' },
+                    { offset: 1, color: 'rgba(244, 63, 94, 0.03)' },
                   ],
                 },
               },
