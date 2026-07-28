@@ -10,9 +10,12 @@
 # - 刷新近期价后若短序列目录件回潮，可清理：
 #     py backend/prune_short_history.py --db backend/seed/skinvision.db
 #   `refresh_recent_days.py` 只会给已有 ≥61 天历史的件补窗，避免再次写入空目录。
-# - 增量采集中断导致最新日不一致时，可用前向持价对齐到统一截止日期：
+# - 增量采集中断导致最新日不一致时，可用温和模拟波动对齐到统一截止日期：
 #     py backend/fill_gaps.py --db backend/seed/skinvision.db --extend-to 2026-07-28
+#   （默认写入 simulated_trailing；若只要持平：FILL_TRAILING_FLAT=1）
 #   有 BUFF_COOKIE 时优先重跑 `scrape_incremental.py` 拉真实价，再用 fill_gaps 收尾。
+# - 尾部持平 / 长直线段补一点可复现抖动（不发明大趋势）：
+#     py backend/simulate_price_wiggle.py --db backend/seed/skinvision.db
 # 更新种子（本机有新库时）：
 #   cp backend/data/skinvision.db backend/seed/skinvision.db
 # 仅同步饰品图 URL：
