@@ -15,14 +15,13 @@ services:
       - path: backend/.env
         required: false
     environment:
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # API Key / Base URL 优先走 backend/.env 与管理端 SQLite 覆盖；
+      # 这里不再用空的 ${DEEPSEEK_API_KEY:-} 覆盖 env_file，否则会把 .env 里的 Key 冲成空串。
       PRED_CACHE_TTL_HOURS: ${PRED_CACHE_TTL_HOURS:-6}
       USD_CNY_RATE: ${USD_CNY_RATE:-7.2}
       USE_BUFF_LIVE: ${USE_BUFF_LIVE:-0}
       ENABLE_INCREMENTAL_TRAIN: ${ENABLE_INCREMENTAL_TRAIN:-0}
-      # 设为 1 时用镜像内 seed 库覆盖 volume（把云端 154 升到全量 681）
+      # 设为 1 时用镜像内 seed 库覆盖 volume（保留 app_settings）；部署脚本会一次性注入后清回 0
       RESET_DB_FROM_SEED: ${RESET_DB_FROM_SEED:-0}
     volumes:
       # 持久化 SQLite(持仓/预警/缓存),重启不丢

@@ -1304,7 +1304,8 @@ const app = createApp({
       if (provider === 'deepseek') return t('daily.aiSummaryModel.deepseek');
       if (provider === 'rule_based' || provider === 'rule') return t('daily.aiSummaryModel.rule');
       if (provider === 'seed') return t('daily.aiSummaryModel.seed');
-      return t('daily.aiSummaryModel');
+      // Missing provider on old payloads → do not imply DeepSeek
+      return t('daily.aiSummaryModel.rule');
     });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);

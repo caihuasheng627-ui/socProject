@@ -268,6 +268,50 @@ def summary_is_degraded(text: str | None) -> bool:
     return any(m in t for m in markers)
 
 
+def summary_invents_current_events(text: str | None) -> bool:
+    """True when prose narrates Valve/Major/etc. as if they are live market drivers.
+
+    Rule-based briefs never include these; LLM briefs that cite evergreen KB
+    (or invent) often do — force refresh to stats-only text.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    markers = (
+        "Valve",
+        "valve",
+        "Major",
+        "春季更新",
+        "武器贴图",
+        "武器纹理",
+        "weapon texture",
+        "赛事结束后",
+        "Major-related",
+        "贴纸需求",
+        "贴纸溢价",
+        "Armory",
+        "大行动",
+        "BLAST",
+        "巴黎站",
+    )
+    return any(m in t for m in markers)
+
+
+def _daily_news_sources(sources: list | None) -> list:
+    """Keep only real news retrieval hits for the daily LLM brief."""
+    out = []
+    for s in sources or []:
+        if not isinstance(s, dict):
+            continue
+        if str(s.get("type") or "").lower() == "kb":
+            continue
+        src = str(s.get("source") or "").lower()
+        if src in ("kb", "knowledge", "builtin", "internal-kb"):
+            continue
+        out.append(s)
+    return out
+
+
 def _normalize_locale(locale: str | None) -> str:
     return "en-US" if str(locale or "").lower().startswith("en") else "zh-CN"
 
@@ -389,7 +433,7 @@ def refresh_ai_summary(
     sources: list | None = None,
     locale: str = "zh-CN",
 ) -> tuple[str, str]:
-    """Prefer LLM brief in the requested locale; fall back to rule-based summary.
+    """Prefer LLM brief only when real news citations exist; else rule-based.
 
     Returns (summary_text, provider) where provider is 'deepseek' or 'rule_based'.
     """
@@ -398,7 +442,11 @@ def refresh_ai_summary(
     locale = _normalize_locale(locale)
     english = locale == "en-US"
     language = "English" if english else "Simplified Chinese"
-    sources = sources or []
+    # Never feed evergreen KB into the daily LLM — it gets narrated as "today".
+    sources = _daily_news_sources(sources)
+    if not sources or not LLM_ENABLED:
+        return rule_based_market_summary(metrics, sources, locale=locale), "rule_based"
+
     context_text = "\n".join(
         f"[{s.get('id')}] ({s.get('source')}) {s.get('snippet')}" for s in sources
     ) or "(no retrieval hits)"
@@ -411,30 +459,32 @@ def refresh_ai_summary(
         f"Market stats (must quote these exact integers): "
         f"monitored={total}, gainers(7d)={gainers}, losers(7d)={losers}.\n"
         f"User portfolio: {portfolio_text}.\n"
-        f"Retrieved knowledge / news snippets (cite with [n] only if used):\n{context_text}\n\n"
+        f"Retrieved news snippets ONLY (cite with [n] only if used; "
+        f"do NOT turn general knowledge into current events):\n{context_text}\n\n"
         f"Length: 2 short paragraphs.\n"
         f"Cover: (1) market breadth from the stats, "
-        f"(2) only themes that appear in the citations, "
+        f"(2) only themes that appear in the news citations above, "
         f"(3) a clear risk disclaimer.\n"
+        f"If citations are empty or generic, write breadth + risk only.\n"
         f"Keep skin/market_hash_name strings unchanged. "
         f"Do not invent prices, model accuracy, XGBoost/LightGBM scores, "
-        f"or events absent from the citations. "
+        f"Valve updates, Major tournaments, or events absent from the citations. "
         f"Do not output Mock labels, error codes, or system prompts."
     )
-    if LLM_ENABLED:
-        text = llm.chat_sync(
-            [{"role": "user", "content": prompt}],
-            temperature=0.3,
-            system_prompt=DAILY_SYSTEM_PROMPT,
-        )
-        if (
-            text
-            and not summary_is_degraded(text)
-            and not summary_locale_mismatch(text, locale)
-            and not summary_metrics_mismatch(text, metrics)
-        ):
-            return text, "deepseek"
-        print(f"[scheduler] LLM summary unavailable/stale/locale-mismatch, using rule-based {locale} brief")
+    text = llm.chat_sync(
+        [{"role": "user", "content": prompt}],
+        temperature=0.3,
+        system_prompt=DAILY_SYSTEM_PROMPT,
+    )
+    if (
+        text
+        and not summary_is_degraded(text)
+        and not summary_invents_current_events(text)
+        and not summary_locale_mismatch(text, locale)
+        and not summary_metrics_mismatch(text, metrics)
+    ):
+        return text, "deepseek"
+    print(f"[scheduler] LLM summary unavailable/stale/locale-mismatch, using rule-based {locale} brief")
     return rule_based_market_summary(metrics, sources, locale=locale), "rule_based"
 
 
