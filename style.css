@@ -2536,22 +2536,11 @@ body.sidebar-open {
 .prediction-hero__metrics {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
-  gap: 24px 36px;
-  align-items: end;
+  display: block;
 }
 
-.prediction-hero__price,
-.prediction-hero__consensus {
+.prediction-hero__price {
   min-width: 0;
-}
-
-.prediction-hero__consensus {
-  width: 100%;
-  max-width: none;
-  justify-self: stretch;
-  padding-top: 0;
 }
 
 .prediction-hero__label {

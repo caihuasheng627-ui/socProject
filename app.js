@@ -2632,25 +2632,6 @@ const app = createApp({
       entryHigh: 0,
       targetPrice: 0,
     });
-    // Display helpers: never show 0% consensus when models exist; hide zero classification count.
-    const displayConsensusScore = computed(() => {
-      const raw = Number(predictionMeta.value?.consensusScore);
-      if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
-      const preds = modelPredictions.value || [];
-      if (!preds.length) return 60;
-      const confs = preds.map((p) => Number(p.confidence)).filter((c) => c > 0);
-      if (confs.length) {
-        return Math.max(42, Math.min(96, Math.round(confs.reduce((a, b) => a + b, 0) / confs.length)));
-      }
-      return 60;
-    });
-    const consensusModelsLabel = computed(() => {
-      const n = modelPredictions.value?.length || 0;
-      if (currentLang.value === 'zh-CN') {
-        return n ? `${n} 个回归模型综合` : '模型综合';
-      }
-      return n ? `${n} regression model${n > 1 ? 's' : ''}` : 'Model ensemble';
-    });
     const platformQuotes = ref([]);
     const platformQuotesLoading = ref(false);
     const platformQuotesMeta = ref({ mode: '', spread: null, fetchedAt: '' });
@@ -5852,7 +5833,6 @@ const app = createApp({
       selectedSkin, viewSkin, klineChart, klineLoading, timeframe, renderKline,
       modelPredictions, predictionStatus, predictionReason, predictionCalibration, calibrationEvidence,
       predictionMeta, predictionDaily, predictionTrend30d, predictionDailyRows,
-      displayConsensusScore, consensusModelsLabel,
       relatedNews, newsIcon, openExternalUrl, openNewsItem, resolveNewsUrl, roundTitle, debateData,
       explainSummary, loadExplanation,
       platformQuotes, platformQuotesLoading, platformQuotesMeta, platformQuotesSorted,
