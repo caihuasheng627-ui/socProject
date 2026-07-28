@@ -1369,7 +1369,13 @@
                   <div class="chat-shell-mode">{{ chatMode === 'debate' ? t('chat.mode.debate') : t('chat.mode.qa') }}</div>
                 </div>
               </div>
-              <div class="chat-mode-toggle" role="tablist" :aria-label="t('chat.modeLabel')">
+              <div
+                class="chat-mode-toggle"
+                :class="chatMode === 'debate' ? 'is-debate' : 'is-qa'"
+                role="tablist"
+                :aria-label="t('chat.modeLabel')"
+              >
+                <span class="chat-mode-toggle__thumb" aria-hidden="true"></span>
                 <button
                   type="button"
                   role="tab"
@@ -2339,7 +2345,13 @@
 
         <!-- 我的库存 / 模拟持仓 -->
         <div v-if="currentPage === 'portfolio'" class="fade-in portfolio-page">
-          <div class="portfolio-tabs" role="tablist" :aria-label="t('menu.portfolio')">
+          <div
+            class="portfolio-tabs"
+            :class="portfolioTab === 'sim' ? 'is-sim' : 'is-inventory'"
+            role="tablist"
+            :aria-label="t('menu.portfolio')"
+          >
+            <span class="portfolio-tabs__thumb" aria-hidden="true"></span>
             <button
               type="button"
               role="tab"

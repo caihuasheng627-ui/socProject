@@ -165,13 +165,17 @@ const app = createApp({
         navPillReady.value = false;
         return;
       }
-      navPillStyle.value = {
-        transform: `translateY(${active.offsetTop}px)`,
-        height: `${active.offsetHeight}px`,
-        width: `${active.offsetWidth}px`,
-        left: `${active.offsetLeft}px`,
+      // Measure after layout so the glass pill can slide between items.
+      const apply = () => {
+        navPillStyle.value = {
+          transform: `translate3d(0, ${active.offsetTop}px, 0)`,
+          height: `${active.offsetHeight}px`,
+          width: `${active.offsetWidth}px`,
+          left: `${active.offsetLeft}px`,
+        };
+        navPillReady.value = true;
       };
-      navPillReady.value = true;
+      requestAnimationFrame(apply);
     };
     watch([activeNavId, currentLang, menu], async () => {
       await nextTick();
