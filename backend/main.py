@@ -1176,6 +1176,7 @@ def daily_report(
                     rep["sources"] = []
             need_summary_refresh = (
                 scheduler.summary_is_degraded(rep.get("aiSummary"))
+                or scheduler.summary_invents_current_events(rep.get("aiSummary"))
                 or scheduler.summary_locale_mismatch(rep.get("aiSummary"), locale)
                 or scheduler.summary_metrics_mismatch(rep.get("aiSummary"), live_metrics)
             )

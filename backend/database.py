@@ -646,39 +646,17 @@ SEED_PORTFOLIO_NAMES = [
 ]
 
 SEED_NEWS = [
-    (
-        "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
-        "更新涉及武器磨损与贴图重做,市场流动性短期上升。",
-        "valve",
-        "https://blog.counter-strike.net/",
-        "positive",
-        "medium",
-    ),
-    (
-        "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
-        "Major 后 7-14 天相关饰品成交量通常上升 15-30%。",
-        "hltv",
-        "https://www.hltv.org/",
-        "positive",
-        "high",
-    ),
-    (
-        "BUFF 平台部分高价值饰品挂单减少",
-        "高价值饰品流动性下降,短期价格波动可能加大。",
-        "internal",
-        "",
-        "neutral",
-        "low",
-    ),
-    (
-        "社区热议新箱子掉落率调整",
-        "若掉落率下调,箱子价格可能上行。",
-        "reddit",
-        "https://www.reddit.com/r/GlobalOffensive/",
-        "positive",
-        "medium",
-    ),
+    # 演示占位新闻已停用：会污染日报 RAG，导致引用虚构的 Valve/Major 事件。
+    # 真实资讯仅来自 RSS 抓取（scheduler.fetch_rss_news）。
 ]
+
+# 历史种子新闻标题（旧库可能仍有）；启动时清掉，避免日报继续引用
+LEGACY_SEED_NEWS_TITLES = (
+    "Valve 发布 CS2 春季更新,饰品市场活跃度提升",
+    "BLAST Major 巴黎站落幕,相关贴纸饰品需求回暖",
+    "BUFF 平台部分高价值饰品挂单减少",
+    "社区热议新箱子掉落率调整",
+)
 
 
 def seed_portfolio() -> None:
@@ -702,32 +680,30 @@ def clear_demo_seed_portfolio() -> int:
 
 
 def seed_news() -> None:
+    cleared = 0
     with get_connection() as conn:
+        if LEGACY_SEED_NEWS_TITLES:
+            placeholders = ",".join("?" * len(LEGACY_SEED_NEWS_TITLES))
+            cur = conn.execute(
+                f"DELETE FROM news WHERE title IN ({placeholders})",
+                LEGACY_SEED_NEWS_TITLES,
+            )
+            cleared = int(cur.rowcount or 0)
+            if cleared:
+                conn.commit()
+                print(f"[db] 已清除历史种子新闻 {cleared} 条")
         n = conn.execute("SELECT COUNT(*) FROM news").fetchone()[0]
         if n == 0:
-            now = _utcnow()
-            for i, (title, summary, source, url, sent, impact) in enumerate(SEED_NEWS):
-                conn.execute(
-                    """INSERT INTO news(title, summary, source, url, published_at, sentiment, impact, related_skins)
-                       VALUES (?,?,?,?,?,?,?,?)""",
-                    (title, summary, source, url or "", (now - timedelta(days=i)).isoformat(), sent, impact, ""),
-                )
-            conn.commit()
-            print(f"[db] 种子 news={len(SEED_NEWS)} 条")
-            return
-        # 已有库:给种子标题补外链(仅 url 为空时),方便本地点击跳转演示
-        patched = 0
-        for title, _summary, _source, url, _sent, _impact in SEED_NEWS:
-            if not url:
-                continue
-            cur = conn.execute(
-                "UPDATE news SET url=? WHERE title=? AND (url IS NULL OR url='')",
-                (url, title),
-            )
-            patched += cur.rowcount
-        if patched:
-            conn.commit()
-            print(f"[db] 种子 news 补全 url={patched} 条")
+            print("[db] 种子 news=跳过(等待 RSS 抓取)")
+        else:
+            print(f"[db] news 表已有 {n} 条(非种子)")
+    if cleared:
+        try:
+            import rag
+            rag.invalidate_index()
+        except Exception as e:
+            print(f"[db] RAG 索引失效跳过: {e}")
+
 
 
 def seed_model_registry() -> None:

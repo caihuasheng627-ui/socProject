@@ -21,6 +21,70 @@ SETTING_KEYS = (
     "RAG_USE_VECTOR",
 )
 
+# volume 内 sidecar：seed 覆盖运行库时由 entrypoint 恢复；保存时同步写入
+def _settings_sidecar_path():
+    try:
+        from config import DATA_RUNTIME_DIR
+        return DATA_RUNTIME_DIR / "app_settings_backup.json"
+    except Exception:
+        from pathlib import Path
+        return Path(__file__).resolve().parent / "data" / "app_settings_backup.json"
+
+
+def _write_settings_sidecar(settings: dict[str, str]) -> None:
+    import json
+    from datetime import datetime, timezone
+
+    path = _settings_sidecar_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    payload = [
+        {"key": k, "value": v, "updated_at": now}
+        for k, v in (settings or {}).items()
+        if k in SETTING_KEYS and v is not None and str(v) != ""
+    ]
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _restore_settings_from_sidecar_if_empty() -> int:
+    """若 SQLite app_settings 为空但 sidecar 有内容，灌回 DB（应对旧 entrypoint 冲库）。"""
+    import json
+
+    current = get_all_settings()
+    if current:
+        return 0
+    path = _settings_sidecar_path()
+    if not path.exists():
+        return 0
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    if not isinstance(rows, list) or not rows:
+        return 0
+    updates = {
+        str(r.get("key")): r.get("value")
+        for r in rows
+        if isinstance(r, dict) and r.get("key") in SETTING_KEYS and r.get("value") not in (None, "")
+    }
+    if not updates:
+        return 0
+    # Write without recursion into sidecar again via set_settings path carefully
+    from datetime import datetime, timezone
+
+    ensure_settings_table()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_connection() as conn:
+        for k, v in updates.items():
+            conn.execute(
+                """INSERT INTO app_settings(key, value, updated_at) VALUES(?,?,?)
+                   ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""",
+                (k, str(v), now),
+            )
+        conn.commit()
+    print(f"[settings] restored {len(updates)} keys from sidecar {path}")
+    return len(updates)
+
 
 def _sanitize_api_key(raw: str | None) -> str:
     """HTTP Authorization 头只能是 ASCII。去掉空白/零宽/非 ASCII 字符。"""
@@ -90,6 +154,10 @@ def set_settings(updates: dict[str, Any]) -> dict[str, str]:
         apply_runtime_settings()
     except Exception as exc:
         print(f"[settings] apply_runtime_settings failed after save: {type(exc).__name__}: {exc}")
+    try:
+        _write_settings_sidecar(get_all_settings())
+    except Exception as exc:
+        print(f"[settings] sidecar backup failed: {type(exc).__name__}: {exc}")
     return get_all_settings()
 
 
@@ -153,6 +221,10 @@ def apply_runtime_settings() -> None:
     import os
 
     import config as cfg
+    try:
+        _restore_settings_from_sidecar_if_empty()
+    except Exception as exc:
+        print(f"[settings] sidecar restore skipped: {type(exc).__name__}: {exc}")
     try:
         from dotenv import dotenv_values
     except Exception:

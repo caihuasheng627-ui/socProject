@@ -178,9 +178,14 @@ classify_and_deploy() {
 
   if [[ "$need_api" -eq 1 ]]; then
     if [[ "$need_reset_seed" -eq 1 ]]; then
-      log "检测到 seed DB 变更 → 重建 api，并用 seed 覆盖 volume 运行库"
-      # 仅本次 recreate 注入；不写进 .env，避免以后每次启动都冲掉用户数据
+      log "检测到 seed DB 变更 → 重建 api，并用 seed 覆盖 volume 运行库(保留 app_settings)"
+      # 仅本次 recreate 注入；随后立刻用默认 0 再 recreate，避免环境变量粘在容器上
+      # 导致之后每次 restart 都冲掉运行库。
       RESET_DB_FROM_SEED=1 docker compose up -d --build --force-recreate api
+      wait_for_api || true
+      log "清除 RESET_DB_FROM_SEED 粘性标志 → 再 recreate api（默认 0）"
+      unset RESET_DB_FROM_SEED || true
+      RESET_DB_FROM_SEED=0 docker compose up -d --force-recreate --no-deps api
     else
       log "检测到后端相关变更 → 重建 api（可能较久）..."
       docker compose up -d --build api

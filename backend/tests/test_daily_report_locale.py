@@ -3,6 +3,7 @@
 from scheduler import (
     detect_summary_locale,
     rule_based_market_summary,
+    summary_invents_current_events,
     summary_locale_mismatch,
     summary_metrics_mismatch,
 )
@@ -40,3 +41,19 @@ def test_rule_based_market_summary_bilingual():
     # Stale prose with old numbers must be detected
     stale = "监控样本 681 件。上涨 304 件、下跌 358 件。"
     assert summary_metrics_mismatch(stale, metrics) is True
+    assert summary_invents_current_events(zh) is False
+    assert summary_invents_current_events(en) is False
+
+
+def test_summary_invents_current_events():
+    bad_zh = (
+        "市场宽度分化。Valve 近期更新影响武器贴图，Major 相关成交量通常赛后冲高。"
+    )
+    bad_en = (
+        "Mixed breadth. Valve's recent updates affecting weapon textures; "
+        "Major-related volume spikes typically occur post-event."
+    )
+    ok = "监控样本 680 件。上涨 235 件、下跌 260 件。不构成投资建议。"
+    assert summary_invents_current_events(bad_zh) is True
+    assert summary_invents_current_events(bad_en) is True
+    assert summary_invents_current_events(ok) is False
