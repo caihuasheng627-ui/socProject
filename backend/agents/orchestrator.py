@@ -64,8 +64,10 @@ def _chat_prediction_contract(raw: dict[str, Any], horizon_days: int) -> dict[st
 
 
 RECOMMEND_WORDS = (
-    "\u63a8\u8350", "\u9009\u4e00\u4e2a", "\u6709\u54ea\u4e9b",
+    "\u63a8\u8350", "\u9009\u4e00\u4e2a", "\u6709\u54ea\u4e9b", "\u4e70\u4ec0\u4e48", "\u63a8\u8350\u4ec0\u4e48",
+    "\u5e2e\u6211\u9009",
     "recommend", "recommendation", "suggest", "candidates",
+    "what should i buy", "what to buy", "pick for me",
 )
 PREDICT_WORDS = (
     "\u9884\u6d4b", "\u4ef7\u683c", "\u8d70\u52bf", "\u6da8\u8dcc", "\u76ee\u6807\u4ef7",
@@ -84,12 +86,30 @@ MODEL_PERF_WORDS = (
     "model comparison", "model performance", "models lab", "how do the model",
     "model-comparison", "compare models", "comparison results",
 )
+HOW_TO_WORDS = (
+    "怎么用", "如何使用", "会什么", "能做什么", "功能", "帮助", "使用说明",
+    "how to use", "what can you", "capabilities", "help me with", "what do you do",
+)
+MARKET_OVERVIEW_WORDS = (
+    "今天", "上涨", "下跌", "涨幅", "跌幅", "热门", "成交", "流动性", "市场",
+    "rising", "falling", "gainers", "losers", "hot", "volume", "market", "today",
+)
 
 
 def is_model_performance_query(message: str) -> bool:
     """True when the user asks about model metrics, not a skin price forecast."""
     lowered = message.lower()
     return any(word.lower() in lowered for word in MODEL_PERF_WORDS)
+
+
+def is_howto_query(message: str) -> bool:
+    lowered = message.lower()
+    return any(word.lower() in lowered for word in HOW_TO_WORDS)
+
+
+def is_market_overview_query(message: str) -> bool:
+    lowered = message.lower()
+    return any(word.lower() in lowered for word in MARKET_OVERVIEW_WORDS)
 
 
 def _model_comparison_brief(locale: str = "zh-CN") -> str:
@@ -161,48 +181,161 @@ def _model_comparison_brief(locale: str = "zh-CN") -> str:
     return "\n".join(lines)
 
 
+def _change_movers(conn, days: int, direction: str, limit: int):
+    query = f"""
+        WITH latest AS (
+            SELECT skin_id, MAX(date) AS d FROM price_history GROUP BY skin_id
+        ),
+        cur AS (
+            SELECT ph.skin_id, ph.price FROM price_history ph
+            JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = l.d
+        ),
+        past AS (
+            SELECT ph.skin_id, ph.price FROM price_history ph
+            JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = DATE(l.d, '-{int(days)} day')
+        )
+        SELECT s.market_hash_name AS name, cur.price AS price,
+               ROUND((cur.price - past.price) / past.price * 100, 2) AS chg
+        FROM cur
+        JOIN past ON cur.skin_id = past.skin_id
+        JOIN skins s ON s.id = cur.skin_id
+        WHERE past.price > 0 AND cur.price > 0
+        ORDER BY chg {direction}
+        LIMIT ?
+    """
+    return conn.execute(query, (limit,)).fetchall()
+
+
+def _hot_volume_rows(conn, limit: int = 5):
+    return conn.execute(
+        """
+        WITH latest AS (
+            SELECT skin_id, MAX(date) AS d FROM price_history GROUP BY skin_id
+        )
+        SELECT s.market_hash_name AS name, ph.price AS price,
+               IFNULL(ph.daily_volume, 0) AS volume
+        FROM price_history ph
+        JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = l.d
+        JOIN skins s ON s.id = ph.skin_id
+        WHERE IFNULL(ph.daily_volume, 0) > 0 AND ph.price > 0
+        ORDER BY ph.daily_volume DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+
 def _market_brief(limit: int = 5) -> str:
-    """Real 7-day top movers from the local DB so plain chat never has to
-    invent numbers. Returns '' when the DB is unavailable (tests, cold start)."""
+    """Real movers + volume from the local DB so plain chat never invents numbers."""
     try:
         from database import get_connection
 
-        query = """
-            WITH latest AS (
-                SELECT skin_id, MAX(date) AS d FROM price_history GROUP BY skin_id
-            ),
-            cur AS (
-                SELECT ph.skin_id, ph.price FROM price_history ph
-                JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = l.d
-            ),
-            past AS (
-                SELECT ph.skin_id, ph.price FROM price_history ph
-                JOIN latest l ON ph.skin_id = l.skin_id AND ph.date = DATE(l.d, '-7 day')
-            )
-            SELECT s.market_hash_name AS name, cur.price AS price,
-                   ROUND((cur.price - past.price) / past.price * 100, 2) AS chg
-            FROM cur
-            JOIN past ON cur.skin_id = past.skin_id
-            JOIN skins s ON s.id = cur.skin_id
-            WHERE past.price > 0 AND cur.price > 0
-            ORDER BY chg {direction}
-            LIMIT ?
-        """
         with get_connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
-            gainers = conn.execute(query.format(direction="DESC"), (limit,)).fetchall()
-            losers = conn.execute(query.format(direction="ASC"), (limit,)).fetchall()
-        if not gainers and not losers:
+            gainers7 = _change_movers(conn, 7, "DESC", limit)
+            losers7 = _change_movers(conn, 7, "ASC", limit)
+            gainers30 = _change_movers(conn, 30, "DESC", limit)
+            hot = _hot_volume_rows(conn, limit)
+        if not gainers7 and not losers7 and not hot:
             return ""
-        fmt = lambda row: f"{row['name']}: ${row['price']:.2f} ({row['chg']:+.2f}%/7d)"
+
+        def fmt_chg(row) -> str:
+            return f"{row['name']}: ${row['price']:.2f} ({row['chg']:+.2f}%)"
+
+        def fmt_vol(row) -> str:
+            return f"{row['name']}: ${row['price']:.2f} (vol {int(row['volume'])})"
+
         lines = [f"Skins tracked in database: {total}"]
-        if gainers:
-            lines.append("Top 7-day gainers: " + "; ".join(fmt(r) for r in gainers))
-        if losers:
-            lines.append("Top 7-day losers: " + "; ".join(fmt(r) for r in losers))
+        if gainers7:
+            lines.append("Top 7-day gainers: " + "; ".join(fmt_chg(r) for r in gainers7))
+        if losers7:
+            lines.append("Top 7-day losers: " + "; ".join(fmt_chg(r) for r in losers7))
+        if gainers30:
+            lines.append("Top 30-day gainers: " + "; ".join(fmt_chg(r) for r in gainers30))
+        if hot:
+            lines.append("Highest recent daily volume: " + "; ".join(fmt_vol(r) for r in hot))
         return "\n".join(lines)
     except Exception:
         return ""
+
+
+def _news_brief(limit: int = 5) -> str:
+    """Recent news titles from SQLite — titles only, no invented commentary."""
+    try:
+        from database import get_connection
+
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT title, source, substr(IFNULL(published_at,''), 1, 10) AS day
+                FROM news
+                WHERE IFNULL(title, '') != ''
+                ORDER BY
+                  CASE WHEN IFNULL(url, '') != '' THEN 0 ELSE 1 END,
+                  substr(IFNULL(published_at,''), 1, 10) DESC,
+                  id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        if not rows:
+            return ""
+        lines = ["Recent market news (titles only):"]
+        for row in rows:
+            day = row["day"] or "n/a"
+            source = row["source"] or "news"
+            lines.append(f"- [{day} · {source}] {row['title']}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _retrieval_brief(query: str, limit: int = 4) -> str:
+    """Lightweight RAG snippets for the user's question when available."""
+    if not query or not query.strip():
+        return ""
+    try:
+        import rag
+
+        sources = rag._retrieve_sources(query.strip(), kb_k=2, news_k=max(2, limit - 2))
+    except Exception:
+        return ""
+    if not sources:
+        return ""
+    lines = ["Retrieved context for this question:"]
+    for item in sources[:limit]:
+        kind = item.get("type") or "source"
+        title = (item.get("title") or "").strip()
+        snippet = (item.get("snippet") or "").strip()
+        text = snippet or title
+        if not text:
+            continue
+        lines.append(f"- ({kind}) {text[:220]}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def _capabilities_brief(locale: str = "zh-CN") -> str:
+    if is_english(locale):
+        return (
+            "What CSVest Main AI can do in Q&A:\n"
+            "- Name an exact skin → Hybrid-V2 7-day forecast card\n"
+            "- Say a budget / recommend → ranked candidate cards\n"
+            "- Ask rising/falling / volume / market → answer from the live market snapshot\n"
+            "- Ask model comparison → fair-test lab metrics\n"
+            "- Switch to Debate mode for Bull / Bear / Judge on one skin\n"
+            "- Price alerts: open Alerts from the app (chat cannot create them here)\n"
+            "If data is missing, say so — do not invent prices or fake model tables."
+        )
+    return (
+        "CSVest 普通问答能做的事：\n"
+        "- 说出具体饰品名 → 直接给出 Hybrid-V2 7 日预测卡片\n"
+        "- 说出预算/推荐 → 返回候选推荐卡片\n"
+        "- 问上涨/下跌/成交量/市场概况 → 依据下方实时市场快照回答\n"
+        "- 问模型对比/模型表现 → 使用公平测试指标回答\n"
+        "- 需要 Bull/Bear/Judge 请切换到 Debate 模式\n"
+        "- 价格预警请到应用内「预警」页设置（问答里不能直接创建）\n"
+        "缺数据就直说，不要编造价格或多模型共识表。"
+    )
 
 
 def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | None = None) -> str:
@@ -211,26 +344,49 @@ def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | No
     language = "English" if is_english(locale) else "Simplified Chinese"
     prompt = (
         f"Always answer in {language}. You are CSVest Main AI, a CS2 skin market assistant. "
-        "STRICT GROUNDING RULES: use ONLY the market snapshot below (if present) for any "
-        "concrete numbers. NEVER invent prices, percentage changes, model names, model outputs, "
-        "or confidence values that are not in the snapshot. Never invent a multi-model "
-        "consensus table (ARIMA / XGBoost / LightGBM / LSTM / GRU, etc.) for a single skin — "
-        "live forecasts are Hybrid-V2 only. If the user asks for data you do not "
-        "have, say plainly that the data is unavailable here and point them to the Market Center "
-        "dashboard or the prediction page. Qualitative market reasoning is fine; fabricated "
-        "statistics are not. Keep answers concise — normally under 200 words unless the user "
-        "explicitly asks for detail."
+        "STRICT GROUNDING RULES: use ONLY the market snapshot / retrieved context below "
+        "(if present) for any concrete numbers. NEVER invent prices, percentage changes, "
+        "model names, model outputs, or confidence values that are not supplied. Never invent "
+        "a multi-model consensus table (ARIMA / XGBoost / LightGBM / LSTM / GRU, etc.) for a "
+        "single skin — live forecasts are Hybrid-V2 only. Prefer actionable next steps "
+        "(name a skin for Hybrid, give a budget for recommendations, or switch to Debate). "
+        "If the user asks for data you do not have, say plainly that it is unavailable and "
+        "point them to Market Center, Prediction, or Alerts. Keep answers concise — normally "
+        "under 220 words unless the user asks for detail."
     )
     if user_message and is_model_performance_query(user_message):
         model_brief = _model_comparison_brief(locale)
         if model_brief:
             prompt += f"\n\nModel lab metrics (real data):\n{model_brief}"
             return prompt
+
+    sections: list[str] = []
+    if user_message and is_howto_query(user_message):
+        sections.append(_capabilities_brief(locale))
+    elif not user_message:
+        sections.append(_capabilities_brief(locale))
+
     brief = _market_brief()
     if brief:
-        prompt += f"\n\nMarket snapshot from the local database (real data):\n{brief}"
-    return prompt
+        sections.append(f"Market snapshot from the local database (real data):\n{brief}")
 
+    if user_message and (is_market_overview_query(user_message) or is_howto_query(user_message)):
+        news = _news_brief()
+        if news:
+            sections.append(news)
+
+    if user_message and not is_model_performance_query(user_message):
+        retrieved = _retrieval_brief(user_message)
+        if retrieved:
+            sections.append(retrieved)
+
+    # Always give a short capability footer so generic questions are not dead ends.
+    if user_message and not is_howto_query(user_message):
+        sections.append(_capabilities_brief(locale))
+
+    if sections:
+        prompt += "\n\n" + "\n\n".join(sections)
+    return prompt
 
 def _latest_debate_round(session: dict[str, Any]) -> dict[str, Any]:
     rounds = session.get("debateRounds") or []
@@ -409,7 +565,7 @@ class AIOrchestrator:
         # Cap answer length: uncapped DeepSeek replies routinely exceeded the
         # HTTP timeout, which surfaced as timeout-fallback "ghost replies".
         self.chat_loader = chat_loader or (
-            lambda messages: llm.chat_sync(messages, max_tokens=700)
+            lambda messages: llm.chat_sync(messages, max_tokens=900)
         )
 
     def handle(

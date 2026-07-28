@@ -2117,18 +2117,18 @@ const app = createApp({
         return [
           'How has AWP | Asiimov (Field-Tested) trended recently?',
           'Recommend skins for a $700 budget with medium risk.',
-          'Which skins are rising today?',
-          'Which skin is worth holding long term?',
-          'Help me set a price alert.',
+          'Which skins are rising over the last 7 days?',
+          'What can you help me with in Q&A?',
+          'Which skins have the highest recent volume?',
           'How do the model-comparison results look?',
         ];
       }
       return [
         'AWP | 二西莫夫 (久经沙场) 最近的走势如何？',
         '预算 700 美元、中等风险，推荐什么饰品？',
-        '今天哪些饰品正在上涨？',
-        '哪款饰品更适合长期持有？',
-        '帮我设置一个价格预警。',
+        '近 7 天哪些饰品涨幅靠前？',
+        '普通问答能帮我做什么？',
+        '最近成交量最高的是哪些饰品？',
         '当前各个预测模型的表现如何？',
       ];
     });
@@ -3708,9 +3708,12 @@ const app = createApp({
         // 纯聊天类问题（不需要推荐/预测卡片）直接走 SSE 流式，首字 1~2 秒可见。
         // 一旦能解析出具体皮肤，必须走 orchestrator → Hybrid 预测，否则问答模式几乎无用。
         const structuredWords = [
-          '推荐', '选一个', '有哪些', 'recommend', 'suggest', 'candidates',
+          '推荐', '选一个', '有哪些', '买什么', '推荐什么', '帮我选', '预算',
+          'recommend', 'suggest', 'candidates', 'what should i buy', 'what to buy', 'budget',
           '预测', '价格', '走势', '涨跌', '目标价', 'forecast', 'price', 'trend',
           '分析', '值不值得', '值得买', 'analyze', 'analysis', 'should i buy',
+          '今天', '上涨', '下跌', '热门', '成交', '怎么用', '功能',
+          'rising', 'falling', 'gainers', 'how to use', 'what can you',
         ];
         const modelPerfWords = [
           '模型表现', '模型对比', '预测模型', '各个模型', '各模型', '模型实验室',
@@ -3751,8 +3754,10 @@ const app = createApp({
             && !requestOptions.action && !requestOptions.skinId;
           // Debate mode forces debate only when starting/continuing a skin debate.
           // Plain "you can recommend" must still reach the recommendation router.
-          const recommendHint = ['推荐', '选一个', '有哪些', 'recommend', 'suggest', 'candidates']
-            .some((w) => lowerText.includes(w.toLowerCase()));
+          const recommendHint = [
+            '推荐', '选一个', '有哪些', '买什么', '推荐什么', '帮我选',
+            'recommend', 'suggest', 'candidates', 'what should i buy', 'what to buy', 'pick for me',
+          ].some((w) => lowerText.includes(w.toLowerCase()));
           const action = requestOptions.action
             || (recommendHint && !requestOptions.skinId
               ? 'recommend'

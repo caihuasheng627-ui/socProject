@@ -264,10 +264,25 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(result["type"], "prediction")
         self.assertEqual(result["prediction"]["targetPrice"], 106)
 
-    def test_recommendation_route(self):
-        result = self.service.handle("推荐一个皮肤", budget=200)
-        self.assertEqual(result["type"], "recommendation")
-        self.assertEqual(len(result["recommendations"]), 2)
+    def test_budget_and_buy_wording_routes_to_recommendation(self):
+        for message in (
+            "预算 700 推荐什么",
+            "what should i buy with medium risk",
+            "帮我选几个",
+        ):
+            self.assertEqual(
+                detect_intent(message, action="qa", has_skin=False),
+                "recommendation",
+                msg=message,
+            )
+
+    def test_howto_prompt_includes_capabilities(self):
+        from agents.orchestrator import grounded_chat_system_prompt
+
+        prompt = grounded_chat_system_prompt("zh-CN", user_message="普通问答能帮我做什么？")
+        self.assertIn("Hybrid-V2", prompt)
+        self.assertIn("Debate", prompt)
+        self.assertIn("预算", prompt)
 
     def test_main_ai_receives_selected_english_locale(self):
         captured = []

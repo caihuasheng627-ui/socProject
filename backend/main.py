@@ -400,7 +400,7 @@ async def chat(req: ChatReq):
         ]
         messages = [*safe_history, {"role": "user", "content": req.message}]
         system_prompt = grounded_chat_system_prompt(req.locale, user_message=req.message)
-        for ch in llm.chat_stream(messages, system_prompt=system_prompt, max_tokens=700):
+        for ch in llm.chat_stream(messages, system_prompt=system_prompt, max_tokens=900):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True, 'model': DEEPSEEK_MODEL if LLM_ENABLED else 'unavailable'})}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
