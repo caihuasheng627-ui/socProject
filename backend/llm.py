@@ -221,7 +221,7 @@ def _failure_reply(messages: list[dict], exc: BaseException, *, model: str | Non
         f"base={DEEPSEEK_BASE_URL}\n"
         f"error={detail}\n"
         "请确认 Model 与 Base URL 属于同一服务商："
-        "阿里云百炼用 deepseek-v3 / qwen-*；"
+        "阿里云百炼用 deepseek-v3 / glm-5 / qwen-*（GLM 须带连字符，不要写 glm5）；"
         "DeepSeek 官方 API 用 deepseek-chat + https://api.deepseek.com。"
     )
 
