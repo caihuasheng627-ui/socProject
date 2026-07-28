@@ -650,6 +650,26 @@ body::before {
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-out-expo);
 }
 
+.user-login-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.user-login-btn__icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.user-login-btn__label {
+  line-height: 1;
+}
+
 .user-login-btn i {
   font-size: 14px;
 }
@@ -887,32 +907,51 @@ body::before {
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
     gap: 10px;
+    overflow: visible;
   }
   .topbar-actions {
     gap: 6px;
     margin-left: auto;
     flex-shrink: 0;
     align-items: center;
+    overflow: visible;
+    position: relative;
+    z-index: 20;
   }
   .market-status {
-    display: none !important; /* 闅愯棌娆¤淇℃伅 */
+    display: none !important; /* 隐藏次要信息 */
   }
-  /* 绉诲姩绔繚鐣欑櫥褰?鐢ㄦ埛鍏ュ彛锛堟鍓嶈闅愯棌瀵艰嚧鏃犳硶鐧诲綍锛?*/
+  /* 移动端强制露出账户入口：圆形图标，避免文字芯片被顶栏裁切 */
   .topbar-actions .user-menu {
-    display: block;
+    display: block !important;
+    flex-shrink: 0;
     order: 10;
+    position: relative;
+    z-index: 30;
   }
   .topbar-actions .user-avatar,
   .topbar-actions .user-login-btn {
-    display: inline-flex;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
     min-width: 34px;
     min-height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    gap: 0;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
-  .topbar-actions .user-login-btn {
-    padding: 0 10px;
-    font-size: 12px;
+  .topbar-actions .user-login-btn__label {
+    display: none;
   }
-  /* 绐勯《鏍忎紭鍏堥湶鍑虹櫥褰曪細闅愯棌鍛戒护闈㈡澘鎸夐挳锛圕trl+K 浠嶅彲鐢級 */
+  .topbar-actions .user-login-btn__icon {
+    width: 16px;
+    height: 16px;
+  }
+  /* 窄顶栏优先露出登录：隐藏命令面板按钮（Ctrl+K 仍可用） */
   .topbar-actions .cmd-toggle {
     display: none;
   }
