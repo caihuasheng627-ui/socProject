@@ -1764,6 +1764,7 @@ const app = createApp({
         ragEmbedDim: cfg.dashscope?.embedDim || 1024,
         ragUseVector: cfg.dashscope?.useVector !== false,
       };
+      rememberLlmModel(cfg.deepseek?.model);
     };
 
     const loadAdminPanel = async () => {
