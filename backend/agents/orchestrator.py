@@ -64,7 +64,8 @@ def _chat_prediction_contract(raw: dict[str, Any], horizon_days: int) -> dict[st
 
 
 RECOMMEND_WORDS = (
-    "\u63a8\u8350", "\u9009\u4e00\u4e2a", "\u6709\u54ea\u4e9b", "recommend", "suggest"
+    "\u63a8\u8350", "\u9009\u4e00\u4e2a", "\u6709\u54ea\u4e9b",
+    "recommend", "recommendation", "suggest", "candidates",
 )
 PREDICT_WORDS = (
     "\u9884\u6d4b", "\u4ef7\u683c", "\u8d70\u52bf", "\u6da8\u8dcc", "\u76ee\u6807\u4ef7",
@@ -340,12 +341,13 @@ def detect_intent(
     # "预测模型表现如何" contains 预测 but must NOT become a single-skin forecast.
     if is_model_performance_query(message) and action in {"auto", "qa", "chat"}:
         return "chat"
+    lowered = message.lower()
+    wants_recommend = any(word in lowered for word in RECOMMEND_WORDS)
     if action == "qa":
         # Strict normal Q&A: never route into the debate pipeline, even when
         # the wording sounds like a buy/sell decision. Prediction and
         # recommendation cards are still allowed.
-        lowered = message.lower()
-        if any(word in lowered for word in RECOMMEND_WORDS):
+        if wants_recommend:
             return "recommendation"
         if has_skin and any(word in lowered for word in PREDICT_WORDS):
             return "prediction"
@@ -358,9 +360,11 @@ def detect_intent(
     }
     if session_id:
         if action in explicit:
+            # Debate-mode UI forces action=debate; still honor recommend wording.
+            if action != "recommend" and wants_recommend:
+                return "recommendation"
             return explicit[action]  # type: ignore[return-value]
-        lowered = message.lower()
-        if any(word in lowered for word in RECOMMEND_WORDS):
+        if wants_recommend:
             return "recommendation"
         if any(word in lowered for word in ACTIVE_SESSION_PREDICT_WORDS):
             if is_model_performance_query(message):
@@ -373,9 +377,12 @@ def detect_intent(
             return "debate_round"
         return "debate_round"
     if action in explicit:
+        # Without a skin, "you can recommend" must not dead-end on debate's
+        # "specify one exact skin" clarification.
+        if action in {"debate", "predict", "chat"} and wants_recommend:
+            return "recommendation"
         return explicit[action]  # type: ignore[return-value]
-    lowered = message.lower()
-    if any(word in lowered for word in RECOMMEND_WORDS):
+    if wants_recommend:
         return "recommendation"
     if has_skin and any(word in lowered for word in DEBATE_WORDS):
         return "debate"

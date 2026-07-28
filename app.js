@@ -3710,10 +3710,16 @@ const app = createApp({
           const continueActiveDebate = chatMode.value === 'debate'
             && chatAgentSession.value
             && !requestOptions.action && !requestOptions.skinId;
+          // Debate mode forces debate only when starting/continuing a skin debate.
+          // Plain "you can recommend" must still reach the recommendation router.
+          const recommendHint = ['推荐', '选一个', '有哪些', 'recommend', 'suggest', 'candidates']
+            .some((w) => lowerText.includes(w.toLowerCase()));
           const action = requestOptions.action
-            || (chatMode.value === 'debate'
-              ? (continueActiveDebate ? 'auto' : 'debate')
-              : 'qa');
+            || (recommendHint && !requestOptions.skinId
+              ? 'recommend'
+              : (chatMode.value === 'debate'
+                ? (continueActiveDebate ? 'auto' : 'debate')
+                : 'qa'));
           // 本地先把中英文饰品名解析成 skinId，再交给后端 orchestrator。
           let resolvedSkinId = requestOptions.skinId || null;
           let resolvedSkin = requestOptions.skin || null;
