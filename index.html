@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式（?v= 必须随 style.css 内容变更；服务器部署脚本也会用 git short SHA 覆盖） -->
-  <link rel="stylesheet" href="style.css?v=20260727-inv-menu-portal" />
+  <link rel="stylesheet" href="style.css?v=20260728-daily-tabs-slider" />
 
   <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20260727-cs1" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20260727-cs1" />
@@ -1785,7 +1785,13 @@
         <!-- AI 市场日报 -->
 
         <div v-if="currentPage === 'daily'" class="fade-in daily-page">
-          <div class="daily-tabs" role="tablist" :aria-label="t('menu.daily')">
+          <div
+            class="daily-tabs"
+            :class="dailyTab === 'rag' ? 'is-rag' : 'is-report'"
+            role="tablist"
+            :aria-label="t('menu.daily')"
+          >
+            <span class="daily-tabs__thumb" aria-hidden="true"></span>
             <button
               type="button"
               role="tab"
