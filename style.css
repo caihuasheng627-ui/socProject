@@ -10961,7 +10961,8 @@ select:focus-visible {
   margin-bottom: 22px;
 }
 
-.chat-hero-capabilities span {
+.chat-hero-capabilities span,
+.chat-cap-toggle {
   padding: 7px 12px;
   border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
   border-radius: 10px;
@@ -10969,6 +10970,52 @@ select:focus-visible {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.chat-cap-toggle {
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.chat-cap-toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
+  color: var(--text-primary);
+}
+
+.chat-cap-toggle.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-color));
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
+  color: var(--text-primary);
+}
+
+.chat-cap-toggle:not(.active) {
+  opacity: 0.55;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.chat-cap-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 10px;
+}
+
+.chat-cap-toggles__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.chat-cap-toggle--compact {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 8px;
 }
 
 .suggested-label {

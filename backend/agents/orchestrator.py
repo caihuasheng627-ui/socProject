@@ -24,6 +24,16 @@ PredictionLoader = Callable[[str, int], dict[str, Any]]
 ChatLoader = Callable[[list[dict[str, str]]], str]
 
 
+def normalize_capabilities(capabilities: dict[str, Any] | None = None) -> dict[str, bool]:
+    """Q&A capability toggles — default all on so existing callers stay unchanged."""
+    caps = capabilities if isinstance(capabilities, dict) else {}
+    return {
+        "analyze": bool(caps.get("analyze", True)),
+        "predict": bool(caps.get("predict", True)),
+        "recommend": bool(caps.get("recommend", True)),
+    }
+
+
 def _chat_prediction_contract(raw: dict[str, Any], horizon_days: int) -> dict[str, Any]:
     """Adapt the canonical /api/predict response for the chat card.
 
@@ -314,33 +324,58 @@ def _retrieval_brief(query: str, limit: int = 4) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
-def _capabilities_brief(locale: str = "zh-CN") -> str:
+def _capabilities_brief(
+    locale: str = "zh-CN",
+    *,
+    capabilities: dict[str, bool] | None = None,
+) -> str:
+    caps = normalize_capabilities(capabilities)
     if is_english(locale):
-        return (
-            "What CSVest Main AI can do in Q&A:\n"
-            "- Name an exact skin → Hybrid-V2 7-day forecast card\n"
-            "- Say a budget / recommend → ranked candidate cards\n"
-            "- Ask rising/falling / volume / market → answer from the live market snapshot\n"
-            "- Ask model comparison → fair-test lab metrics\n"
-            "- Switch to Debate mode for Bull / Bear / Judge on one skin\n"
-            "- Price alerts: open Alerts from the app (chat cannot create them here)\n"
-            "If data is missing, say so — do not invent prices or fake model tables."
-        )
-    return (
-        "CSVest 普通问答能做的事：\n"
-        "- 说出具体饰品名 → 直接给出 Hybrid-V2 7 日预测卡片\n"
-        "- 说出预算/推荐 → 返回候选推荐卡片\n"
-        "- 问上涨/下跌/成交量/市场概况 → 依据下方实时市场快照回答\n"
-        "- 问模型对比/模型表现 → 使用公平测试指标回答\n"
-        "- 需要 Bull/Bear/Judge 请切换到 Debate 模式\n"
-        "- 价格预警请到应用内「预警」页设置（问答里不能直接创建）\n"
-        "缺数据就直说，不要编造价格或多模型共识表。"
-    )
+        lines = ["What CSVest Main AI can do in Q&A (only enabled tools):"]
+        if caps["predict"]:
+            lines.append("- Name an exact skin → Hybrid-V2 7-day forecast card")
+        if caps["recommend"]:
+            lines.append("- Say a budget / recommend → ranked candidate cards")
+        if caps["analyze"]:
+            lines.append("- Ask rising/falling / volume / market → answer from the live market snapshot")
+        lines.append("- Ask model comparison → fair-test lab metrics")
+        lines.append("- Switch to Debate mode for Bull / Bear / Judge on one skin")
+        lines.append("- Price alerts: open Alerts from the app (chat cannot create them here)")
+        disabled = [name for name, on in caps.items() if not on]
+        if disabled:
+            lines.append(
+                "Disabled for this turn (do not offer to run them): "
+                + ", ".join(disabled)
+                + "."
+            )
+        lines.append("If data is missing, say so — do not invent prices or fake model tables.")
+        return "\n".join(lines)
+    lines = ["CSVest 普通问答能做的事（仅列出当前已启用能力）："]
+    if caps["predict"]:
+        lines.append("- 说出具体饰品名 → 直接给出 Hybrid-V2 7 日预测卡片")
+    if caps["recommend"]:
+        lines.append("- 说出预算/推荐 → 返回候选推荐卡片")
+    if caps["analyze"]:
+        lines.append("- 问上涨/下跌/成交量/市场概况 → 依据下方实时市场快照回答")
+    lines.append("- 问模型对比/模型表现 → 使用公平测试指标回答")
+    lines.append("- 需要 Bull/Bear/Judge 请切换到 Debate 模式")
+    lines.append("- 价格预警请到应用内「预警」页设置（问答里不能直接创建）")
+    disabled = [name for name, on in caps.items() if not on]
+    if disabled:
+        lines.append("本轮已关闭（不要主动去跑）：" + "、".join(disabled) + "。")
+    lines.append("缺数据就直说，不要编造价格或多模型共识表。")
+    return "\n".join(lines)
 
 
-def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | None = None) -> str:
+def grounded_chat_system_prompt(
+    locale: str = "zh-CN",
+    *,
+    user_message: str | None = None,
+    capabilities: dict[str, Any] | None = None,
+) -> str:
     """Shared grounded prompt for plain chat — used by both the orchestrator
     and the streaming /api/chat endpoint so answers never invent numbers."""
+    caps = normalize_capabilities(capabilities)
     language = "English" if is_english(locale) else "Simplified Chinese"
     prompt = (
         f"Always answer in {language}. You are CSVest Main AI, a CS2 skin market assistant. "
@@ -348,8 +383,8 @@ def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | No
         "(if present) for any concrete numbers. NEVER invent prices, percentage changes, "
         "model names, model outputs, or confidence values that are not supplied. Never invent "
         "a multi-model consensus table (ARIMA / XGBoost / LightGBM / LSTM / GRU, etc.) for a "
-        "single skin — live forecasts are Hybrid-V2 only. Prefer actionable next steps "
-        "(name a skin for Hybrid, give a budget for recommendations, or switch to Debate). "
+        "single skin — live forecasts are Hybrid-V2 only. Prefer actionable next steps that "
+        "match the currently enabled capabilities. "
         "If the user asks for data you do not have, say plainly that it is unavailable and "
         "point them to Market Center, Prediction, or Alerts. Keep answers concise — normally "
         "under 220 words unless the user asks for detail."
@@ -362,27 +397,28 @@ def grounded_chat_system_prompt(locale: str = "zh-CN", *, user_message: str | No
 
     sections: list[str] = []
     if user_message and is_howto_query(user_message):
-        sections.append(_capabilities_brief(locale))
+        sections.append(_capabilities_brief(locale, capabilities=caps))
     elif not user_message:
-        sections.append(_capabilities_brief(locale))
+        sections.append(_capabilities_brief(locale, capabilities=caps))
 
-    brief = _market_brief()
-    if brief:
-        sections.append(f"Market snapshot from the local database (real data):\n{brief}")
+    if caps["analyze"]:
+        brief = _market_brief()
+        if brief:
+            sections.append(f"Market snapshot from the local database (real data):\n{brief}")
 
-    if user_message and (is_market_overview_query(user_message) or is_howto_query(user_message)):
-        news = _news_brief()
-        if news:
-            sections.append(news)
+        if user_message and (is_market_overview_query(user_message) or is_howto_query(user_message)):
+            news = _news_brief()
+            if news:
+                sections.append(news)
 
-    if user_message and not is_model_performance_query(user_message):
-        retrieved = _retrieval_brief(user_message)
-        if retrieved:
-            sections.append(retrieved)
+        if user_message and not is_model_performance_query(user_message):
+            retrieved = _retrieval_brief(user_message)
+            if retrieved:
+                sections.append(retrieved)
 
     # Always give a short capability footer so generic questions are not dead ends.
     if user_message and not is_howto_query(user_message):
-        sections.append(_capabilities_brief(locale))
+        sections.append(_capabilities_brief(locale, capabilities=caps))
 
     if sections:
         prompt += "\n\n" + "\n\n".join(sections)
@@ -493,20 +529,25 @@ def detect_intent(
     has_skin: bool = False,
     session_id: str | None = None,
     target_agent: str | None = None,
+    capabilities: dict[str, Any] | None = None,
 ) -> Intent:
+    caps = normalize_capabilities(capabilities)
     if session_id and target_agent in {"bull", "bear", "judge"}:
         return "agent_followup"
     # "预测模型表现如何" contains 预测 but must NOT become a single-skin forecast.
     if is_model_performance_query(message) and action in {"auto", "qa", "chat"}:
         return "chat"
     lowered = message.lower()
-    wants_recommend = any(word in lowered for word in RECOMMEND_WORDS)
+    wants_recommend = any(word in lowered for word in RECOMMEND_WORDS) and (
+        caps["recommend"] or action == "recommend"
+    )
     if action == "qa":
         # Normal Q&A still blocks Debate, but must run Hybrid when a skin is
         # named — otherwise the mode can only answer from the tiny market brief.
-        if wants_recommend:
+        # Both recommendation and prediction honor the user's capability toggles.
+        if wants_recommend and caps["recommend"]:
             return "recommendation"
-        if has_skin:
+        if has_skin and caps["predict"]:
             return "prediction"
         return "chat"
     explicit = {
@@ -526,7 +567,9 @@ def detect_intent(
         if any(word in lowered for word in ACTIVE_SESSION_PREDICT_WORDS):
             if is_model_performance_query(message):
                 return "debate_answer"
-            return "prediction"
+            if caps["predict"] or action == "predict":
+                return "prediction"
+            return "debate_answer"
         session_kind = classify_session_input(message)
         if session_kind == "question":
             return "debate_answer"
@@ -543,7 +586,7 @@ def detect_intent(
         return "recommendation"
     if has_skin and any(word in lowered for word in DEBATE_WORDS):
         return "debate"
-    if has_skin and any(word in lowered for word in PREDICT_WORDS):
+    if has_skin and any(word in lowered for word in PREDICT_WORDS) and caps["predict"]:
         return "prediction"
     return "chat"
 
@@ -581,9 +624,11 @@ class AIOrchestrator:
         risk_level: str = "medium",
         history: list[dict[str, str]] | None = None,
         locale: str = "zh-CN",
+        capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         clean_message = message.strip()
         english = is_english(locale)
+        caps = normalize_capabilities(capabilities)
         if not clean_message:
             raise ValueError("message must not be empty")
         if horizon_days not in {7, 30}:
@@ -591,11 +636,17 @@ class AIOrchestrator:
         skin = self.skin_resolver(clean_message, skin_id)
         if skin and skin.get("ambiguous"):
             wants_predict = (
-                action in {"predict", "qa"}
-                or any(word in clean_message.lower() for word in PREDICT_WORDS)
+                (
+                    action in {"predict", "qa"}
+                    or any(word in clean_message.lower() for word in PREDICT_WORDS)
+                )
+                and (caps["predict"] or action == "predict")
             )
             if action == "chat" and not wants_predict:
                 # Plain chat may keep talking without forcing a skin picker.
+                skin = None
+            elif action == "qa" and not wants_predict:
+                # Prediction capability off — keep talking without a Hybrid picker.
                 skin = None
             else:
                 # Q&A / explicit predict → Hybrid picker; otherwise Debate picker.
@@ -622,6 +673,7 @@ class AIOrchestrator:
             has_skin=skin is not None,
             session_id=session_id,
             target_agent=target_agent,
+            capabilities=caps,
         )
         if intent in {"prediction", "debate"} and skin is None and session_id:
             active_session = self.session_service.get(session_id)
@@ -786,7 +838,11 @@ class AIOrchestrator:
         reply = self.chat_loader([
             {
                 "role": "system",
-                "content": grounded_chat_system_prompt(locale, user_message=clean_message),
+                "content": grounded_chat_system_prompt(
+                    locale,
+                    user_message=clean_message,
+                    capabilities=caps,
+                ),
             },
             *safe_history,
             {"role": "user", "content": clean_message},

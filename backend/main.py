@@ -96,6 +96,7 @@ class ChatReq(BaseModel):
     context: dict | None = None
     locale: str = "zh-CN"
     history: list[dict] | None = None
+    capabilities: dict[str, bool] | None = None
 
 
 class PortfolioReq(BaseModel):
@@ -160,6 +161,7 @@ class AIOrchestratorReq(BaseModel):
     riskLevel: Literal["low", "medium", "high"] = "medium"
     history: list[dict[str, str]] | None = None
     locale: Literal["zh-CN", "en-US"] = "zh-CN"
+    capabilities: dict[str, bool] | None = None
 
 
 class AITranslationReq(BaseModel):
@@ -399,7 +401,11 @@ async def chat(req: ChatReq):
             if item.get("role") in {"user", "assistant"}
         ]
         messages = [*safe_history, {"role": "user", "content": req.message}]
-        system_prompt = grounded_chat_system_prompt(req.locale, user_message=req.message)
+        system_prompt = grounded_chat_system_prompt(
+            req.locale,
+            user_message=req.message,
+            capabilities=req.capabilities,
+        )
         for ch in llm.chat_stream(messages, system_prompt=system_prompt, max_tokens=900):
             yield f"data: {json.dumps({'chunk': ch}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True, 'model': DEEPSEEK_MODEL if LLM_ENABLED else 'unavailable'})}\n\n"
@@ -468,6 +474,7 @@ def orchestrate_ai(req: AIOrchestratorReq):
             risk_level=req.riskLevel,
             history=req.history,
             locale=req.locale,
+            capabilities=req.capabilities,
         )
         return _attach_ai_runtime(result)
     except LookupError as exc:
