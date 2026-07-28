@@ -478,6 +478,7 @@ class CSVestAPI {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let model = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -490,10 +491,12 @@ class CSVestAPI {
           try {
             const data = JSON.parse(line.slice(6));
             if (data.chunk && onChunk) onChunk(data.chunk);
+            if (data.done && data.model) model = data.model;
           } catch (_) { /* ignore partial */ }
         }
       }
       this.online = true;
+      return { model };
     } catch (err) {
       console.warn('[API] chat stream failed:', err.message);
       this.online = false;

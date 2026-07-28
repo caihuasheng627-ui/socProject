@@ -1020,7 +1020,8 @@ const app = createApp({
         }
         client.setBaseURL(apiBase);
         client.setUseMock(false);
-        await client.health();
+        const health = await client.health();
+        rememberLlmModel(health?.llm?.model);
         const skinsOk = await loadSkinsFromApi();
         if (!skinsOk) throw new Error('skins empty');
         apiOnline.value = true;
@@ -1763,6 +1764,7 @@ const app = createApp({
         ragEmbedDim: cfg.dashscope?.embedDim || 1024,
         ragUseVector: cfg.dashscope?.useVector !== false,
       };
+      rememberLlmModel(cfg.deepseek?.model);
     };
 
     const loadAdminPanel = async () => {
@@ -2147,13 +2149,33 @@ const app = createApp({
       ];
     });
 
+    const formatLlmModelLabel = (id) => {
+      const raw = String(id || '').trim();
+      if (!raw || raw === 'unavailable') return '';
+      let s = raw;
+      s = s.replace(/^deepseek/i, 'DeepSeek');
+      s = s.replace(/^glm/i, 'GLM');
+      s = s.replace(/^qwen/i, 'Qwen');
+      s = s.replace(/^kimi/i, 'Kimi');
+      s = s.replace(/-v(\d)/gi, '-V$1');
+      return s;
+    };
+    const llmModelId = ref('');
+    const llmModelLabel = computed(() => formatLlmModelLabel(llmModelId.value) || 'LLM');
+    const rememberLlmModel = (id) => {
+      const raw = String(id || '').trim();
+      if (!raw || raw === 'unavailable') return;
+      llmModelId.value = raw;
+    };
+
     const responseModelLabel = (response) => {
       const runtime = response?.runtime || {};
       const type = response?.type || 'chat';
 
       if (type === 'debate' || type === 'debate_round' || type === 'agent_followup') {
         if (runtime.agents?.mode === 'live') {
-          return `Bull / Bear / Judge · Live (${runtime.agents.judgeModel || 'LLM'})`;
+          const judge = formatLlmModelLabel(runtime.agents.judgeModel) || llmModelLabel.value;
+          return `Bull / Bear / Judge · Live (${judge})`;
         }
         if (!runtime.agents) return 'Bull / Bear / Judge';
         return runtime.agents.mode === 'degraded'
@@ -2162,7 +2184,9 @@ const app = createApp({
       }
       if (type === 'debate_answer') {
         if (response?.answerMode === 'llm_grounded' && runtime.llm?.mode === 'live') {
-          return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'} · Grounded Q&A`;
+          rememberLlmModel(runtime.llm.model);
+          const model = formatLlmModelLabel(runtime.llm.model) || llmModelLabel.value;
+          return `${runtime.llm.provider || 'LLM'} · ${model} · Grounded Q&A`;
         }
         return runtime.llm?.mode === 'degraded'
           ? 'Main AI · Degraded Local Grounded Q&A'
@@ -2178,10 +2202,14 @@ const app = createApp({
       }
       if (type === 'recommendation') return 'Recommendation Agent · Local Rules';
       if (runtime.llm?.mode === 'live') {
-        return `${runtime.llm.provider || 'LLM'} · ${runtime.llm.model || 'Live'}`;
+        rememberLlmModel(runtime.llm.model);
+        const model = formatLlmModelLabel(runtime.llm.model) || llmModelLabel.value;
+        return `${runtime.llm.provider || 'LLM'} · ${model}`;
       }
       if (runtime.llm?.mode === 'configured') {
-        return `${runtime.llm.provider || 'LLM'} · Configured`;
+        rememberLlmModel(runtime.llm.model);
+        const model = formatLlmModelLabel(runtime.llm.model) || llmModelLabel.value;
+        return `${runtime.llm.provider || 'LLM'} · ${model}`;
       }
       return runtime.llm?.mode === 'degraded'
         ? 'Live request failed · Browser fallback'
@@ -3259,7 +3287,7 @@ const app = createApp({
         role: 'assistant',
         content: '__WELCOME__',
         time: '刚刚',
-        model: 'DeepSeek-V3',
+        model: llmModelLabel.value,
       }
     ]);
     const chatMode = ref('qa'); // 'qa' | 'debate'
@@ -3663,7 +3691,7 @@ const app = createApp({
           && client && typeof client.chat === 'function';
 
         if (plainQaStream) {
-          await client.chat(text, null, (chunk) => {
+          const chatRes = await client.chat(text, null, (chunk) => {
             chatStreaming.value = true;
             assistantMsg.content += chunk;
             scrollChatBottom();
@@ -3671,8 +3699,9 @@ const app = createApp({
           if (!assistantMsg.content.trim()) {
             throw new Error('Live AI returned empty content');
           }
+          rememberLlmModel(chatRes?.model);
           assistantMsg.kind = 'chat';
-          assistantMsg.model = 'DeepSeek-V3';
+          assistantMsg.model = formatLlmModelLabel(chatRes?.model) || llmModelLabel.value;
           saveChatLocale(assistantMsg, currentLang.value);
         } else if (client && typeof client.orchestrateAI === 'function') {
           // 严格模式：问答模式永远走 qa（后端不会切入辩论管线）；
@@ -3818,7 +3847,7 @@ const app = createApp({
             assistantMsg.debate = undefined;
           }
         } else if (client && apiOnline.value) {
-          await client.chat(text, null, (chunk) => {
+          const chatRes = await client.chat(text, null, (chunk) => {
             chatStreaming.value = true;
             assistantMsg.content += chunk;
             scrollChatBottom();
@@ -3827,7 +3856,8 @@ const app = createApp({
             // 绝不使用本地预设文案兜底——那会产生幻觉式回答
             throw new Error('Live AI returned empty content');
           }
-          assistantMsg.model = 'DeepSeek-V3';
+          rememberLlmModel(chatRes?.model);
+          assistantMsg.model = formatLlmModelLabel(chatRes?.model) || llmModelLabel.value;
         } else {
           throw new Error('Live AI client is unavailable');
         }
