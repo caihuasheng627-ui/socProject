@@ -7,6 +7,9 @@
 #   或：
 #     RESET_DB_FROM_SEED=1 docker compose up -d --build --force-recreate api
 # - `update-deploy.sh` 在检测到 `backend/seed/skinvision.db` 变更时会自动带 RESET_DB_FROM_SEED=1
+# - 刷新近期价后若短序列目录件回潮，可清理：
+#     py backend/prune_short_history.py --db backend/seed/skinvision.db
+#   `refresh_recent_days.py` 只会给已有 ≥61 天历史的件补窗，避免再次写入空目录。
 # 更新种子（本机有新库时）：
 #   cp backend/data/skinvision.db backend/seed/skinvision.db
 # 仅同步饰品图 URL：

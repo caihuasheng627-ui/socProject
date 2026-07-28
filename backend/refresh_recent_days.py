@@ -4,8 +4,9 @@
 为 Expo(7/28) 把 price_history 窗口向前滚 5 天:
   - 用皮肤名走 BUFF 搜索 goods_id → 拉 price_history → 取 7/23–7/27 共 5 天真实价 upsert
   - 对每件**成功补到新数据**的皮肤, 删除它最早的等量天数 → 该皮肤行数不变
-  - 失败的皮肤(NOT FOUND / EMPTY) 不动, 保持原 1/25–7/22, 最后汇总报告
-  - 断点续传: 已有 7/23+ 数据的皮肤跳过(避免重跑重复删最早几天)
+  - 失败的皮肤(NOT FOUND / EMPTY) 不动, 最后汇总报告
+  - 只处理已有足够历史(默认 ≥61 天)的皮肤,绝不给空/短序列目录件新建行情
+  - 断点续传: 目标日期全部齐了才跳过;缺 7/26–7/27 仍会补
   - 限流 / cookie 失效立即整批停止(已采数据已按皮肤落库, 总量仍守恒)
 
 直接操作 backend/seed/skinvision.db(git 跟踪的种子库, Docker 首启灌 volume 的源头),
@@ -14,6 +15,7 @@
 运行:
   py refresh_recent_days.py              # 全量
   py refresh_recent_days.py --limit 20   # 只跑前 20 件(测试)
+  py refresh_recent_days.py --min-days 61
 """
 from __future__ import annotations
 
@@ -43,11 +45,28 @@ TARGET_DATES = ["2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07
 TARGET_SET = set(TARGET_DATES)
 # 拉 180 天历史(BUFF 可能返回更早的, 无所谓, 只取目标 5 天); 与原 scraper 一致
 DAYS_FETCH = 180
-# 已有该日期视作已刷新, 跳过(断点续传阈值)
-RESUME_THRESHOLD = "2026-07-23"
+# 与 prune_short_history 对齐: 不足该天数的件不参与刷新,避免空目录被补成 1–4 天假可用
+DEFAULT_MIN_HISTORY_DAYS = 61
 
 
-def run(limit: int | None = None, start: int = 0) -> dict:
+def _existing_dates(conn: sqlite3.Connection, skin_id: int) -> set[str]:
+    return {
+        r[0]
+        for r in conn.execute(
+            "SELECT date FROM price_history WHERE skin_id=?", (skin_id,)
+        )
+    }
+
+
+def _is_complete(existing: set[str]) -> bool:
+    return TARGET_SET.issubset(existing)
+
+
+def run(
+    limit: int | None = None,
+    start: int = 0,
+    min_history_days: int = DEFAULT_MIN_HISTORY_DAYS,
+) -> dict:
     if not BUFF_COOKIE:
         print("[refresh] ⚠ 未配置 BUFF_COOKIE(见 backend/.env), 退出")
         return {"error": "no_cookie"}
@@ -55,20 +74,36 @@ def run(limit: int | None = None, start: int = 0) -> dict:
     conn = sqlite3.connect(str(SEED_DB), timeout=30)
     conn.row_factory = sqlite3.Row
 
-    # 只处理"有历史数据但还没刷新到 7/23+"的件:
-    #   跳过 304 已完成(max>=7/23)、跳过 196 无历史件(贵刀/手套,BUFF 本就无数据,试也白试)
+    # 只处理「已有足够历史」且「目标窗未齐」的件:
+    #   - 跳过空目录 / 短序列(曾被 prune,只留 skin 行)
+    #   - 跳过目标 5 天已齐全的件
     skins = conn.execute(
-        """SELECT s.id, s.market_hash_name, s.source FROM skins s
-           WHERE EXISTS (SELECT 1 FROM price_history p WHERE p.skin_id=s.id)
-             AND NOT EXISTS (SELECT 1 FROM price_history p WHERE p.skin_id=s.id AND p.date>='2026-07-23')
-           ORDER BY s.id"""
+        """SELECT s.id, s.market_hash_name, s.source,
+                  COUNT(DISTINCT p.date) AS days
+           FROM skins s
+           JOIN price_history p ON p.skin_id = s.id
+           GROUP BY s.id
+           HAVING days >= ?
+           ORDER BY s.id""",
+        (min_history_days,),
     ).fetchall()
+    # 再滤掉目标日期已齐全的
+    pending = []
+    for sk in skins:
+        existing = _existing_dates(conn, sk["id"])
+        if _is_complete(existing):
+            continue
+        pending.append(sk)
+    skins = pending
     if start:
         skins = skins[start:]
     if limit:
         skins = skins[:limit]
 
-    print(f"[refresh] 待处理 {len(skins)} 件 | 目标日期 {TARGET_DATES[0]}~{TARGET_DATES[-1]} | 延时 {BUFF_REQUEST_DELAY}s")
+    print(
+        f"[refresh] 待处理 {len(skins)} 件 | 目标 {TARGET_DATES[0]}~{TARGET_DATES[-1]} "
+        f"| min_history_days={min_history_days} | 延时 {BUFF_REQUEST_DELAY}s"
+    )
 
     client = httpx.Client(timeout=25, follow_redirects=True)
     client.cookies.set("session", BUFF_COOKIE, domain="buff.163.com")
@@ -84,11 +119,11 @@ def run(limit: int | None = None, start: int = 0) -> dict:
             sid = sk["id"]
             name = sk["market_hash_name"]
 
-            # 断点续传: 已有 7/23+ 数据 → 跳过(避免重跑重复删最早几天)
-            maxdate = conn.execute(
-                "SELECT MAX(date) FROM price_history WHERE skin_id=?", (sid,)
-            ).fetchone()[0]
-            if maxdate and maxdate >= RESUME_THRESHOLD:
+            existing = _existing_dates(conn, sid)
+            if len(existing) < min_history_days:
+                skipped += 1
+                continue
+            if _is_complete(existing):
                 skipped += 1
                 continue
 
@@ -99,15 +134,19 @@ def run(limit: int | None = None, start: int = 0) -> dict:
                     notfound += 1
                     failed.append((sid, name, "NOT_FOUND"))
                     if i % 50 == 0 or i == len(skins):
-                        print(f"[{i}/{len(skins)}] NOT FOUND: {name[:42]} | ok={ok} 败={notfound+empty+err} | {time.time()-t0:.0f}s")
+                        print(
+                            f"[{i}/{len(skins)}] NOT FOUND: {name[:42]} | "
+                            f"ok={ok} 败={notfound+empty+err} | {time.time()-t0:.0f}s"
+                        )
                     continue
                 rows = fetch_price_history(client, gid, DAYS_FETCH)
-                new_rows = [(d, p) for d, p in rows if d in TARGET_SET]
+                # 只补缺的目标日;已有的不覆盖删除逻辑的守恒前提
+                missing = TARGET_SET - existing
+                new_rows = [(d, p) for d, p in rows if d in missing]
                 if not new_rows:
                     empty += 1
                     failed.append((sid, name, "EMPTY"))
                     continue
-                # upsert 目标 5 天(最新真实价, raw, 不标 outlier; init 时 endpoint 修复兜底)
                 for d, p in new_rows:
                     price = round(float(p), 4)
                     conn.execute(
@@ -131,18 +170,23 @@ def run(limit: int | None = None, start: int = 0) -> dict:
                         (sid, added),
                     )
                 ]
-                # 防御: 不删目标日期本身(理论上 earliest 是 1 月, 不会撞 7 月)
+                # 防御: 不删目标日期本身
                 earliest = [d for d in earliest if d not in TARGET_SET]
                 for d in earliest:
                     conn.execute(
-                        "DELETE FROM price_history WHERE skin_id=? AND date=?", (sid, d)
+                        "DELETE FROM price_history WHERE skin_id=? AND date=?",
+                        (sid, d),
                     )
                 conn.commit()
                 added_total += added
                 deleted_total += len(earliest)
                 ok += 1
                 if i % 25 == 0 or i == len(skins):
-                    print(f"[{i}/{len(skins)}] ✓ {name[:38]} +{added} -{len(earliest)} | ok={ok} 跳={skipped} 败={notfound+empty+err} | +{added_total}/-{deleted_total} | {time.time()-t0:.0f}s")
+                    print(
+                        f"[{i}/{len(skins)}] ✓ {name[:38]} +{added} -{len(earliest)} | "
+                        f"ok={ok} 跳={skipped} 败={notfound+empty+err} | "
+                        f"+{added_total}/-{deleted_total} | {time.time()-t0:.0f}s"
+                    )
             except RateLimited as e:
                 print(f"\n[refresh] ⛔ 限流, 整批停止: {e}")
                 stopped = "rate_limited"
@@ -161,28 +205,39 @@ def run(limit: int | None = None, start: int = 0) -> dict:
         client.close()
 
     total_fail = notfound + empty + err
-    print(f"\n[refresh] {'⛔提前停止(' + stopped + ')' if stopped else '完成'}: "
-          f"ok={ok} 跳过={skipped} | NOT_FOUND={notfound} EMPTY={empty} ERR={err} | "
-          f"+{added_total}行 -{deleted_total}行 | 耗时 {time.time()-t0:.0f}s")
+    print(
+        f"\n[refresh] {'⛔提前停止(' + stopped + ')' if stopped else '完成'}: "
+        f"ok={ok} 跳过={skipped} | NOT_FOUND={notfound} EMPTY={empty} ERR={err} | "
+        f"+{added_total}行 -{deleted_total}行 | 耗时 {time.time()-t0:.0f}s"
+    )
     if failed:
-        # 把失败清单落盘, 方便回顾
         out = Path(__file__).resolve().parent / "refresh_failed.log"
-        with open(out, "w", encoding="utf-8") as f:
+        with out.open("w", encoding="utf-8") as f:
             f.write(f"# refresh_recent_days 失败清单 ({len(failed)} 件)\n")
             for sid, name, reason in failed:
                 f.write(f"{sid}\t{reason}\t{name}\n")
         print(f"[refresh] 失败清单 → {out.name}")
 
-    # 末尾再核对一次总量
     conn2 = sqlite3.connect(str(SEED_DB))
     total_now = conn2.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
     mn, mx = conn2.execute("SELECT MIN(date), MAX(date) FROM price_history").fetchone()
+    with_data = conn2.execute(
+        "SELECT COUNT(DISTINCT skin_id) FROM price_history"
+    ).fetchone()[0]
     conn2.close()
-    print(f"[refresh] 当前 price_history: {total_now} 行 | 日期 {mn} ~ {mx}")
+    print(f"[refresh] 当前 price_history: {total_now} 行 | 日期 {mn} ~ {mx} | 有行情 {with_data} 件")
     return {
-        "ok": ok, "skipped": skipped, "not_found": notfound, "empty": empty,
-        "err": err, "added": added_total, "deleted": deleted_total,
-        "total_rows": total_now, "stopped": stopped, "failed_count": total_fail,
+        "ok": ok,
+        "skipped": skipped,
+        "not_found": notfound,
+        "empty": empty,
+        "err": err,
+        "added": added_total,
+        "deleted": deleted_total,
+        "total_rows": total_now,
+        "with_data": with_data,
+        "stopped": stopped,
+        "failed_count": total_fail,
     }
 
 
@@ -190,8 +245,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--limit", type=int, default=None, help="只跑前 N 件(测试)")
     p.add_argument("--start", type=int, default=0, help="起始偏移(分批)")
+    p.add_argument(
+        "--min-days",
+        type=int,
+        default=DEFAULT_MIN_HISTORY_DAYS,
+        help="至少已有多少天历史才允许刷新(默认 61,防空目录回潮)",
+    )
     args = p.parse_args()
-    run(limit=args.limit, start=args.start)
+    run(limit=args.limit, start=args.start, min_history_days=args.min_days)
 
 
 if __name__ == "__main__":
