@@ -477,6 +477,7 @@ def refresh_ai_summary(
         [{"role": "user", "content": prompt}],
         temperature=0.3,
         system_prompt=DAILY_SYSTEM_PROMPT,
+        timeout=12.0,
     )
     if (
         text
