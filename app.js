@@ -1185,7 +1185,8 @@ const app = createApp({
     const dailyReport = ref({
       date: '',
       generatedAt: '',
-      metrics: { monitored: 20, gainers: 14, losers: 6 },
+      summaryProvider: '',
+      metrics: { monitored: 0, gainers: 0, losers: 0 },
       aiSummary: '',
       sources: [],
     });
@@ -1298,6 +1299,13 @@ const app = createApp({
         downPct: Math.round((l / total) * 100),
       };
     });
+    const dailySummaryBadge = computed(() => {
+      const provider = String(dailyReport.value?.summaryProvider || '').toLowerCase();
+      if (provider === 'deepseek') return t('daily.aiSummaryModel.deepseek');
+      if (provider === 'rule_based' || provider === 'rule') return t('daily.aiSummaryModel.rule');
+      if (provider === 'seed') return t('daily.aiSummaryModel.seed');
+      return t('daily.aiSummaryModel');
+    });
     const explainSummary = ref('');
     const portfolioDiagnose = ref(null);
     const portfolioDiagnoseLoading = ref(false);
@@ -1313,6 +1321,7 @@ const app = createApp({
         date: rep.date || '',
         generatedAt: rep.generatedAt || '',
         locale: localeKey,
+        summaryProvider: rep.summaryProvider || '',
         metrics: {
           monitored: rep.metrics?.monitored ?? skins.value.length,
           gainers: rep.metrics?.gainers ?? topGainers.value.length,
@@ -5813,7 +5822,7 @@ const app = createApp({
       responseModelLabel, latestAgentResult, agentResultLines, runSkinAction, openPredictionResult, continueDebate,
       debateTotalRounds, copyDebateResult, isDebateInProgress, debateStageHint, debateStageStep,
       // 资讯 / 日报
-      newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth,
+      newsFeed, dailyReport, loadDailyReport, dailyReportLoading, dailyBreadth, dailySummaryBadge,
       dailyTab, setDailyTab, dailySourcesOpen,
       regenerateDailyReport, exportDailyReport,
       localizedHeadline, localizedNewsImpact,

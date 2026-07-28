@@ -46,7 +46,7 @@
   <!-- (使用 js/phosphor-svg.js 加载) -->
 
   <!-- 自定义样式（?v= 必须随 style.css 内容变更；服务器部署脚本也会用 git short SHA 覆盖） -->
-  <link rel="stylesheet" href="style.css?v=20260728-mobile-account-icon" />
+  <link rel="stylesheet" href="style.css?v=20260728-daily-truth" />
   <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20260727-cs1" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20260727-cs1" />
 </head>
@@ -1876,7 +1876,7 @@
                   <div class="daily-feature__label">{{ t('daily.aiSummary') }}</div>
                   <p class="daily-feature__caption">{{ t('daily.aiSummaryLead') }}</p>
                 </div>
-                <span class="tag tag-orange">{{ t('daily.aiSummaryModel') }}</span>
+                <span class="tag tag-orange">{{ dailySummaryBadge }}</span>
               </div>
               <div class="daily-feature__body">
                 <p v-if="dailyReport.aiSummary" class="daily-feature__text" v-html="renderCitations(dailyReport.aiSummary)"></p>
@@ -3493,13 +3493,13 @@
 
   <!-- 脚本（?v= 防止 GitHub Pages / CDN 缓存旧资源；部署时会用 git SHA 再戳一次） -->
   <script src="data.js?v=20260727-backend-fonts"></script>
-  <script src="i18n.js?v=20260727-backend-fonts"></script>
+  <script src="i18n.js?v=20260728-daily-truth"></script>
   <script src="js/skin-names-zh.js?v=20260727-backend-fonts"></script>
   <script src="js/api.js?v=20260727-backend-fonts"></script>
   <script src="js/auth.js?v=20260727-backend-fonts"></script>
   <script src="js/lucide-icons.js?v=20260727-backend-fonts"></script>
   <script src="js/landing-scenes.js?v=20260727-backend-fonts"></script>
   <script src="js/landing-scroll.js?v=20260727-backend-fonts"></script>
-  <script src="app.js?v=20260727-inv-menu-portal"></script>
+  <script src="app.js?v=20260728-daily-truth"></script>
 </body>
 </html>
